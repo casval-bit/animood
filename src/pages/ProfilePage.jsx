@@ -235,6 +235,7 @@ function ProfilePage({onOpenDetail, onOpenSettings}) {
   const [bioInput, setBioInput]           = useState(me.bio||"");
   const [dragOver, setDragOver]           = useState(null);
   const [dragging, setDragging]           = useState(null);
+  const [editingFavs, setEditingFavs]     = useState(false);
 
   const fetchAnime = async (id) => {
     if(!id || animeCache[id]) return;
@@ -389,40 +390,83 @@ function ProfilePage({onOpenDetail, onOpenSettings}) {
             </div>
           </div>
 
-          {/* Favoris avec drag & drop */}
+          {/* Favoris — mobile style */}
           <div style={{marginBottom:"22px"}}>
-            <div style={{fontSize:"11px",fontWeight:700,color:"#6b7280",textTransform:"uppercase",letterSpacing:"1px",marginBottom:"10px"}}>❤️ Favoris</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"10px"}}>
+              <div style={{fontSize:"11px",fontWeight:700,color:"#6b7280",textTransform:"uppercase",letterSpacing:"1px"}}>❤️ Favoris</div>
+              {editingFavs
+                ? <button onClick={()=>setEditingFavs(false)} style={{fontSize:"11px",fontWeight:700,color:"#c084fc",background:"none",border:"none",cursor:"pointer"}}>Terminé</button>
+                : <button onClick={()=>setEditingFavs(true)} style={{fontSize:"11px",fontWeight:600,color:"#6b7280",background:"none",border:"none",cursor:"pointer"}}>Modifier</button>}
+            </div>
             <div style={{display:"flex",gap:"6px"}}>
               {(me.favorites||[null,null,null,null,null]).slice(0,5).map((favId,slotIdx)=>{
                 const a = favId ? getAnime(favId) : null;
                 const img = a?.images?.jpg?.large_image_url || a?.images?.jpg?.image_url;
                 const isDragOver = dragOver === slotIdx;
+                const isBeingDragged = dragging === slotIdx;
                 return (
-                  <div key={slotIdx}
-                    draggable={!!a}
-                    onDragStart={()=>handleDragStart(slotIdx)}
-                    onDragOver={e=>handleDragOver(e,slotIdx)}
-                    onDrop={()=>handleDrop(slotIdx)}
-                    onDragEnd={()=>{setDragging(null);setDragOver(null);}}
-                    style={{flex:1,aspectRatio:"2/3",borderRadius:"8px",overflow:"hidden",maxWidth:"64px",
-                      background:a?"rgba(255,255,255,0.04)":"rgba(255,255,255,0.03)",
-                      border:isDragOver?"2px solid #7c3aed":a?"1px solid rgba(255,255,255,0.08)":"2px dashed rgba(255,255,255,0.1)",
-                      cursor:a?"grab":"pointer",position:"relative",transition:"border 0.15s",
-                      opacity:dragging===slotIdx?0.5:1,transform:isDragOver?"scale(1.05)":"scale(1)"}}
-                    onClick={()=>{if(!a)setFavPopup(slotIdx);else onOpenDetail(a);}}
-                    onMouseDown={()=>{if(a)startHold("fav",slotIdx);}}
-                    onMouseUp={cancelHold} onMouseLeave={cancelHold}
-                    onTouchStart={()=>{if(a)startHold("fav",slotIdx);}}
-                    onTouchEnd={cancelHold}>
-                    {a&&img?<img src={img} alt={a.title} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.src="https://placehold.co/64x96/1a1a2e/818cf8?text=?";}}/>
-                     :a?<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner small/></div>
-                     :<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"22px",color:"rgba(255,255,255,0.2)"}}>+</div>}
+                  <div key={slotIdx} style={{flex:1,maxWidth:"64px",position:"relative",
+                    animation: editingFavs && a ? "wiggle 0.3s ease infinite alternate" : "none"}}>
+
+                    {/* Main poster */}
+                    <div
+                      draggable={editingFavs && !!a}
+                      onDragStart={()=>editingFavs&&handleDragStart(slotIdx)}
+                      onDragOver={e=>editingFavs&&handleDragOver(e,slotIdx)}
+                      onDrop={()=>editingFavs&&handleDrop(slotIdx)}
+                      onDragEnd={()=>{setDragging(null);setDragOver(null);}}
+                      onClick={()=>{ if(editingFavs) return; if(!a) setFavPopup(slotIdx); else onOpenDetail(a); }}
+                      style={{aspectRatio:"2/3",borderRadius:"8px",overflow:"hidden",
+                        background:a?"rgba(255,255,255,0.04)":"rgba(255,255,255,0.03)",
+                        border:isDragOver?"2px solid #7c3aed":editingFavs&&a?"2px solid rgba(124,58,237,0.5)":a?"1px solid rgba(255,255,255,0.08)":"2px dashed rgba(255,255,255,0.1)",
+                        cursor:editingFavs?(a?"grab":"default"):"pointer",
+                        opacity:isBeingDragged?0.4:1,
+                        transform:isDragOver?"scale(1.05)":"scale(1)",
+                        transition:"transform 0.15s,border 0.15s"}}>
+                      {a&&img
+                        ? <img src={img} alt={a.title} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.src="https://placehold.co/64x96/1a1a2e/818cf8?text=?";}}/>
+                        : a
+                          ? <div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner small/></div>
+                          : editingFavs
+                            ? <div onClick={()=>setFavPopup(slotIdx)} style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"20px",color:"rgba(255,255,255,0.2)",cursor:"pointer"}}>+</div>
+                            : <div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"20px",color:"rgba(255,255,255,0.2)"}}>+</div>}
+                    </div>
+
+                    {/* Edit mode overlays */}
+                    {editingFavs && a && (<>
+                      {/* Move icon — top left */}
+                      <div style={{position:"absolute",top:"-6px",left:"-6px",width:"20px",height:"20px",
+                        borderRadius:"50%",background:"rgba(30,20,50,0.95)",border:"1px solid rgba(255,255,255,0.2)",
+                        display:"flex",alignItems:"center",justifyContent:"center",fontSize:"10px",
+                        cursor:"grab",zIndex:10}}>⤢</div>
+                      {/* Delete icon — top right */}
+                      <div onClick={()=>{
+                          const newFavs=[...(me.favorites||[null,null,null,null,null])];
+                          newFavs[slotIdx]=null;
+                          const updated={...me,favorites:newFavs};
+                          setMe(updated);saveProfile("brice",updated);
+                        }}
+                        style={{position:"absolute",top:"-6px",right:"-6px",width:"20px",height:"20px",
+                          borderRadius:"50%",background:"#ef4444",border:"2px solid #09080f",
+                          display:"flex",alignItems:"center",justifyContent:"center",fontSize:"10px",
+                          cursor:"pointer",zIndex:10,color:"#fff",fontWeight:900}}>✕</div>
+                    </>)}
+
+                    {/* Add button in edit mode on empty slot */}
+                    {editingFavs && !a && (
+                      <div onClick={()=>setFavPopup(slotIdx)}
+                        style={{position:"absolute",inset:0,display:"flex",alignItems:"center",
+                          justifyContent:"center",cursor:"pointer"}}/>
+                    )}
                   </div>
                 );
               })}
             </div>
-            <div style={{fontSize:"9px",color:"#374151",marginTop:"6px",textAlign:"center"}}>Maintiens pour retirer · Glisse pour réordonner</div>
+            <div style={{fontSize:"9px",color:"#374151",marginTop:"6px",textAlign:"center"}}>
+              {editingFavs ? "Glisse pour réordonner · ✕ pour supprimer" : "Appuie sur Modifier pour changer tes favoris"}
+            </div>
           </div>
+          <style>{`@keyframes wiggle{from{transform:rotate(-1.5deg)}to{transform:rotate(1.5deg)}}`}</style>
 
           {/* Derniers complétés */}
           <div style={{marginBottom:"22px"}}>

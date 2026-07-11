@@ -221,17 +221,12 @@ function MoodboardPage({onShowResults}) {
           {[...MOODS.slice(0,4),null,...MOODS.slice(4)].map((m,idx)=>{
             if(!m) return (
               <button key="info" onClick={()=>setShowMoodInfo(true)}
-                style={{border:"none",borderRadius:"14px",padding:"14px 6px 12px",
-                  background:"linear-gradient(135deg,rgba(124,58,237,0.2),rgba(129,140,248,0.1))",
-                  cursor:"pointer",textAlign:"center",transition:"all 0.2s",
-                  boxShadow:"0 0 0 1px rgba(192,132,252,0.25)"}}
-                onMouseEnter={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(124,58,237,0.35),rgba(129,140,248,0.2))";e.currentTarget.style.boxShadow="0 0 0 1px rgba(192,132,252,0.5)";}}
-                onMouseLeave={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(124,58,237,0.2),rgba(129,140,248,0.1))";e.currentTarget.style.boxShadow="0 0 0 1px rgba(192,132,252,0.25)";}}>
-                <div style={{fontSize:"22px",marginBottom:"6px",
-                  background:"linear-gradient(135deg,#c084fc,#818cf8)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",
-                  fontWeight:900}}>?</div>
-                <div style={{fontSize:"10px",fontWeight:700,
-                  background:"linear-gradient(135deg,#c084fc,#818cf8)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Guide</div>
+                style={{border:"1px dashed rgba(255,255,255,0.1)",borderRadius:"14px",padding:"14px 6px 12px",
+                  background:"rgba(255,255,255,0.02)",cursor:"pointer",textAlign:"center",transition:"all 0.15s"}}
+                onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.06)"}
+                onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}>
+                <div style={{fontSize:"22px",marginBottom:"6px",color:"#374151"}}>?</div>
+                <div style={{fontSize:"10px",fontWeight:600,color:"#374151"}}>Infos</div>
               </button>
             );
             const sel=selectedMoods.includes(m.id);
