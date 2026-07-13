@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { useApp, STATUS_COLORS, AVATAR_EMOJIS, MOOD_KEYS } from "../constants.js";
 import { jikan } from "../api/jikan.js";
 import { getCombinedPts } from "../api/moods.js";
-import { saveProfile } from "../api/supabase.js";
+import { saveProfile, sb, follows } from "../api/supabase.js";
 import { Spinner, ScoreChart, MoodOctagon, FavoriteSearchPopup } from "../components/ui.jsx";
+import { FRAMES, getUnlockedFrames, getBestFrame, FrameSVG } from "../frames.js";
 
 // ─── PROFILE PAGE ─────────────────────────────────────────────────────────────
 // ─── AVATAR EMOJIS ────────────────────────────────────────────────────────────
@@ -231,6 +232,9 @@ function ProfilePage({onOpenDetail, onOpenSettings}) {
   const [holdTimer, setHoldTimer]         = useState(null);
   const [confirmRemove, setConfirmRemove] = useState(null);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [showFramePicker,  setShowFramePicker]  = useState(false);
+  const [unlockedFrames,   setUnlockedFrames]   = useState([]);
+  const [activeFrame,      setActiveFrame]      = useState(null);
   const [editingBio, setEditingBio]       = useState(false);
   const [bioInput, setBioInput]           = useState(me.bio||"");
   const [dragOver, setDragOver]           = useState(null);
@@ -266,6 +270,51 @@ function ProfilePage({onOpenDetail, onOpenSettings}) {
       .filter(([,s])=>s==="watchlist").map(([id])=>parseInt(id)).slice(0,40);
     watchlistIds.forEach(id => fetchAnime(id));
   }, [tab]);
+
+  // Load frames
+  useEffect(()=>{
+    async function loadFrames() {
+      try {
+        const myUsername = me.id || me.name?.toLowerCase().replace(/\s/g,"")||"brice";
+        const [followerRows, voteRows] = await Promise.all([
+          follows.getFollowers(myUsername),
+          sb.query(`user_votes?username=eq.${myUsername}&select=pts_added&limit=1000`),
+        ]);
+
+        // Genre counts from watched anime
+        const genreCounts = {};
+        const chunks = [];
+        for(let i=0; i<me.watched.length; i+=100) chunks.push(me.watched.slice(i,i+100));
+        for(const chunk of chunks) {
+          try {
+            const rows = await sb.query(`anime_cache?mal_id=in.(${chunk.join(",")})&select=genres`);
+            (rows||[]).forEach(row=>{
+              (row.genres||[]).forEach(g=>{
+                const name=g.name||g;
+                genreCounts[name]=(genreCounts[name]||0)+1;
+              });
+            });
+          } catch {}
+        }
+
+        const unlocked = getUnlockedFrames({
+          watchedCount: me.watched.length,
+          genreCounts,
+          followerCount: followerRows.length,
+          userVotes: voteRows||[],
+        });
+
+        setUnlockedFrames(unlocked);
+
+        // Set active frame — use saved preference or best unlocked
+        const savedFrameId = me.activeFrame;
+        const saved = savedFrameId ? FRAMES[savedFrameId] : null;
+        const best  = getBestFrame(unlocked);
+        setActiveFrame(saved && unlocked.find(f=>f.id===savedFrameId) ? saved : best);
+      } catch(e) { console.error("Frame load error:", e); }
+    }
+    loadFrames();
+  }, [me.watched.length]);
 
   const getAnime = id => animeCache[id] || {mal_id:id, title:`MAL #${id}`, images:{jpg:{}}};
   const rated    = Object.keys(me.ratings).map(Number);
@@ -345,19 +394,28 @@ function ProfilePage({onOpenDetail, onOpenSettings}) {
           {/* Avatar + stats */}
           <div style={{display:"flex",alignItems:"center",gap:"16px",marginBottom:"16px"}}>
             <div style={{position:"relative"}}>
-              <div onClick={()=>setShowAvatarPicker(true)}
-                style={{width:"72px",height:"72px",borderRadius:"50%",background:"linear-gradient(135deg,#7c3aed,#4f46e5)",
-                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:"32px",flexShrink:0,
-                  boxShadow:"0 0 0 3px rgba(124,58,237,0.3)",cursor:"pointer",transition:"transform 0.15s",overflow:"hidden"}}
-                onMouseEnter={e=>e.currentTarget.style.transform="scale(1.05)"}
-                onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
-                {me.avatar && me.avatar.startsWith("http")
-                  ? <img src={me.avatar} alt="avatar" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-                  : me.avatar}
-              </div>
+              <FrameSVG frame={activeFrame} size={72}>
+                <div onClick={()=>setShowAvatarPicker(true)}
+                  style={{width:"72px",height:"72px",borderRadius:"50%",background:"linear-gradient(135deg,#7c3aed,#4f46e5)",
+                    display:"flex",alignItems:"center",justifyContent:"center",fontSize:"32px",flexShrink:0,
+                    cursor:"pointer",transition:"transform 0.15s",overflow:"hidden"}}
+                  onMouseEnter={e=>e.currentTarget.style.transform="scale(1.05)"}
+                  onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
+                  {me.avatar && me.avatar.startsWith("http")
+                    ? <img src={me.avatar} alt="avatar" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                    : me.avatar}
+                </div>
+              </FrameSVG>
+              {/* Edit avatar button */}
               <div style={{position:"absolute",bottom:0,right:0,width:"20px",height:"20px",borderRadius:"50%",
                 background:"#7c3aed",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"10px",
                 border:"2px solid #09080f",cursor:"pointer"}} onClick={()=>setShowAvatarPicker(true)}>✏️</div>
+              {/* Frame button */}
+              {unlockedFrames.length > 0 && (
+                <div style={{position:"absolute",top:0,right:0,width:"20px",height:"20px",borderRadius:"50%",
+                  background:"#4f46e5",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"9px",
+                  border:"2px solid #09080f",cursor:"pointer"}} onClick={()=>setShowFramePicker(true)}>🖼</div>
+              )}
             </div>
             <div style={{flex:1}}>
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"8px"}}>
@@ -466,7 +524,7 @@ function ProfilePage({onOpenDetail, onOpenSettings}) {
               {editingFavs ? "Glisse pour réordonner · ✕ pour supprimer" : "Appuie sur Modifier pour changer tes favoris"}
             </div>
           </div>
-          <style>{`@keyframes wiggle{from{transform:rotate(-1.5deg)}to{transform:rotate(1.5deg)}}`}</style>
+          <style>{`@keyframes wiggle{from{transform:rotate(-1.5deg)}to{transform:rotate(1.5deg)}} @keyframes crystalPulse{0%,100%{box-shadow:0 0 16px #A5F3FC,0 0 32px #7DD3FC}50%{box-shadow:0 0 24px #A5F3FC,0 0 48px #7DD3FC}}`}</style>
 
           {/* Derniers complétés */}
           <div style={{marginBottom:"22px"}}>
@@ -617,6 +675,56 @@ function ProfilePage({onOpenDetail, onOpenSettings}) {
                  </div>
                ))}
              </div>}
+        </div>
+      )}
+
+      {/* Frame picker */}
+      {showFramePicker&&(
+        <div onClick={()=>setShowFramePicker(false)} style={{position:"absolute",inset:0,zIndex:601,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"flex-end"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#161226",borderRadius:"20px 20px 0 0",border:"1px solid rgba(255,255,255,0.1)",padding:"24px",width:"100%",maxHeight:"70vh",overflowY:"auto"}}>
+            <div style={{fontSize:"14px",fontWeight:800,color:"#f3f4f6",marginBottom:"6px",textAlign:"center"}}>🖼 Cadres débloqués</div>
+            <div style={{fontSize:"11px",color:"#6b7280",textAlign:"center",marginBottom:"16px"}}>{unlockedFrames.length} cadre{unlockedFrames.length!==1?"s":""} débloqué{unlockedFrames.length!==1?"s":""}</div>
+
+            {/* No frame option */}
+            <div onClick={()=>{setActiveFrame(null);const u={...me,activeFrame:null};setMe(u);saveProfile("brice",u);setShowFramePicker(false);}}
+              style={{display:"flex",alignItems:"center",gap:"12px",padding:"10px",borderRadius:"12px",cursor:"pointer",
+                border:!activeFrame?"2px solid #7c3aed":"2px solid transparent",
+                background:!activeFrame?"rgba(124,58,237,0.1)":"transparent",marginBottom:"10px"}}>
+              <div style={{width:"44px",height:"44px",borderRadius:"50%",background:"rgba(255,255,255,0.05)",border:"2px dashed rgba(255,255,255,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"18px"}}>🚫</div>
+              <div><div style={{fontSize:"12px",fontWeight:700,color:"#f3f4f6"}}>Aucun cadre</div><div style={{fontSize:"10px",color:"#6b7280"}}>Avatar sans cadre</div></div>
+            </div>
+
+            <div style={{display:"flex",flexDirection:"column",gap:"8px"}}>
+              {["watched","contribution","followers","genre"].map(cat=>{
+                const catFrames = unlockedFrames.filter(f=>f.category===cat);
+                if(!catFrames.length) return null;
+                const catLabels = {watched:"📺 Animés vus",contribution:"🗳️ Contribution",followers:"👥 Followers",genre:"🎌 Genre"};
+                return (
+                  <div key={cat}>
+                    <div style={{fontSize:"10px",fontWeight:700,color:"#4b5563",textTransform:"uppercase",letterSpacing:"1px",marginBottom:"6px"}}>{catLabels[cat]}</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:"8px"}}>
+                      {catFrames.map(frame=>{
+                        const isActive = activeFrame?.id===frame.id;
+                        const size=44;
+                        return (
+                          <div key={frame.id} onClick={()=>{setActiveFrame(frame);const u={...me,activeFrame:frame.id};setMe(u);saveProfile("brice",u);setShowFramePicker(false);}}
+                            style={{cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:"4px",
+                              padding:"8px",borderRadius:"12px",border:isActive?"2px solid #7c3aed":"2px solid transparent",
+                              background:isActive?"rgba(124,58,237,0.1)":"rgba(255,255,255,0.03)"}}>
+                            <div style={{position:"relative",width:size,height:size}}>
+                              <div style={{width:size,height:size,borderRadius:"50%",background:"linear-gradient(135deg,#7c3aed,#4f46e5)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"18px"}}>👤</div>
+                              <svg style={{position:"absolute",inset:0}} viewBox={`0 0 ${size} ${size}`} dangerouslySetInnerHTML={{__html:frame.svg(size)}}/>
+                            </div>
+                            <div style={{fontSize:"9px",fontWeight:700,color:frame.color,textAlign:"center",maxWidth:"52px",lineHeight:1.2}}>{frame.label}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 

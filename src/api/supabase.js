@@ -56,6 +56,7 @@ export const sb = {
       favorites:        data.favorites,
       hidden_completed: data.hiddenCompleted || data.hidden_completed || [],
       posts:            data.posts,
+      active_frame:     data.activeFrame || null,
       updated_at:       data.updated_at,
     };
     return this.query("profiles?on_conflict=username", {
@@ -121,7 +122,11 @@ export async function loadProfile(username) {
   try {
     const remote = await sb.getProfile(username);
     if(remote) {
-      const profile = { ...remote, hiddenCompleted: remote.hidden_completed || remote.hiddenCompleted || [] };
+      const profile = {
+        ...remote,
+        hiddenCompleted: remote.hidden_completed || remote.hiddenCompleted || [],
+        activeFrame: remote.active_frame || remote.activeFrame || null,
+      };
       localStorage.setItem(`animood_profile_${username}`, JSON.stringify(profile));
       return profile;
     }

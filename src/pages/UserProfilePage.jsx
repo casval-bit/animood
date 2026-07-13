@@ -3,6 +3,7 @@ import { useApp, STATUS_COLORS } from "../constants.js";
 import { sb, follows, loadProfile } from "../api/supabase.js";
 import { jikan } from "../api/jikan.js";
 import { Spinner } from "../components/ui.jsx";
+import { FRAMES, FrameSVG } from "../frames.js";
 
 export function UserProfilePage({ username, onClose }) {
   const { me, myUsername } = useApp();
@@ -111,15 +112,16 @@ export function UserProfilePage({ username, onClose }) {
           {/* Header */}
           <div style={{padding:"16px 18px 0",flexShrink:0}}>
             <div style={{display:"flex",alignItems:"center",gap:"14px",marginBottom:"14px"}}>
-              {/* Avatar */}
-              <div style={{width:"60px",height:"60px",borderRadius:"50%",flexShrink:0,
-                background:"linear-gradient(135deg,#7c3aed,#4f46e5)",
-                display:"flex",alignItems:"center",justifyContent:"center",fontSize:"26px",overflow:"hidden",
-                boxShadow:"0 0 0 2px rgba(124,58,237,0.3)"}}>
-                {profile.avatar && profile.avatar.startsWith("http")
-                  ? <img src={profile.avatar} alt={profile.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-                  : (profile.avatar||"👤")}
-              </div>
+              {/* Avatar with frame */}
+              <FrameSVG frame={profile.activeFrame ? FRAMES[profile.activeFrame] : null} size={60}>
+                <div style={{width:"60px",height:"60px",borderRadius:"50%",flexShrink:0,
+                  background:"linear-gradient(135deg,#7c3aed,#4f46e5)",
+                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:"26px",overflow:"hidden"}}>
+                  {profile.avatar && profile.avatar.startsWith("http")
+                    ? <img src={profile.avatar} alt={profile.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                    : (profile.avatar||"👤")}
+                </div>
+              </FrameSVG>
 
               {/* Name + bio */}
               <div style={{flex:1}}>

@@ -1,6 +1,9 @@
-// ─── Tag moods for new anime — statistically normalized ──────────────────────
-// Uses real distribution stats from mood_pts_v2 to normalize LLM output
-// so new anime fit naturally within the existing mood space
+// ─── Tag moods ONLY for anime that have aired ────────────────────────────────
+// Rules:
+// - ONLY tag anime where status = 'Finished Airing' OR 'Currently Airing'
+// - NEVER tag 'Not yet aired' — wait until it actually airs
+// - Skip anime already in mood_pts_v2
+// - Statistically normalized to match real DB distribution
 
 const SUPABASE_URL  = process.env.SUPABASE_URL;
 const SUPABASE_ANON = process.env.SUPABASE_ANON;
@@ -8,10 +11,15 @@ const GROQ_KEY      = process.env.GROQ_API_KEY;
 const GROQ_URL      = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL    = "meta-llama/llama-4-scout-17b-16e-instruct";
 const DELAY_MS      = 400;
-const MAX_PER_RUN   = 200; // max anime to tag per workflow run
+const MAX_PER_RUN   = 200;
 
-// ─── Real distribution stats from mood_pts_v2 ────────────────────────────────
-// Source: SELECT avg/min/max per mood WHERE emotional>0 OR happy>0
+// Statuses that qualify for mood tagging
+const AIRED_STATUSES = new Set([
+  "Finished Airing",
+  "Currently Airing",
+]);
+
+// Real distribution stats from mood_pts_v2
 const STATS = {
   emotional: { avg: 8,  min: 0, max: 56 },
   happy:     { avg: 12, min: 0, max: 42 },
@@ -22,8 +30,8 @@ const STATS = {
   in_love:   { avg: 8,  min: 0, max: 54 },
   thrills:   { avg: 5,  min: 0, max: 33 },
 };
-const TARGET_TOTAL = 78; // avg total pts per anime in DB
-const MOOD_KEYS    = Object.keys(STATS);
+const TARGET_TOTAL = 78;
+const MOOD_KEYS = Object.keys(STATS);
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const SB_HEADERS = {
@@ -48,18 +56,17 @@ async function sbUpsert(row) {
   if(!r.ok) throw new Error(await r.text());
 }
 
-// Ask LLM for relative mood percentages (0-100 each, independent)
 async function getMoodPcts(anime, attempt=0) {
-  const genres = (anime.genres||[]).map(g=>g.name||g).join(", ") || "Unknown";
+  const genres   = (anime.genres||[]).map(g=>g.name||g).join(", ") || "Unknown";
   const synopsis = (anime.synopsis||"").slice(0,400);
 
   const prompt = `You are an expert anime analyst. For "${anime.title}" (${anime.year||"?"}, ${anime.type||"?"}, MAL score: ${anime.score||"?"}):
 Genres: ${genres}
 Synopsis: ${synopsis}
 
-Rate each mood from 0 to 100 independently (not a distribution, each mood stands alone):
+Rate each mood from 0 to 100 independently:
 - 0 = completely absent
-- 50 = moderately present  
+- 50 = moderately present
 - 100 = extremely dominant
 
 Moods:
@@ -70,7 +77,7 @@ Moods:
 - chill: calm, relaxing, slice-of-life
 - twisted: psychological, mind games, plot twists
 - in_love: romance, heartwarming
-- thrills: narrative tension, suspense, edge-of-seat (NOT action — that's hype)
+- thrills: narrative tension, suspense (NOT action)
 
 Reply ONLY with JSON: {"emotional":N,"happy":N,"hype":N,"dark":N,"chill":N,"twisted":N,"in_love":N,"thrills":N}`;
 
@@ -80,11 +87,7 @@ Reply ONLY with JSON: {"emotional":N,"happy":N,"hype":N,"dark":N,"chill":N,"twis
     body: JSON.stringify({ model:GROQ_MODEL, messages:[{role:"user",content:prompt}], max_tokens:120, temperature:0.2 }),
   });
 
-  if(res.status===429) {
-    await sleep(10000*(attempt+1));
-    if(attempt<4) return getMoodPcts(anime, attempt+1);
-    throw new Error("Rate limit exceeded");
-  }
+  if(res.status===429) { await sleep(10000*(attempt+1)); if(attempt<4) return getMoodPcts(anime,attempt+1); throw new Error("Rate limit"); }
   if(!res.ok) throw new Error(`Groq ${res.status}`);
 
   const data = await res.json();
@@ -98,48 +101,33 @@ Reply ONLY with JSON: {"emotional":N,"happy":N,"hype":N,"dark":N,"chill":N,"twis
   return pcts;
 }
 
-// Convert relative LLM percentages → actual pts using real DB distribution
-// Formula: pts = avg + (pct/100 - 0.5) * (max - avg) * 2
-// This maps 0%→min, 50%→avg, 100%→max
-// Then normalize total to TARGET_TOTAL
 function normalizeMoods(pcts) {
   const raw = {};
   MOOD_KEYS.forEach(k => {
     const s = STATS[k];
-    const t = pcts[k] / 100; // 0.0 to 1.0
-    if(t <= 0.5) {
-      // Map 0→min, 0.5→avg
-      raw[k] = s.min + (t / 0.5) * (s.avg - s.min);
-    } else {
-      // Map 0.5→avg, 1.0→max
-      raw[k] = s.avg + ((t - 0.5) / 0.5) * (s.max - s.avg);
-    }
-    raw[k] = Math.round(Math.max(0, raw[k]));
+    const t = pcts[k] / 100;
+    raw[k] = t <= 0.5
+      ? Math.round(s.min + (t / 0.5) * (s.avg - s.min))
+      : Math.round(s.avg + ((t - 0.5) / 0.5) * (s.max - s.avg));
+    raw[k] = Math.max(0, raw[k]);
   });
 
-  // Normalize total to TARGET_TOTAL (excluding thrills which has its own scale)
-  const moodsExcludingThrills = MOOD_KEYS.filter(k=>k!=="thrills");
-  const currentTotal = moodsExcludingThrills.reduce((sum,k)=>sum+raw[k], 0);
-  const targetNoThrills = TARGET_TOTAL - raw.thrills;
-
-  if(currentTotal > 0 && targetNoThrills > 0) {
-    const scale = targetNoThrills / currentTotal;
-    moodsExcludingThrills.forEach(k => { raw[k] = Math.round(raw[k] * scale); });
+  // Normalize total (excluding thrills)
+  const excl = MOOD_KEYS.filter(k=>k!=="thrills");
+  const cur = excl.reduce((s,k)=>s+raw[k],0);
+  const target = TARGET_TOTAL - raw.thrills;
+  if(cur > 0 && target > 0) {
+    const scale = target / cur;
+    excl.forEach(k => { raw[k] = Math.round(raw[k]*scale); });
   }
-
-  // Thrills stays on its own 0-33 scale
   raw.thrills = Math.min(33, raw.thrills);
-
   return raw;
 }
 
-// Genre-based fallback if Groq fails
 function genreFallback(anime) {
   const n = (anime.genres||[]).map(g=>(g.name||g).toLowerCase());
-  // Start from averages
   const pcts = {};
-  MOOD_KEYS.forEach(k => { pcts[k] = 50; }); // start at avg
-
+  MOOD_KEYS.forEach(k => { pcts[k] = 50; });
   if(n.some(g=>["action","fighting","martial arts"].includes(g)))  pcts.hype=80;
   if(n.some(g=>["thriller","mystery"].includes(g)))                { pcts.twisted=75; pcts.thrills=65; }
   if(n.some(g=>["psychological"].includes(g)))                     { pcts.twisted=80; pcts.dark=60; }
@@ -149,30 +137,56 @@ function genreFallback(anime) {
   if(n.some(g=>["slice of life","iyashikei"].includes(g)))         { pcts.chill=85; pcts.happy=65; }
   if(n.some(g=>["romance"].includes(g)))                           pcts.in_love=80;
   if(n.some(g=>["sports"].includes(g)))                            { pcts.happy=70; pcts.hype=65; }
-
   return normalizeMoods(pcts);
 }
 
 async function main() {
-  console.log("🎭 Tag moods for new anime (statistically normalized)");
-  console.log(`   Target total pts: ${TARGET_TOTAL} | Distribution-based normalization`);
+  console.log("🎭 AniMood — Mood Sync (aired anime only)");
+  console.log("==========================================");
 
-  // Find anime in anime_cache missing from mood_pts_v2
-  console.log("\n📊 Finding anime without moods...");
+  // Get all mal_ids already mooded
+  console.log("📊 Loading existing mood IDs...");
+  const moodSet = new Set();
+  let offset = 0;
+  while(true) {
+    const rows = await sbQuery(`mood_pts_v2?select=mal_id&limit=1000&offset=${offset}`);
+    if(!rows?.length) break;
+    rows.forEach(r => moodSet.add(r.mal_id));
+    if(rows.length < 1000) break;
+    offset += 1000;
+  }
+  console.log(`  ${moodSet.size} anime already mooded`);
 
-  // Get all mal_ids from both tables
-  const cacheRows = await sbQuery("anime_cache?select=mal_id,title,synopsis,genres,score,year,type&order=score.desc.nullslast&limit=5000");
-  const moodRows  = await sbQuery("mood_pts_v2?select=mal_id&limit=5000");
-  const moodSet   = new Set((moodRows||[]).map(r=>r.mal_id));
-  const missing   = (cacheRows||[]).filter(a=>!moodSet.has(a.mal_id));
+  // Find anime that:
+  // 1. Are in anime_cache
+  // 2. Have AIRED (status = Finished Airing or Currently Airing)
+  // 3. Are NOT yet in mood_pts_v2
+  console.log("\n🔍 Finding aired anime without moods...");
+  const candidates = [];
+  offset = 0;
+  while(true) {
+    const rows = await sbQuery(
+      `anime_cache?select=mal_id,title,synopsis,genres,score,year,type,status` +
+      `&status=in.(Finished Airing,Currently Airing)` +
+      `&limit=1000&offset=${offset}`
+    );
+    if(!rows?.length) break;
+    rows.filter(a => !moodSet.has(a.mal_id)).forEach(a => candidates.push(a));
+    if(rows.length < 1000) break;
+    offset += 1000;
+  }
 
-  console.log(`   ${missing.length} anime need moods (processing up to ${MAX_PER_RUN})`);
+  // Sort by score desc — tag best anime first
+  candidates.sort((a,b) => (b.score||0) - (a.score||0));
 
-  if(missing.length === 0) { console.log("✅ All up to date"); return; }
+  console.log(`  ${candidates.length} aired anime need moods`);
+  console.log(`  Processing up to ${MAX_PER_RUN} this run (best scored first)`);
 
-  let tagged=0, fallbacks=0;
+  if(candidates.length === 0) { console.log("\n✅ All aired anime are mooded!"); return; }
 
-  for(const anime of missing.slice(0, MAX_PER_RUN)) {
+  let tagged = 0, fallbacks = 0, skippedNotAired = 0;
+
+  for(const anime of candidates.slice(0, MAX_PER_RUN)) {
     try {
       let pts;
       try {
@@ -184,20 +198,19 @@ async function main() {
         process.stdout.write("~");
         fallbacks++;
       }
-
       await sbUpsert({ mal_id: anime.mal_id, ...pts });
       tagged++;
       await sleep(DELAY_MS);
-
     } catch(e) {
       console.error(`\n  ✗ ${anime.mal_id} (${anime.title?.slice(0,30)}): ${e.message}`);
     }
   }
 
-  console.log(`\n\n✅ Done — ${tagged} tagged (${fallbacks} fallbacks)`);
-  if(missing.length > MAX_PER_RUN) {
-    console.log(`   ${missing.length - MAX_PER_RUN} remaining — will process next run`);
-  }
+  const remaining = Math.max(0, candidates.length - MAX_PER_RUN);
+  console.log(`\n\n==========================================`);
+  console.log(`✅ Moods tagged: ${tagged} (${fallbacks} fallbacks)`);
+  if(remaining > 0) console.log(`   ${remaining} remaining — will process next weekly run`);
+  console.log(`   Not yet aired anime: skipped (will be tagged once they air)`);
 }
 
 main().catch(console.error);
