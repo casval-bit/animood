@@ -13,7 +13,6 @@ function saveCommunityCache(s) { try { localStorage.setItem(COMMUNITY_CACHE_KEY,
 export let ptsStore       = loadPtsCache();
 export let communityStore = loadCommunityCache();
 
-
 export function getCombinedPts(mal_id) {
   const base = ptsStore[mal_id] || {};
   const comm = communityStore[mal_id] || {};
@@ -22,33 +21,35 @@ export function getCombinedPts(mal_id) {
   return out;
 }
 
+// All 8 moods on same scale: each as % of total pts (no special thrills treatment)
+export function ptsToPct(pts) {
+  if(!pts) return {};
+  const total = MOOD_KEYS.reduce((a,k) => a + (pts[k]||0), 0) || 1;
+  const out = {};
+  MOOD_KEYS.forEach(k => { out[k] = Math.round((pts[k]||0) / total * 100); });
+  return out;
+}
+
 export function getMoodTags(pts) {
   if(!pts) return [];
-  const normalized = {...pts};
-  if(normalized.thrills !== undefined) normalized.thrills = Math.round((normalized.thrills / 33) * 100);
-  const total = Object.values(normalized).reduce((a,b)=>a+b, 0);
+  const total = MOOD_KEYS.reduce((a,k) => a + (pts[k]||0), 0);
   if(!total) return [];
-  return Object.entries(normalized)
-    .map(([k,v]) => [k, (v/total)*100])
-    .filter(([,pct]) => pct >= 17)
+  return MOOD_KEYS
+    .map(k => [k, (pts[k]||0)/total*100])
+    .filter(([,pct]) => pct >= 15)
     .sort((a,b) => b[1]-a[1])
     .slice(0,3)
     .map(([k]) => k);
 }
 
-export function ptsToPct(pts) {
-  const normalized = {...(pts||{})};
-  if(normalized.thrills !== undefined) normalized.thrills = Math.round((normalized.thrills / 33) * 100);
-  const total = Object.values(normalized).reduce((a,b)=>a+b, 0) || 1;
-  const out = {};
-  Object.entries(normalized).forEach(([k,v]) => { out[k] = Math.round(v/total*100); });
-  return out;
-}
-
 export function topMoods(pts, n=3) {
-  const normalized = {...(pts||{})};
-  if(normalized.thrills !== undefined) normalized.thrills = Math.round((normalized.thrills / 33) * 100);
-  return Object.entries(normalized).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,n);
+  if(!pts) return [];
+  const total = MOOD_KEYS.reduce((a,k) => a + (pts[k]||0), 0) || 1;
+  return MOOD_KEYS
+    .map(k => [k, Math.round((pts[k]||0) / total * 100)])
+    .filter(([,v]) => v > 0)
+    .sort((a,b) => b[1]-a[1])
+    .slice(0,n);
 }
 
 export function genreFallbackV2(anime) {
@@ -72,52 +73,60 @@ export function genreFallbackV2(anime) {
 }
 
 export async function addUserVote(username, mal_id, newMoods) {
-  const prevKey = `${mal_id}_vote`;
-  // Local cache is untrustworthy on its own — a wiped localStorage would look like
-  // "no previous vote" and let a user re-add the same points forever. Fall back to
-  // the authoritative row in user_votes so the previous contribution still gets
-  // subtracted before the new one is added.
-  let prev = communityStore[prevKey];
-  if(!prev) {
-    try {
-      const row = await sb.getUserVote(username, mal_id);
-      prev = row ? { moods: row.moods||[], pts: row.pts_added||{} } : { moods:[], pts:{} };
-    } catch { prev = { moods:[], pts:{} }; }
-  }
-  const commBase = { ...(communityStore[mal_id] || {}) };
-  Object.entries(prev.pts).forEach(([k,v]) => { commBase[k] = Math.max(0, (commBase[k]||0) - v); });
+  // Read previous vote from Supabase (authoritative — localStorage can be wiped)
+  let prevPts = {};
+  try {
+    const rows = await sb.query(`user_votes?username=eq.${encodeURIComponent(username)}&mal_id=eq.${mal_id}&select=pts_added&limit=1`);
+    if(rows?.[0]?.pts_added) prevPts = rows[0].pts_added;
+  } catch {}
+
+  // Get current community votes fresh from Supabase
+  let commBase = {};
+  try {
+    const row = await sb.getCommunityVotes(mal_id);
+    if(row) MOOD_KEYS.forEach(k => { commBase[k] = row[k]||0; });
+  } catch {}
+
+  // Reverse previous contribution
+  Object.entries(prevPts).forEach(([k,v]) => { commBase[k] = Math.max(0, (commBase[k]||0) - v); });
+
+  // Apply new vote — 1 mood=+4, 2 moods=+2 each, 3 moods=+1 each
   const pointsPerMood = newMoods.length === 1 ? 4 : newMoods.length === 2 ? 2 : 1;
   const addedPts = {};
   newMoods.forEach(m => { addedPts[m] = pointsPerMood; commBase[m] = (commBase[m]||0) + pointsPerMood; });
-  communityStore[mal_id]  = commBase;
-  communityStore[prevKey] = { moods: newMoods, pts: addedPts };
+
+  communityStore[mal_id] = commBase;
   saveCommunityCache(communityStore);
+
   try {
     await Promise.all([
       sb.upsertCommunityVotes(mal_id, commBase),
       sb.upsertUserVote(username, mal_id, newMoods, addedPts),
     ]);
   } catch(e) { console.warn("Vote sync failed:", e); }
+
   return getCombinedPts(mal_id);
 }
 
 export async function getPtsForAnime(anime) {
   const id = anime.mal_id;
-  if(ptsStore[id] !== undefined && communityStore[id] !== undefined) return getCombinedPts(id);
+
+  // v2 base — cache locally (stable, only changes via scripts)
   if(ptsStore[id] === undefined) {
     try {
       const row = await sb.getMoodPts(id);
-      if(row) { const pts = {}; MOOD_KEYS.forEach(k => { pts[k] = row[k] || 0; }); ptsStore[id] = pts; savePtsCache(ptsStore); }
+      if(row) { const pts = {}; MOOD_KEYS.forEach(k => { pts[k] = row[k]||0; }); ptsStore[id] = pts; savePtsCache(ptsStore); }
     } catch {}
   }
-  if(communityStore[id] === undefined) {
-    try {
-      const row = await sb.getCommunityVotes(id);
-      if(row) { const comm = {}; MOOD_KEYS.forEach(k => { comm[k] = row[k] || 0; }); communityStore[id] = comm; }
-      else communityStore[id] = {};
-      saveCommunityCache(communityStore);
-    } catch { communityStore[id] = {}; }
-  }
+
+  // Community votes — always fetch fresh so all users see each other's votes
+  try {
+    const row = await sb.getCommunityVotes(id);
+    if(row) { const comm = {}; MOOD_KEYS.forEach(k => { comm[k] = row[k]||0; }); communityStore[id] = comm; }
+    else communityStore[id] = {};
+    saveCommunityCache(communityStore);
+  } catch { if(communityStore[id] === undefined) communityStore[id] = {}; }
+
   if(!ptsStore[id]) { ptsStore[id] = genreFallbackV2(anime); savePtsCache(ptsStore); }
   return getCombinedPts(id);
 }

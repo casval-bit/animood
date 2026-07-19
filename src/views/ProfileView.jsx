@@ -127,6 +127,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
   const [activeFrame, setActiveFrame] = useState(null);
   const [editingBio, setEditingBio] = useState(false);
   const [bioInput, setBioInput] = useState(me.bio||"");
+  const [openList, setOpenList] = useState(null);
 
   const fetchAnime = async (id) => {
     if(!id || animeCache[id]) return;
@@ -375,32 +376,93 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
         const pageCount = Math.max(1, Math.ceil(watchlistIds.length / WATCHLIST_PAGE_SIZE));
         const page = Math.min(watchlistPage, pageCount - 1);
         const paged = watchlistIds.slice(page * WATCHLIST_PAGE_SIZE, (page + 1) * WATCHLIST_PAGE_SIZE);
+
+        // List definitions — extensible for future custom lists
+        const lists = [
+          {
+            id: "watchlist",
+            emoji: "🎯",
+            label: "Watchlist",
+            count: watchlistIds.length,
+            color: "#9ca3af",
+            preview: watchlistIds.slice(0,4),
+          },
+        ];
+
         return (
           <div className="max-w-2xl">
-            <div className="mb-2.5 flex items-center justify-between">
-              <div className="text-[13px] font-black text-slate-100">🎯 Watchlist</div>
-              <div className="text-[11px] text-slate-500">{watchlistIds.length} animé{watchlistIds.length!==1?"s":""}</div>
-            </div>
-            {watchlistIds.length > 0 ? (
-              <>
-                <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-6">
-                  {paged.map(id => <AnimePoster key={id} anime={animeCache[id]} onClick={onOpenDetail} loading />)}
+            {/* Liste de listes */}
+            <div className="flex flex-col gap-3 mb-6">
+              {lists.map(list => (
+                <button key={list.id} onClick={() => setOpenList(list.id)}
+                  className="flex items-center gap-4 rounded-2xl border border-white/7 bg-white/3 p-4 text-left transition hover:bg-white/6 hover:border-white/12">
+                  {/* Preview posters */}
+                  <div className="flex gap-1 shrink-0">
+                    {list.preview.slice(0,4).map((id,i) => {
+                      const a = animeCache[id];
+                      const img = a?.images?.jpg?.large_image_url || a?.images?.jpg?.image_url;
+                      return (
+                        <div key={id} className="relative" style={{width:"36px",height:"54px",borderRadius:"6px",overflow:"hidden",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)"}}>
+                          {img && <img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";}}/>}
+                        </div>
+                      );
+                    })}
+                    {list.count === 0 && (
+                      <div style={{width:"36px",height:"54px",borderRadius:"6px",background:"rgba(255,255,255,0.04)",border:"2px dashed rgba(255,255,255,0.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"16px",color:"rgba(255,255,255,0.2)"}}>🎯</div>
+                    )}
+                  </div>
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-sm">{list.emoji}</span>
+                      <span className="text-[13px] font-black text-slate-100">{list.label}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-500">{list.count} animé{list.count!==1?"s":""}</div>
+                  </div>
+                  <span className="text-slate-500 text-lg">›</span>
+                </button>
+              ))}
+
+              {/* Placeholder future lists */}
+              <button className="flex items-center gap-3 rounded-2xl border border-dashed border-white/8 p-4 text-left opacity-50 cursor-not-allowed">
+                <div className="w-9 h-9 rounded-xl bg-white/4 flex items-center justify-center text-lg">➕</div>
+                <div>
+                  <div className="text-[12px] font-bold text-slate-400">Créer une liste</div>
+                  <div className="text-[10px] text-slate-600">Bientôt disponible</div>
                 </div>
-                {pageCount > 1 && (
-                  <div className="mt-4 flex items-center justify-center gap-3">
-                    <button onClick={() => setWatchlistPage(p => Math.max(0, p-1))} disabled={page===0}
-                      className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-slate-400 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-30">
-                      ‹ Précédent
-                    </button>
-                    <span className="text-[11px] text-slate-500">Page {page+1} / {pageCount}</span>
-                    <button onClick={() => setWatchlistPage(p => Math.min(pageCount-1, p+1))} disabled={page===pageCount-1}
-                      className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-slate-400 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-30">
-                      Suivant ›
-                    </button>
+              </button>
+            </div>
+
+            {/* Modal watchlist ouverte */}
+            {openList === "watchlist" && (
+              <Modal onClose={() => { setOpenList(null); setWatchlistPage(0); }} maxWidth="max-w-3xl">
+                {close => (
+                  <div className="p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <div className="text-sm font-black text-slate-100">🎯 Watchlist</div>
+                        <div className="text-[11px] text-slate-500">{watchlistIds.length} animé{watchlistIds.length!==1?"s":""}</div>
+                      </div>
+                      <button onClick={close} className="flex h-7 w-7 items-center justify-center rounded-full bg-white/8 text-sm text-slate-400">✕</button>
+                    </div>
+                    {watchlistIds.length > 0 ? (<>
+                      <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-6">
+                        {paged.map(id => <AnimePoster key={id} anime={animeCache[id]} onClick={a=>{close();onOpenDetail(a);}} loading />)}
+                      </div>
+                      {pageCount > 1 && (
+                        <div className="mt-4 flex items-center justify-center gap-3">
+                          <button onClick={() => setWatchlistPage(p => Math.max(0, p-1))} disabled={page===0}
+                            className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-slate-400 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-30">‹ Précédent</button>
+                          <span className="text-[11px] text-slate-500">Page {page+1} / {pageCount}</span>
+                          <button onClick={() => setWatchlistPage(p => Math.min(pageCount-1, p+1))} disabled={page===pageCount-1}
+                            className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-slate-400 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-30">Suivant ›</button>
+                        </div>
+                      )}
+                    </>) : <EmptyState emoji="🎯" title="Watchlist vide" subtitle="Ajoute des animés via 🎯 sur leur fiche" />}
                   </div>
                 )}
-              </>
-            ) : <EmptyState emoji="🎯" title="Watchlist vide" subtitle="Ajoute des animés via 🎯 sur leur fiche" />}
+              </Modal>
+            )}
           </div>
         );
       })()}
