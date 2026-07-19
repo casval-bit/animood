@@ -1,0 +1,57 @@
+MÉTHODE — Moteur de recommandation du Moodboard (affichage + reroll)
+======================================================================
+
+Problème initial : en cliquant sur "🎲 Autres suggestions", on retombait
+souvent sur les mêmes animés. Cause : le fetch (src/api/moodboard.js) était
+déterministe — mêmes pages, même tri par score MAL — donc le pool jugé au
+reroll recoupait presque entièrement celui du premier affichage.
+
+Méthode appliquée (fetchMoodboardCandidates)
+---------------------------------------------
+Un `cursor` { offset, pool, shownIds } est transporté d'appel en appel par
+MoodboardView (state React, remis à zéro dès qu'on change de mood/filtre) :
+
+1. 1er affichage (cursor = null, rerollCount = 0)
+   - Fetch 100 animés depuis offset 0 (top 100 anime_cache par score MAL).
+   - Score chaque candidat utilisable avec MAL×3, mood×2.
+   - Si moins de 3 candidats utilisables → fetch 100 de plus (offset 100),
+     merge dans le pool, on réévalue. Jusqu'à 5 tentatives (500 animés max).
+   - Retourne les 3 meilleurs, mémorise offset atteint (ex: 200) et leurs
+     mal_id dans shownIds.
+
+2. 1er reroll (cursor du 1er affichage, rerollCount = 1)
+   - Repart de l'offset mémorisé (ex: 200), fetch 100 nouveaux animés.
+   - Merge avec tout ce qui a déjà été fetché mais n'est PAS dans shownIds
+     — les 100-200 non utilisés au 1er affichage rentrent dans le pool.
+   - Score avec MAL×2, mood×2.5 (le mood pèse un peu plus).
+   - Même cascade de fetch (jusqu'à 5 tentatives) si <3 résultats.
+   - Met à jour offset, ajoute les 3 nouveaux animés à shownIds.
+
+3. 2e reroll et suivants (rerollCount ≥ 2)
+   - Même logique de fetch/merge, en repartant du nouvel offset.
+   - Score avec MAL×1, mood×3 — le mood domine de plus en plus.
+
+Garde-fou ultime : si après 500 animés fetchés dans un seul appel il reste
+toujours moins de 3 candidats utilisables (cas extrême de pénurie), on
+relâche l'exclusion shownIds et on prend les meilleurs disponibles plutôt
+que de renvoyer une liste vide.
+
+Le scoring réel (mood pts via getPtsForAnime) n'est calculé que sur les 60
+meilleurs candidats utilisables par note MAL brute — calculer les mood pts
+de tout le pool accumulé serait trop coûteux en requêtes.
+
+Ce qui est garanti
+-------------------
+- Jamais le même animé deux fois pendant une session (sauf pénurie totale).
+- Chaque reroll fetch au moins un nouveau lot de 100 avant de noter/trier —
+  ce n'est jamais un simple ré-mélange du pool déjà vu.
+- Plus on reroll, plus le mood prime sur la note MAL dans le classement.
+- La base entière (anime_cache) devient progressivement accessible au fil
+  des rerolls, par tranches de 100.
+
+Fichiers modifiés
+-----------------
+- src/api/moodboard.js       : moteur réécrit (cursor, fetch incrémental,
+  pondération MAL/mood évolutive, garde-fou anti-liste-vide).
+- src/views/MoodboardView.jsx : state cursor + rerollCount, transmis à
+  fetchMoodboardCandidates à chaque génération/reroll.

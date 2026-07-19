@@ -1,0 +1,49 @@
+import { useState, useEffect, useRef } from "react";
+import { jikan } from "../api/jikan.js";
+import { Spinner } from "./Spinner.jsx";
+import { Modal } from "./Modal.jsx";
+
+const FALLBACK = "https://placehold.co/64x92/1a1a2e/818cf8?text=?";
+
+export function FavoriteSearchModal({ onSelect, onClose }) {
+  const [q, setQ]             = useState("");
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef(null);
+  useEffect(() => { setTimeout(() => inputRef.current?.focus(), 100); }, []);
+
+  const search = async (val) => {
+    setQ(val);
+    if(!val.trim()) { setResults([]); return; }
+    setLoading(true);
+    try { const d = await jikan.searchAnime({ q: val, limit: 8, order_by:"score", sort:"desc" }); setResults(d.data||[]); }
+    catch {}
+    setLoading(false);
+  };
+
+  return (
+    <Modal onClose={onClose} maxWidth="max-w-md">
+      <div className="p-5">
+        <div className="mb-3 text-sm font-extrabold text-slate-100">Ajouter un favori</div>
+        <div className="relative mb-3.5">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">🔍</span>
+          <input ref={inputRef} value={q} onChange={e => search(e.target.value)} placeholder="Rechercher un animé…"
+            className="w-full rounded-xl border border-white/12 bg-white/7 py-2.5 pl-9 pr-3 text-sm text-slate-100 outline-none" />
+        </div>
+        {loading && <Spinner small />}
+        <div className="flex flex-col gap-2">
+          {results.map(a => (
+            <button key={a.mal_id} onClick={() => onSelect(a)}
+              className="flex items-center gap-2.5 overflow-hidden rounded-xl border border-white/7 bg-white/4 text-left transition hover:bg-white/8">
+              <img src={a.images?.jpg?.image_url || FALLBACK} alt={a.title} onError={e=>{e.target.src=FALLBACK;}} className="h-15.5 w-11 shrink-0 object-cover" />
+              <div className="flex-1 py-1.5 pr-2.5">
+                <div className="text-xs font-bold leading-tight text-slate-100">{a.title}</div>
+                <div className="mt-0.5 text-[10px] text-slate-500">{a.year || "?"} · {a.type}{a.score ? ` · ★${a.score}` : ""}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </Modal>
+  );
+}
