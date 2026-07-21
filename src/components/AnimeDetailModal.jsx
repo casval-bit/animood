@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/useApp.js";
 import { MOODS } from "../constants/moods.js";
 import { STREAMING_COLORS } from "../constants/filters.js";
@@ -23,6 +23,8 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
   const [rating, setRating]       = useState(me.ratings[malId]?.score ?? null);
+  const [showListPicker, setShowListPicker] = useState(false);
+  const listPickerRef = useRef(null);
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved
   const [selMoods, setSelMoods]   = useState(() => {
     const prevVote = ptsStore[`${malId}_vote`];
@@ -101,6 +103,24 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
     if(isOnWatchlist) delete newStatuses[malId]; else newStatuses[malId] = "watchlist";
     saveMe({ ...me, statuses: newStatuses });
   };
+
+  const customLists = me.customLists || [];
+  const toggleInList = (listId) => {
+    const lists = customLists.map(l => {
+      if(l.id !== listId) return l;
+      const has = l.animeIds.includes(malId);
+      return { ...l, animeIds: has ? l.animeIds.filter(id=>id!==malId) : [...l.animeIds, malId] };
+    });
+    saveMe({ ...me, customLists: lists });
+  };
+
+  // Close list picker on outside click
+  useEffect(() => {
+    if(!showListPicker) return;
+    const handler = (e) => { if(listPickerRef.current && !listPickerRef.current.contains(e.target)) setShowListPicker(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showListPicker]);
 
   const img = a?.images?.jpg?.large_image_url || a?.img || FALLBACK;
   const title = a?.title || "—";
@@ -253,10 +273,41 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
                       className={`rounded-xl px-3 py-2.5 text-sm ${isFavorite ? "border border-pink-400 bg-pink-400/10 text-pink-400" : "border border-white/10 text-slate-500"}`}>
                       {isFavorite ? "❤️" : "🤍"}
                     </button>
+                    {/* Watchlist — bookmark SVG vert */}
                     <button onClick={toggleWatchlist} title={isOnWatchlist ? "Retirer de la watchlist" : "Ajouter à la watchlist"}
-                      className={`rounded-xl px-3 py-2.5 text-sm ${isOnWatchlist ? "border border-slate-400 bg-slate-400/15 text-slate-300" : "border border-white/10 text-slate-500"}`}>
-                      🎯
+                      className={`rounded-xl px-3 py-2.5 ${isOnWatchlist ? "border border-green-400 bg-green-400/10" : "border border-white/10 text-slate-500"}`}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill={isOnWatchlist ? "#22c55e" : "none"} stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                      </svg>
                     </button>
+                    {/* Ajouter à une liste */}
+                    <div className="relative" ref={listPickerRef}>
+                      <button onClick={()=>setShowListPicker(p=>!p)}
+                        title="Ajouter à une liste"
+                        className={`rounded-xl px-3 py-2.5 text-sm border ${showListPicker ? "border-violet-400 bg-violet-400/10 text-violet-400" : "border-white/10 text-slate-500"}`}>
+                        📋+
+                      </button>
+                      {showListPicker && customLists.length > 0 && (
+                        <div className="absolute bottom-full right-0 mb-2 z-50 min-w-[180px] rounded-xl border border-white/10 bg-slate-900 p-2 shadow-xl">
+                          <div className="mb-1.5 px-2 text-[9px] font-bold uppercase tracking-wider text-slate-600">Mes listes</div>
+                          {customLists.map(list => {
+                            const inList = list.animeIds.includes(malId);
+                            return (
+                              <button key={list.id} onClick={()=>toggleInList(list.id)}
+                                className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-slate-300 transition hover:bg-white/6">
+                                <span>{list.name}</span>
+                                <span className={inList ? "text-violet-400" : "text-slate-600"}>{inList ? "✓" : "+"}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {showListPicker && customLists.length === 0 && (
+                        <div className="absolute bottom-full right-0 mb-2 z-50 min-w-[180px] rounded-xl border border-white/10 bg-slate-900 p-3 shadow-xl text-center">
+                          <p className="text-[11px] text-slate-500">Crée d'abord une liste dans ton profil</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 

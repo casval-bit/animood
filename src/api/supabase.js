@@ -57,6 +57,9 @@ export const sb = {
       hidden_completed: data.hiddenCompleted || data.hidden_completed || [],
       posts:            data.posts,
       active_frame:     data.activeFrame || null,
+      highlights:        data.highlights || [],
+      custom_lists:     data.customLists || [],
+      pinned_list:      data.pinnedList || null,
       updated_at:       data.updated_at,
     };
     return this.query("profiles?on_conflict=username", {
@@ -133,6 +136,9 @@ export async function loadProfile(username) {
         ...remote,
         hiddenCompleted: remote.hidden_completed || remote.hiddenCompleted || [],
         activeFrame: remote.active_frame || remote.activeFrame || null,
+        highlights: remote.highlights || [],
+        customLists: remote.custom_lists || remote.customLists || [],
+        pinnedList: remote.pinned_list || remote.pinnedList || null,
       };
       localStorage.setItem(`animood_profile_${username}`, JSON.stringify(profile));
       return profile;

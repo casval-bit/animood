@@ -10,15 +10,36 @@ export function FavoriteSearchModal({ onSelect, onClose }) {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef(null);
+  const timerRef = useRef(null);
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 100); }, []);
 
   const search = async (val) => {
     setQ(val);
     if(!val.trim()) { setResults([]); return; }
-    setLoading(true);
-    try { const d = await jikan.searchAnime({ q: val, limit: 8, order_by:"score", sort:"desc" }); setResults(d.data||[]); }
-    catch {}
-    setLoading(false);
+    // Debounce 400ms
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        // First try Supabase cache for instant results
+        const { sb } = await import("../api/supabase.js");
+        const enc = encodeURIComponent(val.trim());
+        const cached = await sb.query(`anime_cache?title=ilike.*${enc}*&order=score.desc.nullslast&limit=20&select=mal_id,title,title_en,year,type,score,image_url,large_image`);
+        if(cached?.length >= 3) {
+          setResults(cached.map(r => ({
+            mal_id: r.mal_id, title: r.title, title_english: r.title_en,
+            year: r.year, type: r.type, score: r.score,
+            images: { jpg: { image_url: r.image_url, large_image_url: r.large_image } }
+          })));
+          setLoading(false);
+          return;
+        }
+        // Fallback to Jikan with more results
+        const d = await jikan.searchAnime({ q: val.trim(), limit: 20, order_by:"score", sort:"desc", sfw:false });
+        setResults(d.data||[]);
+      } catch {}
+      setLoading(false);
+    }, 400);
   };
 
   return (
