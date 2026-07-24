@@ -37,7 +37,7 @@ function Shell() {
     feed:      <FeedView />,
     moodboard: <MoodboardView onOpenDetail={openDetail} />,
     search:    <SearchView onOpenDetail={openDetail} onOpenUser={setOpenUser} />,
-    forum:     <ForumView />,
+    forum:     <ForumView onOpenDetail={openDetail} />,
     profile:   <ProfileView onOpenDetail={openDetail} onOpenSettings={() => setShowSettings(true)} />,
   };
 
