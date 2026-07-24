@@ -36,12 +36,15 @@ async function sbUpsert(table, rows) {
 
 async function jikanGet(path) {
   for(let attempt=0; attempt<4; attempt++) {
-    const r = await fetch(`${JIKAN_BASE}${path}`);
-    if(r.status === 429) { await sleep(3000*Math.pow(2,attempt)); continue; }
+    let r;
+    try { r = await fetch(`${JIKAN_BASE}${path}`); }
+    catch { await sleep(3000*Math.pow(2,attempt)); continue; } // network hiccup — retry
+    if(r.status === 429 || r.status >= 500) { await sleep(3000*Math.pow(2,attempt)); continue; } // rate limit or Jikan-side flakiness (504s are common on their free tier)
     if(r.status === 404) return null;
     if(!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
   }
+  throw new Error(`Jikan unavailable after retries: ${path}`);
 }
 
 function parseAnime(a) {
@@ -64,7 +67,7 @@ function parseAnime(a) {
     rating:      a.rating,
     image_url:   a.images?.jpg?.image_url,
     large_image: a.images?.jpg?.large_image_url,
-    trailer_url: a.trailer?.url,
+    trailer_url: a.trailer?.url || a.trailer?.embed_url || null, // Jikan's trailer.url is null even when a trailer exists — embed_url is the real link
     genres:      a.genres||[],
     themes:      a.themes||[],
     demographics:a.demographics||[],

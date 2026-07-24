@@ -150,14 +150,12 @@ export function MoodboardView({ onOpenDetail }) {
   const generate = async (reroll=false) => {
     setGenerating(true); setHasSearched(true);
     resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    console.log("[MOODBOARD] generate called — reroll:", reroll, "rerollCount:", rerollCount, "cursor offset:", cursor?.offset, "cursor pool size:", cursor?.pool ? Object.keys(cursor.pool).length : 0, "shownIds:", cursor?.shownIds?.length);
     try {
       const { results: picked, cursor: nextCursor } = await fetchMoodboardCandidates(
         selectedMoods, duration, mediaTypes, countries, me,
         reroll ? cursor : null,
         reroll ? rerollCount : 0,
       );
-      console.log("[MOODBOARD] got results:", picked.map(a=>a.mal_id), "nextCursor offset:", nextCursor?.offset, "pool size:", Object.keys(nextCursor?.pool||{}).length);
       setResults(picked);
       setCursor(nextCursor);
       setRerollCount(c => reroll ? c+1 : 1);
@@ -238,20 +236,9 @@ export function MoodboardView({ onOpenDetail }) {
                       <span key={mid} className="rounded-full px-2.5 py-1 text-xs font-bold" style={{ background:`${m.color}22`, border:`1px solid ${m.color}44`, color:m.color }}>{m.emoji} {m.label}</span>
                     ); })}
                   </div>
-                  {results.length > 0 && (() => {
-                    const locked = rerollCount >= 3;
-                    const label = rerollCount <= 1 ? "🎲 Autres suggestions"
-                                : rerollCount === 2 ? "🎲 Encore d'autres ?"
-                                : "🔒 Modifie ta sélection";
-                    return locked ? (
-                      <div className="flex flex-col items-end gap-1">
-                        <button disabled className="cursor-not-allowed rounded-full border-2 border-white/8 px-4 py-2 text-xs font-extrabold text-slate-600">{label}</button>
-                        <span className="text-[10px] text-slate-600">Change les moods pour relancer</span>
-                      </div>
-                    ) : (
-                      <button onClick={() => generate(true)} className="rounded-full border-2 border-indigo-400/30 px-4 py-2 text-xs font-extrabold text-indigo-400 transition hover:border-indigo-400/60">{label}</button>
-                    );
-                  })()}
+                  {results.length > 0 && (
+                    <button onClick={() => generate(true)} className="rounded-full border-2 border-indigo-400/30 px-4 py-2 text-xs font-extrabold text-indigo-400 transition hover:border-indigo-400/60">🎲 Autres suggestions</button>
+                  )}
                 </div>
                 {results.length > 0 ? (
                   <div className="grid grid-cols-2 gap-5 sm:grid-cols-3">

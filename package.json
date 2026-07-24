@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sync:anime": "node scripts/sync_new_anime.mjs",
+    "sync:moods": "node scripts/sync_new_moods.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",

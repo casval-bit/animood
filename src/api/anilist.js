@@ -63,3 +63,35 @@ export async function importAniListUser(username) {
   const watched = Object.entries(statuses).filter(([,s]) => s !== "watchlist").map(([id]) => parseInt(id));
   return { watched, ratings, statuses, skipped };
 }
+
+// ─── Exact air dates for a batch of MAL ids — Jikan only stores the year, but
+// AniList's idMal_in filter gives day-level startDate in a single request, which
+// is what a real countdown ("J-12") needs.
+const DATES_QUERY = `
+query ($ids: [Int]) {
+  Page(perPage: 50) {
+    media(idMal_in: $ids, type: ANIME) {
+      idMal
+      startDate { year month day }
+    }
+  }
+}`;
+
+export async function fetchAiredDates(malIds) {
+  const ids = [...new Set(malIds)].filter(Boolean).slice(0, 50);
+  if(!ids.length) return {};
+  try {
+    const res = await fetch(ANILIST_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ query: DATES_QUERY, variables: { ids } }),
+    });
+    const json = await res.json();
+    const out = {};
+    (json.data?.Page?.media || []).forEach(m => {
+      const d = m.startDate;
+      if(m.idMal && d?.year && d?.month && d?.day) out[m.idMal] = new Date(Date.UTC(d.year, d.month - 1, d.day));
+    });
+    return out;
+  } catch { return {}; }
+}
