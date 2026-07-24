@@ -67,7 +67,7 @@ function animeToSupabaseRow(a) {
     popularity: a.popularity, year: a.year || a.aired?.prop?.from?.year,
     episodes: a.episodes, duration: a.duration, type: a.type, status: a.status,
     source: a.source, rating: a.rating, image_url: a.images?.jpg?.image_url,
-    large_image: a.images?.jpg?.large_image_url, trailer_url: a.trailer?.url,
+    large_image: a.images?.jpg?.large_image_url, trailer_url: a.trailer?.url || a.trailer?.embed_url || null,
     genres: a.genres||[], themes: a.themes||[], demographics: a.demographics||[],
     studios: a.studios||[], producers: a.producers||[], streaming: a.streaming||[],
   };
@@ -162,6 +162,32 @@ export async function fetchTitleSuggestions(q, limit = 10) {
     if(prefixRows?.length >= 3) return prefixRows;
     const substrRows = await sb.query(`anime_cache?or=(title.ilike.*${enc}*,title_en.ilike.*${enc}*)&order=score.desc.nullslast&limit=${limit}&select=${select}`);
     return substrRows?.length ? substrRows : (prefixRows || []);
+  } catch { return []; }
+}
+
+// ─── Forum "actus" feed — new arrivals, upcoming releases, latest trailers ───
+const NEWS_SELECT = "mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,fetched_at,trailer_url,popularity";
+const NEWS_TYPES = "TV,Movie,OVA,ONA,Special"; // excludes CM/Music/etc — junk for a news feed
+
+export async function fetchNewAnime(limit = 12) {
+  try {
+    const rows = await sb.query(`anime_cache?type=in.(${NEWS_TYPES})&status=neq.Not%20yet%20aired&order=fetched_at.desc.nullslast&limit=${limit}&select=${NEWS_SELECT}`);
+    return (rows||[]).map(supabaseRowToAnime);
+  } catch { return []; }
+}
+
+export async function fetchUpcomingAnime(limit = 12) {
+  const year = new Date().getFullYear();
+  try {
+    const rows = await sb.query(`anime_cache?type=in.(${NEWS_TYPES})&status=eq.Not%20yet%20aired&year=gte.${year}&order=year.asc,popularity.asc.nullslast&limit=${limit}&select=${NEWS_SELECT}`);
+    return (rows||[]).map(supabaseRowToAnime);
+  } catch { return []; }
+}
+
+export async function fetchLatestTrailers(limit = 12) {
+  try {
+    const rows = await sb.query(`anime_cache?type=in.(${NEWS_TYPES})&trailer_url=not.is.null&order=fetched_at.desc.nullslast&limit=${limit}&select=${NEWS_SELECT}`);
+    return (rows||[]).map(supabaseRowToAnime);
   } catch { return []; }
 }
 

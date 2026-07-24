@@ -57,15 +57,65 @@ export const sb = {
       hidden_completed: data.hiddenCompleted || data.hidden_completed || [],
       posts:            data.posts,
       active_frame:     data.activeFrame || null,
-      highlights:        data.highlights || [],
-      custom_lists:     data.customLists || [],
-      pinned_list:      data.pinnedList || null,
       updated_at:       data.updated_at,
     };
     return this.query("profiles?on_conflict=username", {
       method: "POST",
       headers: { ...this.headers, "Prefer": "resolution=merge-duplicates" },
       body: JSON.stringify(row),
+    });
+  },
+
+  async getRecentMoodVotes(sinceISO) {
+    try { return await this.query(`user_votes?select=moods,voted_at&voted_at=gte.${encodeURIComponent(sinceISO)}&limit=1000`) || []; }
+    catch { return []; }
+  },
+
+  async getMoodPtsBatch(ids) {
+    if(!ids.length) return {};
+    try {
+      const rows = await this.query(`mood_pts_v2?mal_id=in.(${ids.join(",")})&limit=${ids.length}`);
+      const out = {};
+      (rows||[]).forEach(r => { out[r.mal_id] = r; });
+      return out;
+    } catch { return {}; }
+  },
+
+  async getAllFavorites() {
+    try { return await this.query(`profiles?select=favorites&limit=1000`) || []; }
+    catch { return []; }
+  },
+
+  // ─── Forum threads/replies — skeleton, no reactions, no pagination ──────────
+  async listThreads(limit = 20) {
+    try { return await this.query(`forum_threads?select=*&order=created_at.desc&limit=${limit}`) || []; }
+    catch { return []; }
+  },
+  async getReplyCounts(threadIds) {
+    if(!threadIds.length) return {};
+    try {
+      const rows = await this.query(`forum_replies?select=thread_id&thread_id=in.(${threadIds.join(",")})`) || [];
+      const out = {};
+      rows.forEach(r => { out[r.thread_id] = (out[r.thread_id] || 0) + 1; });
+      return out;
+    } catch { return {}; }
+  },
+  async getThreadReplies(threadId) {
+    try { return await this.query(`forum_replies?thread_id=eq.${threadId}&order=created_at.asc`) || []; }
+    catch { return []; }
+  },
+  async createThread(username, title, body) {
+    return this.query("forum_threads", {
+      method: "POST",
+      headers: { ...this.headers, "Prefer": "return=representation" },
+      body: JSON.stringify([{ username, title, body }]),
+    });
+  },
+  async createReply(threadId, username, body) {
+    return this.query("forum_replies", {
+      method: "POST",
+      headers: { ...this.headers, "Prefer": "return=representation" },
+      body: JSON.stringify([{ thread_id: threadId, username, body }]),
     });
   },
 
@@ -136,9 +186,6 @@ export async function loadProfile(username) {
         ...remote,
         hiddenCompleted: remote.hidden_completed || remote.hiddenCompleted || [],
         activeFrame: remote.active_frame || remote.activeFrame || null,
-        highlights: remote.highlights || [],
-        customLists: remote.custom_lists || remote.customLists || [],
-        pinnedList: remote.pinned_list || remote.pinnedList || null,
       };
       localStorage.setItem(`animood_profile_${username}`, JSON.stringify(profile));
       return profile;
