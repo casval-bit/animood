@@ -6,6 +6,7 @@ const TABS = [
   { id: "moodboard", label: "Moodboard", emoji: "🎭" },
   { id: "search",    label: "Search",    emoji: "🔍" },
   { id: "forum",     label: "Forum",     emoji: "💬" },
+  { id: "messages",  label: "Messages",  emoji: "✉️" },
   { id: "profile",   label: "Profil",    emoji: "👤" },
 ];
 

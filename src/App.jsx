@@ -9,6 +9,7 @@ import { FeedView } from "./views/FeedView.jsx";
 import { MoodboardView } from "./views/MoodboardView.jsx";
 import { SearchView } from "./views/SearchView.jsx";
 import { ForumView } from "./views/ForumView.jsx";
+import { MessagesView } from "./views/MessagesView.jsx";
 import { ProfileView } from "./views/ProfileView.jsx";
 import { UserProfileModal } from "./views/UserProfileModal.jsx";
 import { SettingsView } from "./views/SettingsView.jsx";
@@ -20,8 +21,8 @@ function Shell() {
   const [detailAnime, setDetailAnime]   = useState(null);
   const [openUser, setOpenUser]         = useState(null);
 
-  if(!session) return <LoginView />;
-  if(!profileReady) {
+  if(!session && !window.__SKIP_AUTH__) return <LoginView />;
+  if(!profileReady && !window.__SKIP_AUTH__) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4">
         <span className="text-3xl">🌀</span>
@@ -38,6 +39,7 @@ function Shell() {
     moodboard: <MoodboardView onOpenDetail={openDetail} />,
     search:    <SearchView onOpenDetail={openDetail} onOpenUser={setOpenUser} />,
     forum:     <ForumView onOpenDetail={openDetail} />,
+    messages:  <MessagesView />,
     profile:   <ProfileView onOpenDetail={openDetail} onOpenSettings={() => setShowSettings(true)} />,
   };
 
