@@ -234,9 +234,18 @@ async function refreshScores() {
 async function refreshMissingSeasons() {
   console.log("\n🌸 PART 3: Refreshing missing seasons via AniList...");
   // Get anime with no season label (includes "Not yet aired" that may have been announced)
-  const rows = await sbQuery(
-    `anime_cache?select=mal_id&anime_season_label=is.null&limit=500`
-  ).catch(()=>[]);
+  // Get ALL anime with no season label
+  const rows = [];
+  let offset = 0;
+  while(true) {
+    const batch = await sbQuery(
+      `anime_cache?select=mal_id&anime_season_label=is.null&order=mal_id.desc&limit=1000&offset=${offset}`
+    ).catch(()=>[]);
+    if(!batch?.length) break;
+    rows.push(...batch);
+    if(batch.length < 1000) break;
+    offset += 1000;
+  }
   if(!rows?.length) { console.log("  ✅ All seasons up to date"); return 0; }
 
   let updated = 0;
