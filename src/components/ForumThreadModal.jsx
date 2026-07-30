@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { sb } from "../api/supabase.js";
 import { Modal } from "./Modal.jsx";
 import { Spinner } from "./Spinner.jsx";
+import { FORUM_TAGS, getForumTag, MAX_THREAD_TAGS } from "../constants/forumTags.js";
 
 export function timeAgo(iso) {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -14,19 +15,38 @@ export function timeAgo(iso) {
 const INPUT = "w-full rounded-xl border border-white/12 bg-white/7 px-3.5 py-2.5 text-sm text-slate-100 outline-none focus:border-violet-400/50";
 const SUBMIT_BTN = "rounded-xl bg-linear-to-r from-violet-600 to-fuchsia-500 px-4 py-2.5 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-40";
 
-// ─── Create a new discussion — title + body, no formatting/attachments ────────
+// ─── Small colored pill for a thread tag — shared between list rows and detail ─
+export function TagPill({ id }) {
+  const tag = getForumTag(id);
+  if(!tag) return null;
+  return (
+    <span
+      className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9.5px] font-bold"
+      style={{ background: `${tag.color}20`, color: tag.color }}
+    >
+      {tag.emoji} {tag.label}
+    </span>
+  );
+}
+
+// ─── Create a new discussion — title + body + optional tags ───────────────────
 export function NewThreadModal({ username, onClose, onCreated }) {
   const [title, setTitle]     = useState("");
   const [body, setBody]       = useState("");
+  const [tags, setTags]       = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]     = useState(null);
+
+  const toggleTag = id => {
+    setTags(t => t.includes(id) ? t.filter(x => x !== id) : t.length < MAX_THREAD_TAGS ? [...t, id] : t);
+  };
 
   const submit = async () => {
     const t = title.trim(), b = body.trim();
     if(!t || !b) { setError("Titre et message obligatoires."); return; }
     setSubmitting(true); setError(null);
     try {
-      const rows = await sb.createThread(username, t, b);
+      const rows = await sb.createThread(username, t, b, tags);
       if(rows?.[0]) onCreated(rows[0]);
       else throw new Error("empty response");
     } catch {
@@ -46,6 +66,26 @@ export function NewThreadModal({ username, onClose, onCreated }) {
           value={body} onChange={e => setBody(e.target.value)} maxLength={2000} rows={5}
           placeholder="De quoi veux-tu parler ?" className={`mb-3 resize-none ${INPUT}`}
         />
+        <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+          Tags <span className="normal-case text-slate-600">(optionnel, {MAX_THREAD_TAGS} max)</span>
+        </div>
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {FORUM_TAGS.map(tag => {
+            const active = tags.includes(tag.id);
+            return (
+              <button
+                key={tag.id} type="button" onClick={() => toggleTag(tag.id)}
+                disabled={!active && tags.length >= MAX_THREAD_TAGS}
+                className="rounded-full px-2.5 py-1 text-[11px] font-bold transition disabled:cursor-not-allowed disabled:opacity-30"
+                style={active
+                  ? { background: `${tag.color}30`, color: tag.color, boxShadow: `inset 0 0 0 1px ${tag.color}80` }
+                  : { background: "rgba(255,255,255,.06)", color: "#94a3b8" }}
+              >
+                {tag.emoji} {tag.label}
+              </button>
+            );
+          })}
+        </div>
         {error && <div className="mb-3 text-xs text-red-400">{error}</div>}
         <button onClick={submit} disabled={submitting || !title.trim() || !body.trim()} className={`w-full ${SUBMIT_BTN}`}>
           {submitting ? "Publication…" : "Publier"}
@@ -86,7 +126,12 @@ export function ThreadModal({ thread, username, onClose }) {
     <Modal onClose={onClose} maxWidth="max-w-2xl">
       <div className="max-h-[80vh] overflow-y-auto p-5">
         <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">@{thread.username} · {timeAgo(thread.created_at)}</div>
-        <div className="mb-3 text-lg font-black text-slate-100">{thread.title}</div>
+        <div className="mb-1.5 text-lg font-black text-slate-100">{thread.title}</div>
+        {thread.tags?.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {thread.tags.map(id => <TagPill key={id} id={id} />)}
+          </div>
+        )}
         <div className="mb-5 whitespace-pre-wrap text-sm text-slate-300">{thread.body}</div>
 
         <div className="mb-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">
