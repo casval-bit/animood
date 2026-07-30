@@ -7,7 +7,8 @@ import { MOODS, getMoodObj } from "../constants/moods.js";
 import { useApp } from "../context/useApp.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { EmptyState } from "../components/EmptyState.jsx";
-import { NewThreadModal, ThreadModal, timeAgo } from "../components/ForumThreadModal.jsx";
+import { NewThreadModal, ThreadModal, TagPill, timeAgo } from "../components/ForumThreadModal.jsx";
+import { MoodOctagon } from "../components/MoodOctagon.jsx";
 import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY } from "../constants/theme.js";
 
 const FALLBACK_IMG = "https://placehold.co/64x92/1a1a2e/818cf8?text=?";
@@ -166,14 +167,16 @@ function CommunityMoodBlock({ loaded, counts, total }) {
       ) : (
         <>
           <div className="mb-4 text-[10.5px] text-slate-500">Cette semaine, d'après {total} réaction{total !== 1 ? "s" : ""} de mood</div>
-          <div className="flex flex-col gap-2.5">
+          <MoodOctagon
+            pts={counts} rawThrills size={190} title={null}
+            className="mx-auto mb-4 w-fit rounded-xl border border-white/6 bg-white/3 p-2.5"
+          />
+          <div className="flex flex-col gap-2">
             {ranked.map(m => (
-              <div key={m.id} className="flex items-center gap-3">
-                <div className="w-24 shrink-0 text-[11.5px] font-semibold text-slate-300">{m.emoji} {m.label}</div>
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/6">
-                  <div className="h-full rounded-full" style={{ width: `${m.pct}%`, background: m.color }} />
-                </div>
-                <div className="w-9 shrink-0 text-right text-[11px] font-bold text-slate-400">{m.pct}%</div>
+              <div key={m.id} className="flex items-center gap-2">
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: m.color }} />
+                <span className="min-w-0 flex-1 truncate text-[11.5px] font-semibold text-slate-300">{m.emoji} {m.label}</span>
+                <span className="shrink-0 text-[11px] font-bold text-slate-400">{m.pct}%</span>
               </div>
             ))}
           </div>
@@ -212,7 +215,12 @@ function DiscussionsBlock({ threads, replyCounts, loaded, onOpenThread, onNewThr
             >
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13.5px] font-bold text-slate-100">💬 {t.title}</div>
-                <div className="truncate text-[11px] text-slate-500">@{t.username} · {timeAgo(t.created_at)}</div>
+                <div className="mb-1 truncate text-[11px] text-slate-500">@{t.username} · {timeAgo(t.created_at)}</div>
+                {t.tags?.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {t.tags.map(id => <TagPill key={id} id={id} />)}
+                  </div>
+                )}
               </div>
               <div className="shrink-0 text-right text-[11px] font-bold text-slate-400">
                 {replyCounts[t.id] || 0} réponse{(replyCounts[t.id] || 0) !== 1 ? "s" : ""}
@@ -332,7 +340,7 @@ export function ForumView({ onOpenDetail }) {
   }, null);
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-8">
+    <div className="mx-auto max-w-6xl px-6 py-8">
       <div className="mb-8 animate-slide-up">
         <h1 className="mb-1 text-[28px] font-bold tracking-tight text-slate-50 md:text-[32px]">💬 Forum</h1>
         <p className="text-sm text-slate-500">Le pouls de la communauté — humeur du moment, sorties à venir, nouveautés et derniers trailers.</p>
@@ -342,41 +350,46 @@ export function ForumView({ onOpenDetail }) {
       {empty && <EmptyState emoji="💬" title="Rien pour l'instant" subtitle="Reviens bientôt pour les dernières actus." />}
 
       {!loading && (
-        <>
-          <CommunityMoodBlock loaded={moodLoaded} counts={moodCounts} total={moodTotal} />
-          <DiscussionsBlock
-            threads={threads} replyCounts={replyCounts} loaded={threadsLoaded}
-            onOpenThread={setOpenThread} onNewThread={() => setShowNewThread(true)}
-          />
-          <AnticipatedCard anime={mostAnticipated} airedDates={airedDates} onOpenDetail={onOpenDetail} />
-
-          <ForumCategory
-            emoji="📅" title="Prochaines sorties" subtitle="Annonces à venir"
-            items={upcoming} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
-            metaLabel={a => countdownLabel(a, airedDates)}
-          />
-          <ForumCategory
-            emoji="🎬" title="Derniers trailers" subtitle="Bandes-annonces récentes"
-            items={trailers} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
-            metaLabel={() => "Trailer"} trailerLink
-          />
-          {favoritesLoaded && favorites.length > 0 && (
-            <ForumCategory
-              emoji="❤️" title="Les plus ajoutés en favoris" subtitle="D'après les favoris épinglés des membres"
-              items={favorites.map(f => f.anime)} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
-              metaLabel={() => "Favori"}
-              statOverride={a => {
-                const f = favorites.find(x => x.anime.mal_id === a.mal_id);
-                return { primary: `❤️ ${f?.count ?? 0}`, secondary: (f?.count ?? 0) > 1 ? "favoris" : "favori" };
-              }}
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+          <div className="min-w-0 flex-1">
+            <DiscussionsBlock
+              threads={threads} replyCounts={replyCounts} loaded={threadsLoaded}
+              onOpenThread={setOpenThread} onNewThread={() => setShowNewThread(true)}
             />
-          )}
-          <ForumCategory
-            emoji="🆕" title="Nouveaux animes ajoutés" subtitle="Derniers ajouts à la base"
-            items={newAnime} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
-            metaLabel={() => "Nouveau"} maxVisible={NEW_ANIME_PREVIEW}
-          />
-        </>
+            <AnticipatedCard anime={mostAnticipated} airedDates={airedDates} onOpenDetail={onOpenDetail} />
+
+            <ForumCategory
+              emoji="📅" title="Prochaines sorties" subtitle="Annonces à venir"
+              items={upcoming} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
+              metaLabel={a => countdownLabel(a, airedDates)}
+            />
+            <ForumCategory
+              emoji="🎬" title="Derniers trailers" subtitle="Bandes-annonces récentes"
+              items={trailers} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
+              metaLabel={() => "Trailer"} trailerLink
+            />
+            {favoritesLoaded && favorites.length > 0 && (
+              <ForumCategory
+                emoji="❤️" title="Les plus ajoutés en favoris" subtitle="D'après les favoris épinglés des membres"
+                items={favorites.map(f => f.anime)} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
+                metaLabel={() => "Favori"}
+                statOverride={a => {
+                  const f = favorites.find(x => x.anime.mal_id === a.mal_id);
+                  return { primary: `❤️ ${f?.count ?? 0}`, secondary: (f?.count ?? 0) > 1 ? "favoris" : "favori" };
+                }}
+              />
+            )}
+            <ForumCategory
+              emoji="🆕" title="Nouveaux animes ajoutés" subtitle="Derniers ajouts à la base"
+              items={newAnime} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
+              metaLabel={() => "Nouveau"} maxVisible={NEW_ANIME_PREVIEW}
+            />
+          </div>
+
+          <aside className="w-full shrink-0 lg:sticky lg:top-6 lg:w-[280px]">
+            <CommunityMoodBlock loaded={moodLoaded} counts={moodCounts} total={moodTotal} />
+          </aside>
+        </div>
       )}
 
       {showNewThread && (

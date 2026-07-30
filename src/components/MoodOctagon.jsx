@@ -11,19 +11,21 @@ const MOOD_META = {
   thrills:  {emoji:"🎢",color:"#FB923C",label:"Thrills"},
 };
 
-export function MoodOctagon({ pts }) {
-  const size = 340, center = 170, levels = [25,50,75,100];
+export function MoodOctagon({ pts, size = 340, rawThrills = false, title = "Profil émotionnel", className = "rounded-2xl border border-white/8 bg-white/3 p-4" }) {
+  const center = size / 2, levels = [25,50,75,100];
 
-  // thrills is stored on a 0-33 scale — normalize to 0-100 for display only
+  // thrills is stored on a 0-33 scale — normalize to 0-100 for display only.
+  // Callers with already-comparable values (e.g. raw vote tallies) opt out via rawThrills.
   const displayPts = { ...(pts||{}) };
-  if(displayPts.thrills !== undefined) displayPts.thrills = Math.round((displayPts.thrills / 33) * 100);
+  if(!rawThrills && displayPts.thrills !== undefined) displayPts.thrills = Math.round((displayPts.thrills / 33) * 100);
 
-  const gridMaxR = 122;
+  const gridMaxR = size * 0.359;
+  const labelR = gridMaxR + size * 0.088;
 
   // Dominant mood is pinned to the outer ring (100%); every other axis is
   // normalized relative to it, so the shape always reads clearly even when
   // every raw pts value is small.
-  const dominant = Object.entries(pts||{}).filter(([k]) => k!=="thrills").sort((a,b) => b[1]-a[1])[0]?.[0] || "hype";
+  const dominant = Object.entries(pts||{}).filter(([k]) => rawThrills || k!=="thrills").sort((a,b) => b[1]-a[1])[0]?.[0] || "hype";
   const dominantMeta = MOOD_META[dominant] || {emoji:"❔", color:"#818cf8"};
   const fillColor = dominantMeta.color;
   const dominantVal = displayPts[dominant] || 0;
@@ -36,8 +38,8 @@ export function MoodOctagon({ pts }) {
       key: k,
       x: center + Math.cos(angle)*r,
       y: center + Math.sin(angle)*r,
-      lx: center + Math.cos(angle)*(gridMaxR+30),
-      ly: center + Math.sin(angle)*(gridMaxR+30),
+      lx: center + Math.cos(angle)*labelR,
+      ly: center + Math.sin(angle)*labelR,
       meta: MOOD_META[k] || {emoji:"?", color:"#818cf8"},
     };
   });
@@ -45,11 +47,13 @@ export function MoodOctagon({ pts }) {
   const polygon = ptsList.map(p => `${p.x},${p.y}`).join(" ");
 
   return (
-    <div className="rounded-2xl border border-white/8 bg-white/3 p-4">
-      <div className="mb-1 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500">
-        Profil émotionnel
-      </div>
-      <svg viewBox={`0 0 ${size} ${size}`} className="mx-auto block w-full max-w-[340px]">
+    <div className={className}>
+      {title && (
+        <div className="mb-1 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          {title}
+        </div>
+      )}
+      <svg viewBox={`0 0 ${size} ${size}`} className="mx-auto block w-full" style={{ maxWidth: size }}>
         {levels.map(lvl => {
           const gPts = KEYS.map((_, i) => {
             const a = (Math.PI*2*i/KEYS.length) - Math.PI/2;
@@ -63,7 +67,7 @@ export function MoodOctagon({ pts }) {
         })}
         <polygon points={polygon} fill={`${fillColor}28`} stroke={fillColor} strokeWidth="2.5" strokeLinejoin="round"/>
         {ptsList.map(p => (
-          <text key={p.key} x={p.lx} y={p.ly} textAnchor="middle" dominantBaseline="middle" fontSize="16">{p.meta.emoji}</text>
+          <text key={p.key} x={p.lx} y={p.ly} textAnchor="middle" dominantBaseline="middle" fontSize={size * 0.047}>{p.meta.emoji}</text>
         ))}
       </svg>
     </div>
