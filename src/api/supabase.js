@@ -57,6 +57,7 @@ export const sb = {
       hidden_completed: data.hiddenCompleted || data.hidden_completed || [],
       posts:            data.posts,
       active_frame:     data.activeFrame || null,
+      avatar_base64:    data.avatar_base64 || null,
       highlights:        data.highlights || [],
       custom_lists:     data.customLists || [],
       pinned_list:      data.pinnedList || null,
@@ -136,6 +137,7 @@ export async function loadProfile(username) {
         ...remote,
         hiddenCompleted: remote.hidden_completed || remote.hiddenCompleted || [],
         activeFrame: remote.active_frame || remote.activeFrame || null,
+        avatar_base64: remote.avatar_base64 || null,
         highlights: remote.highlights || [],
         customLists: remote.custom_lists || remote.customLists || [],
         pinnedList: remote.pinned_list || remote.pinnedList || null,
@@ -178,6 +180,64 @@ export const follows = {
   async unfollow(follower, following) {
     await sb.query(`follows?follower=eq.${encodeURIComponent(follower)}&following=eq.${encodeURIComponent(following)}`, {
       method:"DELETE",
+    });
+  },
+};
+
+// ─── POSTS ────────────────────────────────────────────────────────────────────
+export const posts = {
+  async getFeed({ limit=20, offset=0, username=null, animeId=null, genre=null, season=null, following=[] }) {
+    let url = `posts?select=*&order=created_at.desc&limit=${limit}&offset=${offset}`;
+    if(username) url = `posts?select=*&username=eq.${encodeURIComponent(username)}&order=created_at.desc&limit=${limit}&offset=${offset}`;
+    else if(animeId) url += `&anime_id=eq.${animeId}`;
+    else if(following.length) url += `&username=in.(${following.map(u=>encodeURIComponent(u)).join(",")})`;
+    return sb.query(url);
+  },
+  async create(post) {
+    return sb.query("posts", {
+      method:"POST",
+      headers:{...sb.headers,"Prefer":"return=representation"},
+      body: JSON.stringify(post),
+    });
+  },
+  async delete(id) {
+    return sb.query(`posts?id=eq.${id}`, { method:"DELETE" });
+  },
+  async toggleLike(id, username) {
+    const rows = await sb.query(`posts?id=eq.${id}&select=likes&limit=1`);
+    const likes = rows?.[0]?.likes || [];
+    const newLikes = likes.includes(username) ? likes.filter(u=>u!==username) : [...likes, username];
+    return sb.query(`posts?id=eq.${id}`, {
+      method:"PATCH",
+      headers:{...sb.headers,"Prefer":"return=representation"},
+      body: JSON.stringify({ likes: newLikes }),
+    });
+  },
+};
+
+// ─── COMMENTS ─────────────────────────────────────────────────────────────────
+export const comments = {
+  async getForPost(postId) {
+    return sb.query(`comments?post_id=eq.${postId}&order=created_at.asc&limit=50`);
+  },
+  async create(comment) {
+    return sb.query("comments", {
+      method:"POST",
+      headers:{...sb.headers,"Prefer":"return=representation"},
+      body: JSON.stringify(comment),
+    });
+  },
+  async delete(id) {
+    return sb.query(`comments?id=eq.${id}`, { method:"DELETE" });
+  },
+  async toggleLike(id, username) {
+    const rows = await sb.query(`comments?id=eq.${id}&select=likes&limit=1`);
+    const likes = rows?.[0]?.likes || [];
+    const newLikes = likes.includes(username) ? likes.filter(u=>u!==username) : [...likes, username];
+    return sb.query(`comments?id=eq.${id}`, {
+      method:"PATCH",
+      headers:{...sb.headers,"Prefer":"return=representation"},
+      body: JSON.stringify({ likes: newLikes }),
     });
   },
 };

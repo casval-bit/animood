@@ -1,9 +1,10 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useApp } from "../context/useApp.js";
 import { MOODS, getMoodObj } from "../constants/moods.js";
 import { DURATIONS, MEDIA_TYPES, COUNTRIES } from "../constants/filters.js";
 import { fetchMoodboardCandidates } from "../api/moodboard.js";
 import { ptsToPct } from "../api/moods.js";
+import { sb, follows } from "../api/supabase.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { Modal } from "../components/Modal.jsx";
 import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
@@ -82,15 +83,17 @@ function MoodGuideTile({ onClick }) {
   );
 }
 
-function MoodResultCard({ anime, selectedMoods, onClick }) {
+function MoodResultCard({ anime, selectedMoods, onClick, friendUsers }) {
   const img = anime.images?.jpg?.large_image_url || anime.images?.jpg?.image_url || anime.image_url || anime.large_image;
   const genres = (anime.genres || []).map(g => g.name || g).slice(0, 2);
+  const hasFriendHighlight = friendUsers && friendUsers.length > 0;
   return (
     <div role="button" tabIndex={0}
       onClick={() => onClick?.(anime)}
       onKeyDown={e => { if(e.key==="Enter"||e.key===" ") { e.preventDefault(); onClick?.(anime); } }}
-      className={`group flex cursor-pointer flex-col overflow-hidden text-left transition-all duration-300 hover:-translate-y-1 hover:border-white/15 ${GLASS}`}
-      style={GLASS_STYLE}>
+      className={`group flex cursor-pointer flex-col overflow-hidden text-left transition-all duration-300 hover:-translate-y-1 ${GLASS}`}
+      style={{...GLASS_STYLE, border: hasFriendHighlight ? "2px solid #ef4444" : undefined,
+        boxShadow: hasFriendHighlight ? "0 0 16px rgba(239,68,68,0.3)" : undefined}}>
       <div className="relative aspect-2/3 w-full overflow-hidden bg-black/20">
         <img
           src={img || "https://placehold.co/300x450/1a1a2e/818cf8?text=?"}
@@ -99,6 +102,16 @@ function MoodResultCard({ anime, selectedMoods, onClick }) {
           onError={e => { e.target.src = "https://placehold.co/300x450/1a1a2e/818cf8?text=?"; }}
         />
         <QuickActionIcons anime={anime} />
+        {hasFriendHighlight && (
+          <div style={{position:"absolute",top:6,left:6,background:"rgba(239,68,68,0.9)",borderRadius:20,
+            padding:"2px 8px",fontSize:10,fontWeight:800,color:"#fff",display:"flex",alignItems:"center",gap:4,zIndex:10}}>
+            ❤️ {friendUsers.length === 1
+              ? `@${friendUsers[0]} l'a aimé`
+              : friendUsers.length <= 4
+              ? `${friendUsers.length} l'ont aimé`
+              : "Plusieurs amis l'ont aimé"}
+          </div>
+        )}
         <div className="absolute bottom-2 right-2 rounded-md bg-black/80 px-1.5 py-0.5 text-[10px] font-extrabold">
           <StarRatingDisplay score={anime.score} />
         </div>
@@ -119,18 +132,40 @@ function MoodResultCard({ anime, selectedMoods, onClick }) {
 }
 
 export function MoodboardView({ onOpenDetail }) {
-  const { me } = useApp();
+  const { me, myUsername } = useApp();
   const [selectedMoods, setSelectedMoods] = useState([]);
   const [showMoodInfo, setShowMoodInfo]   = useState(false);
   const [duration, setDuration]           = useState("all");
   const [countries, setCountries]         = useState(["all"]);
   const [mediaTypes, setMediaTypes]       = useState(["all"]);
+  const [showFriendHighlights, setShowFriendHighlights] = useState(true);
+  const [friendHighlights, setFriendHighlights] = useState({}); // mal_id → [username,...]
   const [results, setResults]             = useState([]);
-  const [cursor, setCursor]               = useState(null);   // { offset, pool, shownIds } — carried across rerolls
+  const [cursor, setCursor]               = useState(null);
   const [rerollCount, setRerollCount]     = useState(0);
   const [generating, setGenerating]       = useState(false);
   const [hasSearched, setHasSearched]     = useState(false);
   const resultsRef = useRef(null);
+
+  // Load friend highlights on mount
+  useEffect(() => {
+    if(!myUsername) return;
+    (async () => {
+      try {
+        const following = await follows.getFollowing(myUsername).catch(()=>[]);
+        if(!following.length) return;
+        const rows = await sb.query(`profiles?username=in.(${following.map(u=>encodeURIComponent(u)).join(",")})&select=username,highlights`);
+        const map = {};
+        (rows||[]).forEach(p => {
+          (p.highlights||[]).forEach(malId => {
+            if(!map[malId]) map[malId] = [];
+            map[malId].push(p.username);
+          });
+        });
+        setFriendHighlights(map);
+      } catch {}
+    })();
+  }, [myUsername]);
 
   const toggleMood = id => {
     setHasSearched(false);
@@ -217,6 +252,14 @@ export function MoodboardView({ onOpenDetail }) {
               <ChipGroup items={MEDIA_TYPES} value={mediaTypes} onToggle={v => toggleMulti(v, mediaTypes, setMediaTypes)} />
             </div>
 
+            <div>
+              <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Coups de cœur amis</p>
+              <button onClick={()=>setShowFriendHighlights(p=>!p)}
+                className={`flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-bold transition ${showFriendHighlights ? "border border-red-400/30 bg-red-400/10 text-red-400" : "border border-white/8 bg-white/3 text-slate-500"}`}>
+                ❤️ {showFriendHighlights ? "Actif — bordure rouge" : "Désactivé"}
+              </button>
+            </div>
+
             <div className="flex items-center gap-1.5 rounded-xl border border-emerald-400/15 bg-emerald-400/6 px-3 py-2 text-[11px] text-emerald-400">
               ✓ {excludedCount} animés exclus · 🤖 mood IA activé
             </div>
@@ -255,7 +298,10 @@ export function MoodboardView({ onOpenDetail }) {
                 </div>
                 {results.length > 0 ? (
                   <div className="grid grid-cols-2 gap-5 sm:grid-cols-3">
-                    {results.map(a => <MoodResultCard key={a.mal_id} anime={a} selectedMoods={selectedMoods} onClick={onOpenDetail} />)}
+                    {results.map(a => (
+                      <MoodResultCard key={a.mal_id} anime={a} selectedMoods={selectedMoods} onClick={onOpenDetail}
+                        friendUsers={showFriendHighlights ? (friendHighlights[a.mal_id]||[]) : []}/>
+                    ))}
                   </div>
                 ) : (
                   <div className={`flex flex-col items-center gap-2 py-16 text-center ${GLASS}`} style={GLASS_STYLE}>

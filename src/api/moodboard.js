@@ -199,7 +199,6 @@ export async function fetchMoodboardCandidates(
     .sort((a,b) => b._score - a._score)
     .slice(0, 3);
 
-  // For each result, redirect to first unwatched season
   const results = scored.map(a => {
     const franchise = [...pool.values()]
       .filter(x => isSameFranchise(x.title, a.title) && !excluded.has(x.mal_id))
@@ -209,23 +208,54 @@ export async function fetchMoodboardCandidates(
     return { ...first, _pts: a._pts, _score: a._score };
   });
 
-  // Mark entire franchise as shown — not just the displayed entry
-  // This prevents Kingdom 2/3/4 from appearing in future rerolls
+  // Build shownIds — mark entire franchises as shown
   const newShownIds = new Set([...shownSet]);
-  results.forEach(a => {
+  const markShown = (batch) => batch.forEach(a => {
     newShownIds.add(a.mal_id);
-    // Also mark all franchise members in pool as shown
-    [...pool.values()]
-      .filter(x => isSameFranchise(x.title, a.title))
-      .forEach(x => newShownIds.add(x.mal_id));
+    [...pool.values()].filter(x => isSameFranchise(x.title, a.title)).forEach(x => newShownIds.add(x.mal_id));
   });
 
+  // When format = "all": always at least 2 TV, max 1 non-TV (Film/OAV/ONA/Special)
+  const isAll = !mediaTypes || mediaTypes.includes("all");
+  if(isAll && results.length >= 2) {
+    let nonTvCount = 0;
+    const filtered = [];
+
+    // Sort: TV first
+    const sorted = [...results].sort((a,b) => {
+      const isTV = t => (t||"TV") === "TV";
+      return (isTV(b.type)?1:0) - (isTV(a.type)?1:0);
+    });
+
+    for(const a of sorted) {
+      if((a.type||"TV") === "TV") { filtered.push(a); }
+      else if(nonTvCount < 1) { filtered.push(a); nonTvCount++; }
+    }
+
+    // Fill with extra TV if still not 3
+    if(filtered.length < 3) {
+      const inBatch = new Set(filtered.map(a => a.mal_id));
+      const extras = withPts
+        .filter(a => !inBatch.has(a.mal_id) && !shownSet.has(a.mal_id) && (a.type||"TV") === "TV")
+        .sort((a,b) => b._score - a._score);
+      for(const e of extras) {
+        if(filtered.length >= 3) break;
+        filtered.push(e);
+      }
+    }
+
+    const finalResults = filtered.slice(0,3);
+    markShown(finalResults);
+    return {
+      results: finalResults,
+      cursor: { offset, pool: Object.fromEntries(pool), shownIds: [...newShownIds] },
+    };
+  }
+
+  markShown(results.slice(0,3));
   return {
-    results,
-    cursor: {
-      offset,
-      pool: Object.fromEntries(pool),
-      shownIds: [...newShownIds],
-    },
+    results: results.slice(0,3),
+    cursor: { offset, pool: Object.fromEntries(pool), shownIds: [...newShownIds] },
   };
 }
+
