@@ -9,6 +9,7 @@ const QUERY = `
 query ($userName: String) {
   MediaListCollection(userName: $userName, type: ANIME) {
     lists {
+      name
       isCustomList
       entries {
         status
@@ -47,11 +48,20 @@ export async function importAniListUser(username) {
   }
 
   const lists = json.data?.MediaListCollection?.lists || [];
-  const statuses = {}, ratings = {};
+  const statuses = {}, ratings = {}, customLists = {};
   let skipped = 0;
 
   for(const list of lists) {
-    if(list.isCustomList) continue; // avoid double-counting entries also on custom lists
+    if(list.isCustomList) {
+      // Custom (sub-)lists mirror entries already counted on a status list above —
+      // just record membership, don't touch statuses/ratings again.
+      for(const entry of list.entries || []) {
+        const malId = entry.media?.idMal;
+        if(!malId || !list.name) continue;
+        (customLists[malId] ||= []).push(list.name);
+      }
+      continue;
+    }
     for(const entry of list.entries || []) {
       const malId = entry.media?.idMal;
       if(!malId) { skipped++; continue; }
@@ -61,7 +71,7 @@ export async function importAniListUser(username) {
   }
 
   const watched = Object.entries(statuses).filter(([,s]) => s !== "watchlist").map(([id]) => parseInt(id));
-  return { watched, ratings, statuses, skipped };
+  return { watched, ratings, statuses, customLists, skipped };
 }
 
 // ─── Exact air dates for a batch of MAL ids — Jikan only stores the year, but

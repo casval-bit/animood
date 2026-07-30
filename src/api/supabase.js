@@ -56,6 +56,7 @@ export const sb = {
       favorites:        data.favorites,
       hidden_completed: data.hiddenCompleted || data.hidden_completed || [],
       posts:            data.posts,
+      anilist_sub_lists: data.anilistSubLists || data.anilist_sub_lists || {},
       active_frame:     data.activeFrame || null,
       updated_at:       data.updated_at,
     };
@@ -104,11 +105,11 @@ export const sb = {
     try { return await this.query(`forum_replies?thread_id=eq.${threadId}&order=created_at.asc`) || []; }
     catch { return []; }
   },
-  async createThread(username, title, body) {
+  async createThread(username, title, body, tags = []) {
     return this.query("forum_threads", {
       method: "POST",
       headers: { ...this.headers, "Prefer": "return=representation" },
-      body: JSON.stringify([{ username, title, body }]),
+      body: JSON.stringify([{ username, title, body, tags }]),
     });
   },
   async createReply(threadId, username, body) {
@@ -185,6 +186,7 @@ export async function loadProfile(username) {
       const profile = {
         ...remote,
         hiddenCompleted: remote.hidden_completed || remote.hiddenCompleted || [],
+        anilistSubLists: remote.anilist_sub_lists || remote.anilistSubLists || {},
         activeFrame: remote.active_frame || remote.activeFrame || null,
       };
       localStorage.setItem(`animood_profile_${username}`, JSON.stringify(profile));
@@ -225,6 +227,37 @@ export const follows = {
   async unfollow(follower, following) {
     await sb.query(`follows?follower=eq.${encodeURIComponent(follower)}&following=eq.${encodeURIComponent(following)}`, {
       method:"DELETE",
+    });
+  },
+};
+
+// ─── DIRECT MESSAGES — 1:1 chat, no group threads/attachments ─────────────────
+export const dm = {
+  // Distinct conversations involving `username`, each with its last message —
+  // most recently active first.
+  async listConversations(username) {
+    const u = encodeURIComponent(username);
+    let rows;
+    try { rows = await sb.query(`direct_messages?or=(sender.eq.${u},recipient.eq.${u})&order=created_at.desc&limit=200`); }
+    catch { return []; }
+    const byPeer = new Map();
+    (rows||[]).forEach(m => {
+      const peer = m.sender === username ? m.recipient : m.sender;
+      if(!byPeer.has(peer)) byPeer.set(peer, m); // first hit per peer = most recent (desc order)
+    });
+    return [...byPeer.entries()].map(([peer, lastMessage]) => ({ peer, lastMessage }));
+  },
+  async getThread(username, peer) {
+    const u = encodeURIComponent(username), p = encodeURIComponent(peer);
+    try {
+      return await sb.query(`direct_messages?or=(and(sender.eq.${u},recipient.eq.${p}),and(sender.eq.${p},recipient.eq.${u}))&order=created_at.asc&limit=500`) || [];
+    } catch { return []; }
+  },
+  async sendMessage(sender, recipient, body) {
+    return sb.query("direct_messages", {
+      method: "POST",
+      headers: { ...sb.headers, "Prefer": "return=representation" },
+      body: JSON.stringify([{ sender, recipient, body }]),
     });
   },
 };

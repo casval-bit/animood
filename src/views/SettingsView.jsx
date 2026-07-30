@@ -25,12 +25,17 @@ export function SettingsView({ onClose }) {
   const [alStats, setAlStats]       = useState(null);
   const [alError, setAlError]       = useState(null);
 
-  const mergeImport = ({ watched, ratings, statuses }) => {
+  const mergeImport = ({ watched, ratings, statuses, customLists }) => {
+    const mergedSubLists = { ...(me.anilistSubLists||{}) };
+    Object.entries(customLists||{}).forEach(([malId, names]) => {
+      mergedSubLists[malId] = [...new Set([...(mergedSubLists[malId]||[]), ...names])];
+    });
     saveMe({
       ...me,
       watched: [...new Set([...me.watched, ...watched])],
       ratings: { ...me.ratings, ...ratings },
       statuses: { ...(me.statuses||{}), ...statuses },
+      anilistSubLists: mergedSubLists,
     });
   };
 
@@ -56,9 +61,10 @@ export function SettingsView({ onClose }) {
   const handleAniListImport = async () => {
     setAlStatus("importing"); setAlError(null);
     try {
-      const { watched, ratings, statuses, skipped } = await importAniListUser(alUsername);
-      mergeImport({ watched, ratings, statuses });
-      setAlStats({ watched: Object.keys(statuses).length, rated: Object.keys(ratings).length, skipped });
+      const { watched, ratings, statuses, customLists, skipped } = await importAniListUser(alUsername);
+      mergeImport({ watched, ratings, statuses, customLists });
+      const listNames = new Set(Object.values(customLists||{}).flat());
+      setAlStats({ watched: Object.keys(statuses).length, rated: Object.keys(ratings).length, lists: listNames.size, skipped });
       setAlStatus("done");
     } catch(err) {
       setAlError(err.message);
@@ -76,7 +82,7 @@ export function SettingsView({ onClose }) {
       <div className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto px-6 py-6">
         <Section title="📥 Importer depuis AniList">
           <p className="mb-3 text-xs leading-relaxed text-slate-500">
-            Entre ton pseudo AniList — ta liste doit être publique. Les animés "Completed" seront ajoutés à ton historique avec leurs notes.
+            Entre ton pseudo AniList — ta liste doit être publique. Les animés "Completed" seront ajoutés à ton historique avec leurs notes, et tes sous-listes perso (custom lists) seront récupérées pour filtrer ton journal.
           </p>
           <div className="flex gap-2">
             <input value={alUsername} onChange={e => setAlUsername(e.target.value)}
@@ -90,6 +96,7 @@ export function SettingsView({ onClose }) {
           {alStatus==="done" && alStats && (
             <div className="mt-2.5 rounded-lg border border-emerald-400/20 bg-emerald-400/8 px-3 py-2.5 text-xs text-emerald-400">
               ✅ Import réussi — {alStats.watched} animés importés · {alStats.rated} notes récupérées
+              {alStats.lists>0 && ` · ${alStats.lists} sous-liste${alStats.lists!==1?"s":""} perso récupérée${alStats.lists!==1?"s":""}`}
               {alStats.skipped>0 && ` · ${alStats.skipped} ignorés (pas de fiche MAL)`}
             </div>
           )}

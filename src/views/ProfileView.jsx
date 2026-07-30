@@ -117,6 +117,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
   const { me, saveMe, myUsername } = useApp();
   const [tab, setTab] = useState("profile");
   const [journalFilter, setJournalFilter] = useState(null);
+  const [customListFilter, setCustomListFilter] = useState(null);
   const [journalGrid, setJournalGrid] = useState(true);
   const [watchlistPage, setWatchlistPage] = useState(0);
   const [animeCache, setAnimeCache] = useState({});
@@ -189,8 +190,10 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
 
   const watchlistIds = Object.entries(me.statuses||{}).filter(([,s])=>s==="watchlist").map(([id])=>parseInt(id));
   const allTrackedIds = [...new Set([...me.watched, ...watchlistIds])];
+  const customListNames = [...new Set(Object.values(me.anilistSubLists||{}).flat())].sort();
   const journalEntries = allTrackedIds
     .filter(id => !journalFilter || ((me.statuses||{})[id]||"completed") === journalFilter)
+    .filter(id => !customListFilter || (me.anilistSubLists||{})[id]?.includes(customListFilter))
     .sort((a,b) => (STATUS_PRIORITY[(me.statuses||{})[a]||"completed"]??5) - (STATUS_PRIORITY[(me.statuses||{})[b]||"completed"]??5));
 
   const saveBio = () => saveMe({ ...me, bio: bioInput });
@@ -328,6 +331,22 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
               {journalGrid ? "⊞" : "☰"}
             </button>
           </div>
+
+          {customListNames.length > 0 && (
+            <div className="mb-4 flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-[10px] font-bold uppercase tracking-wider text-slate-600">📋 Sous-listes AniList</span>
+              {customListNames.map(name => {
+                const active = customListFilter === name;
+                return (
+                  <button key={name} onClick={() => setCustomListFilter(active?null:name)}
+                    className="rounded-full px-3 py-1.5 text-[11px] font-semibold transition"
+                    style={{ border:`1px solid ${active?"#a78bfa":"rgba(255,255,255,0.08)"}`, background: active?"rgba(167,139,250,0.15)":"rgba(255,255,255,0.03)", color: active?"#a78bfa":"#6b7280" }}>
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {journalEntries.length === 0 && <EmptyState emoji="📖" title="Ton journal est vide" />}
 

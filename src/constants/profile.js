@@ -3,4 +3,5 @@ export const DEFAULT_PROFILE = {
   watched:[], statuses:{}, ratings:{},
   favorites:[null,null,null,null,null],
   hiddenCompleted:[], posts:[],
+  anilistSubLists:{}, // { [malId]: string[] } — imported from AniList's custom (sub-)lists
 };
