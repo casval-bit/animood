@@ -1,10 +1,10 @@
 # AniMood
 
-Une app anime pilotée par l'humeur — moodboard, feed, recherche, forum, profils et messagerie. React + Vite + Tailwind côté client, Supabase (Postgres + REST) côté données, Jikan/AniList pour le catalogue anime.
+A mood-driven anime app — moodboard, feed, search, forum, profiles, and messaging. React + Vite + Tailwind on the client, Supabase (Postgres + REST) for data, Jikan/AniList for the anime catalog.
 
-## Lancer le projet en local
+## Run locally
 
-Aucune configuration nécessaire — la clé Supabase (anon, publique) est déjà dans le code, et le schéma de base est déjà migré sur le projet Supabase partagé.
+No setup needed — the Supabase key already in the code is the `anon`/publishable key (safe to ship client-side by design; access control lives in RLS policies, not in keeping it secret), and the DB schema is already migrated on the shared Supabase project.
 
 ```bash
 git clone -b forum-mood-messages-sublists https://github.com/casval-bit/animood.git
@@ -13,32 +13,32 @@ npm install
 npm run dev
 ```
 
-Ouvre l'URL affichée par Vite (`http://localhost:5173`).
+Open the URL Vite prints (`http://localhost:5173`).
 
-Autres commandes utiles :
+Other commands:
 
 ```bash
-npm run build     # build de prod
-npm run preview   # preview du build
-npm run lint      # eslint sur tout le projet
+npm run build     # production build
+npm run preview   # preview the build
+npm run lint      # eslint across the project
 ```
 
-## Fonctionnalités de cette branche
+## What's on this branch
 
-- **Forum** — carte "Humeur de la communauté" en octogone (au lieu de barres), en sidebar à droite plutôt qu'en haut de page ; sujets de discussion avec tags (Discussion / Question / Théorie / Recommandation / Spoiler / Rant).
-- **Messages** — chat 1:1 entre membres (onglet "Messages" + bouton "💬 Message" sur un profil).
-- **Import AniList** — récupère aussi les sous-listes perso (custom lists) d'un compte AniList public, filtrables dans Profil → Journal.
+- **Forum** — "Community mood" card is now an octagon radar (instead of bars), moved into a sticky right sidebar instead of sitting full-width at the top; threads can be tagged (Discussion / Question / Theory / Recommendation / Spoiler / Rant).
+- **Messages** — 1:1 chat between members ("Messages" tab + "💬 Message" button on any profile).
+- **AniList import** — also pulls a public AniList account's custom (sub-)lists, filterable from Profile → Journal.
 
-## Base de données (Supabase)
+## Database (Supabase)
 
-Le schéma est déjà appliqué sur le projet partagé. Pour un nouveau projet Supabase (ou après un reset), exécuter dans l'ordre, dans le SQL Editor :
+Schema is already applied on the shared project. For a fresh Supabase project (or after a reset), run these in order in the SQL Editor:
 
-| Fichier | Ajoute |
+| File | Adds |
 |---|---|
-| `supabase/forum_schema.sql` | `forum_threads`, `forum_replies` (+ colonne `tags`) |
+| `supabase/forum_schema.sql` | `forum_threads`, `forum_replies` (+ `tags` column) |
 | `supabase/messages_schema.sql` | `direct_messages` |
-| `supabase/anilist_sub_lists.sql` | colonne `anilist_sub_lists` sur `profiles` |
+| `supabase/anilist_sub_lists.sql` | `anilist_sub_lists` column on `profiles` |
 
-Modèle d'accès : comme le reste de l'app, ces tables utilisent la clé `anon` partagée avec des policies RLS ouvertes ("anyone can read/insert") — pas de confidentialité par utilisateur au sens strict, cohérent avec `profiles`/`follows`/`user_votes` déjà en place.
+Access model: like the rest of the app, these tables use the shared `anon` key with open RLS policies ("anyone can read/insert") — not per-user privacy, consistent with `profiles`/`follows`/`user_votes`.
 
-> Note : `profiles.custom_lists` (listes perso créées manuellement, `{id, name, animeIds}[]`) est une fonctionnalité distincte qui vit sur la branche `main` — sans rapport avec `anilist_sub_lists` ci-dessus.
+> `profiles.custom_lists` (manually-created lists, `{id, name, animeIds}[]`) is a separate feature living on the `main` branch — unrelated to `anilist_sub_lists` above.
