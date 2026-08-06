@@ -126,6 +126,8 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
   const [showFramePicker, setShowFramePicker] = useState(false);
   const [unlockedFrames, setUnlockedFrames] = useState([]);
   const [activeFrame, setActiveFrame] = useState(null);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
   const [editingBio, setEditingBio] = useState(false);
   const [bioInput, setBioInput] = useState(me.bio||"");
 
@@ -159,10 +161,13 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
   useEffect(() => {
     (async () => {
       try {
-        const [followerRows, voteRows] = await Promise.all([
+        const [followerRows, followingRows, voteRows] = await Promise.all([
           follows.getFollowers(myUsername),
+          follows.getFollowing(myUsername).catch(()=>[]),
           sb.query(`user_votes?username=eq.${myUsername}&select=pts_added&limit=1000`),
         ]);
+        setFollowerCount((followerRows||[]).length);
+        setFollowingCount((followingRows||[]).length);
         const genreCounts = {};
         const chunks = [];
         for(let i=0;i<me.watched.length;i+=100) chunks.push(me.watched.slice(i,i+100));
@@ -172,7 +177,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
             (rows||[]).forEach(row => { (row.genres||[]).forEach(g => { const name=g.name||g; genreCounts[name]=(genreCounts[name]||0)+1; }); });
           } catch {}
         }
-        const unlocked = getUnlockedFrames({ watchedCount: me.watched.length, genreCounts, followerCount: followerRows.length, userVotes: voteRows||[] });
+        const unlocked = getUnlockedFrames({ watchedCount: me.watched.length, genreCounts, followerCount: (followerRows||[]).length, userVotes: voteRows||[] });
         setUnlockedFrames(unlocked);
         const savedFrameId = me.activeFrame;
         const saved = savedFrameId ? FRAMES[savedFrameId] : null;
@@ -216,7 +221,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
           <FrameSVG frame={activeFrame} size={96}>
             <button onClick={() => setShowAvatarPicker(true)}
               className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full text-4xl transition hover:scale-105" style={{ background: GRADIENT_PRIMARY }}>
-              {me.avatar && me.avatar.startsWith("http") ? <img src={me.avatar} alt="avatar" className="h-full w-full object-cover" /> : me.avatar}
+              {(me.avatar_base64 || (me.avatar?.startsWith?.("http") ? me.avatar : null))
+                ? <img src={me.avatar_base64 || me.avatar} alt="avatar" className="h-full w-full object-cover" />
+                : (me.avatar || "👤")}
             </button>
           </FrameSVG>
           <div onClick={() => setShowAvatarPicker(true)} className="absolute bottom-0 right-0 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-2 border-slate-950 bg-violet-600 text-[10px]">✏️</div>
@@ -255,6 +262,19 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
               {me.bio || "✏️ Ajoute une bio…"}
             </button>
           )}
+
+          {/* Followers / Following */}
+          <div className="flex items-center gap-4 mt-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[13px] font-black text-slate-100">{followerCount}</span>
+              <span className="text-[11px] text-slate-500">abonné{followerCount!==1?"s":""}</span>
+            </div>
+            <div className="w-px h-3 bg-white/10"/>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[13px] font-black text-slate-100">{followingCount}</span>
+              <span className="text-[11px] text-slate-500">abonnement{followingCount!==1?"s":""}</span>
+            </div>
+          </div>
         </div>
       </div>
 

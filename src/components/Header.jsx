@@ -13,6 +13,14 @@ const TABS = [
 export function Header({ activeTab, onChangeTab }) {
   const { me, session } = useApp();
 
+  // Custom Cloudinary avatar > Google OAuth > emoji
+  const avatarSrc = me.avatar?.startsWith?.("https://res.cloudinary.com")
+    ? me.avatar
+    : me.avatar?.startsWith?.("http")
+    ? me.avatar
+    : session?.user?.user_metadata?.avatar_url
+    || null;
+
   return (
     <div className="sticky top-0 z-50 px-3 pt-3 sm:px-4">
       <header
@@ -43,12 +51,15 @@ export function Header({ activeTab, onChangeTab }) {
           })}
         </nav>
 
-        <button onClick={() => onChangeTab("profile")} className="flex shrink-0 items-center gap-2 rounded-full py-1 pl-1 pr-1 transition hover:bg-white/5 sm:pr-3">
-          {session?.user?.user_metadata?.avatar_url
-            ? <img src={session.user.user_metadata.avatar_url} alt="avatar" className="h-7 w-7 rounded-full object-cover" />
-            : <span className="text-lg">{me.avatar || "👤"}</span>}
+        <div className="flex shrink-0 items-center gap-2 pl-2 border-l border-white/8">
+          <div className="h-7 w-7 rounded-full overflow-hidden flex items-center justify-center text-sm shrink-0"
+            style={{background:"linear-gradient(135deg,#7c3aed,#4f46e5)"}}>
+            {me.avatar?.startsWith?.("http")
+              ? <img src={me.avatar} alt="avatar" className="h-full w-full object-cover"/>
+              : <span>{me.avatar || "👤"}</span>}
+          </div>
           <span className="hidden text-xs font-semibold text-slate-400 sm:inline">{me.name}</span>
-        </button>
+        </div>
       </header>
     </div>
   );
