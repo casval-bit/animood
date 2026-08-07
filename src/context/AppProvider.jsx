@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
-import { onAuthChange, loadProfile, saveProfile, signOut } from "../api/supabase.js";
+import { onAuthChange, loadProfile, saveProfile, signOut, dm } from "../api/supabase.js";
 import { DEFAULT_PROFILE } from "../constants/profile.js";
 import { AppContext } from "./appContextObject.js";
 
 function usernameFromEmail(email) {
   return email.split("@")[0].replace(/[^a-z0-9]/gi, "").toLowerCase().slice(0, 20);
 }
+
+const lastReadKey = (username, peer) => `animood_dm_read_${username}_${peer}`;
 
 export function AppProvider({ children }) {
   const [session, setSession]         = useState(null);
@@ -37,6 +39,41 @@ export function AppProvider({ children }) {
     if(session && profileReady) saveProfile(myUsername, me);
   }, [me]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Unread DM tracking — no read_at column server-side, so "read" is just a
+  // per-peer timestamp kept in localStorage; a conversation is unread when its
+  // last message is newer than that timestamp and wasn't sent by me.
+  const [unreadPeers, setUnreadPeers] = useState(new Set());
+
+  useEffect(() => {
+    if(!myUsername) return;
+    let cancelled = false;
+    const check = async () => {
+      const convos = await dm.listConversations(myUsername);
+      if(cancelled) return;
+      const unread = new Set();
+      convos.forEach(c => {
+        if(c.lastMessage.sender === myUsername) return;
+        const lastRead = localStorage.getItem(lastReadKey(myUsername, c.peer));
+        if(!lastRead || new Date(c.lastMessage.created_at) > new Date(lastRead)) unread.add(c.peer);
+      });
+      setUnreadPeers(unread);
+    };
+    check();
+    const interval = setInterval(check, 15000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [myUsername]);
+
+  const markRead = useCallback((peer) => {
+    if(!myUsername) return;
+    localStorage.setItem(lastReadKey(myUsername, peer), new Date().toISOString());
+    setUnreadPeers(prev => {
+      if(!prev.has(peer)) return prev;
+      const next = new Set(prev);
+      next.delete(peer);
+      return next;
+    });
+  }, [myUsername]);
+
   // Update + persist in one call — every write path goes through here so nothing
   // can accidentally save under the wrong (or a hardcoded) username.
   const saveMe = useCallback((updated) => {
@@ -46,7 +83,7 @@ export function AppProvider({ children }) {
 
   const logout = async () => { await signOut(); setSession(null); setProfileReady(false); };
 
-  const ctx = { session, me, setMe, saveMe, myUsername, profileReady, logout };
+  const ctx = { session, me, setMe, saveMe, myUsername, profileReady, logout, unreadPeers, markRead };
 
   return <AppContext.Provider value={ctx}>{children}</AppContext.Provider>;
 }

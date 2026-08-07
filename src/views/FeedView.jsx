@@ -74,28 +74,28 @@ function AnimeSearchPicker({ onSelect, onClose }) {
 
   return (
     <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:50,marginTop:4,
-      background:"#161226",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:8,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}>
+      background:"var(--surface-1-strong)",border:"1px solid rgba(var(--fg-rgb),0.1)",borderRadius:12,padding:8,boxShadow:"var(--shadow-modal)"}}>
       <input autoFocus value={q} onChange={e=>search(e.target.value)}
         placeholder="Rechercher un animé…"
         style={{width:"100%",boxSizing:"border-box",padding:"8px 12px",borderRadius:8,
-          background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",
-          color:"#f3f4f6",fontSize:13,outline:"none",marginBottom:results.length?8:0}}/>
+          background:"rgba(var(--fg-rgb),0.06)",border:"1px solid rgba(var(--fg-rgb),0.1)",
+          color:"var(--text-1)",fontSize:13,outline:"none",marginBottom:results.length?8:0}}/>
       {results.map(a => (
         <button key={a.mal_id} onClick={()=>onSelect(a)}
           style={{display:"flex",gap:8,alignItems:"center",width:"100%",padding:"6px 8px",
             background:"none",border:"none",borderRadius:8,cursor:"pointer",textAlign:"left"}}
-          onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.06)"}
+          onMouseEnter={e=>e.currentTarget.style.background="rgba(var(--fg-rgb),0.06)"}
           onMouseLeave={e=>e.currentTarget.style.background="none"}>
           <img src={a.image_url} alt="" style={{width:28,height:40,objectFit:"cover",borderRadius:4,flexShrink:0}}
             onError={e=>{e.target.style.display="none";}}/>
           <div>
-            <div style={{fontSize:12,fontWeight:700,color:"#f3f4f6"}}>{a.title}</div>
-            <div style={{fontSize:10,color:"#6b7280"}}>{a.year}</div>
+            <div style={{fontSize:12,fontWeight:700,color:"var(--text-1)"}}>{a.title}</div>
+            <div style={{fontSize:10,color:"var(--text-3)"}}>{a.year}</div>
           </div>
         </button>
       ))}
       <button onClick={onClose} style={{width:"100%",marginTop:4,padding:"6px",background:"none",
-        border:"none",color:"#6b7280",fontSize:11,cursor:"pointer"}}>Annuler</button>
+        border:"none",color:"var(--text-3)",fontSize:11,cursor:"pointer"}}>Annuler</button>
     </div>
   );
 }
@@ -158,14 +158,14 @@ function PostComposer({ onPost }) {
   };
 
   return (
-    <div style={{background:"rgba(255,255,255,0.03)",borderRadius:16,border:"1px solid rgba(255,255,255,0.07)",padding:14,marginBottom:16}}>
+    <div style={{background:"rgba(var(--fg-rgb),0.03)",borderRadius:16,border:"1px solid rgba(var(--fg-rgb),0.07)",padding:14,marginBottom:16}}>
       <div style={{display:"flex",gap:10}}>
         <Avatar profile={profile} size={38}/>
         <div style={{flex:1}}>
           <textarea value={content} onChange={e=>setContent(e.target.value.slice(0,280))}
             placeholder="Partage ta réaction, ton avis, une recommandation…"
             style={{width:"100%",boxSizing:"border-box",background:"none",border:"none",
-              color:"#f3f4f6",fontSize:14,resize:"none",outline:"none",minHeight:70,
+              color:"var(--text-1)",fontSize:14,resize:"none",outline:"none",minHeight:70,
               fontFamily:"inherit",lineHeight:1.5}}/>
 
           {/* Image preview */}
@@ -187,39 +187,39 @@ function PostComposer({ onPost }) {
                 onError={e=>{e.target.style.display="none";}}/>
               <span style={{fontSize:12,color:"#818cf8",fontWeight:700,flex:1}}>{linkedAnime.title}</span>
               <button onClick={()=>setLinkedAnime(null)}
-                style={{background:"none",border:"none",color:"#6b7280",cursor:"pointer",fontSize:14}}>✕</button>
+                style={{background:"none",border:"none",color:"var(--text-3)",cursor:"pointer",fontSize:14}}>✕</button>
             </div>
           )}
 
           {/* Actions */}
-          <div style={{display:"flex",alignItems:"center",gap:8,borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:10}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,borderTop:"1px solid rgba(var(--fg-rgb),0.06)",paddingTop:10}}>
             <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{display:"none"}}/>
             <button onClick={()=>imageInputRef.current?.click()} disabled={imageUploading}
-              style={{padding:"5px 10px",borderRadius:8,background:imageUrl?"rgba(129,140,248,0.15)":"rgba(255,255,255,0.05)",
-                border:"1px solid rgba(255,255,255,0.1)",color:imageUrl?"#818cf8":"#9ca3af",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+              style={{padding:"5px 10px",borderRadius:8,background:imageUrl?"rgba(129,140,248,0.15)":"rgba(var(--fg-rgb),0.05)",
+                border:"1px solid rgba(var(--fg-rgb),0.1)",color:imageUrl?"#818cf8":"var(--text-2)",fontSize:11,fontWeight:700,cursor:"pointer"}}>
               {imageUploading ? "⏳" : "🖼"} {imageUploading ? "Upload…" : imageUrl ? "Changer" : "Image"}
             </button>
             <div style={{position:"relative"}}>
               <button onClick={()=>setShowAnimePicker(p=>!p)}
-                style={{padding:"5px 10px",borderRadius:8,background:linkedAnime?"rgba(129,140,248,0.15)":"rgba(255,255,255,0.05)",
-                  border:"1px solid rgba(255,255,255,0.1)",color:linkedAnime?"#818cf8":"#9ca3af",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                style={{padding:"5px 10px",borderRadius:8,background:linkedAnime?"rgba(129,140,248,0.15)":"rgba(var(--fg-rgb),0.05)",
+                  border:"1px solid rgba(var(--fg-rgb),0.1)",color:linkedAnime?"#818cf8":"var(--text-2)",fontSize:11,fontWeight:700,cursor:"pointer"}}>
                 📺 {linkedAnime ? "Changer" : "Lier un animé"}
               </button>
               {showAnimePicker && <AnimeSearchPicker onSelect={a=>{setLinkedAnime(a);setShowAnimePicker(false);}} onClose={()=>setShowAnimePicker(false)}/>}
             </div>
             <button onClick={()=>setSpoiler(p=>!p)}
               style={{padding:"5px 10px",borderRadius:8,
-                background:spoiler?"rgba(239,68,68,0.15)":"rgba(255,255,255,0.05)",
-                border:`1px solid ${spoiler?"rgba(239,68,68,0.3)":"rgba(255,255,255,0.1)"}`,
-                color:spoiler?"#ef4444":"#9ca3af",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                background:spoiler?"rgba(239,68,68,0.15)":"rgba(var(--fg-rgb),0.05)",
+                border:`1px solid ${spoiler?"rgba(239,68,68,0.3)":"rgba(var(--fg-rgb),0.1)"}`,
+                color:spoiler?"#ef4444":"var(--text-2)",fontSize:11,fontWeight:700,cursor:"pointer"}}>
               ⚠️ Spoiler
             </button>
             <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontSize:11,color:remaining<20?"#ef4444":"#6b7280",fontWeight:600}}>{remaining}</span>
+              <span style={{fontSize:11,color:remaining<20?"#ef4444":"var(--text-3)",fontWeight:600}}>{remaining}</span>
               <button onClick={handlePost} disabled={!canPost}
                 style={{padding:"7px 16px",borderRadius:10,border:"none",
-                  background:canPost?"linear-gradient(135deg,#7c3aed,#4f46e5)":"rgba(255,255,255,0.05)",
-                  color:canPost?"#fff":"#374151",fontWeight:800,fontSize:13,cursor:canPost?"pointer":"not-allowed"}}>
+                  background:canPost?"linear-gradient(135deg,#7c3aed,#4f46e5)":"rgba(var(--fg-rgb),0.05)",
+                  color:canPost?"#fff":"var(--text-4)",fontWeight:800,fontSize:13,cursor:canPost?"pointer":"not-allowed"}}>
                 {posting ? "…" : "Poster"}
               </button>
             </div>
@@ -261,29 +261,29 @@ function CommentSection({ postId, myUsername, profileCache }) {
     }));
   };
 
-  if(!commentList) return <div style={{fontSize:11,color:"#4b5563",padding:"8px 0"}}>Chargement…</div>;
+  if(!commentList) return <div style={{fontSize:11,color:"var(--text-4)",padding:"8px 0"}}>Chargement…</div>;
 
   return (
-    <div style={{borderTop:"1px solid rgba(255,255,255,0.05)",paddingTop:12,marginTop:8}}>
+    <div style={{borderTop:"1px solid rgba(var(--fg-rgb),0.05)",paddingTop:12,marginTop:8}}>
       {commentList.map(c => (
         <div key={c.id||c.created_at} style={{display:"flex",gap:8,marginBottom:10}}>
           <Avatar profile={profileCache[c.username]||{avatar:"👤"}} size={26}/>
           <div style={{flex:1}}>
-            <div style={{background:"rgba(255,255,255,0.04)",borderRadius:"0 10px 10px 10px",padding:"7px 10px"}}>
+            <div style={{background:"rgba(var(--fg-rgb),0.04)",borderRadius:"0 10px 10px 10px",padding:"7px 10px"}}>
               <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}>
                 <span style={{fontSize:11,fontWeight:800,color:"#c084fc"}}>@{c.username}</span>
-                <span style={{fontSize:9,color:"#4b5563"}}>{timeAgo(c.created_at)}</span>
+                <span style={{fontSize:9,color:"var(--text-4)"}}>{timeAgo(c.created_at)}</span>
               </div>
-              <p style={{fontSize:12,color:"#e5e7eb",margin:0,lineHeight:1.5}}>{c.content}</p>
+              <p style={{fontSize:12,color:"var(--text-1)",margin:0,lineHeight:1.5}}>{c.content}</p>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:10,marginTop:4,paddingLeft:4}}>
               <button onClick={()=>toggleLike(c.id)}
-                style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:(c.likes||[]).includes(myUsername)?"#ef4444":"#6b7280",fontWeight:700}}>
+                style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:(c.likes||[]).includes(myUsername)?"#ef4444":"var(--text-3)",fontWeight:700}}>
                 {(c.likes||[]).includes(myUsername) ? "❤️" : "🤍"} {(c.likes||[]).length||""}
               </button>
               {c.username === myUsername && (
                 <button onClick={async()=>{await commentsApi.delete(c.id);setCommentList(p=>p.filter(x=>x.id!==c.id));}}
-                  style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:"#4b5563"}}>Supprimer</button>
+                  style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:"var(--text-4)"}}>Supprimer</button>
               )}
             </div>
           </div>
@@ -295,12 +295,12 @@ function CommentSection({ postId, myUsername, profileCache }) {
           <input value={newComment} onChange={e=>setNewComment(e.target.value.slice(0,280))}
             onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&handleComment()}
             placeholder="Répondre…"
-            style={{flex:1,padding:"7px 12px",borderRadius:20,background:"rgba(255,255,255,0.05)",
-              border:"1px solid rgba(255,255,255,0.08)",color:"#f3f4f6",fontSize:12,outline:"none"}}/>
+            style={{flex:1,padding:"7px 12px",borderRadius:20,background:"rgba(var(--fg-rgb),0.05)",
+              border:"1px solid rgba(var(--fg-rgb),0.08)",color:"var(--text-1)",fontSize:12,outline:"none"}}/>
           <button onClick={handleComment} disabled={!newComment.trim()||posting}
             style={{padding:"7px 12px",borderRadius:20,border:"none",
-              background:newComment.trim()?"rgba(124,58,237,0.8)":"rgba(255,255,255,0.05)",
-              color:newComment.trim()?"#fff":"#374151",fontSize:12,fontWeight:700,cursor:newComment.trim()?"pointer":"not-allowed"}}>
+              background:newComment.trim()?"rgba(124,58,237,0.8)":"rgba(var(--fg-rgb),0.05)",
+              color:newComment.trim()?"#fff":"var(--text-4)",fontSize:12,fontWeight:700,cursor:newComment.trim()?"pointer":"not-allowed"}}>
             ↑
           </button>
         </div>
@@ -325,7 +325,7 @@ function PostCard({ post, myUsername, profileCache, onDelete }) {
   const profile = profileCache[post.username] || { avatar:"👤" };
 
   return (
-    <div style={{background:"rgba(255,255,255,0.03)",borderRadius:16,border:"1px solid rgba(255,255,255,0.06)",
+    <div style={{background:"rgba(var(--fg-rgb),0.03)",borderRadius:16,border:"1px solid rgba(var(--fg-rgb),0.06)",
       padding:14,marginBottom:10,animation:"fadeIn 0.2s ease"}}>
 
       {/* Header */}
@@ -334,22 +334,22 @@ function PostCard({ post, myUsername, profileCache, onDelete }) {
         <div style={{flex:1}}>
           <div style={{display:"flex",alignItems:"baseline",gap:6,flexWrap:"wrap"}}>
             <span style={{fontSize:13,fontWeight:800,color:"#c084fc"}}>@{post.username}</span>
-            <span style={{fontSize:10,color:"#4b5563"}}>{timeAgo(post.created_at)}</span>
+            <span style={{fontSize:10,color:"var(--text-4)"}}>{timeAgo(post.created_at)}</span>
             {post.spoiler && <span style={{fontSize:9,fontWeight:700,color:"#ef4444",background:"rgba(239,68,68,0.1)",borderRadius:4,padding:"1px 5px"}}>SPOILER</span>}
           </div>
           {post.anime_title && (
             <div style={{display:"flex",alignItems:"center",gap:5,marginTop:2}}>
               {post.anime_image && <img src={post.anime_image} alt="" style={{width:16,height:22,objectFit:"cover",borderRadius:2}} onError={e=>{e.target.style.display="none";}}/>}
               <span style={{fontSize:10,color:"#818cf8",fontWeight:600}}>{post.anime_title}</span>
-              {(post.anime_season_label||post.anime_season) && <span style={{fontSize:9,color:"#4b5563"}}>· {post.anime_season_label||post.anime_season}</span>}
+              {(post.anime_season_label||post.anime_season) && <span style={{fontSize:9,color:"var(--text-4)"}}>· {post.anime_season_label||post.anime_season}</span>}
             </div>
           )}
         </div>
         {post.username === myUsername && (
           <button onClick={()=>onDelete(post.id)}
-            style={{background:"none",border:"none",color:"#374151",cursor:"pointer",fontSize:14,alignSelf:"flex-start"}}
+            style={{background:"none",border:"none",color:"var(--text-4)",cursor:"pointer",fontSize:14,alignSelf:"flex-start"}}
             onMouseEnter={e=>e.currentTarget.style.color="#ef4444"}
-            onMouseLeave={e=>e.currentTarget.style.color="#374151"}>✕</button>
+            onMouseLeave={e=>e.currentTarget.style.color="var(--text-4)"}>✕</button>
         )}
       </div>
 
@@ -362,7 +362,7 @@ function PostCard({ post, myUsername, profileCache, onDelete }) {
         </button>
       ) : (
         <>
-          <p style={{fontSize:14,color:"#e5e7eb",lineHeight:1.6,margin:"0 0 10px",whiteSpace:"pre-wrap"}}>{post.content}</p>
+          <p style={{fontSize:14,color:"var(--text-1)",lineHeight:1.6,margin:"0 0 10px",whiteSpace:"pre-wrap"}}>{post.content}</p>
           {post.image_url && (
             <div style={{borderRadius:10,overflow:"hidden",marginBottom:10,maxHeight:400}}>
               <img src={post.image_url} alt="" style={{width:"100%",objectFit:"cover",maxHeight:400,display:"block",cursor:"pointer"}}
@@ -387,11 +387,11 @@ function PostCard({ post, myUsername, profileCache, onDelete }) {
       <div style={{display:"flex",gap:14,alignItems:"center"}}>
         <button onClick={toggleLike}
           style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:4,
-            color:liked?"#ef4444":"#6b7280",fontSize:12,fontWeight:700,transition:"color 0.15s"}}>
+            color:liked?"#ef4444":"var(--text-3)",fontSize:12,fontWeight:700,transition:"color 0.15s"}}>
           {liked?"❤️":"🤍"} {likeCount||""}
         </button>
         <button onClick={()=>setShowComments(p=>!p)}
-          style={{background:"none",border:"none",cursor:"pointer",color:"#6b7280",fontSize:12,fontWeight:700}}>
+          style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-3)",fontSize:12,fontWeight:700}}>
           💬 Commenter
         </button>
       </div>
@@ -474,13 +474,13 @@ export function FeedView({ onOpenDetail }) {
       <PostComposer onPost={handlePost}/>
 
       {/* Channels */}
-      <div style={{display:"flex",gap:6,marginBottom:16,borderBottom:"1px solid rgba(255,255,255,0.06)",paddingBottom:12}}>
+      <div style={{display:"flex",gap:6,marginBottom:16,borderBottom:"1px solid rgba(var(--fg-rgb),0.06)",paddingBottom:12}}>
         {CHANNELS.map(c => (
           <button key={c.id} onClick={()=>setChannel(c.id)}
             style={{padding:"7px 14px",borderRadius:20,
-              border:`1px solid ${channel===c.id?"#7c3aed":"rgba(255,255,255,0.08)"}`,
-              background:channel===c.id?"rgba(124,58,237,0.15)":"rgba(255,255,255,0.03)",
-              color:channel===c.id?"#c084fc":"#6b7280",fontSize:12,fontWeight:700,cursor:"pointer",
+              border:`1px solid ${channel===c.id?"#7c3aed":"rgba(var(--fg-rgb),0.08)"}`,
+              background:channel===c.id?"rgba(124,58,237,0.15)":"rgba(var(--fg-rgb),0.03)",
+              color:channel===c.id?"#c084fc":"var(--text-3)",fontSize:12,fontWeight:700,cursor:"pointer",
               display:"flex",alignItems:"center",gap:5}}>
             <span>{c.emoji}</span>
             <span>{c.label}</span>
@@ -490,22 +490,22 @@ export function FeedView({ onOpenDetail }) {
 
       {/* Channel description for recent */}
       {channel==="recent" && (
-        <div style={{fontSize:10,color:"#4b5563",marginBottom:12,textAlign:"center"}}>
+        <div style={{fontSize:10,color:"var(--text-4)",marginBottom:12,textAlign:"center"}}>
           Posts liés aux animés des saisons : {RECENT_SEASONS.join(", ")}
         </div>
       )}
 
       {/* Posts */}
       {loading && feed.length===0 && (
-        <div style={{textAlign:"center",padding:"40px 0",color:"#4b5563"}}>
+        <div style={{textAlign:"center",padding:"40px 0",color:"var(--text-4)"}}>
           <div style={{fontSize:32,marginBottom:8}}>🌀</div>
           <p style={{fontSize:12}}>Chargement…</p>
         </div>
       )}
       {!loading && feed.length===0 && (
-        <div style={{textAlign:"center",padding:"40px 0",color:"#4b5563"}}>
+        <div style={{textAlign:"center",padding:"40px 0",color:"var(--text-4)"}}>
           <div style={{fontSize:40,marginBottom:12}}>📭</div>
-          <p style={{fontWeight:700,color:"#6b7280"}}>Aucun post</p>
+          <p style={{fontWeight:700,color:"var(--text-3)"}}>Aucun post</p>
           <p style={{fontSize:12,marginTop:4}}>Sois le premier à poster quelque chose !</p>
         </div>
       )}
@@ -517,8 +517,8 @@ export function FeedView({ onOpenDetail }) {
 
       {hasMore && feed.length>0 && (
         <button onClick={()=>loadFeed(false)} disabled={loading}
-          style={{width:"100%",padding:"12px",borderRadius:12,border:"1px solid rgba(255,255,255,0.08)",
-            background:"rgba(255,255,255,0.03)",color:"#6b7280",fontSize:12,fontWeight:700,cursor:"pointer",marginTop:8}}>
+          style={{width:"100%",padding:"12px",borderRadius:12,border:"1px solid rgba(var(--fg-rgb),0.08)",
+            background:"rgba(var(--fg-rgb),0.03)",color:"var(--text-3)",fontSize:12,fontWeight:700,cursor:"pointer",marginTop:8}}>
           {loading?"Chargement…":"Voir plus"}
         </button>
       )}

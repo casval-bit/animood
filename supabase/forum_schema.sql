@@ -8,11 +8,13 @@ create table if not exists forum_threads (
   title      text not null,
   body       text not null,
   tags       text[] not null default '{}',
+  image_url  text,
   created_at timestamptz not null default now()
 );
 
--- Existing installs: add the column if the table predates tag support.
+-- Existing installs: add the column if the table predates tag/image support.
 alter table forum_threads add column if not exists tags text[] not null default '{}';
+alter table forum_threads add column if not exists image_url text;
 
 create table if not exists forum_replies (
   id         bigint generated always as identity primary key,

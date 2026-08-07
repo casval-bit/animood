@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { dm } from "../api/supabase.js";
+import { useApp } from "../context/useApp.js";
 import { Modal } from "./Modal.jsx";
 import { Spinner } from "./Spinner.jsx";
 import { timeAgo } from "./ForumThreadModal.jsx";
@@ -9,6 +10,7 @@ const INPUT = "flex-1 rounded-full border border-white/12 bg-white/7 px-4 py-2.5
 
 // ─── 1:1 chat with a friend — message bubbles + send box, polls while open ────
 export function ChatModal({ username, peer, onClose }) {
+  const { markRead } = useApp();
   const [messages, setMessages]     = useState([]);
   const [loading, setLoading]       = useState(true);
   const [draft, setDraft]           = useState("");
@@ -17,12 +19,15 @@ export function ChatModal({ username, peer, onClose }) {
 
   useEffect(() => {
     let cancelled = false;
-    dm.getThread(username, peer).then(rows => { if(!cancelled) setMessages(rows); }).finally(() => { if(!cancelled) setLoading(false); });
-    const interval = setInterval(() => {
-      dm.getThread(username, peer).then(rows => { if(!cancelled) setMessages(rows); });
-    }, 4000);
+    const fetchThread = () => dm.getThread(username, peer).then(rows => {
+      if(cancelled) return;
+      setMessages(rows);
+      markRead(peer);
+    });
+    fetchThread().finally(() => { if(!cancelled) setLoading(false); });
+    const interval = setInterval(fetchThread, 4000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [username, peer]);
+  }, [username, peer, markRead]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
@@ -56,7 +61,7 @@ export function ChatModal({ username, peer, onClose }) {
                 className="max-w-[75%] rounded-2xl px-3.5 py-2 text-[13px]"
                 style={mine
                   ? { background: GRADIENT_PRIMARY, color: "#fff", borderBottomRightRadius: 4 }
-                  : { background: "rgba(255,255,255,.07)", color: "#e2e8f0", borderBottomLeftRadius: 4 }}
+                  : { background: "rgba(var(--fg-rgb),.07)", color: "var(--text-1)", borderBottomLeftRadius: 4 }}
               >
                 <div className="whitespace-pre-wrap">{m.body}</div>
                 <div className={`mt-1 text-[9.5px] ${mine ? "text-white/60" : "text-slate-500"}`}>{timeAgo(m.created_at)}</div>

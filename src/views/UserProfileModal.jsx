@@ -105,7 +105,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
               <div className="flex shrink-0 flex-col gap-1.5">
                 <button onClick={handleFollow} disabled={followLoading}
                   className="rounded-full px-4 py-2 text-[13px] font-bold transition hover:-translate-y-0.5"
-                  style={{ border: isFollowing?"1px solid rgba(255,255,255,0.15)":"none", background: isFollowing?"transparent":GRADIENT_PRIMARY, color: isFollowing?"#9ca3af":"#fff", boxShadow: isFollowing?"none":"0 8px 24px rgba(109,91,255,.35)" }}>
+                  style={{ border: isFollowing?"1px solid rgba(var(--fg-rgb),0.15)":"none", background: isFollowing?"transparent":GRADIENT_PRIMARY, color: isFollowing?"var(--text-2)":"#fff", boxShadow: isFollowing?"none":"0 8px 24px rgba(109,91,255,.35)" }}>
                   {followLoading ? "…" : isFollowing ? "Suivi ✓" : "Suivre"}
                 </button>
                 <button onClick={() => setShowChat(true)}

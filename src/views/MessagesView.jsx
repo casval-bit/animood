@@ -8,7 +8,7 @@ import { timeAgo } from "../components/ForumThreadModal.jsx";
 import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY } from "../constants/theme.js";
 
 export function MessagesView() {
-  const { myUsername } = useApp();
+  const { myUsername, unreadPeers, markRead } = useApp();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [openPeer, setOpenPeer] = useState(null);
@@ -37,23 +37,29 @@ export function MessagesView() {
             <div className="text-[13px] font-black uppercase tracking-wide text-white">💬 Conversations</div>
           </div>
           <div>
-            {conversations.map(c => (
-              <button
-                key={c.peer} onClick={() => setOpenPeer(c.peer)}
-                className="flex w-full items-center gap-3 border-b border-white/6 px-5 py-3.5 text-left transition last:border-b-0 hover:bg-white/5"
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/8 text-sm font-black text-slate-300">
-                  {c.peer.slice(0, 2).toUpperCase()}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13.5px] font-bold text-slate-100">@{c.peer}</div>
-                  <div className="truncate text-[11px] text-slate-500">
-                    {c.lastMessage.sender === myUsername ? "Toi: " : ""}{c.lastMessage.body}
+            {conversations.map(c => {
+              const unread = unreadPeers?.has(c.peer);
+              return (
+                <button
+                  key={c.peer} onClick={() => { setOpenPeer(c.peer); markRead(c.peer); }}
+                  className="flex w-full items-center gap-3 border-b border-white/6 px-5 py-3.5 text-left transition last:border-b-0 hover:bg-white/5"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/8 text-sm font-black text-slate-300">
+                    {c.peer.slice(0, 2).toUpperCase()}
                   </div>
-                </div>
-                <div className="shrink-0 text-[10px] text-slate-600">{timeAgo(c.lastMessage.created_at)}</div>
-              </button>
-            ))}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13.5px] font-bold text-slate-100">@{c.peer}</div>
+                    <div className={`truncate text-[11px] ${unread ? "font-semibold text-slate-200" : "text-slate-500"}`}>
+                      {c.lastMessage.sender === myUsername ? "Toi: " : ""}{c.lastMessage.body}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1.5">
+                    <div className="text-[10px] text-slate-600">{timeAgo(c.lastMessage.created_at)}</div>
+                    {unread && <span className="h-2 w-2 rounded-full" style={{ background: "#f43f5e" }} />}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

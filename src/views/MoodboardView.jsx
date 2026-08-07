@@ -59,15 +59,15 @@ function MoodCard({ mood, selected, onClick }) {
     <button onClick={onClick}
       className={`group relative flex aspect-square flex-col items-center justify-center gap-1.5 rounded-2xl px-1.5 text-center transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_10px_30px_rgba(139,92,246,.25)] ${selected ? "animate-mood-pop" : ""}`}
       style={{
-        background: selected ? `linear-gradient(135deg, ${mood.color}2A, #6D5BFF33 60%, #EC489933)` : "rgba(255,255,255,0.03)",
-        border: selected ? `2px solid ${mood.color}` : "1.5px solid rgba(255,255,255,0.07)",
+        background: selected ? `linear-gradient(135deg, ${mood.color}2A, #6D5BFF33 60%, #EC489933)` : "rgba(var(--fg-rgb),0.03)",
+        border: selected ? `2px solid ${mood.color}` : "1.5px solid rgba(var(--fg-rgb),0.07)",
         boxShadow: selected ? "0 0 35px rgba(139,92,246,.35)" : "none",
       }}>
       {selected && (
         <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black text-white" style={{ background: mood.color, boxShadow: `0 0 10px ${mood.color}` }}>✓</span>
       )}
       <div className="text-2xl">{mood.emoji}</div>
-      <div className="text-[11px] font-bold" style={{ color: selected ? mood.color : "#e5e7eb" }}>{mood.label}</div>
+      <div className="text-[11px] font-bold" style={{ color: selected ? mood.color : "var(--text-1)" }}>{mood.label}</div>
     </button>
   );
 }

@@ -17,7 +17,7 @@ export function GradientButton({ className = "", disabled, children, as: Comp = 
     <Comp
       disabled={disabled}
       className={`rounded-full font-extrabold text-white transition-all duration-300 ${disabled ? "cursor-not-allowed opacity-40" : "hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-[0_20px_50px_rgba(139,92,246,.5)]"} ${className}`}
-      style={{ background: disabled ? "rgba(255,255,255,.06)" : GRADIENT_PRIMARY, boxShadow: disabled ? "none" : "0 12px 34px rgba(109,91,255,.35)" }}
+      style={{ background: disabled ? "rgba(var(--fg-rgb),.06)" : GRADIENT_PRIMARY, boxShadow: disabled ? "none" : "0 12px 34px rgba(109,91,255,.35)" }}
       {...rest}
     >
       {children}
@@ -34,8 +34,8 @@ export function Chip({ label, emoji, selected, onClick }) {
     <button onClick={onClick}
       className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-200 ${selected ? "text-white" : "text-slate-400 hover:text-slate-200"}`}
       style={{
-        background: selected ? GRADIENT_PRIMARY : "rgba(255,255,255,0.04)",
-        border: selected ? "1px solid transparent" : "1px solid rgba(255,255,255,0.08)",
+        background: selected ? GRADIENT_PRIMARY : "rgba(var(--fg-rgb),0.04)",
+        border: selected ? "1px solid transparent" : "1px solid rgba(var(--fg-rgb),0.08)",
         boxShadow: selected ? "0 6px 20px rgba(109,91,255,.35)" : "none",
       }}>
       {emoji && <span>{emoji}</span>}{label}
@@ -62,7 +62,7 @@ export function TabBar({ tabs, active, onChange, className = "" }) {
         return (
           <button key={t.id} onClick={() => onChange(t.id)}
             className="relative flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-bold transition"
-            style={{ color: isActive ? "#f8fafc" : "#4b5563" }}>
+            style={{ color: isActive ? "var(--text-1)" : "var(--text-4)" }}>
             {t.emoji && <span className={isActive ? "" : "opacity-50 grayscale"}>{t.emoji}</span>}
             {t.label}
             {isActive && <div className="absolute inset-x-1 bottom-0 h-0.5 rounded-full" style={{ background: GRADIENT_PRIMARY }} />}
@@ -81,16 +81,35 @@ export function StatPill({ label, emoji = "⭐" }) {
   );
 }
 
-// Quick-tap favorite/watched toggles overlaid on a poster — always visible (not
-// hover-only) so it works as well on mobile taps as on desktop clicks.
-// Favorites reuse the profile's 5-slot showcase array; no-ops silently once full.
+// Bookmark SVG icon (watchlist)
+function BookmarkIcon({ filled, color = "#22c55e" }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill={filled ? color : "none"} stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+    </svg>
+  );
+}
+
+// Eye icon for watched
+function EyeIcon({ filled, color = "#818cf8" }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3" fill={filled ? color : "none"}/>
+    </svg>
+  );
+}
+
+// Quick-tap watchlist/watched + highlight toggles overlaid on a poster — always
+// visible (not hover-only) so it works as well on mobile taps as on desktop clicks.
+// Highlights reuse the profile's 5-slot favorites showcase (first 5 auto-synced).
 export function QuickActionIcons({ anime, variant = "watched" }) {
   const { me, saveMe } = useApp();
   const malId = anime.mal_id;
   const isWatched = me.watched.includes(malId);
   const isOnWatchlist = (me.statuses||{})[malId] === "watchlist";
-  const favorites = me.favorites || [null,null,null,null,null];
-  const isFavorite = favorites.includes(malId);
+  const highlights = me.highlights || [];
+  const isHighlighted = highlights.includes(malId);
 
   const toggleWatched = (e) => {
     e.stopPropagation();
@@ -100,42 +119,47 @@ export function QuickActionIcons({ anime, variant = "watched" }) {
   const toggleWatchlist = (e) => {
     e.stopPropagation();
     const newStatuses = { ...(me.statuses||{}) };
-    if(isOnWatchlist) delete newStatuses[malId]; else newStatuses[malId] = "watchlist";
+    if(isOnWatchlist) delete newStatuses[malId];
+    else newStatuses[malId] = "watchlist";
     saveMe({ ...me, statuses: newStatuses });
   };
 
-  const toggleFavorite = (e) => {
+  const toggleHighlight = (e) => {
     e.stopPropagation();
-    const favs = [...favorites];
-    const idx = favs.indexOf(malId);
-    if(idx !== -1) { favs[idx] = null; }
-    else {
-      const emptyIdx = favs.indexOf(null);
-      if(emptyIdx === -1) return;
-      favs[emptyIdx] = malId;
-    }
-    saveMe({ ...me, favorites: favs });
+    const newHighlights = isHighlighted
+      ? highlights.filter(id => id !== malId)
+      : [...highlights, malId];
+    // Sync first 5 highlights into favorites slots
+    const newFavs = [null,null,null,null,null];
+    newHighlights.slice(0,5).forEach((id,i) => { newFavs[i] = id; });
+    saveMe({ ...me, highlights: newHighlights, favorites: newFavs });
   };
 
   return (
     <>
+      {/* Left — watchlist bookmark OR watched eye */}
       {variant === "watchlist" ? (
-        <button onClick={toggleWatchlist} title={isOnWatchlist ? "Retirer de la watchlist" : "Ajouter à la watchlist"}
-          className="absolute left-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full text-xs backdrop-blur transition hover:scale-110"
-          style={{ background: isOnWatchlist ? "rgba(156,163,175,.85)" : "rgba(15,23,42,.65)", boxShadow: isOnWatchlist ? "0 0 12px rgba(156,163,175,.5)" : "none" }}>
-          🎯
+        <button onClick={toggleWatchlist}
+          title={isOnWatchlist ? "Retirer de la watchlist" : "Ajouter à la watchlist"}
+          className="absolute left-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full backdrop-blur transition hover:scale-110"
+          style={{ background: isOnWatchlist ? "rgba(34,197,94,.85)" : "rgba(15,23,42,.65)", boxShadow: isOnWatchlist ? "0 0 12px rgba(34,197,94,.5)" : "none" }}>
+          <BookmarkIcon filled={isOnWatchlist}/>
         </button>
       ) : (
-        <button onClick={toggleWatched} title={isWatched ? "Retirer de vu" : "Marquer comme vu"}
-          className="absolute left-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full text-xs backdrop-blur transition hover:scale-110"
-          style={{ background: isWatched ? "rgba(16,185,129,.85)" : "rgba(15,23,42,.65)", boxShadow: isWatched ? "0 0 12px rgba(16,185,129,.5)" : "none" }}>
-          👁
+        <button onClick={toggleWatched}
+          title={isWatched ? "Marquer comme non-vu" : "Marquer comme vu"}
+          className="absolute left-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full backdrop-blur transition hover:scale-110"
+          style={{ background: isWatched ? "rgba(129,140,248,.85)" : "rgba(15,23,42,.65)", boxShadow: isWatched ? "0 0 12px rgba(129,140,248,.5)" : "none" }}>
+          <EyeIcon filled={isWatched}/>
         </button>
       )}
-      <button onClick={toggleFavorite} title={isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"}
+
+      {/* Right — Highlight heart (emoji, original style) */}
+      <button onClick={toggleHighlight}
+        title={isHighlighted ? "Retirer des Highlights" : "Ajouter aux Highlights"}
         className="absolute right-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full text-xs backdrop-blur transition hover:scale-110"
-        style={{ background: isFavorite ? "rgba(236,72,153,.85)" : "rgba(15,23,42,.65)", boxShadow: isFavorite ? "0 0 12px rgba(236,72,153,.5)" : "none" }}>
-        {isFavorite ? "❤️" : "🤍"}
+        style={{ background: isHighlighted ? "rgba(236,72,153,.85)" : "rgba(15,23,42,.65)", boxShadow: isHighlighted ? "0 0 12px rgba(236,72,153,.5)" : "none" }}>
+        {isHighlighted ? "❤️" : "🤍"}
       </button>
     </>
   );

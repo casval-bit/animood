@@ -7,7 +7,7 @@ A mood-driven anime app — moodboard, feed, search, forum, profiles, and messag
 No setup needed — the Supabase key already in the code is the `anon`/publishable key (safe to ship client-side by design; access control lives in RLS policies, not in keeping it secret), and the DB schema is already migrated on the shared Supabase project.
 
 ```bash
-git clone -b forum-mood-messages-sublists https://github.com/casval-bit/animood.git
+git clone -b notifications-and-light-theme https://github.com/casval-bit/animood.git
 cd animood
 npm install
 npm run dev
@@ -25,8 +25,10 @@ npm run lint      # eslint across the project
 
 ## What's on this branch
 
-- **Forum** — "Community mood" card is now an octagon radar (instead of bars), moved into a sticky right sidebar instead of sitting full-width at the top; threads can be tagged (Discussion / Question / Theory / Recommendation / Spoiler / Rant).
-- **Messages** — 1:1 chat between members ("Messages" tab + "💬 Message" button on any profile).
+- **Forum** — "Community mood" card is now an octagon radar (instead of bars), moved into a sticky right sidebar instead of sitting full-width at the top; threads can be tagged (Discussion / Question / Theory / Recommendation / Spoiler / Rant) and can include an image.
+- **Messages** — 1:1 chat between members ("Messages" tab + "💬 Message" button on any profile), plus a floating chat bubble available from any page.
+- **Notifications** — unread-message badge (with count) on the ✉️ icon in the header and on each conversation row, updates automatically in the background — no page refresh needed.
+- **Theme** — selectable light/dark appearance (Settings → 🎨 Apparence). Dark (glass/gradient) stays the default; the light theme is a softer, violet-tinted "social feed" look, not a flat white dashboard.
 - **AniList import** — also pulls a public AniList account's custom (sub-)lists, filterable from Profile → Journal.
 
 ## Database (Supabase)

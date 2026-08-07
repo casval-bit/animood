@@ -192,7 +192,7 @@ function DiscussionsBlock({ threads, replyCounts, loaded, onOpenThread, onNewThr
     <div className={`mb-6 overflow-hidden ${GLASS}`} style={GLASS_STYLE}>
       <div className="flex items-center justify-between px-5 py-3.5" style={{ background: GRADIENT_PRIMARY }}>
         <div className="text-[13px] font-black uppercase tracking-wide text-white">🔥 Discussions</div>
-        <button onClick={onNewThread} className="shrink-0 rounded-full bg-black/20 px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-black/30">
+        <button onClick={onNewThread} className="shrink-0 rounded-full bg-white px-3.5 py-2 text-[12px] font-black text-violet-700 shadow-md transition hover:scale-105 hover:shadow-lg">
           ➕ Nouveau sujet
         </button>
       </div>
@@ -213,6 +213,9 @@ function DiscussionsBlock({ threads, replyCounts, loaded, onOpenThread, onNewThr
               key={t.id} onClick={() => onOpenThread(t)}
               className="flex w-full items-start gap-3 border-b border-white/6 px-5 py-3.5 text-left transition last:border-b-0 hover:bg-white/5"
             >
+              {t.image_url && (
+                <img src={t.image_url} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" onError={e=>{e.target.style.display="none";}} />
+              )}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13.5px] font-bold text-slate-100">💬 {t.title}</div>
                 <div className="mb-1 truncate text-[11px] text-slate-500">@{t.username} · {timeAgo(t.created_at)}</div>

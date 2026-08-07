@@ -9,18 +9,104 @@
   --font-sans: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+/* ─── THEME TOKENS ───────────────────────────────────────────────────────────
+   Two themes: "dark" (default, current glass/gradient look) and "light"
+   (flat, bordered, X/Twitter-style). Brand + status colors (gradients,
+   green/red/amber) are intentionally NOT tokenized — they stay identical in
+   both themes. Only neutral surfaces/borders/text flip. Components read
+   these via var() in inline styles; Tailwind's own `text-slate-*` /
+   `bg-white/*` / `border-white/*` utilities are re-pointed further down. */
+:root {
+  --page-bg: radial-gradient(circle at top, #2A1D57 0%, transparent 35%),
+              radial-gradient(circle at bottom right, #163F6B 0%, transparent 40%),
+              #070B17;
+  --surface-1: rgba(17,24,39,.75);
+  --surface-1-strong: rgba(17,24,39,.92);
+  --surface-2: rgba(255,255,255,.04);
+  --overlay: rgba(7,11,23,.92);
+  --border-1: rgba(255,255,255,.07);
+  --text-1: #f8fafc;
+  --text-2: #94a3b8;
+  --text-3: #64748b;
+  --text-4: #475569;
+  --fg-rgb: 255,255,255;
+  --shadow-card: 0 15px 45px rgba(0,0,0,.35);
+  --shadow-modal: 0 25px 60px rgba(0,0,0,.5);
+}
+
+:root[data-theme="light"] {
+  --page-bg:
+    radial-gradient(circle at top, rgba(99,102,241,.08) 0%, transparent 35%),
+    radial-gradient(circle at bottom right, rgba(168,85,247,.06) 0%, transparent 40%),
+    #f5f7fb;
+  --surface-1: rgba(255,255,255,.78);
+  --surface-1-strong: rgba(255,255,255,.92);
+  --surface-2: rgba(99,102,241,.04);
+  --overlay: rgba(245,247,251,.92);
+  --border-1: rgba(15,23,42,.08);
+  --text-1: #0f172a;
+  --text-2: #475569;
+  --text-3: #64748b;
+  --text-4: #94a3b8;
+  --fg-rgb: 15,23,42;
+  --shadow-card: 0 8px 30px rgba(15,23,42,.08), 0 2px 8px rgba(15,23,42,.04);
+  --shadow-modal: 0 24px 60px rgba(15,23,42,.18);
+}
+
 html, body, #root {
   height: 100%;
 }
 
 body {
-  background:
-    radial-gradient(circle at top, #2A1D57 0%, transparent 35%),
-    radial-gradient(circle at bottom right, #163F6B 0%, transparent 40%),
-    #070B17;
+  background: var(--page-bg);
   background-attachment: fixed;
-  color: #f8fafc;
+  color: var(--text-1);
+  transition: background-color .2s ease, color .2s ease;
 }
+
+/* ─── LIGHT THEME — Tailwind utility repoints ────────────────────────────────
+   Same descendant-selector trick for every `text-slate-*` / `bg-white/*` /
+   `border-white/*` utility actually used in the app, so components keep their
+   original className and just render differently under data-theme="light". */
+:root[data-theme="light"] .text-slate-50,
+:root[data-theme="light"] .text-slate-100 { color: #0f172a; }
+:root[data-theme="light"] .text-slate-200 { color: #1e293b; }
+:root[data-theme="light"] .text-slate-300 { color: #334155; }
+:root[data-theme="light"] .text-slate-400,
+:root[data-theme="light"] .hover\:text-slate-200:hover,
+:root[data-theme="light"] .hover\:text-slate-300:hover { color: #475569; }
+:root[data-theme="light"] .text-slate-500 { color: #64748b; }
+:root[data-theme="light"] .text-slate-600 { color: #94a3b8; }
+:root[data-theme="light"] .text-slate-700 { color: #cbd5e1; }
+
+:root[data-theme="light"] .bg-white\/3  { background-color: rgba(15,23,42,.03); }
+:root[data-theme="light"] .bg-white\/4  { background-color: rgba(15,23,42,.04); }
+:root[data-theme="light"] .bg-white\/5,
+:root[data-theme="light"] .hover\:bg-white\/5:hover  { background-color: rgba(15,23,42,.05); }
+:root[data-theme="light"] .bg-white\/6,
+:root[data-theme="light"] .hover\:bg-white\/6:hover  { background-color: rgba(15,23,42,.06); }
+:root[data-theme="light"] .bg-white\/7,
+:root[data-theme="light"] .hover\:bg-white\/7:hover  { background-color: rgba(15,23,42,.07); }
+:root[data-theme="light"] .bg-white\/8,
+:root[data-theme="light"] .hover\:bg-white\/8:hover  { background-color: rgba(15,23,42,.08); }
+:root[data-theme="light"] .bg-white\/10,
+:root[data-theme="light"] .hover\:bg-white\/10:hover { background-color: rgba(15,23,42,.1); }
+:root[data-theme="light"] .bg-white\/12,
+:root[data-theme="light"] .hover\:bg-white\/12:hover { background-color: rgba(15,23,42,.12); }
+:root[data-theme="light"] .bg-white\/15,
+:root[data-theme="light"] .hover\:bg-white\/15:hover { background-color: rgba(15,23,42,.15); }
+
+:root[data-theme="light"] .border-white\/6  { border-color: rgba(15,23,42,.06); }
+:root[data-theme="light"] .border-white\/7  { border-color: rgba(15,23,42,.07); }
+:root[data-theme="light"] .border-white\/8  { border-color: rgba(15,23,42,.08); }
+:root[data-theme="light"] .border-white\/9  { border-color: rgba(15,23,42,.09); }
+:root[data-theme="light"] .border-white\/10 { border-color: rgba(15,23,42,.1); }
+:root[data-theme="light"] .border-white\/12 { border-color: rgba(15,23,42,.12); }
+:root[data-theme="light"] .border-white\/15,
+:root[data-theme="light"] .hover\:border-white\/15:hover { border-color: rgba(15,23,42,.15); }
+:root[data-theme="light"] .border-white\/20,
+:root[data-theme="light"] .hover\:border-white\/20:hover { border-color: rgba(15,23,42,.2); }
+:root[data-theme="light"] .border-white\/30 { border-color: rgba(15,23,42,.3); }
 
 @keyframes slide-up {
   from { opacity: 0; transform: translateY(14px); }
@@ -48,8 +134,8 @@ body {
 /* Thin, unobtrusive scrollbars everywhere — desktop-grid layout has a lot of scroll areas */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,0.15) transparent;
+  scrollbar-color: rgba(var(--fg-rgb),0.15) transparent;
 }
 *::-webkit-scrollbar { width: 8px; height: 8px; }
-*::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 8px; }
+*::-webkit-scrollbar-thumb { background: rgba(var(--fg-rgb),0.15); border-radius: 8px; }
 *::-webkit-scrollbar-track { background: transparent; }

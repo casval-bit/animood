@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { ThemeProvider } from "./context/ThemeProvider.jsx";
 import { AppProvider } from "./context/AppProvider.jsx";
 import { useApp } from "./context/useApp.js";
 import { Header } from "./components/Header.jsx";
 import { Spinner } from "./components/Spinner.jsx";
 import { AnimeDetailModal } from "./components/AnimeDetailModal.jsx";
+import { ChatBubble } from "./components/ChatBubble.jsx";
 import { LoginView } from "./views/LoginView.jsx";
 import { FeedView } from "./views/FeedView.jsx";
 import { MoodboardView } from "./views/MoodboardView.jsx";
@@ -47,6 +49,7 @@ function Shell() {
     <div className="min-h-screen">
       <Header activeTab={activeTab} onChangeTab={setActiveTab} />
       <main>{pages[activeTab]}</main>
+      <ChatBubble hidden={activeTab === "messages"} />
 
       {showSettings && <SettingsView onClose={() => setShowSettings(false)} />}
 
@@ -68,8 +71,10 @@ function Shell() {
 
 export default function App() {
   return (
-    <AppProvider>
-      <Shell />
-    </AppProvider>
+    <ThemeProvider>
+      <AppProvider>
+        <Shell />
+      </AppProvider>
+    </ThemeProvider>
   );
 }

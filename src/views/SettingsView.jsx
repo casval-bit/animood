@@ -1,10 +1,36 @@
 import { useState, useRef, useEffect } from "react";
 import { useApp } from "../context/useApp.js";
+import { useTheme } from "../context/useTheme.js";
 import { parseMALXml } from "../constants/mal-import.js";
 import { importAniListUser } from "../api/anilist.js";
 import { GradientButton } from "../components/ui.jsx";
 import { sb, follows } from "../api/supabase.js";
 import { uploadToCloudinary } from "../api/cloudinary.js";
+import { GRADIENT_PRIMARY } from "../constants/theme.js";
+
+const THEME_OPTIONS = [
+  { id: "dark",  label: "Sombre", desc: "Thème par défaut" },
+  { id: "light", label: "Clair",  desc: "Style réseau social" },
+];
+
+function ThemePreview({ id }) {
+  const dark = id === "dark";
+  return (
+    <div
+      className="h-14 w-full overflow-hidden rounded-lg"
+      style={{
+        background: dark ? "#0f172a" : "#f5f7fb",
+        border: `1px solid ${dark ? "rgba(255,255,255,.1)" : "rgba(15,23,42,.08)"}`,
+      }}
+    >
+      <div className="h-3 w-full" style={{ background: GRADIENT_PRIMARY }} />
+      <div className="flex flex-col gap-1 p-1.5">
+        <div className="h-1 w-3/4 rounded-full" style={{ background: dark ? "rgba(255,255,255,.25)" : "#0f172a" }} />
+        <div className="h-1 w-1/2 rounded-full" style={{ background: dark ? "rgba(255,255,255,.15)" : "#94a3b8" }} />
+      </div>
+    </div>
+  );
+}
 
 function Section({ title, children }) {
   return (
@@ -17,6 +43,7 @@ function Section({ title, children }) {
 
 export function SettingsView({ onClose }) {
   const { me, saveMe, logout, myUsername } = useApp();
+  const { theme, setTheme } = useTheme();
   const fileRef   = useRef(null);
   const avatarRef = useRef(null);
 
@@ -148,13 +175,33 @@ export function SettingsView({ onClose }) {
   const currentAvatar = me.avatar?.startsWith?.("http") ? me.avatar : null;
 
   return (
-    <div className="fixed inset-0 z-400 flex flex-col backdrop-blur-2xl" style={{ background:"rgba(7,11,23,.92)" }}>
+    <div className="fixed inset-0 z-400 flex flex-col backdrop-blur-2xl" style={{ background:"var(--overlay)" }}>
       <div className="flex items-center gap-3 border-b border-white/6 px-6 py-4">
         <button onClick={onClose} className="text-xl text-slate-400">←</button>
         <span className="text-base font-black text-slate-100">Paramètres</span>
       </div>
 
       <div className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto px-6 py-6">
+
+        {/* APPARENCE */}
+        <Section title="🎨 Apparence">
+          <div className="grid grid-cols-2 gap-3">
+            {THEME_OPTIONS.map(opt => {
+              const active = theme === opt.id;
+              return (
+                <button key={opt.id} onClick={() => setTheme(opt.id)}
+                  className="flex flex-col items-center gap-2 rounded-xl p-2.5 text-center transition"
+                  style={{ border: active ? "2px solid #7c3aed" : "2px solid transparent", background: active ? "rgba(124,58,237,0.1)" : "rgba(var(--fg-rgb),0.03)" }}>
+                  <ThemePreview id={opt.id} />
+                  <div>
+                    <div className="text-xs font-bold text-slate-100">{opt.label}</div>
+                    <div className="text-[10px] text-slate-500">{opt.desc}</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </Section>
 
         {/* AVATAR */}
         <Section title="🖼 Avatar">
@@ -201,8 +248,8 @@ export function SettingsView({ onClose }) {
               <button onClick={()=>applyFrame(null)}
                 className="mb-3 flex w-full items-center gap-3 rounded-xl p-2.5 text-left transition"
                 style={{border:!activeFrame?"2px solid #7c3aed":"2px solid transparent",background:!activeFrame?"rgba(124,58,237,0.1)":"transparent"}}>
-                <div style={{width:44,height:44,borderRadius:"50%",background:"rgba(255,255,255,0.05)",
-                  border:"2px dashed rgba(255,255,255,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🚫</div>
+                <div style={{width:44,height:44,borderRadius:"50%",background:"rgba(var(--fg-rgb),0.05)",
+                  border:"2px dashed rgba(var(--fg-rgb),0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🚫</div>
                 <div>
                   <div className="text-xs font-bold text-slate-100">Aucun cadre</div>
                   <div className="text-[10px] text-slate-500">Avatar sans cadre</div>
@@ -222,7 +269,7 @@ export function SettingsView({ onClose }) {
                         return (
                           <button key={frame.id} onClick={()=>applyFrame(frame)}
                             style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:8,borderRadius:12,cursor:"pointer",
-                              border:isActive?"2px solid #7c3aed":"2px solid transparent",background:isActive?"rgba(124,58,237,0.1)":"rgba(255,255,255,0.03)"}}>
+                              border:isActive?"2px solid #7c3aed":"2px solid transparent",background:isActive?"rgba(124,58,237,0.1)":"rgba(var(--fg-rgb),0.03)"}}>
                             <div style={{position:"relative",width:sz,height:sz}}>
                               <div style={{width:sz,height:sz,borderRadius:"50%",overflow:"hidden",
                                 background:"linear-gradient(135deg,#7c3aed,#4f46e5)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>

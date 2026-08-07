@@ -6,12 +6,12 @@ const TABS = [
   { id: "moodboard", label: "Moodboard", emoji: "🎭" },
   { id: "search",    label: "Search",    emoji: "🔍" },
   { id: "forum",     label: "Forum",     emoji: "💬" },
-  { id: "messages",  label: "Messages",  emoji: "✉️" },
   { id: "profile",   label: "Profil",    emoji: "👤" },
 ];
 
 export function Header({ activeTab, onChangeTab }) {
-  const { me, session } = useApp();
+  const { me, session, unreadPeers } = useApp();
+  const unreadCount = unreadPeers?.size || 0;
 
   // Custom Cloudinary avatar > Google OAuth > emoji
   const avatarSrc = me.avatar?.startsWith?.("https://res.cloudinary.com")
@@ -25,7 +25,7 @@ export function Header({ activeTab, onChangeTab }) {
     <div className="sticky top-0 z-50 px-3 pt-3 sm:px-4">
       <header
         className="mx-auto flex max-w-6xl items-center gap-3 rounded-full border border-white/8 px-4 py-2.5 backdrop-blur-xl sm:gap-6 sm:px-5"
-        style={{ background: "rgba(17,24,39,.75)", boxShadow: "0 15px 45px rgba(0,0,0,.35)" }}
+        style={{ background: "var(--surface-1)", boxShadow: "var(--shadow-card)" }}
       >
         <div className="flex shrink-0 items-center gap-2">
           <span className="text-xl">🌀</span>
@@ -42,7 +42,7 @@ export function Header({ activeTab, onChangeTab }) {
                 key={tab.id}
                 onClick={() => onChangeTab(tab.id)}
                 className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-bold text-white transition sm:px-3.5 sm:py-2"
-                style={{ background: active ? GRADIENT_PRIMARY : "transparent", color: active ? "#fff" : "#94a3b8", boxShadow: active ? "0 6px 20px rgba(109,91,255,.35)" : "none" }}
+                style={{ background: active ? GRADIENT_PRIMARY : "transparent", color: active ? "#fff" : "var(--text-2)", boxShadow: active ? "0 6px 20px rgba(109,91,255,.35)" : "none" }}
               >
                 <span className={active ? "" : "opacity-50 grayscale"}>{tab.emoji}</span>
                 <span className="hidden sm:inline">{tab.label}</span>
@@ -50,6 +50,29 @@ export function Header({ activeTab, onChangeTab }) {
             );
           })}
         </nav>
+
+        <button
+          onClick={() => onChangeTab("messages")}
+          title="Messages"
+          className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition hover:scale-110"
+          style={{
+            background: activeTab === "messages" ? GRADIENT_PRIMARY : "rgba(var(--fg-rgb),.06)",
+            boxShadow: activeTab === "messages" ? "0 6px 18px rgba(109,91,255,.45)" : "none",
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={activeTab === "messages" ? "#fff" : "var(--text-2)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 5.5A2.5 2.5 0 0 1 5.5 3h13A2.5 2.5 0 0 1 21 5.5v11a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 16.5v-11z" />
+            <path d="M3.5 6l7.7 6a1.5 1.5 0 0 0 1.8 0l7.7-6" />
+          </svg>
+          {unreadCount > 0 && (
+            <span
+              className="absolute -bottom-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full border-2 px-[3px] text-[9px] font-black leading-none text-white"
+              style={{ background: "#f43f5e", borderColor: "var(--surface-1-strong)" }}
+            >
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
+        </button>
 
         <div className="flex shrink-0 items-center gap-2 pl-2 border-l border-white/8">
           <div className="h-7 w-7 rounded-full overflow-hidden flex items-center justify-center text-sm shrink-0"

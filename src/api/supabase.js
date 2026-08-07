@@ -109,11 +109,11 @@ export const sb = {
     try { return await this.query(`forum_replies?thread_id=eq.${threadId}&order=created_at.asc`) || []; }
     catch { return []; }
   },
-  async createThread(username, title, body, tags = []) {
+  async createThread(username, title, body, tags = [], imageUrl = null) {
     return this.query("forum_threads", {
       method: "POST",
       headers: { ...this.headers, "Prefer": "return=representation" },
-      body: JSON.stringify([{ username, title, body, tags }]),
+      body: JSON.stringify([{ username, title, body, tags, image_url: imageUrl }]),
     });
   },
   async createReply(threadId, username, body) {

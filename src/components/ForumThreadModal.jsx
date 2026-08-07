@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { sb } from "../api/supabase.js";
+import { uploadToCloudinary } from "../api/cloudinary.js";
 import { Modal } from "./Modal.jsx";
 import { Spinner } from "./Spinner.jsx";
 import { FORUM_TAGS, getForumTag, MAX_THREAD_TAGS } from "../constants/forumTags.js";
@@ -34,6 +35,10 @@ export function NewThreadModal({ username, onClose, onCreated }) {
   const [title, setTitle]     = useState("");
   const [body, setBody]       = useState("");
   const [tags, setTags]       = useState([]);
+  const [imageUrl, setImageUrl] = useState(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageError, setImageError] = useState(null);
+  const imageInputRef = useRef(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]     = useState(null);
 
@@ -41,12 +46,27 @@ export function NewThreadModal({ username, onClose, onCreated }) {
     setTags(t => t.includes(id) ? t.filter(x => x !== id) : t.length < MAX_THREAD_TAGS ? [...t, id] : t);
   };
 
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if(!file) return;
+    setImageError(null);
+    setImageUploading(true);
+    try {
+      const url = await uploadToCloudinary(file, "post");
+      setImageUrl(url);
+    } catch(err) {
+      setImageError(err.message);
+    }
+    setImageUploading(false);
+    e.target.value = "";
+  };
+
   const submit = async () => {
     const t = title.trim(), b = body.trim();
     if(!t || !b) { setError("Titre et message obligatoires."); return; }
     setSubmitting(true); setError(null);
     try {
-      const rows = await sb.createThread(username, t, b, tags);
+      const rows = await sb.createThread(username, t, b, tags, imageUrl);
       if(rows?.[0]) onCreated(rows[0]);
       else throw new Error("empty response");
     } catch {
@@ -66,6 +86,25 @@ export function NewThreadModal({ username, onClose, onCreated }) {
           value={body} onChange={e => setBody(e.target.value)} maxLength={2000} rows={5}
           placeholder="De quoi veux-tu parler ?" className={`mb-3 resize-none ${INPUT}`}
         />
+
+        {imageUrl && (
+          <div className="relative mb-3 max-h-50 overflow-hidden rounded-xl">
+            <img src={imageUrl} alt="" className="block max-h-50 w-full object-cover" />
+            <button onClick={() => setImageUrl(null)}
+              className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-xs font-black text-white">✕</button>
+          </div>
+        )}
+        {imageError && <div className="mb-3 text-xs text-red-400">{imageError}</div>}
+
+        <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+        <button onClick={() => imageInputRef.current?.click()} disabled={imageUploading} type="button"
+          className="mb-3 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition"
+          style={imageUrl
+            ? { borderColor: "rgba(129,140,248,.3)", background: "rgba(129,140,248,.15)", color: "#818cf8" }
+            : { borderColor: "rgba(var(--fg-rgb),.1)", background: "rgba(var(--fg-rgb),.05)", color: "var(--text-2)" }}>
+          {imageUploading ? "⏳ Upload…" : imageUrl ? "🖼 Changer l'image" : "🖼 Ajouter une image"}
+        </button>
+
         <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
           Tags <span className="normal-case text-slate-600">(optionnel, {MAX_THREAD_TAGS} max)</span>
         </div>
@@ -79,7 +118,7 @@ export function NewThreadModal({ username, onClose, onCreated }) {
                 className="rounded-full px-2.5 py-1 text-[11px] font-bold transition disabled:cursor-not-allowed disabled:opacity-30"
                 style={active
                   ? { background: `${tag.color}30`, color: tag.color, boxShadow: `inset 0 0 0 1px ${tag.color}80` }
-                  : { background: "rgba(255,255,255,.06)", color: "#94a3b8" }}
+                  : { background: "rgba(var(--fg-rgb),.06)", color: "var(--text-2)" }}
               >
                 {tag.emoji} {tag.label}
               </button>
@@ -87,7 +126,7 @@ export function NewThreadModal({ username, onClose, onCreated }) {
           })}
         </div>
         {error && <div className="mb-3 text-xs text-red-400">{error}</div>}
-        <button onClick={submit} disabled={submitting || !title.trim() || !body.trim()} className={`w-full ${SUBMIT_BTN}`}>
+        <button onClick={submit} disabled={submitting || imageUploading || !title.trim() || !body.trim()} className={`w-full ${SUBMIT_BTN}`}>
           {submitting ? "Publication…" : "Publier"}
         </button>
       </div>
@@ -132,7 +171,10 @@ export function ThreadModal({ thread, username, onClose }) {
             {thread.tags.map(id => <TagPill key={id} id={id} />)}
           </div>
         )}
-        <div className="mb-5 whitespace-pre-wrap text-sm text-slate-300">{thread.body}</div>
+        <div className="mb-3 whitespace-pre-wrap text-sm text-slate-300">{thread.body}</div>
+        {thread.image_url && (
+          <img src={thread.image_url} alt="" className="mb-5 max-h-100 w-full rounded-xl object-cover" />
+        )}
 
         <div className="mb-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">
           {replies.length} réponse{replies.length !== 1 ? "s" : ""}

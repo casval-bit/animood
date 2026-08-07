@@ -59,11 +59,11 @@ export function MoodOctagon({ pts, size = 340, rawThrills = false, title = "Prof
             const a = (Math.PI*2*i/KEYS.length) - Math.PI/2;
             return `${center+Math.cos(a)*(lvl/100)*gridMaxR},${center+Math.sin(a)*(lvl/100)*gridMaxR}`;
           }).join(" ");
-          return <polygon key={lvl} points={gPts} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="1"/>;
+          return <polygon key={lvl} points={gPts} fill="none" stroke="rgba(var(--fg-rgb),0.07)" strokeWidth="1"/>;
         })}
         {KEYS.map((_, i) => {
           const a = (Math.PI*2*i/KEYS.length) - Math.PI/2;
-          return <line key={i} x1={center} y1={center} x2={center+Math.cos(a)*gridMaxR} y2={center+Math.sin(a)*gridMaxR} stroke="rgba(255,255,255,0.07)" strokeWidth="1"/>;
+          return <line key={i} x1={center} y1={center} x2={center+Math.cos(a)*gridMaxR} y2={center+Math.sin(a)*gridMaxR} stroke="rgba(var(--fg-rgb),0.07)" strokeWidth="1"/>;
         })}
         <polygon points={polygon} fill={`${fillColor}28`} stroke={fillColor} strokeWidth="2.5" strokeLinejoin="round"/>
         {ptsList.map(p => (

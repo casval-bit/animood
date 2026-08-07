@@ -226,7 +226,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
                       return (
                         <button key={m.id} onClick={() => setSelMoods(p => p.includes(m.id) ? p.filter(x=>x!==m.id) : p.length<3 ? [...p,m.id] : p)}
                           className="rounded-full px-2 py-1 text-[10px] font-bold transition"
-                          style={{ border: sel?`1px solid ${m.color}`:"1px solid rgba(255,255,255,0.1)", background: sel?`${m.color}18`:"transparent", color: sel?m.color:"#6b7280" }}>
+                          style={{ border: sel?`1px solid ${m.color}`:"1px solid rgba(var(--fg-rgb),0.1)", background: sel?`${m.color}18`:"transparent", color: sel?m.color:"var(--text-3)" }}>
                           {m.emoji} {m.label}
                         </button>
                       );
