@@ -105,6 +105,12 @@ export const sb = {
       return out;
     } catch { return {}; }
   },
+  // Lightweight reply metadata (no body) — used to compute per-thread unread counts client-side.
+  async getRepliesMeta(threadIds) {
+    if(!threadIds.length) return [];
+    try { return await this.query(`forum_replies?select=thread_id,username,created_at&thread_id=in.(${threadIds.join(",")})`) || []; }
+    catch { return []; }
+  },
   async getThreadReplies(threadId) {
     try { return await this.query(`forum_replies?thread_id=eq.${threadId}&order=created_at.asc`) || []; }
     catch { return []; }

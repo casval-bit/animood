@@ -15,6 +15,10 @@ const FALLBACK_IMG = "https://placehold.co/64x92/1a1a2e/818cf8?text=?";
 const TYPE_EMOJI = { TV:"📺", Movie:"🎬", OVA:"💿", ONA:"🌐", Special:"✨" };
 const NEW_ANIME_PREVIEW = 5;
 
+// Unread replies per thread — no read-tracking column server-side, so "read" is
+// just a per-thread timestamp kept in localStorage (same approach as DM unread).
+const threadReadKey = (username, threadId) => `animood_forum_read_${username}_${threadId}`;
+
 function posterUrl(anime) {
   return anime.images?.jpg?.large_image_url || anime.images?.jpg?.image_url;
 }
@@ -187,7 +191,7 @@ function CommunityMoodBlock({ loaded, counts, total }) {
 }
 
 // ─── Real discussions — threads + reply counts, no reactions/pagination ───────
-function DiscussionsBlock({ threads, replyCounts, loaded, onOpenThread, onNewThread }) {
+function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, onOpenThread, onNewThread }) {
   return (
     <div className={`mb-6 overflow-hidden ${GLASS}`} style={GLASS_STYLE}>
       <div className="flex items-center justify-between px-5 py-3.5" style={{ background: GRADIENT_PRIMARY }}>
@@ -208,28 +212,38 @@ function DiscussionsBlock({ threads, replyCounts, loaded, onOpenThread, onNewThr
         </div>
       ) : (
         <div>
-          {threads.map(t => (
-            <button
-              key={t.id} onClick={() => onOpenThread(t)}
-              className="flex w-full items-start gap-3 border-b border-white/6 px-5 py-3.5 text-left transition last:border-b-0 hover:bg-white/5"
-            >
-              {t.image_url && (
-                <img src={t.image_url} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" onError={e=>{e.target.style.display="none";}} />
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[13.5px] font-bold text-slate-100">💬 {t.title}</div>
-                <div className="mb-1 truncate text-[11px] text-slate-500">@{t.username} · {timeAgo(t.created_at)}</div>
-                {t.tags?.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {t.tags.map(id => <TagPill key={id} id={id} />)}
-                  </div>
+          {threads.map(t => {
+            const unread = unreadCounts[t.id] || 0;
+            return (
+              <button
+                key={t.id} onClick={() => onOpenThread(t)}
+                className="flex w-full items-start gap-3 border-b border-white/6 px-5 py-3.5 text-left transition last:border-b-0 hover:bg-white/5"
+              >
+                {t.image_url && (
+                  <img src={t.image_url} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" onError={e=>{e.target.style.display="none";}} />
                 )}
-              </div>
-              <div className="shrink-0 text-right text-[11px] font-bold text-slate-400">
-                {replyCounts[t.id] || 0} réponse{(replyCounts[t.id] || 0) !== 1 ? "s" : ""}
-              </div>
-            </button>
-          ))}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 truncate text-[13.5px] font-bold text-slate-100">
+                    💬 {t.title}
+                    {unread > 0 && (
+                      <span className="flex h-4 min-w-[16px] shrink-0 items-center justify-center rounded-full px-[3px] text-[9px] font-black leading-none text-white" style={{ background: "#f43f5e" }}>
+                        {unread > 9 ? "9+" : unread}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mb-1 truncate text-[11px] text-slate-500">@{t.username} · {timeAgo(t.created_at)}</div>
+                  {t.tags?.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {t.tags.map(id => <TagPill key={id} id={id} />)}
+                    </div>
+                  )}
+                </div>
+                <div className={`shrink-0 text-right text-[11px] font-bold ${unread > 0 ? "text-slate-100" : "text-slate-400"}`}>
+                  {replyCounts[t.id] || 0} réponse{(replyCounts[t.id] || 0) !== 1 ? "s" : ""}
+                </div>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -254,9 +268,16 @@ export function ForumView({ onOpenDetail }) {
 
   const [threads, setThreads]         = useState([]);
   const [replyCounts, setReplyCounts] = useState({});
+  const [unreadCounts, setUnreadCounts] = useState({});
   const [threadsLoaded, setThreadsLoaded] = useState(false);
   const [showNewThread, setShowNewThread] = useState(false);
   const [openThread, setOpenThread]       = useState(null);
+
+  const markThreadRead = (threadId) => {
+    localStorage.setItem(threadReadKey(myUsername, threadId), new Date().toISOString());
+    setUnreadCounts(prev => (prev[threadId] ? { ...prev, [threadId]: 0 } : prev));
+  };
+  const openThreadRead = (t) => { markThreadRead(t.id); setOpenThread(t); };
 
   useEffect(() => {
     let cancelled = false;
@@ -329,11 +350,20 @@ export function ForumView({ onOpenDetail }) {
     sb.listThreads(20).then(async rows => {
       if(cancelled) return;
       setThreads(rows);
-      const counts = await sb.getReplyCounts(rows.map(r => r.id));
-      if(!cancelled) setReplyCounts(counts);
+      const ids = rows.map(r => r.id);
+      const [counts, repliesMeta] = await Promise.all([sb.getReplyCounts(ids), sb.getRepliesMeta(ids)]);
+      if(cancelled) return;
+      setReplyCounts(counts);
+      const unread = {};
+      repliesMeta.forEach(r => {
+        if(r.username === myUsername) return;
+        const lastRead = localStorage.getItem(threadReadKey(myUsername, r.thread_id));
+        if(!lastRead || new Date(r.created_at) > new Date(lastRead)) unread[r.thread_id] = (unread[r.thread_id] || 0) + 1;
+      });
+      setUnreadCounts(unread);
     }).finally(() => { if(!cancelled) setThreadsLoaded(true); });
     return () => { cancelled = true; };
-  }, []);
+  }, [myUsername]);
 
   const empty = !loading && !upcoming.length && !newAnime.length && !trailers.length;
   const mostAnticipated = upcoming.reduce((best, a) => {
@@ -356,8 +386,8 @@ export function ForumView({ onOpenDetail }) {
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
           <div className="min-w-0 flex-1">
             <DiscussionsBlock
-              threads={threads} replyCounts={replyCounts} loaded={threadsLoaded}
-              onOpenThread={setOpenThread} onNewThread={() => setShowNewThread(true)}
+              threads={threads} replyCounts={replyCounts} unreadCounts={unreadCounts} loaded={threadsLoaded}
+              onOpenThread={openThreadRead} onNewThread={() => setShowNewThread(true)}
             />
             <AnticipatedCard anime={mostAnticipated} airedDates={airedDates} onOpenDetail={onOpenDetail} />
 
