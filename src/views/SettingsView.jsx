@@ -19,14 +19,14 @@ function ThemePreview({ id }) {
     <div
       className="h-14 w-full overflow-hidden rounded-lg"
       style={{
-        background: dark ? "#0f172a" : "#f5f7fb",
-        border: `1px solid ${dark ? "rgba(255,255,255,.1)" : "rgba(15,23,42,.08)"}`,
+        background: dark ? "#0f172a" : "#ece9f8",
+        border: `1px solid ${dark ? "rgba(255,255,255,.1)" : "rgba(36,22,66,.1)"}`,
       }}
     >
       <div className="h-3 w-full" style={{ background: GRADIENT_PRIMARY }} />
       <div className="flex flex-col gap-1 p-1.5">
-        <div className="h-1 w-3/4 rounded-full" style={{ background: dark ? "rgba(255,255,255,.25)" : "#0f172a" }} />
-        <div className="h-1 w-1/2 rounded-full" style={{ background: dark ? "rgba(255,255,255,.15)" : "#94a3b8" }} />
+        <div className="h-1 w-3/4 rounded-full" style={{ background: dark ? "rgba(255,255,255,.25)" : "#191530" }} />
+        <div className="h-1 w-1/2 rounded-full" style={{ background: dark ? "rgba(255,255,255,.15)" : "#9691ac" }} />
       </div>
     </div>
   );
