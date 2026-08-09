@@ -223,14 +223,7 @@ function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, onOpenTh
                   <img src={t.image_url} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" onError={e=>{e.target.style.display="none";}} />
                 )}
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 truncate text-[13.5px] font-bold text-slate-100">
-                    💬 {t.title}
-                    {unread > 0 && (
-                      <span className="flex h-4 min-w-[16px] shrink-0 items-center justify-center rounded-full px-[3px] text-[9px] font-black leading-none text-white" style={{ background: "#f43f5e" }}>
-                        {unread > 9 ? "9+" : unread}
-                      </span>
-                    )}
-                  </div>
+                  <div className="truncate text-[13.5px] font-bold text-slate-100">💬 {t.title}</div>
                   <div className="mb-1 truncate text-[11px] text-slate-500">@{t.username} · {timeAgo(t.created_at)}</div>
                   {t.tags?.length > 0 && (
                     <div className="flex flex-wrap gap-1">
@@ -238,8 +231,15 @@ function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, onOpenTh
                     </div>
                   )}
                 </div>
-                <div className={`shrink-0 text-right text-[11px] font-bold ${unread > 0 ? "text-slate-100" : "text-slate-400"}`}>
-                  {replyCounts[t.id] || 0} réponse{(replyCounts[t.id] || 0) !== 1 ? "s" : ""}
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  <div className={`text-[11px] font-bold ${unread > 0 ? "text-slate-100" : "text-slate-400"}`}>
+                    {replyCounts[t.id] || 0} réponse{(replyCounts[t.id] || 0) !== 1 ? "s" : ""}
+                  </div>
+                  {unread > 0 && (
+                    <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full px-[3px] text-[9px] font-black leading-none text-white" style={{ background: "#f43f5e" }}>
+                      {unread > 9 ? "9+" : unread}
+                    </span>
+                  )}
                 </div>
               </button>
             );
