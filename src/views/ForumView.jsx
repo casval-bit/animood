@@ -250,7 +250,7 @@ function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, onOpenTh
   );
 }
 
-export function ForumView({ onOpenDetail }) {
+export function ForumView({ onOpenDetail, onOpenUser }) {
   const { myUsername } = useApp();
   const [newAnime, setNewAnime] = useState([]);
   const [upcoming, setUpcoming] = useState([]);
@@ -433,7 +433,7 @@ export function ForumView({ onOpenDetail }) {
         />
       )}
       {openThread && (
-        <ThreadModal thread={openThread} username={myUsername} onClose={() => setOpenThread(null)} />
+        <ThreadModal thread={openThread} username={myUsername} onClose={() => setOpenThread(null)} onOpenUser={onOpenUser} />
       )}
     </div>
   );

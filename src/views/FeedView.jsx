@@ -3,6 +3,7 @@ import { useApp } from "../context/useApp.js";
 import { sb, posts as postsApi, comments as commentsApi, follows } from "../api/supabase.js";
 import { uploadToCloudinary } from "../api/cloudinary.js";
 import { jikan } from "../api/jikan.js";
+import { MentionText, useMentionAutocomplete, MentionSuggestions } from "../components/Mentions.jsx";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function timeAgo(ts) {
@@ -131,6 +132,7 @@ function PostComposer({ onPost }) {
   const profile = { avatar: me.avatar, avatar_base64: me.avatar_base64 };
   const remaining = 280 - content.length;
   const canPost = content.trim().length > 0 && !posting && !imageUploading;
+  const mention = useMentionAutocomplete(content, myUsername);
 
   const handlePost = async () => {
     if(!canPost) return;
@@ -161,12 +163,14 @@ function PostComposer({ onPost }) {
     <div style={{background:"rgba(var(--fg-rgb),0.03)",borderRadius:16,border:"1px solid rgba(var(--fg-rgb),0.07)",padding:14,marginBottom:16}}>
       <div style={{display:"flex",gap:10}}>
         <Avatar profile={profile} size={38}/>
-        <div style={{flex:1}}>
+        <div style={{flex:1,position:"relative"}}>
           <textarea value={content} onChange={e=>setContent(e.target.value.slice(0,280))}
-            placeholder="Partage ta réaction, ton avis, une recommandation…"
+            placeholder="Partage ta réaction, ton avis, une recommandation… (@ pour mentionner)"
             style={{width:"100%",boxSizing:"border-box",background:"none",border:"none",
               color:"var(--text-1)",fontSize:14,resize:"none",outline:"none",minHeight:70,
               fontFamily:"inherit",lineHeight:1.5}}/>
+          <MentionSuggestions suggestions={mention.suggestions}
+            onPick={username => setContent(mention.applyMention(content, username))}/>
 
           {/* Image preview */}
           {imageUrl && (
@@ -231,10 +235,11 @@ function PostComposer({ onPost }) {
 }
 
 // ─── CommentSection ───────────────────────────────────────────────────────────
-function CommentSection({ postId, myUsername, profileCache }) {
+function CommentSection({ postId, myUsername, profileCache, onOpenUser }) {
   const [commentList, setCommentList] = useState(null);
   const [newComment, setNewComment] = useState("");
   const [posting, setPosting] = useState(false);
+  const mention = useMentionAutocomplete(newComment, myUsername);
 
   useEffect(() => {
     commentsApi.getForPost(postId).then(setCommentList).catch(()=>setCommentList([]));
@@ -274,7 +279,7 @@ function CommentSection({ postId, myUsername, profileCache }) {
                 <span style={{fontSize:11,fontWeight:800,color:"#c084fc"}}>@{c.username}</span>
                 <span style={{fontSize:9,color:"var(--text-4)"}}>{timeAgo(c.created_at)}</span>
               </div>
-              <p style={{fontSize:12,color:"var(--text-1)",margin:0,lineHeight:1.5}}>{c.content}</p>
+              <p style={{fontSize:12,color:"var(--text-1)",margin:0,lineHeight:1.5}}><MentionText text={c.content} onOpenUser={onOpenUser}/></p>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:10,marginTop:4,paddingLeft:4}}>
               <button onClick={()=>toggleLike(c.id)}
@@ -291,12 +296,14 @@ function CommentSection({ postId, myUsername, profileCache }) {
       ))}
       <div style={{display:"flex",gap:8,marginTop:8}}>
         <Avatar profile={profileCache[myUsername]||{avatar:"👤"}} size={26}/>
-        <div style={{flex:1,display:"flex",gap:6}}>
+        <div style={{flex:1,display:"flex",gap:6,position:"relative"}}>
           <input value={newComment} onChange={e=>setNewComment(e.target.value.slice(0,280))}
             onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&handleComment()}
-            placeholder="Répondre…"
+            placeholder="Répondre… (@ pour mentionner)"
             style={{flex:1,padding:"7px 12px",borderRadius:20,background:"rgba(var(--fg-rgb),0.05)",
               border:"1px solid rgba(var(--fg-rgb),0.08)",color:"var(--text-1)",fontSize:12,outline:"none"}}/>
+          <MentionSuggestions suggestions={mention.suggestions}
+            onPick={username => setNewComment(mention.applyMention(newComment, username))}/>
           <button onClick={handleComment} disabled={!newComment.trim()||posting}
             style={{padding:"7px 12px",borderRadius:20,border:"none",
               background:newComment.trim()?"rgba(124,58,237,0.8)":"rgba(var(--fg-rgb),0.05)",
@@ -310,7 +317,7 @@ function CommentSection({ postId, myUsername, profileCache }) {
 }
 
 // ─── PostCard ─────────────────────────────────────────────────────────────────
-function PostCard({ post, myUsername, profileCache, onDelete }) {
+function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser }) {
   const [liked, setLiked] = useState((post.likes||[]).includes(myUsername));
   const [likeCount, setLikeCount] = useState((post.likes||[]).length);
   const [showComments, setShowComments] = useState(false);
@@ -362,7 +369,7 @@ function PostCard({ post, myUsername, profileCache, onDelete }) {
         </button>
       ) : (
         <>
-          <p style={{fontSize:14,color:"var(--text-1)",lineHeight:1.6,margin:"0 0 10px",whiteSpace:"pre-wrap"}}>{post.content}</p>
+          <p style={{fontSize:14,color:"var(--text-1)",lineHeight:1.6,margin:"0 0 10px",whiteSpace:"pre-wrap"}}><MentionText text={post.content} onOpenUser={onOpenUser}/></p>
           {post.image_url && (
             <div style={{borderRadius:10,overflow:"hidden",marginBottom:10,maxHeight:400}}>
               <img src={post.image_url} alt="" style={{width:"100%",objectFit:"cover",maxHeight:400,display:"block",cursor:"pointer"}}
@@ -396,13 +403,13 @@ function PostCard({ post, myUsername, profileCache, onDelete }) {
         </button>
       </div>
 
-      {showComments && <CommentSection postId={post.id} myUsername={myUsername} profileCache={profileCache}/>}
+      {showComments && <CommentSection postId={post.id} myUsername={myUsername} profileCache={profileCache} onOpenUser={onOpenUser}/>}
     </div>
   );
 }
 
 // ─── FEED VIEW ────────────────────────────────────────────────────────────────
-export function FeedView({ onOpenDetail }) {
+export function FeedView({ onOpenDetail, onOpenUser }) {
   const { me, myUsername } = useApp();
   const [feed, setFeed]           = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -512,7 +519,7 @@ export function FeedView({ onOpenDetail }) {
 
       {feed.map(post => (
         <PostCard key={post.id||post.created_at} post={post} myUsername={myUsername}
-          profileCache={profileCache} onDelete={handleDelete}/>
+          profileCache={profileCache} onDelete={handleDelete} onOpenUser={onOpenUser}/>
       ))}
 
       {hasMore && feed.length>0 && (

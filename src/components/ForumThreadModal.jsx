@@ -4,6 +4,7 @@ import { uploadToCloudinary } from "../api/cloudinary.js";
 import { Modal } from "./Modal.jsx";
 import { Spinner } from "./Spinner.jsx";
 import { FORUM_TAGS, getForumTag, MAX_THREAD_TAGS } from "../constants/forumTags.js";
+import { MentionText, useMentionAutocomplete, MentionSuggestions } from "./Mentions.jsx";
 
 export function timeAgo(iso) {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -41,6 +42,7 @@ export function NewThreadModal({ username, onClose, onCreated }) {
   const imageInputRef = useRef(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]     = useState(null);
+  const mention = useMentionAutocomplete(body, username);
 
   const toggleTag = id => {
     setTags(t => t.includes(id) ? t.filter(x => x !== id) : t.length < MAX_THREAD_TAGS ? [...t, id] : t);
@@ -82,10 +84,14 @@ export function NewThreadModal({ username, onClose, onCreated }) {
           value={title} onChange={e => setTitle(e.target.value)} maxLength={120}
           placeholder="Titre du sujet…" className={`mb-3 ${INPUT}`}
         />
-        <textarea
-          value={body} onChange={e => setBody(e.target.value)} maxLength={2000} rows={5}
-          placeholder="De quoi veux-tu parler ?" className={`mb-3 resize-none ${INPUT}`}
-        />
+        <div className="relative">
+          <textarea
+            value={body} onChange={e => setBody(e.target.value)} maxLength={2000} rows={5}
+            placeholder="De quoi veux-tu parler ? (@ pour mentionner)" className={`mb-3 resize-none ${INPUT}`}
+          />
+          <MentionSuggestions suggestions={mention.suggestions}
+            onPick={u => setBody(mention.applyMention(body, u))}/>
+        </div>
 
         {imageUrl && (
           <div className="relative mb-3 max-h-50 overflow-hidden rounded-xl">
@@ -135,12 +141,13 @@ export function NewThreadModal({ username, onClose, onCreated }) {
 }
 
 // ─── Thread detail — body + replies + reply box, no reactions/pagination ──────
-export function ThreadModal({ thread, username, onClose }) {
+export function ThreadModal({ thread, username, onClose, onOpenUser }) {
   const [replies, setReplies]   = useState([]);
   const [loading, setLoading]   = useState(true);
   const [reply, setReply]       = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]       = useState(null);
+  const mention = useMentionAutocomplete(reply, username);
 
   useEffect(() => {
     let cancelled = false;
@@ -171,7 +178,7 @@ export function ThreadModal({ thread, username, onClose }) {
             {thread.tags.map(id => <TagPill key={id} id={id} />)}
           </div>
         )}
-        <div className="mb-3 whitespace-pre-wrap text-sm text-slate-300">{thread.body}</div>
+        <div className="mb-3 whitespace-pre-wrap text-sm text-slate-300"><MentionText text={thread.body} onOpenUser={onOpenUser}/></div>
         {thread.image_url && (
           <img src={thread.image_url} alt="" className="mb-5 max-h-100 w-full rounded-xl object-cover" />
         )}
@@ -184,17 +191,21 @@ export function ThreadModal({ thread, username, onClose }) {
             {replies.map(r => (
               <div key={r.id} className="rounded-xl border border-white/7 bg-white/4 p-3">
                 <div className="mb-1 text-[10px] font-bold text-slate-500">@{r.username} · {timeAgo(r.created_at)}</div>
-                <div className="whitespace-pre-wrap text-[13px] text-slate-200">{r.body}</div>
+                <div className="whitespace-pre-wrap text-[13px] text-slate-200"><MentionText text={r.body} onOpenUser={onOpenUser}/></div>
               </div>
             ))}
             {!replies.length && <div className="text-xs text-slate-600">Aucune réponse pour l'instant — sois le premier·e.</div>}
           </div>
         )}
 
-        <textarea
-          value={reply} onChange={e => setReply(e.target.value)} maxLength={2000} rows={3}
-          placeholder="Écrire une réponse…" className={`mb-2 resize-none ${INPUT}`}
-        />
+        <div className="relative">
+          <textarea
+            value={reply} onChange={e => setReply(e.target.value)} maxLength={2000} rows={3}
+            placeholder="Écrire une réponse… (@ pour mentionner)" className={`mb-2 resize-none ${INPUT}`}
+          />
+          <MentionSuggestions suggestions={mention.suggestions}
+            onPick={u => setReply(mention.applyMention(reply, u))}/>
+        </div>
         {error && <div className="mb-2 text-xs text-red-400">{error}</div>}
         <button onClick={submitReply} disabled={submitting || !reply.trim()} className={SUBMIT_BTN}>
           {submitting ? "Envoi…" : "Répondre"}

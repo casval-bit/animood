@@ -37,10 +37,10 @@ function Shell() {
   const closeDetail = () => setDetailAnime(null);
 
   const pages = {
-    feed:      <FeedView />,
+    feed:      <FeedView onOpenUser={setOpenUser} />,
     moodboard: <MoodboardView onOpenDetail={openDetail} />,
     search:    <SearchView onOpenDetail={openDetail} onOpenUser={setOpenUser} />,
-    forum:     <ForumView onOpenDetail={openDetail} />,
+    forum:     <ForumView onOpenDetail={openDetail} onOpenUser={setOpenUser} />,
     messages:  <MessagesView />,
     profile:   <ProfileView onOpenDetail={openDetail} onOpenSettings={() => setShowSettings(true)} />,
   };
