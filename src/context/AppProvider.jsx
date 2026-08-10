@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { onAuthChange, loadProfile, saveProfile, signOut, dm } from "../api/supabase.js";
+import { onAuthChange, loadProfile, saveProfile, signOut, dm, posts } from "../api/supabase.js";
 import { DEFAULT_PROFILE } from "../constants/profile.js";
 import { AppContext } from "./appContextObject.js";
 
@@ -8,6 +8,7 @@ function usernameFromEmail(email) {
 }
 
 const lastReadKey = (username, peer) => `animood_dm_read_${username}_${peer}`;
+const postReadKey = (username, postId) => `animood_post_read_${username}_${postId}`;
 
 export function AppProvider({ children }) {
   const [session, setSession]         = useState(null);
@@ -74,6 +75,33 @@ export function AppProvider({ children }) {
     });
   }, [myUsername]);
 
+  // Activity notifications — new comments (from someone else) on a post I wrote
+  // or commented on. Same client-side last-read-timestamp approach as DMs above.
+  const [postNotifications, setPostNotifications] = useState([]);
+
+  useEffect(() => {
+    if(!myUsername) return;
+    let cancelled = false;
+    const check = async () => {
+      const notifs = await posts.getActivityNotifications(myUsername);
+      if(cancelled) return;
+      const unread = notifs.filter(n => {
+        const lastRead = localStorage.getItem(postReadKey(myUsername, n.postId));
+        return !lastRead || new Date(n.lastComment.created_at) > new Date(lastRead);
+      });
+      setPostNotifications(unread);
+    };
+    check();
+    const interval = setInterval(check, 20000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [myUsername]);
+
+  const markPostRead = useCallback((postId) => {
+    if(!myUsername) return;
+    localStorage.setItem(postReadKey(myUsername, postId), new Date().toISOString());
+    setPostNotifications(prev => prev.filter(n => n.postId !== postId));
+  }, [myUsername]);
+
   // Update + persist in one call — every write path goes through here so nothing
   // can accidentally save under the wrong (or a hardcoded) username.
   const saveMe = useCallback((updated) => {
@@ -83,7 +111,10 @@ export function AppProvider({ children }) {
 
   const logout = async () => { await signOut(); setSession(null); setProfileReady(false); };
 
-  const ctx = { session, me, setMe, saveMe, myUsername, profileReady, logout, unreadPeers, markRead };
+  const ctx = {
+    session, me, setMe, saveMe, myUsername, profileReady, logout,
+    unreadPeers, markRead, postNotifications, markPostRead,
+  };
 
   return <AppContext.Provider value={ctx}>{children}</AppContext.Provider>;
 }

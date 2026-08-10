@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useApp } from "../context/useApp.js";
 import { GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
+import { timeAgo } from "./ForumThreadModal.jsx";
 
 const TABS = [
   { id: "feed",      label: "Feed",      emoji: "🏠" },
@@ -8,6 +10,74 @@ const TABS = [
   { id: "forum",     label: "Forum",     emoji: "💬" },
   { id: "profile",   label: "Profil",    emoji: "👤" },
 ];
+
+function NotificationBell({ onOpenFeed }) {
+  const { postNotifications, markPostRead } = useApp();
+  const [open, setOpen] = useState(false);
+  const count = postNotifications?.length || 0;
+
+  const openNotif = (n) => {
+    markPostRead(n.postId);
+    setOpen(false);
+    onOpenFeed();
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        title="Notifications"
+        className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition hover:scale-110"
+        style={{ background: open ? GRADIENT_PRIMARY : "rgba(var(--fg-rgb),.06)", boxShadow: open ? "0 6px 18px rgba(109,91,255,.45)" : "none" }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={open ? "#fff" : "var(--text-2)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
+        {count > 0 && (
+          <span
+            className="absolute -bottom-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full border-2 px-[3px] text-[9px] font-black leading-none text-white"
+            style={{ background: "#f43f5e", borderColor: "var(--surface-1-strong)" }}
+          >
+            {count > 9 ? "9+" : count}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div
+            className="absolute right-0 top-[calc(100%+10px)] z-50 w-80 overflow-hidden rounded-2xl border border-white/8 backdrop-blur-xl"
+            style={{ background: "var(--surface-1-strong)", boxShadow: "var(--shadow-modal)" }}
+          >
+            <div className="px-4 py-3 text-[13px] font-black uppercase tracking-wide text-white" style={{ background: GRADIENT_PRIMARY }}>
+              🔔 Activité sur tes posts
+            </div>
+            {count === 0 ? (
+              <div className="px-4 py-6 text-center text-xs text-slate-500">Rien de nouveau pour l'instant.</div>
+            ) : (
+              <div className="max-h-80 overflow-y-auto">
+                {postNotifications.map(n => (
+                  <button key={n.postId} onClick={() => openNotif(n)}
+                    className="flex w-full flex-col items-start gap-0.5 border-b border-white/6 px-4 py-3 text-left transition last:border-b-0 hover:bg-white/5">
+                    <div className="text-[12px] font-bold text-slate-100">
+                      @{n.lastComment.username} a commenté {n.isMine ? "ton post" : "un post que tu suis"}
+                    </div>
+                    {n.lastComment.content && (
+                      <div className="truncate text-[11px] text-slate-500">« {n.lastComment.content} »</div>
+                    )}
+                    <div className="text-[10px] text-slate-600">{timeAgo(n.lastComment.created_at)}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export function Header({ activeTab, onChangeTab }) {
   const { me, session, unreadPeers } = useApp();
@@ -50,6 +120,8 @@ export function Header({ activeTab, onChangeTab }) {
             );
           })}
         </nav>
+
+        <NotificationBell onOpenFeed={() => onChangeTab("feed")} />
 
         <button
           onClick={() => onChangeTab("messages")}

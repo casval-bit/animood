@@ -305,6 +305,36 @@ export const posts = {
       body: JSON.stringify({ likes: newLikes }),
     });
   },
+  // Latest comment (from someone else) on every post `username` either wrote or
+  // has commented on — the raw material for the "activity on your posts" bell.
+  // Read-state (seen/unseen) is tracked client-side, same as DM/forum unread.
+  async getActivityNotifications(username) {
+    const u = encodeURIComponent(username);
+    try {
+      const [myPosts, myCommented] = await Promise.all([
+        sb.query(`posts?username=eq.${u}&select=id`),
+        sb.query(`comments?username=eq.${u}&select=post_id`),
+      ]);
+      const watchedIds = [...new Set([...(myPosts||[]).map(p=>p.id), ...(myCommented||[]).map(c=>c.post_id)])];
+      if(!watchedIds.length) return [];
+
+      const [postRows, commentRows] = await Promise.all([
+        sb.query(`posts?id=in.(${watchedIds.join(",")})&select=id,content,username`),
+        sb.query(`comments?post_id=in.(${watchedIds.join(",")})&username=neq.${u}&order=created_at.desc&select=post_id,username,content,created_at&limit=200`),
+      ]);
+      const postById = {};
+      (postRows||[]).forEach(p => { postById[p.id] = p; });
+      const lastByPost = {};
+      (commentRows||[]).forEach(c => { if(!lastByPost[c.post_id]) lastByPost[c.post_id] = c; }); // desc order — first hit per post = most recent
+
+      return Object.entries(lastByPost).map(([postId, lastComment]) => ({
+        postId: parseInt(postId),
+        postContent: postById[postId]?.content || "",
+        isMine: postById[postId]?.username === username,
+        lastComment,
+      }));
+    } catch { return []; }
+  },
 };
 
 // ─── COMMENTS ─────────────────────────────────────────────────────────────────
