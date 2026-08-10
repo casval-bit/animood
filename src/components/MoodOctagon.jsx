@@ -11,28 +11,29 @@ const MOOD_META = {
   thrills:  {emoji:"🎢",color:"#FB923C",label:"Thrills"},
 };
 
-export function MoodOctagon({ pts, size = 340, rawThrills = false, title = "Profil émotionnel", className = "rounded-2xl border border-white/8 bg-white/3 p-4" }) {
+export function MoodOctagon({ pts, size = 340, title = "Profil émotionnel", className = "rounded-2xl border border-white/8 bg-white/3 p-4" }) {
   const center = size / 2, levels = [25,50,75,100];
-
-  // thrills is stored on a 0-33 scale — normalize to 0-100 for display only.
-  // Callers with already-comparable values (e.g. raw vote tallies) opt out via rawThrills.
-  const displayPts = { ...(pts||{}) };
-  if(!rawThrills && displayPts.thrills !== undefined) displayPts.thrills = Math.round((displayPts.thrills / 33) * 100);
-
   const gridMaxR = size * 0.359;
   const labelR = gridMaxR + size * 0.088;
 
-  // Dominant mood is pinned to the outer ring (100%); every other axis is
-  // normalized relative to it, so the shape always reads clearly even when
-  // every raw pts value is small.
-  const dominant = Object.entries(pts||{}).filter(([k]) => rawThrills || k!=="thrills").sort((a,b) => b[1]-a[1])[0]?.[0] || "hype";
-  const dominantMeta = MOOD_META[dominant] || {emoji:"❔", color:"#818cf8"};
-  const fillColor = dominantMeta.color;
-  const dominantVal = displayPts[dominant] || 0;
+  const p = pts || {};
+
+  // All 8 moods on the same scale: each mood as % of total pts
+  const total = KEYS.reduce((a,k) => a + (p[k]||0), 0) || 1;
+  const rawPct = {};
+  KEYS.forEach(k => { rawPct[k] = (p[k]||0) / total * 100; });
+
+  // Relative scale: dominant mood = 100% of axis, others proportional
+  const maxVal = Math.max(...KEYS.map(k => rawPct[k]), 1);
+  const relPct = {};
+  KEYS.forEach(k => { relPct[k] = rawPct[k] / maxVal * 100; });
+
+  const dominant = KEYS.reduce((a,b) => (p[a]||0) >= (p[b]||0) ? a : b, "hype");
+  const fillColor = (MOOD_META[dominant] || {color:"#818cf8"}).color;
 
   const ptsList = KEYS.map((k, i) => {
     const angle = (Math.PI*2*i/KEYS.length) - Math.PI/2;
-    const v = dominantVal > 0 ? Math.min((displayPts[k] || 0) / dominantVal, 1) * 100 : 0;
+    const v = relPct[k] || 0;
     const r = (v/100) * gridMaxR;
     return {
       key: k,

@@ -279,9 +279,20 @@ export function MoodboardView({ onOpenDetail }) {
                       <span key={mid} className="rounded-full px-2.5 py-1 text-xs font-bold" style={{ background:`${m.color}22`, border:`1px solid ${m.color}44`, color:m.color }}>{m.emoji} {m.label}</span>
                     ); })}
                   </div>
-                  {results.length > 0 && (
-                    <button onClick={() => generate(true)} className="rounded-full border-2 border-indigo-400/30 px-4 py-2 text-xs font-extrabold text-indigo-400 transition hover:border-indigo-400/60">🎲 Autres suggestions</button>
-                  )}
+                  {results.length > 0 && (() => {
+                    const locked = rerollCount >= 3;
+                    const label = rerollCount <= 1 ? "🎲 Autres suggestions"
+                                : rerollCount === 2 ? "🎲 Encore d'autres ?"
+                                : "🔒 Modifie ta sélection";
+                    return locked ? (
+                      <div className="flex flex-col items-end gap-1">
+                        <button disabled className="cursor-not-allowed rounded-full border-2 border-white/8 px-4 py-2 text-xs font-extrabold text-slate-600">{label}</button>
+                        <span className="text-[10px] text-slate-600">Change les moods pour relancer</span>
+                      </div>
+                    ) : (
+                      <button onClick={() => generate(true)} className="rounded-full border-2 border-indigo-400/30 px-4 py-2 text-xs font-extrabold text-indigo-400 transition hover:border-indigo-400/60">{label}</button>
+                    );
+                  })()}
                 </div>
                 {results.length > 0 ? (
                   <div className="grid grid-cols-2 gap-5 sm:grid-cols-3">

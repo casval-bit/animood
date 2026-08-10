@@ -172,7 +172,7 @@ function CommunityMoodBlock({ loaded, counts, total }) {
         <>
           <div className="mb-4 text-[10.5px] text-slate-500">Cette semaine, d'après {total} réaction{total !== 1 ? "s" : ""} de mood</div>
           <MoodOctagon
-            pts={counts} rawThrills size={190} title={null}
+            pts={counts} size={190} title={null}
             className="mx-auto mb-4 w-fit rounded-xl border border-white/6 bg-white/3 p-2.5"
           />
           <div className="flex flex-col gap-2">
