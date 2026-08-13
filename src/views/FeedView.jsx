@@ -318,10 +318,16 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser }) {
 
 // ─── PostCard ─────────────────────────────────────────────────────────────────
 function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser }) {
+  const { markActivityRead } = useApp();
   const [liked, setLiked] = useState((post.likes||[]).includes(myUsername));
   const [likeCount, setLikeCount] = useState((post.likes||[]).length);
   const [showComments, setShowComments] = useState(false);
   const [revealed, setRevealed] = useState(!post.spoiler);
+
+  const toggleComments = () => {
+    setShowComments(p => !p);
+    markActivityRead("post", post.id);
+  };
 
   const toggleLike = async () => {
     const newLiked = !liked;
@@ -397,7 +403,7 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser }) {
             color:liked?"#ef4444":"var(--text-3)",fontSize:12,fontWeight:700,transition:"color 0.15s"}}>
           {liked?"❤️":"🤍"} {likeCount||""}
         </button>
-        <button onClick={()=>setShowComments(p=>!p)}
+        <button onClick={toggleComments}
           style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-3)",fontSize:12,fontWeight:700}}>
           💬 Commenter
         </button>
