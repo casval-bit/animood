@@ -4,7 +4,6 @@ import { sb, posts as postsApi, comments as commentsApi, follows } from "../api/
 import { uploadToCloudinary } from "../api/cloudinary.js";
 import { jikan } from "../api/jikan.js";
 import { MentionText, useMentionAutocomplete, MentionSuggestions } from "../components/Mentions.jsx";
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function timeAgo(ts) {
   const diff = (Date.now() - new Date(ts)) / 1000;
@@ -14,7 +13,6 @@ function timeAgo(ts) {
   if(diff < 604800) return `${Math.floor(diff/86400)}j`;
   return new Date(ts).toLocaleDateString("fr-FR", {day:"numeric",month:"short"});
 }
-
 function Avatar({ profile, size=32 }) {
   const src = profile?.avatar_base64 || (profile?.avatar?.startsWith?.("http") ? profile.avatar : null);
   return (
@@ -25,7 +23,6 @@ function Avatar({ profile, size=32 }) {
     </div>
   );
 }
-
 // ─── Season helpers ───────────────────────────────────────────────────────────
 function getAnimeSeason(year, month) {
   if(!year) return null;
@@ -37,7 +34,6 @@ function getAnimeSeason(year, month) {
   else             season = "Automne";
   return `${season} ${year}`;
 }
-
 function getLast3Seasons() {
   const now = new Date();
   const year = now.getFullYear();
@@ -53,13 +49,11 @@ function getLast3Seasons() {
   }
   return result;
 }
-
-const RECENT_SEASONS = getLast3Seasons(); // e.g. ["Été 2026","Printemps 2026","Hiver 2026"]
+const RECENT_SEASONS = getLast3Seasons();
 function AnimeSearchPicker({ onSelect, onClose }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState([]);
   const timer = useRef(null);
-
   const search = (val) => {
     setQ(val);
     clearTimeout(timer.current);
@@ -72,7 +66,6 @@ function AnimeSearchPicker({ onSelect, onClose }) {
       } catch {}
     }, 350);
   };
-
   return (
     <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:50,marginTop:4,
       background:"var(--surface-1-strong)",border:"1px solid rgba(var(--fg-rgb),0.1)",borderRadius:12,padding:8,boxShadow:"var(--shadow-modal)"}}>
@@ -100,7 +93,6 @@ function AnimeSearchPicker({ onSelect, onClose }) {
     </div>
   );
 }
-
 // ─── PostComposer ─────────────────────────────────────────────────────────────
 function PostComposer({ onPost }) {
   const { me, myUsername } = useApp();
@@ -113,7 +105,6 @@ function PostComposer({ onPost }) {
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState(null);
   const imageInputRef = useRef(null);
-
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
     if(!file) return;
@@ -128,12 +119,10 @@ function PostComposer({ onPost }) {
     setImageUploading(false);
     e.target.value = "";
   };
-
   const profile = { avatar: me.avatar, avatar_base64: me.avatar_base64 };
   const remaining = 280 - content.length;
   const canPost = content.trim().length > 0 && !posting && !imageUploading;
   const mention = useMentionAutocomplete(content, myUsername);
-
   const handlePost = async () => {
     if(!canPost) return;
     setPosting(true);
@@ -149,6 +138,7 @@ function PostComposer({ onPost }) {
         anime_season_label: linkedAnime?.year ? getAnimeSeason(linkedAnime.year, linkedAnime.aired_month||1) : null,
         anime_genres: linkedAnime?.genres || [],
         image_url: imageUrl || null,
+        comment_count: 0,
         likes: [],
         created_at: new Date().toISOString(),
       };
@@ -158,7 +148,6 @@ function PostComposer({ onPost }) {
     } catch(e) { console.error(e); }
     setPosting(false);
   };
-
   return (
     <div style={{background:"rgba(var(--fg-rgb),0.03)",borderRadius:16,border:"1px solid rgba(var(--fg-rgb),0.07)",padding:14,marginBottom:16}}>
       <div style={{display:"flex",gap:10}}>
@@ -171,8 +160,6 @@ function PostComposer({ onPost }) {
               fontFamily:"inherit",lineHeight:1.5}}/>
           <MentionSuggestions suggestions={mention.suggestions}
             onPick={username => setContent(mention.applyMention(content, username))}/>
-
-          {/* Image preview */}
           {imageUrl && (
             <div style={{position:"relative",marginBottom:8,borderRadius:10,overflow:"hidden",maxHeight:200}}>
               <img src={imageUrl} alt="" style={{width:"100%",objectFit:"cover",maxHeight:200,display:"block"}}/>
@@ -182,8 +169,6 @@ function PostComposer({ onPost }) {
             </div>
           )}
           {imageError && <p style={{fontSize:10,color:"#ef4444",marginBottom:6}}>{imageError}</p>}
-
-          {/* Linked anime */}
           {linkedAnime && (
             <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",
               background:"rgba(129,140,248,0.1)",borderRadius:8,border:"1px solid rgba(129,140,248,0.2)",marginBottom:8}}>
@@ -194,8 +179,6 @@ function PostComposer({ onPost }) {
                 style={{background:"none",border:"none",color:"var(--text-3)",cursor:"pointer",fontSize:14}}>✕</button>
             </div>
           )}
-
-          {/* Actions */}
           <div style={{display:"flex",alignItems:"center",gap:8,borderTop:"1px solid rgba(var(--fg-rgb),0.06)",paddingTop:10}}>
             <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{display:"none"}}/>
             <button onClick={()=>imageInputRef.current?.click()} disabled={imageUploading}
@@ -233,18 +216,15 @@ function PostComposer({ onPost }) {
     </div>
   );
 }
-
 // ─── CommentSection ───────────────────────────────────────────────────────────
-function CommentSection({ postId, myUsername, profileCache, onOpenUser }) {
+function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommentAdded }) {
   const [commentList, setCommentList] = useState(null);
   const [newComment, setNewComment] = useState("");
   const [posting, setPosting] = useState(false);
   const mention = useMentionAutocomplete(newComment, myUsername);
-
   useEffect(() => {
     commentsApi.getForPost(postId).then(setCommentList).catch(()=>setCommentList([]));
   }, [postId]);
-
   const handleComment = async () => {
     if(!newComment.trim() || posting) return;
     setPosting(true);
@@ -253,10 +233,10 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser }) {
       const res = await commentsApi.create(c);
       setCommentList(p => [...(p||[]), res?.[0]||c]);
       setNewComment("");
+      onCommentAdded?.();
     } catch {}
     setPosting(false);
   };
-
   const toggleLike = async (id) => {
     await commentsApi.toggleLike(id, myUsername);
     setCommentList(p => p.map(c => {
@@ -265,9 +245,7 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser }) {
       return {...c, likes: likes.includes(myUsername) ? likes.filter(u=>u!==myUsername) : [...likes, myUsername]};
     }));
   };
-
   if(!commentList) return <div style={{fontSize:11,color:"var(--text-4)",padding:"8px 0"}}>Chargement…</div>;
-
   return (
     <div style={{borderTop:"1px solid rgba(var(--fg-rgb),0.05)",paddingTop:12,marginTop:8}}>
       {commentList.map(c => (
@@ -315,13 +293,13 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser }) {
     </div>
   );
 }
-
 // ─── PostCard ─────────────────────────────────────────────────────────────────
 function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser }) {
   const [liked, setLiked] = useState((post.likes||[]).includes(myUsername));
   const [likeCount, setLikeCount] = useState((post.likes||[]).length);
   const [showComments, setShowComments] = useState(false);
   const [revealed, setRevealed] = useState(!post.spoiler);
+  const [commentCount, setCommentCount] = useState(post.comment_count||0);
 
   const toggleLike = async () => {
     const newLiked = !liked;
@@ -329,12 +307,19 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser }) {
     await postsApi.toggleLike(post.id, myUsername);
   };
 
+  const handleCommentAdded = () => {
+    setCommentCount(c => c + 1);
+    // Also persist to DB
+    postsApi.patch?.(post.id, { comment_count: commentCount + 1 });
+  };
+
   const profile = profileCache[post.username] || { avatar:"👤" };
+  const hasComments = commentCount > 0;
 
   return (
-    <div style={{background:"rgba(var(--fg-rgb),0.03)",borderRadius:16,border:"1px solid rgba(var(--fg-rgb),0.06)",
+    <div style={{background:"rgba(var(--fg-rgb),0.03)",borderRadius:16,
+      border:`1px solid ${hasComments?"rgba(129,140,248,0.15)":"rgba(var(--fg-rgb),0.06)"}`,
       padding:14,marginBottom:10,animation:"fadeIn 0.2s ease"}}>
-
       {/* Header */}
       <div style={{display:"flex",gap:10,marginBottom:10}}>
         <Avatar profile={profile} size={36}/>
@@ -359,7 +344,6 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser }) {
             onMouseLeave={e=>e.currentTarget.style.color="var(--text-4)"}>✕</button>
         )}
       </div>
-
       {/* Content */}
       {!revealed ? (
         <button onClick={()=>setRevealed(true)}
@@ -378,8 +362,7 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser }) {
           )}
         </>
       )}
-
-      {/* Genre tags from anime */}
+      {/* Genre tags */}
       {post.anime_genres?.length > 0 && (
         <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:8}}>
           {(post.anime_genres||[]).slice(0,3).map(g=>(
@@ -389,7 +372,6 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser }) {
           ))}
         </div>
       )}
-
       {/* Actions */}
       <div style={{display:"flex",gap:14,alignItems:"center"}}>
         <button onClick={toggleLike}
@@ -398,27 +380,28 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser }) {
           {liked?"❤️":"🤍"} {likeCount||""}
         </button>
         <button onClick={()=>setShowComments(p=>!p)}
-          style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-3)",fontSize:12,fontWeight:700}}>
-          💬 Commenter
+          style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:5,
+            color:showComments?"#818cf8":"var(--text-3)",fontSize:12,fontWeight:700}}>
+          <span>💬</span>
+          <span>Commentaires{commentCount > 0 ? ` (${commentCount})` : ""}</span>
+          <span style={{fontSize:10}}>{showComments?"▲":"▼"}</span>
         </button>
       </div>
-
-      {showComments && <CommentSection postId={post.id} myUsername={myUsername} profileCache={profileCache} onOpenUser={onOpenUser}/>}
+      {showComments && <CommentSection postId={post.id} myUsername={myUsername}
+        profileCache={profileCache} onOpenUser={onOpenUser} onCommentAdded={handleCommentAdded}/>}
     </div>
   );
 }
-
 // ─── FEED VIEW ────────────────────────────────────────────────────────────────
 export function FeedView({ onOpenDetail, onOpenUser }) {
   const { me, myUsername } = useApp();
   const [feed, setFeed]           = useState([]);
   const [loading, setLoading]     = useState(true);
-  const [channel, setChannel]     = useState("general"); // general | recent | following
+  const [channel, setChannel]     = useState("general");
   const [profileCache, setProfileCache] = useState({});
   const [offset, setOffset]       = useState(0);
   const [hasMore, setHasMore]     = useState(true);
   const LIMIT = 20;
-
   const loadProfiles = async (usernames) => {
     const missing = usernames.filter(u => !profileCache[u]);
     if(!missing.length) return;
@@ -431,13 +414,11 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
       }
     } catch {}
   };
-
   const loadFeed = async (reset=false) => {
     setLoading(true);
     try {
       const currentOffset = reset ? 0 : offset;
       let url = `posts?select=*&order=created_at.desc&limit=${LIMIT}&offset=${currentOffset}`;
-
       if(channel === "following") {
         const followingList = await follows.getFollowing(myUsername).catch(()=>[]);
         followingList.push(myUsername);
@@ -445,14 +426,11 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
           url = `posts?select=*&username=in.(${followingList.map(u=>encodeURIComponent(u)).join(",")})&order=created_at.desc&limit=${LIMIT}&offset=${currentOffset}`;
         }
       } else if(channel === "recent") {
-        // Filter posts linked to anime from the last 3 seasons
         const seasonFilter = RECENT_SEASONS.map(s=>`anime_season_label.eq.${encodeURIComponent(s)}`).join(",");
         url = `posts?select=*&or=(${seasonFilter})&order=created_at.desc&limit=${LIMIT}&offset=${currentOffset}`;
       }
-
       const rows = await sb.query(url);
       const newPosts = rows || [];
-
       if(reset) { setFeed(newPosts); setOffset(LIMIT); }
       else { setFeed(p => [...p, ...newPosts]); setOffset(currentOffset + LIMIT); }
       setHasMore(newPosts.length === LIMIT);
@@ -460,27 +438,20 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
     } catch(e) { console.error(e); }
     setLoading(false);
   };
-
   useEffect(() => { loadFeed(true); }, [channel]);
-
   const handlePost = (newPost) => { setFeed(p => [newPost, ...p]); };
   const handleDelete = async (id) => {
     await postsApi.delete(id);
     setFeed(p => p.filter(post => post.id !== id));
   };
-
   const CHANNELS = [
-    { id:"general",   label:"Général",      emoji:"🌐" },
-    { id:"recent",    label:"Récents",       emoji:"✨", desc: RECENT_SEASONS.join(" · ") },
-    { id:"following", label:"Abonnements",  emoji:"👥" },
+    { id:"general",   label:"Général",   emoji:"🌐" },
+    { id:"recent",    label:"Récents",    emoji:"✨" },
+    { id:"following", label:"Abonnements", emoji:"👥" },
   ];
-
   return (
     <div style={{maxWidth:600,margin:"0 auto",padding:"0 16px 80px"}}>
-      {/* Composer */}
       <PostComposer onPost={handlePost}/>
-
-      {/* Channels */}
       <div style={{display:"flex",gap:6,marginBottom:16,borderBottom:"1px solid rgba(var(--fg-rgb),0.06)",paddingBottom:12}}>
         {CHANNELS.map(c => (
           <button key={c.id} onClick={()=>setChannel(c.id)}
@@ -489,20 +460,15 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
               background:channel===c.id?"rgba(124,58,237,0.15)":"rgba(var(--fg-rgb),0.03)",
               color:channel===c.id?"#c084fc":"var(--text-3)",fontSize:12,fontWeight:700,cursor:"pointer",
               display:"flex",alignItems:"center",gap:5}}>
-            <span>{c.emoji}</span>
-            <span>{c.label}</span>
+            <span>{c.emoji}</span><span>{c.label}</span>
           </button>
         ))}
       </div>
-
-      {/* Channel description for recent */}
       {channel==="recent" && (
         <div style={{fontSize:10,color:"var(--text-4)",marginBottom:12,textAlign:"center"}}>
           Posts liés aux animés des saisons : {RECENT_SEASONS.join(", ")}
         </div>
       )}
-
-      {/* Posts */}
       {loading && feed.length===0 && (
         <div style={{textAlign:"center",padding:"40px 0",color:"var(--text-4)"}}>
           <div style={{fontSize:32,marginBottom:8}}>🌀</div>
@@ -516,12 +482,10 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
           <p style={{fontSize:12,marginTop:4}}>Sois le premier à poster quelque chose !</p>
         </div>
       )}
-
       {feed.map(post => (
         <PostCard key={post.id||post.created_at} post={post} myUsername={myUsername}
           profileCache={profileCache} onDelete={handleDelete} onOpenUser={onOpenUser}/>
       ))}
-
       {hasMore && feed.length>0 && (
         <button onClick={()=>loadFeed(false)} disabled={loading}
           style={{width:"100%",padding:"12px",borderRadius:12,border:"1px solid rgba(var(--fg-rgb),0.08)",
@@ -529,7 +493,6 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
           {loading?"Chargement…":"Voir plus"}
         </button>
       )}
-
       <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
     </div>
   );
