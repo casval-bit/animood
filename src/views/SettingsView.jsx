@@ -1,37 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { useApp } from "../context/useApp.js";
-import { useTheme } from "../context/useTheme.js";
 import { parseMALXml } from "../constants/mal-import.js";
 import { importAniListUser } from "../api/anilist.js";
 import { GradientButton } from "../components/ui.jsx";
 import { sb, follows } from "../api/supabase.js";
 import { uploadToCloudinary } from "../api/cloudinary.js";
-import { GRADIENT_PRIMARY } from "../constants/theme.js";
-
-const THEME_OPTIONS = [
-  { id: "dark",  label: "Sombre", desc: "Thème par défaut" },
-  { id: "light", label: "Clair",  desc: "Style réseau social" },
-];
-
-function ThemePreview({ id }) {
-  const dark = id === "dark";
-  return (
-    <div
-      className="h-14 w-full overflow-hidden rounded-lg"
-      style={{
-        background: dark ? "#0f172a" : "#d3cce8",
-        border: `1px solid ${dark ? "rgba(255,255,255,.1)" : "rgba(24,18,43,.14)"}`,
-      }}
-    >
-      <div className="h-3 w-full" style={{ background: GRADIENT_PRIMARY }} />
-      <div className="flex flex-col gap-1 p-1.5">
-        <div className="h-1 w-3/4 rounded-full" style={{ background: dark ? "rgba(255,255,255,.25)" : "#120f24" }} />
-        <div className="h-1 w-1/2 rounded-full" style={{ background: dark ? "rgba(255,255,255,.15)" : "#817a9b" }} />
-      </div>
-    </div>
-  );
-}
-
 function Section({ title, children }) {
   return (
     <div className="mb-6">
@@ -40,30 +13,22 @@ function Section({ title, children }) {
     </div>
   );
 }
-
 export function SettingsView({ onClose }) {
   const { me, saveMe, logout, myUsername } = useApp();
-  const { theme, setTheme } = useTheme();
   const fileRef   = useRef(null);
   const avatarRef = useRef(null);
-
   const [importStatus, setImportStatus] = useState(null);
   const [importStats,  setImportStats]  = useState(null);
   const [importError,  setImportError]  = useState(null);
-
   const [alUsername, setAlUsername] = useState("");
   const [alStatus,   setAlStatus]   = useState(null);
   const [alStats,    setAlStats]    = useState(null);
   const [alError,    setAlError]    = useState(null);
-
   const [avatarError,     setAvatarError]     = useState(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
-
   const [unlockedFrames, setUnlockedFrames] = useState([]);
   const [activeFrame,    setActiveFrame]    = useState(null);
   const [framesLoading,  setFramesLoading]  = useState(true);
-
-  // Load frames on mount
   useEffect(() => {
     (async () => {
       try {
@@ -94,13 +59,10 @@ export function SettingsView({ onClose }) {
       setFramesLoading(false);
     })();
   }, []);
-
   const applyFrame = async (frame) => {
     setActiveFrame(frame);
     saveMe({ ...me, activeFrame: frame?.id || null });
   };
-
-  // Avatar upload via Cloudinary
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
     if(!file) return;
@@ -113,39 +75,16 @@ export function SettingsView({ onClose }) {
       setAvatarError(err.message);
     }
     setAvatarUploading(false);
-    e.target.value = ""; // reset input
+    e.target.value = "";
   };
-
-  const mergeImport = ({ watched, ratings, statuses, customLists }) => {
-    const mergedSubLists = { ...(me.anilistSubLists||{}) };
-    Object.entries(customLists||{}).forEach(([malId, names]) => {
-      mergedSubLists[malId] = [...new Set([...(mergedSubLists[malId]||[]), ...names])];
-    });
+  const mergeImport = ({ watched, ratings, statuses }) => {
     saveMe({
       ...me,
-      watched: [...new Set([...me.watched, ...watched])],
-      ratings: { ...me.ratings, ...ratings },
-      statuses: { ...(me.statuses||{}), ...statuses },
-      anilistSubLists: mergedSubLists,
+      watched:  [...new Set([...me.watched, ...watched])],
+      ratings:  { ...me.ratings,            ...ratings  },
+      statuses: { ...(me.statuses||{}),     ...statuses },
     });
   };
-
-  const handleXmlImport = (e) => {
-    const file = e.target.files?.[0]; if(!file) return;
-    setImportStatus("importing"); setImportError(null);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const { parseMALXml: parse } = require("../constants/mal-import.js");
-        const { watched, ratings, statuses } = parseMALXml(ev.target.result);
-        mergeImport({ watched, ratings, statuses });
-        setImportStats({ watched: watched.length, rated: Object.keys(ratings).length });
-        setImportStatus("done");
-      } catch(err) { setImportError(err.message); setImportStatus("error"); }
-    };
-    reader.readAsText(file);
-  };
-
   const handleXmlImportFixed = (e) => {
     const file = e.target.files?.[0]; if(!file) return;
     setImportStatus("importing"); setImportError(null);
@@ -160,50 +99,24 @@ export function SettingsView({ onClose }) {
     };
     reader.readAsText(file);
   };
-
   const handleAniListImport = async () => {
     setAlStatus("importing"); setAlError(null);
     try {
-      const { watched, ratings, statuses, customLists, skipped } = await importAniListUser(alUsername);
-      mergeImport({ watched, ratings, statuses, customLists });
-      const listNames = new Set(Object.values(customLists||{}).flat());
-      setAlStats({ watched: Object.keys(statuses).length, rated: Object.keys(ratings).length, lists: listNames.size, skipped });
+      // ── Pass myUsername so imported ratings sync to user_votes ──
+      const { watched, ratings, statuses, skipped } = await importAniListUser(alUsername, myUsername);
+      mergeImport({ watched, ratings, statuses });
+      setAlStats({ watched: Object.keys(statuses).length, rated: Object.keys(ratings).length, skipped });
       setAlStatus("done");
     } catch(err) { setAlError(err.message); setAlStatus("error"); }
   };
-
   const currentAvatar = me.avatar?.startsWith?.("http") ? me.avatar : null;
-
   return (
-    <div className="fixed inset-0 z-400 flex flex-col backdrop-blur-2xl" style={{ background:"var(--overlay)" }}>
+    <div className="fixed inset-0 z-400 flex flex-col backdrop-blur-2xl" style={{ background:"rgba(7,11,23,.92)" }}>
       <div className="flex items-center gap-3 border-b border-white/6 px-6 py-4">
         <button onClick={onClose} className="text-xl text-slate-400">←</button>
         <span className="text-base font-black text-slate-100">Paramètres</span>
       </div>
-
       <div className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto px-6 py-6">
-
-        {/* APPARENCE */}
-        <Section title="🎨 Apparence">
-          <div className="grid grid-cols-2 gap-3">
-            {THEME_OPTIONS.map(opt => {
-              const active = theme === opt.id;
-              return (
-                <button key={opt.id} onClick={() => setTheme(opt.id)}
-                  className="flex flex-col items-center gap-2 rounded-xl p-2.5 text-center transition"
-                  style={{ border: active ? "2px solid #7c3aed" : "2px solid transparent", background: active ? "rgba(124,58,237,0.1)" : "rgba(var(--fg-rgb),0.03)" }}>
-                  <ThemePreview id={opt.id} />
-                  <div>
-                    <div className="text-xs font-bold text-slate-100">{opt.label}</div>
-                    <div className="text-[10px] text-slate-500">{opt.desc}</div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </Section>
-
-        {/* AVATAR */}
         <Section title="🖼 Avatar">
           <div className="flex items-center gap-5 mb-3">
             <div style={{width:72,height:72,borderRadius:"50%",overflow:"hidden",flexShrink:0,
@@ -218,7 +131,7 @@ export function SettingsView({ onClose }) {
                 className="w-full rounded-xl border-2 border-dashed border-violet-400/40 bg-violet-400/6 py-2.5 text-sm font-bold text-violet-300 disabled:opacity-50">
                 {avatarUploading ? "Traitement…" : "📁 Uploader une image"}
               </button>
-              <p className="text-[10px] text-slate-600 text-center">JPG, PNG ou WebP · max 2 Mo · redimensionné à 256px</p>
+              <p className="text-[10px] text-slate-600 text-center">JPG, PNG ou WebP · max 2 Mo</p>
               {me.avatar?.startsWith?.("http") && !me.avatar?.includes?.("googleusercontent") && (
                 <button onClick={()=>saveMe({...me, avatar: null})}
                   className="w-full rounded-xl border border-red-400/20 bg-red-400/6 py-2 text-xs font-bold text-red-400">
@@ -232,24 +145,20 @@ export function SettingsView({ onClose }) {
           </div>
           {avatarError && <p className="text-xs text-red-400">{avatarError}</p>}
         </Section>
-
-        {/* CADRE */}
         <Section title="🎖 Cadre de profil">
           {framesLoading ? (
             <p className="text-xs text-slate-500 text-center py-2">Chargement des cadres…</p>
           ) : unlockedFrames.length === 0 ? (
             <p className="text-xs text-slate-500 text-center py-3 leading-relaxed">
-              Aucun cadre débloqué.<br/>
-              Regarde des animés, vote sur les moods et gagne des abonnés !
+              Aucun cadre débloqué.<br/>Regarde des animés, vote sur les moods et gagne des abonnés !
             </p>
           ) : (
             <>
-              {/* No frame option */}
               <button onClick={()=>applyFrame(null)}
                 className="mb-3 flex w-full items-center gap-3 rounded-xl p-2.5 text-left transition"
                 style={{border:!activeFrame?"2px solid #7c3aed":"2px solid transparent",background:!activeFrame?"rgba(124,58,237,0.1)":"transparent"}}>
-                <div style={{width:44,height:44,borderRadius:"50%",background:"rgba(var(--fg-rgb),0.05)",
-                  border:"2px dashed rgba(var(--fg-rgb),0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🚫</div>
+                <div style={{width:44,height:44,borderRadius:"50%",background:"rgba(255,255,255,0.05)",
+                  border:"2px dashed rgba(255,255,255,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🚫</div>
                 <div>
                   <div className="text-xs font-bold text-slate-100">Aucun cadre</div>
                   <div className="text-[10px] text-slate-500">Avatar sans cadre</div>
@@ -269,17 +178,14 @@ export function SettingsView({ onClose }) {
                         return (
                           <button key={frame.id} onClick={()=>applyFrame(frame)}
                             style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:8,borderRadius:12,cursor:"pointer",
-                              border:isActive?"2px solid #7c3aed":"2px solid transparent",background:isActive?"rgba(124,58,237,0.1)":"rgba(var(--fg-rgb),0.03)"}}>
+                              border:isActive?"2px solid #7c3aed":"2px solid transparent",background:isActive?"rgba(124,58,237,0.1)":"rgba(255,255,255,0.03)"}}>
                             <div style={{position:"relative",width:sz,height:sz}}>
                               <div style={{width:sz,height:sz,borderRadius:"50%",overflow:"hidden",
                                 background:"linear-gradient(135deg,#7c3aed,#4f46e5)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>
-                                {currentAvatar
-                                  ? <img src={currentAvatar} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-                                  : "👤"}
+                                {currentAvatar ? <img src={currentAvatar} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : "👤"}
                               </div>
                               <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",overflow:"visible",pointerEvents:"none"}}
-                                viewBox={`0 0 ${sz} ${sz}`}
-                                dangerouslySetInnerHTML={{__html:frame.svg(sz)}}/>
+                                viewBox={`0 0 ${sz} ${sz}`} dangerouslySetInnerHTML={{__html:frame.svg(sz)}}/>
                             </div>
                             <span style={{fontSize:9,fontWeight:700,color:frame.color,textAlign:"center",maxWidth:56,lineHeight:1.2}}>{frame.label}</span>
                           </button>
@@ -292,11 +198,9 @@ export function SettingsView({ onClose }) {
             </>
           )}
         </Section>
-
-        {/* IMPORT ANILIST */}
         <Section title="📥 Importer depuis AniList">
           <p className="mb-3 text-xs leading-relaxed text-slate-500">
-            Entre ton pseudo AniList — ta liste doit être publique. Les animés "Completed" seront ajoutés à ton historique avec leurs notes, et tes sous-listes perso (custom lists) seront récupérées pour filtrer ton journal.
+            Entre ton pseudo AniList — ta liste doit être publique. Les notes seront synchronisées pour le système de notes AniMood.
           </p>
           <div className="flex gap-2">
             <input value={alUsername} onChange={e=>setAlUsername(e.target.value)}
@@ -309,21 +213,15 @@ export function SettingsView({ onClose }) {
           </div>
           {alStatus==="done" && alStats && (
             <div className="mt-2.5 rounded-lg border border-emerald-400/20 bg-emerald-400/8 px-3 py-2.5 text-xs text-emerald-400">
-              ✅ Import réussi — {alStats.watched} animés importés · {alStats.rated} notes récupérées
-              {alStats.lists>0 && ` · ${alStats.lists} sous-liste${alStats.lists!==1?"s":""} perso récupérée${alStats.lists!==1?"s":""}`}
-              {alStats.skipped>0 && ` · ${alStats.skipped} ignorés (pas de fiche MAL)`}
+              ✅ {alStats.watched} animés · {alStats.rated} notes synchronisées{alStats.skipped>0?` · ${alStats.skipped} ignorés`:""}
             </div>
           )}
           {alStatus==="error" && (
             <div className="mt-2.5 rounded-lg border border-red-400/20 bg-red-400/8 px-3 py-2.5 text-xs text-red-400">❌ {alError}</div>
           )}
         </Section>
-
-        {/* IMPORT XML */}
         <Section title="📥 Importer un fichier XML (MyAnimeList)">
-          <p className="mb-3 text-xs leading-relaxed text-slate-500">
-            Exporte ta liste MAL au format XML depuis ton profil et importe-la ici.
-          </p>
+          <p className="mb-3 text-xs leading-relaxed text-slate-500">Exporte ta liste MAL au format XML depuis ton profil et importe-la ici.</p>
           <input ref={fileRef} type="file" accept=".xml" onChange={handleXmlImportFixed} className="hidden"/>
           <button onClick={()=>fileRef.current?.click()}
             className="w-full rounded-xl border-2 border-dashed border-indigo-400/40 bg-indigo-400/6 py-3.5 text-sm font-bold text-indigo-300">
@@ -338,8 +236,6 @@ export function SettingsView({ onClose }) {
             <div className="mt-2.5 rounded-lg border border-red-400/20 bg-red-400/8 px-3 py-2.5 text-xs text-red-400">❌ {importError}</div>
           )}
         </Section>
-
-        {/* STATS */}
         <Section title="📊 Mes statistiques">
           <div className="grid grid-cols-3 gap-2.5">
             {[
@@ -356,15 +252,11 @@ export function SettingsView({ onClose }) {
             ))}
           </div>
         </Section>
-
-        {/* DECONNEXION */}
         <Section title="🚪 Déconnexion">
-          <button onClick={logout}
-            className="w-full rounded-xl border border-red-400/30 bg-red-400/6 py-3.5 text-sm font-bold text-red-400">
+          <button onClick={logout} className="w-full rounded-xl border border-red-400/30 bg-red-400/6 py-3.5 text-sm font-bold text-red-400">
             Se déconnecter
           </button>
         </Section>
-
       </div>
     </div>
   );
