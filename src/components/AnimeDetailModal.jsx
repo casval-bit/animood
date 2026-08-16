@@ -87,9 +87,14 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
         }
         if(ptsStore[ad.data.mal_id]) {
           setAnimePts(ptsStore[ad.data.mal_id]);
-        } else {
-          setAnimePts(genreFallbackV2(ad.data));
+          // Still fetch community votes to get the combined result
           getPtsForAnime(ad.data).then(pts => setAnimePts(pts)).catch(()=>{});
+        } else {
+          // Don't show fallback — wait for real data to avoid flash
+          getPtsForAnime(ad.data).then(pts => setAnimePts(pts)).catch(()=>{
+            // Only use fallback if fetch completely fails
+            setAnimePts(genreFallbackV2(ad.data));
+          });
         }
 
         // Fetch all user scores for this anime
@@ -194,8 +199,8 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
               {/* Score circles on banner */}
               {(() => {
                 const baseSize = 52;
-                const minSize  = 44;
-                const maxSize  = 76;
+                const minSize  = Math.round(44 * 1.15); // +15% min = 51
+                const maxSize  = Math.round(76 * 1.05); // +5% max = 80
                 const scoreToSize = (s) => {
                   if(!s) return baseSize;
                   // Scale: 5.0 → minSize, 10.0 → maxSize
@@ -204,7 +209,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
                 const amSize = animoodScore ? scoreToSize(animoodScore) : baseSize;
                 const frSize = friendAvg    ? scoreToSize(parseFloat(friendAvg)) : 0;
                 return (
-                  <div style={{position:"absolute",top:12,right:12,display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{position:"absolute",top:36,right:12,display:"flex",alignItems:"center",gap:8}}>
                     {/* AniMood score circle */}
                     {animoodScore && (
                       <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
@@ -327,7 +332,12 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
 
               {/* RIGHT COLUMN */}
               <div className="flex flex-col gap-4">
-                {animePts && <MoodOctagon pts={animePts} />}
+                {animePts
+                  ? <MoodOctagon pts={animePts} />
+                  : <div className="flex items-center justify-center rounded-2xl border border-white/8 bg-white/3 p-8">
+                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/20 border-t-violet-400"/>
+                    </div>
+                }
 
                 {/* AniMood Score */}
                 <div className="rounded-2xl border border-violet-400/20 bg-violet-400/6 p-4">
