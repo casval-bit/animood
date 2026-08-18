@@ -11,15 +11,15 @@ const TABS = [
   { id: "profile",   label: "Profil",    emoji: "👤" },
 ];
 
-function NotificationBell({ onOpenFeed }) {
-  const { postNotifications, markPostRead } = useApp();
+function NotificationBell({ onChangeTab }) {
+  const { activityNotifications, markActivityRead } = useApp();
   const [open, setOpen] = useState(false);
-  const count = postNotifications?.length || 0;
+  const count = activityNotifications?.length || 0;
 
   const openNotif = (n) => {
-    markPostRead(n.postId);
+    markActivityRead(n.type, n.id);
     setOpen(false);
-    onOpenFeed();
+    onChangeTab(n.type === "thread" ? "forum" : "feed");
   };
 
   return (
@@ -52,24 +52,31 @@ function NotificationBell({ onOpenFeed }) {
             style={{ background: "var(--surface-1-strong)", boxShadow: "var(--shadow-modal)" }}
           >
             <div className="px-4 py-3 text-[13px] font-black uppercase tracking-wide text-white" style={{ background: GRADIENT_PRIMARY }}>
-              🔔 Activité sur tes posts
+              🔔 Activité
             </div>
             {count === 0 ? (
               <div className="px-4 py-6 text-center text-xs text-slate-500">Rien de nouveau pour l'instant.</div>
             ) : (
               <div className="max-h-80 overflow-y-auto">
-                {postNotifications.map(n => (
-                  <button key={n.postId} onClick={() => openNotif(n)}
-                    className="flex w-full flex-col items-start gap-0.5 border-b border-white/6 px-4 py-3 text-left transition last:border-b-0 hover:bg-white/5">
-                    <div className="text-[12px] font-bold text-slate-100">
-                      @{n.lastComment.username} a commenté {n.isMine ? "ton post" : "un post que tu suis"}
-                    </div>
-                    {n.lastComment.content && (
-                      <div className="truncate text-[11px] text-slate-500">« {n.lastComment.content} »</div>
-                    )}
-                    <div className="text-[10px] text-slate-600">{timeAgo(n.lastComment.created_at)}</div>
-                  </button>
-                ))}
+                {activityNotifications.map(n => {
+                  const isThread = n.type === "thread";
+                  const text = n.lastComment.content ?? n.lastComment.body;
+                  const place = isThread
+                    ? (n.isMine ? "ton sujet" : "un sujet que tu suis")
+                    : (n.isMine ? "ton post" : "un post que tu suis");
+                  const verb = isThread ? "a répondu à" : "a commenté";
+                  return (
+                    <button key={`${n.type}-${n.id}`} onClick={() => openNotif(n)}
+                      className="flex w-full flex-col items-start gap-0.5 border-b border-white/6 px-4 py-3 text-left transition last:border-b-0 hover:bg-white/5">
+                      <div className="text-[12px] font-bold text-slate-100">
+                        @{n.lastComment.username} {verb} {place}{n.count > 1 ? ` (${n.count})` : ""}
+                      </div>
+                      {n.title && <div className="truncate text-[11px] text-violet-300">{n.title}</div>}
+                      {text && <div className="truncate text-[11px] text-slate-500">« {text} »</div>}
+                      <div className="text-[10px] text-slate-600">{timeAgo(n.lastComment.created_at)}</div>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -121,7 +128,7 @@ export function Header({ activeTab, onChangeTab }) {
           })}
         </nav>
 
-        <NotificationBell onOpenFeed={() => onChangeTab("feed")} />
+        <NotificationBell onChangeTab={onChangeTab} />
 
         <button
           onClick={() => onChangeTab("messages")}
