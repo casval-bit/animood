@@ -34,7 +34,7 @@ npm run lint      # eslint across the project
 
 ## À faire / à corriger (v0.2)
 
-- **Octogone (thrills)** : le calcul a été aligné sur `new-features` (mood "thrills" traité comme les 7 autres, plus d'exclusion spéciale du calcul de dominante). Logique vérifiée unitairement, mais pas encore revue visuellement avec de vraies données de vote — à re-checker à l'œil une fois que Jikan/AniList répond.
+- **Importation de base de données anilist ()** .
 
 ## Database (Supabase)
 
