@@ -15,10 +15,6 @@ const FALLBACK_IMG = "https://placehold.co/64x92/1a1a2e/818cf8?text=?";
 const TYPE_EMOJI = { TV:"📺", Movie:"🎬", OVA:"💿", ONA:"🌐", Special:"✨" };
 const NEW_ANIME_PREVIEW = 5;
 
-// Unread replies per thread — no read-tracking column server-side, so "read" is
-// just a per-thread timestamp kept in localStorage (same approach as DM unread).
-const threadReadKey = (username, threadId) => `animood_forum_read_${username}_${threadId}`;
-
 function posterUrl(anime) {
   return anime.images?.jpg?.large_image_url || anime.images?.jpg?.image_url;
 }
@@ -251,7 +247,7 @@ function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, onOpenTh
 }
 
 export function ForumView({ onOpenDetail, onOpenUser }) {
-  const { myUsername } = useApp();
+  const { myUsername, activityNotifications, markActivityRead } = useApp();
   const [newAnime, setNewAnime] = useState([]);
   const [upcoming, setUpcoming] = useState([]);
   const [trailers, setTrailers] = useState([]);
@@ -268,16 +264,16 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
 
   const [threads, setThreads]         = useState([]);
   const [replyCounts, setReplyCounts] = useState({});
-  const [unreadCounts, setUnreadCounts] = useState({});
   const [threadsLoaded, setThreadsLoaded] = useState(false);
   const [showNewThread, setShowNewThread] = useState(false);
   const [openThread, setOpenThread]       = useState(null);
 
-  const markThreadRead = (threadId) => {
-    localStorage.setItem(threadReadKey(myUsername, threadId), new Date().toISOString());
-    setUnreadCounts(prev => (prev[threadId] ? { ...prev, [threadId]: 0 } : prev));
-  };
-  const openThreadRead = (t) => { markThreadRead(t.id); setOpenThread(t); };
+  // Sourced from the same activityNotifications the header bell reads — so the
+  // inline badge below and the bell always agree on what's actually unread.
+  const unreadCounts = {};
+  (activityNotifications || []).forEach(n => { if(n.type === "thread") unreadCounts[n.id] = n.count; });
+
+  const openThreadRead = (t) => { markActivityRead("thread", t.id); setOpenThread(t); };
 
   useEffect(() => {
     let cancelled = false;
@@ -350,17 +346,8 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
     sb.listThreads(20).then(async rows => {
       if(cancelled) return;
       setThreads(rows);
-      const ids = rows.map(r => r.id);
-      const [counts, repliesMeta] = await Promise.all([sb.getReplyCounts(ids), sb.getRepliesMeta(ids)]);
-      if(cancelled) return;
-      setReplyCounts(counts);
-      const unread = {};
-      repliesMeta.forEach(r => {
-        if(r.username === myUsername) return;
-        const lastRead = localStorage.getItem(threadReadKey(myUsername, r.thread_id));
-        if(!lastRead || new Date(r.created_at) > new Date(lastRead)) unread[r.thread_id] = (unread[r.thread_id] || 0) + 1;
-      });
-      setUnreadCounts(unread);
+      const counts = await sb.getReplyCounts(rows.map(r => r.id));
+      if(!cancelled) setReplyCounts(counts);
     }).finally(() => { if(!cancelled) setThreadsLoaded(true); });
     return () => { cancelled = true; };
   }, [myUsername]);
