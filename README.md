@@ -7,7 +7,7 @@ A mood-driven anime app — moodboard, feed, search, forum, profiles, and messag
 No setup needed — the Supabase key already in the code is the `anon`/publishable key (safe to ship client-side by design; access control lives in RLS policies, not in keeping it secret), and the DB schema is already migrated on the shared Supabase project.
 
 ```bash
-git clone -b animood-v.01 https://github.com/casval-bit/animood.git
+git clone -b animood-v.04 https://github.com/casval-bit/animood.git
 cd animood
 npm install
 npm run dev
