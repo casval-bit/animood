@@ -1,5 +1,5 @@
 // ─── ANILIST IMPORT ───────────────────────────────────────────────────────────
-import { sb } from "./supabase.js";
+import { sb, supabase } from "./supabase.js";
 
 const ANILIST_URL = "https://graphql.anilist.co";
 const QUERY = `
@@ -24,6 +24,8 @@ const STATUS_MAP = {
   DROPPED:   "dropped",
   PLANNING:  "watchlist",
 };
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 export async function importAniListUser(username, myUsername) {
   const name = username.trim();
@@ -60,30 +62,23 @@ export async function importAniListUser(username, myUsername) {
     .filter(([,s]) => s !== "watchlist")
     .map(([id]) => parseInt(id));
 
-  // ── Sync rated anime to user_votes so friend scores work ──────────────────
+  // ── Sync rated anime to user_votes via Supabase SDK ──────────────────────
   if(myUsername) {
     const ratedEntries = Object.entries(ratings);
-    // Batch upsert in chunks of 50 to avoid request size limits
-    const CHUNK = 50;
-    for(let i = 0; i < ratedEntries.length; i += CHUNK) {
-      const chunk = ratedEntries.slice(i, i + CHUNK);
-      const rows = chunk.map(([malId, r]) => ({
-        username:   myUsername,
-        mal_id:     parseInt(malId),
-        moods:      [],
-        pts_added:  null,
-        score:      r.score,
-        voted_at:   new Date().toISOString(),
+    if(ratedEntries.length > 0) {
+      const rows = ratedEntries.map(([malId, r]) => ({
+        username:  myUsername,
+        mal_id:    parseInt(malId),
+        moods:     [],
+        pts_added: null,
+        score:     r.score,
+        voted_at:  new Date().toISOString(),
       }));
-      try {
-        await sb.query("user_votes?on_conflict=username,mal_id", {
-          method: "POST",
-          headers: { ...sb.headers, "Prefer": "resolution=merge-duplicates" },
-          body: JSON.stringify(rows),
-        });
-      } catch(e) {
-        console.warn("user_votes sync failed for chunk", i, e);
-      }
+      const { error } = await supabase
+        .from("user_votes")
+        .upsert(rows, { onConflict: "username,mal_id" });
+      if(error) console.warn("user_votes sync failed:", error.message);
+      else console.log(`✅ ${rows.length} notes syncées vers user_votes`);
     }
   }
 
@@ -91,7 +86,6 @@ export async function importAniListUser(username, myUsername) {
 }
 
 // ─── FETCH AIRED DATES ────────────────────────────────────────────────────────
-// Used by ForumView to get season/year info for anime by MAL ID
 const AIRED_QUERY = `
 query ($ids: [Int]) {
   Page(perPage: 50) {

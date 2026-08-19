@@ -101,17 +101,55 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
         const scoredBy = ad.data?.scored_by || 0;
         const malScore = ad.data?.score;
         try {
-          const votes = await sb.query(`user_votes?mal_id=eq.${malId}&score=not.is.null&select=username,score`) || [];
-          setAllUserScores(votes);
-          const scores = votes.map(v => parseFloat(v.score));
-          const computed = calcAnimoodScore(malScore, scoredBy, scores);
-          setAnimoodScore(computed);
-
-          // Fetch friend scores
+          // Source 1 : user_votes (notes manuelles AniMood)
+          const votes = await sb.query(`user_votes?mal_id=eq.${malId}&score=not.is.null&select=username,score,voted_at`) || [];
+          
+          // Source 2 : profiles.ratings (notes importées AniList/MAL)
           const following = await follows.getFollowing(myUsername).catch(()=>[]);
-          const friendVotes = votes.filter(v => following.includes(v.username) && v.username !== myUsername);
+          const friendProfiles = following.length > 0
+            ? await sb.query(`profiles?username=in.(${following.map(u=>encodeURIComponent(u)).join(",")})&select=username,ratings`).catch(()=>[]) || []
+            : [];
+
+          // Merge : pour chaque ami, priorité à user_votes si existe, sinon profiles.ratings
+          const scoreMap = {}; // username → {score, source}
+          
+          // D'abord les profiles (priorité basse)
+          for(const p of friendProfiles) {
+            const r = p.ratings?.[malId];
+            if(r?.score) scoreMap[p.username] = { username: p.username, score: r.score, source: "profile" };
+          }
+          // Ensuite user_votes (priorité haute — écrase profiles)
+          for(const v of votes) {
+            if(v.username !== myUsername) {
+              scoreMap[v.username] = { username: v.username, score: v.score, source: "vote" };
+            }
+          }
+
+          const friendVotes = Object.values(scoreMap).filter(v => following.includes(v.username));
           setFriendScores(friendVotes);
-        } catch {}
+
+          // Pour le score AniMood global : user_votes + profiles.ratings de tous
+          setAllUserScores(votes);
+          
+          // Merge toutes les sources pour le calcul global
+          const allScoreMap = {};
+          // D'abord profiles (tous les following + soi-même)
+          const allProfiles = friendProfiles; // déjà fetchés
+          for(const p of allProfiles) {
+            const r = p.ratings?.[malId];
+            if(r?.score) allScoreMap[p.username] = parseFloat(r.score);
+          }
+          // user_votes écrase (priorité haute)
+          for(const v of votes) {
+            allScoreMap[v.username] = parseFloat(v.score);
+          }
+          const allScores = Object.values(allScoreMap);
+          const computed = calcAnimoodScore(malScore, scoredBy, allScores);
+          setAnimoodScore(computed);
+          // Mise à jour du count affiché
+          setAllUserScores(Object.entries(allScoreMap).map(([username, score]) => ({ username, score })));
+
+        } catch(e) { console.warn("score fetch failed:", e); }
 
       } catch(e) { setError(e.message); setLoading(false); }
     })();

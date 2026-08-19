@@ -1,11 +1,8 @@
 // ─── SUPABASE CLIENT (SDK officiel) ──────────────────────────────────────────
 import { createClient } from "@supabase/supabase-js";
-
 const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || "https://pjkvhhxwjzpmxmhdhwcp.supabase.co";
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBqa3ZoaHh3anpwbXhtaGRod2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NDA5ODgsImV4cCI6MjA5NjAxNjk4OH0.fj3pEDLYZqHmugfWfJvVX008He7lwUDx6-avmqJl8kI";
-
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
-
 // ─── GOOGLE AUTH ──────────────────────────────────────────────────────────────
 export async function signInWithGoogle() {
   const { error } = await supabase.auth.signInWithOAuth({
@@ -14,15 +11,12 @@ export async function signInWithGoogle() {
   });
   if(error) throw error;
 }
-
 export async function signOut() {
   await supabase.auth.signOut();
 }
-
 export function onAuthChange(callback) {
   return supabase.auth.onAuthStateChange((_event, session) => callback(session));
 }
-
 // ─── REST HELPERS ─────────────────────────────────────────────────────────────
 export const sb = {
   headers: {
@@ -30,16 +24,15 @@ export const sb = {
     "apikey": SUPABASE_ANON,
     "Authorization": `Bearer ${SUPABASE_ANON}`,
   },
-
   async query(path, opts={}) {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: this.headers, ...opts });
     if(!r.ok) { const e = await r.text(); throw new Error(e); }
-    if(r.status === 204 || r.headers.get("content-length") === "0") return null;
+    // 201 (Created) and 204 (No Content) both have empty bodies — return null
+    if(r.status === 204 || r.status === 201 || r.headers.get("content-length") === "0") return null;
     const text = await r.text();
     if(!text) return null;
     return JSON.parse(text);
   },
-
   async getProfile(username) {
     const rows = await this.query(`profiles?username=eq.${encodeURIComponent(username)}&limit=1`);
     return rows?.[0] || null;
@@ -59,39 +52,34 @@ export const sb = {
       anilist_sub_lists: data.anilistSubLists || data.anilist_sub_lists || {},
       active_frame:     data.activeFrame || null,
       avatar_base64:    data.avatar_base64 || null,
-      highlights:        data.highlights || [],
+      highlights:       data.highlights || [],
       custom_lists:     data.customLists || [],
       pinned_list:      data.pinnedList || null,
       updated_at:       data.updated_at,
     };
     return this.query("profiles?on_conflict=username", {
       method: "POST",
-      headers: { ...this.headers, "Prefer": "resolution=merge-duplicates" },
+      headers: { ...this.headers, "Prefer": "resolution=merge-duplicates,return=minimal" },
       body: JSON.stringify(row),
     });
   },
-
   async getRecentMoodVotes(sinceISO) {
     try { return await this.query(`user_votes?select=moods,voted_at&voted_at=gte.${encodeURIComponent(sinceISO)}&limit=1000`) || []; }
     catch { return []; }
   },
-
   async getMoodPtsBatch(ids) {
     if(!ids.length) return {};
     try {
-      const rows = await this.query(`mood_pts_v2?mal_id=in.(${ids.join(",")})&limit=${ids.length}`);
+      const rows = await this.query(`mood_pts_v4?mal_id=in.(${ids.join(",")})&limit=${ids.length}`);
       const out = {};
       (rows||[]).forEach(r => { out[r.mal_id] = r; });
       return out;
     } catch { return {}; }
   },
-
   async getAllFavorites() {
     try { return await this.query(`profiles?select=favorites&limit=1000`) || []; }
     catch { return []; }
   },
-
-  // ─── Forum threads/replies — skeleton, no reactions, no pagination ──────────
   async listThreads(limit = 20) {
     try { return await this.query(`forum_threads?select=*&order=created_at.desc&limit=${limit}`) || []; }
     catch { return []; }
@@ -105,7 +93,6 @@ export const sb = {
       return out;
     } catch { return {}; }
   },
-  // Lightweight reply metadata (no body) — used to compute per-thread unread counts client-side.
   async getRepliesMeta(threadIds) {
     if(!threadIds.length) return [];
     try { return await this.query(`forum_replies?select=thread_id,username,created_at&thread_id=in.(${threadIds.join(",")})`) || []; }
@@ -129,22 +116,19 @@ export const sb = {
       body: JSON.stringify([{ thread_id: threadId, username, body }]),
     });
   },
-
   async getMoodPts(mal_id) {
     try {
-      const rows = await this.query(`mood_pts_v2?mal_id=eq.${mal_id}&limit=1`);
+      const rows = await this.query(`mood_pts_v4?mal_id=eq.${mal_id}&limit=1`);
       if(rows?.[0]) return rows[0];
     } catch {}
     return null;
   },
-
   async getCommunityVotes(mal_id) {
     try {
       const rows = await this.query(`mood_community_votes?mal_id=eq.${mal_id}&limit=1`);
       return rows?.[0] || null;
     } catch { return null; }
   },
-
   async getUserVote(username, mal_id) {
     try {
       const rows = await this.query(`user_votes?username=eq.${encodeURIComponent(username)}&mal_id=eq.${mal_id}&limit=1`);
@@ -154,11 +138,10 @@ export const sb = {
   async upsertCommunityVotes(mal_id, pts) {
     return this.query("mood_community_votes?on_conflict=mal_id", {
       method: "POST",
-      headers: { ...this.headers, "Prefer": "resolution=merge-duplicates" },
+      headers: { ...this.headers, "Prefer": "resolution=merge-duplicates,return=minimal" },
       body: JSON.stringify({ mal_id, ...pts }),
     });
   },
-
   async getAnimeFromCache(mal_id) {
     const rows = await this.query(`anime_cache?mal_id=eq.${mal_id}&limit=1`);
     return rows?.[0] || null;
@@ -174,20 +157,18 @@ export const sb = {
   async upsertAnimeCache(row) {
     return this.query("anime_cache?on_conflict=mal_id", {
       method: "POST",
-      headers: { ...this.headers, "Prefer": "resolution=merge-duplicates" },
+      headers: { ...this.headers, "Prefer": "resolution=merge-duplicates,return=minimal" },
       body: JSON.stringify(row),
     });
   },
-
   async upsertUserVote(username, mal_id, moods, ptsAdded) {
     return this.query("user_votes?on_conflict=username,mal_id", {
       method: "POST",
-      headers: { ...this.headers, "Prefer": "resolution=merge-duplicates" },
+      headers: { ...this.headers, "Prefer": "resolution=merge-duplicates,return=minimal" },
       body: JSON.stringify({ username, mal_id, moods, pts_added: ptsAdded, voted_at: new Date().toISOString() }),
     });
   },
 };
-
 // ─── PROFILE HELPERS ──────────────────────────────────────────────────────────
 export async function loadProfile(username) {
   try {
@@ -209,14 +190,12 @@ export async function loadProfile(username) {
   } catch {}
   try { return JSON.parse(localStorage.getItem(`animood_profile_${username}`)); } catch { return null; }
 }
-
 export async function saveProfile(username, data) {
   try { localStorage.setItem(`animood_profile_${username}`, JSON.stringify(data)); } catch {}
   try {
     await sb.upsertProfile({ username, ...data, updated_at: new Date().toISOString() });
   } catch(e) { console.warn("Profile sync failed:", e); }
 }
-
 // ─── FOLLOWS ──────────────────────────────────────────────────────────────────
 export const follows = {
   async getFollowers(username) {
@@ -234,7 +213,7 @@ export const follows = {
   async follow(follower, following) {
     await sb.query("follows", {
       method:"POST",
-      headers:{...sb.headers,"Prefer":"resolution=ignore-duplicates"},
+      headers:{...sb.headers,"Prefer":"resolution=ignore-duplicates,return=minimal"},
       body: JSON.stringify({ follower, following }),
     });
   },
@@ -244,11 +223,8 @@ export const follows = {
     });
   },
 };
-
-// ─── DIRECT MESSAGES — 1:1 chat, no group threads/attachments ─────────────────
+// ─── DIRECT MESSAGES ──────────────────────────────────────────────────────────
 export const dm = {
-  // Distinct conversations involving `username`, each with its last message —
-  // most recently active first.
   async listConversations(username) {
     const u = encodeURIComponent(username);
     let rows;
@@ -257,7 +233,7 @@ export const dm = {
     const byPeer = new Map();
     (rows||[]).forEach(m => {
       const peer = m.sender === username ? m.recipient : m.sender;
-      if(!byPeer.has(peer)) byPeer.set(peer, m); // first hit per peer = most recent (desc order)
+      if(!byPeer.has(peer)) byPeer.set(peer, m);
     });
     return [...byPeer.entries()].map(([peer, lastMessage]) => ({ peer, lastMessage }));
   },
@@ -275,7 +251,6 @@ export const dm = {
     });
   },
 };
-
 // ─── POSTS ────────────────────────────────────────────────────────────────────
 export const posts = {
   async getFeed({ limit=20, offset=0, username=null, animeId=null, genre=null, season=null, following=[] }) {
@@ -305,9 +280,6 @@ export const posts = {
       body: JSON.stringify({ likes: newLikes }),
     });
   },
-  // Latest comment (from someone else) on every post `username` either wrote or
-  // has commented on — the raw material for the "activity on your posts" bell.
-  // Read-state (seen/unseen) is tracked client-side, same as DM/forum unread.
   async getActivityNotifications(username) {
     const u = encodeURIComponent(username);
     try {
@@ -317,7 +289,6 @@ export const posts = {
       ]);
       const watchedIds = [...new Set([...(myPosts||[]).map(p=>p.id), ...(myCommented||[]).map(c=>c.post_id)])];
       if(!watchedIds.length) return [];
-
       const [postRows, commentRows] = await Promise.all([
         sb.query(`posts?id=in.(${watchedIds.join(",")})&select=id,content,username`),
         sb.query(`comments?post_id=in.(${watchedIds.join(",")})&username=neq.${u}&order=created_at.desc&select=post_id,username,content,created_at&limit=200`),
@@ -325,8 +296,7 @@ export const posts = {
       const postById = {};
       (postRows||[]).forEach(p => { postById[p.id] = p; });
       const lastByPost = {};
-      (commentRows||[]).forEach(c => { if(!lastByPost[c.post_id]) lastByPost[c.post_id] = c; }); // desc order — first hit per post = most recent
-
+      (commentRows||[]).forEach(c => { if(!lastByPost[c.post_id]) lastByPost[c.post_id] = c; });
       return Object.entries(lastByPost).map(([postId, lastComment]) => ({
         postId: parseInt(postId),
         postContent: postById[postId]?.content || "",
@@ -336,7 +306,6 @@ export const posts = {
     } catch { return []; }
   },
 };
-
 // ─── COMMENTS ─────────────────────────────────────────────────────────────────
 export const comments = {
   async getForPost(postId) {
