@@ -93,10 +93,43 @@ export const sb = {
       return out;
     } catch { return {}; }
   },
+<<<<<<< HEAD
   async getRepliesMeta(threadIds) {
     if(!threadIds.length) return [];
     try { return await this.query(`forum_replies?select=thread_id,username,created_at&thread_id=in.(${threadIds.join(",")})`) || []; }
     catch { return []; }
+=======
+  // Same idea as posts.getActivityNotifications below, for forum threads: every
+  // reply (from someone else) on a thread `username` started or has replied to.
+  // Unlike getReplyCounts this isn't limited to whatever's on the current threads
+  // list — it looks at every thread you're actually involved in.
+  async getThreadActivityNotifications(username) {
+    const u = encodeURIComponent(username);
+    try {
+      const [myThreads, myReplied] = await Promise.all([
+        this.query(`forum_threads?username=eq.${u}&select=id`),
+        this.query(`forum_replies?username=eq.${u}&select=thread_id`),
+      ]);
+      const watchedIds = [...new Set([...(myThreads||[]).map(t=>t.id), ...(myReplied||[]).map(r=>r.thread_id)])];
+      if(!watchedIds.length) return [];
+
+      const [threadRows, replyRows] = await Promise.all([
+        this.query(`forum_threads?id=in.(${watchedIds.join(",")})&select=id,title,username`),
+        this.query(`forum_replies?thread_id=in.(${watchedIds.join(",")})&username=neq.${u}&order=created_at.desc&select=thread_id,username,body,created_at&limit=300`),
+      ]);
+      const threadById = {};
+      (threadRows||[]).forEach(t => { threadById[t.id] = t; });
+      const repliesByThread = {};
+      (replyRows||[]).forEach(r => { (repliesByThread[r.thread_id] ||= []).push(r); }); // already desc order
+
+      return watchedIds.filter(id => repliesByThread[id]?.length).map(id => ({
+        threadId: id,
+        threadTitle: threadById[id]?.title || "",
+        isMine: threadById[id]?.username === username,
+        items: repliesByThread[id],
+      }));
+    } catch { return []; }
+>>>>>>> 8844a05de528b271dc1f97f6dc382a5cf3c6128d
   },
   async getThreadReplies(threadId) {
     try { return await this.query(`forum_replies?thread_id=eq.${threadId}&order=created_at.asc`) || []; }
@@ -280,6 +313,14 @@ export const posts = {
       body: JSON.stringify({ likes: newLikes }),
     });
   },
+<<<<<<< HEAD
+=======
+  // Every comment (from someone else) on a post `username` either wrote or has
+  // commented on — the raw material for the "activity on your posts" bell.
+  // Returns the full comment list per post (desc order) so the caller can work
+  // out both "how many are unread" and "what's the latest one" against its own
+  // last-read timestamp. Read-state itself is tracked client-side (AppProvider).
+>>>>>>> 8844a05de528b271dc1f97f6dc382a5cf3c6128d
   async getActivityNotifications(username) {
     const u = encodeURIComponent(username);
     try {
@@ -291,10 +332,11 @@ export const posts = {
       if(!watchedIds.length) return [];
       const [postRows, commentRows] = await Promise.all([
         sb.query(`posts?id=in.(${watchedIds.join(",")})&select=id,content,username`),
-        sb.query(`comments?post_id=in.(${watchedIds.join(",")})&username=neq.${u}&order=created_at.desc&select=post_id,username,content,created_at&limit=200`),
+        sb.query(`comments?post_id=in.(${watchedIds.join(",")})&username=neq.${u}&order=created_at.desc&select=post_id,username,content,created_at&limit=300`),
       ]);
       const postById = {};
       (postRows||[]).forEach(p => { postById[p.id] = p; });
+<<<<<<< HEAD
       const lastByPost = {};
       (commentRows||[]).forEach(c => { if(!lastByPost[c.post_id]) lastByPost[c.post_id] = c; });
       return Object.entries(lastByPost).map(([postId, lastComment]) => ({
@@ -302,6 +344,16 @@ export const posts = {
         postContent: postById[postId]?.content || "",
         isMine: postById[postId]?.username === username,
         lastComment,
+=======
+      const commentsByPost = {};
+      (commentRows||[]).forEach(c => { (commentsByPost[c.post_id] ||= []).push(c); }); // already desc order
+
+      return watchedIds.filter(id => commentsByPost[id]?.length).map(id => ({
+        postId: id,
+        postContent: postById[id]?.content || "",
+        isMine: postById[id]?.username === username,
+        items: commentsByPost[id],
+>>>>>>> 8844a05de528b271dc1f97f6dc382a5cf3c6128d
       }));
     } catch { return []; }
   },

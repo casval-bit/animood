@@ -7,7 +7,7 @@ A mood-driven anime app — moodboard, feed, search, forum, profiles, and messag
 No setup needed — the Supabase key already in the code is the `anon`/publishable key (safe to ship client-side by design; access control lives in RLS policies, not in keeping it secret), and the DB schema is already migrated on the shared Supabase project.
 
 ```bash
-git clone -b animood-v.01 https://github.com/casval-bit/animood.git
+git clone -b animood-v.04.01 https://github.com/casval-bit/animood.git
 cd animood
 npm install
 npm run dev
@@ -28,14 +28,13 @@ npm run lint      # eslint across the project
 - **Forum** — "Community mood" card is now an octagon radar (instead of bars), moved into a sticky right sidebar instead of sitting full-width at the top; threads can be tagged (Discussion / Question / Theory / Recommendation / Spoiler / Rant) and can include an image. Unread-reply badge per thread.
 - **Messages** — 1:1 chat between members ("Messages" tab + "💬 Message" button on any profile), plus a floating chat bubble available from any page, and a "✏️ Nouveau" button to start a conversation without going through a profile first.
 - **Mentions** — `@username` in Feed posts/comments and Forum threads/replies: autocompletes while typing, renders as a clickable link to that member's profile.
-- **Notifications** — unread-message badge (with count) on the ✉️ icon; a 🔔 bell for activity on posts you wrote or commented on (new comment from someone else). Both update automatically in the background — no page refresh needed.
+- **Notifications** — unread-message badge (with count) on the ✉️ icon; a 🔔 bell for activity (new comments on Feed posts *and* new replies on Forum threads you wrote or took part in). The bell and Forum's per-thread unread badge read from the same feed, so they never disagree. Both update automatically in the background — no page refresh needed.
 - **Theme** — selectable light/dark appearance (Settings → 🎨 Apparence). Dark (glass/gradient) stays the default; the light theme is a softer, violet-tinted "social feed" look, not a flat white dashboard.
-- **AniList import** — also pulls a public AniList account's custom (sub-)lists, filterable from Profile → Journal.
+- **AniList import** — also pulls a public AniList account's custom (sub-)lists, filterable from Profile → Journal. Re-run the same import anytime (same username, now with a clearly labeled field and a "🔄 Réimporter" button) to resync after updating your list on AniList.
 
 ## À faire / à corriger (v0.2)
 
-- **Moodboard — bug de reroll** : `src/api/moodboard.js` sérialise le curseur en objet (`Object.fromEntries(pool)`) au retour de `fetchMoodboardCandidates`, mais le relit avec `new Map(cursor.pool)` à l'appel suivant — `new Map(objetPlain)` lève une exception (objet non itérable). Résultat : dès le premier "🎲 Autres suggestions", l'appel échoue silencieusement (catché), les résultats sont vidés et l'écran reste bloqué sur "Aucun animé trouvé". Corrigé sur `new-features` (voir ce fichier sur cette branche), pas encore porté ici.
-- **Octogone (thrills)** : le calcul a été aligné sur `new-features` (mood "thrills" traité comme les 7 autres, plus d'exclusion spéciale du calcul de dominante). Logique vérifiée unitairement, mais pas encore revue visuellement avec de vraies données de vote — à re-checker à l'œil une fois que Jikan/AniList répond.
+- **Importation de base de données anilist ()** .
 
 ## Database (Supabase)
 

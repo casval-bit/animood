@@ -201,14 +201,18 @@ export function SettingsView({ onClose }) {
         <Section title="📥 Importer depuis AniList">
           <p className="mb-3 text-xs leading-relaxed text-slate-500">
             Entre ton pseudo AniList — ta liste doit être publique. Les notes seront synchronisées pour le système de notes AniMood.
+            Tu peux relancer l'import à tout moment (même pseudo) pour resynchroniser ta liste après l'avoir mise à jour sur AniList.
           </p>
+          <label htmlFor="anilist-username" className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            Pseudo AniList
+          </label>
           <div className="flex gap-2">
-            <input value={alUsername} onChange={e=>setAlUsername(e.target.value)}
+            <input id="anilist-username" value={alUsername} onChange={e=>setAlUsername(e.target.value)}
               onKeyDown={e=>e.key==="Enter"&&alUsername.trim()&&handleAniListImport()}
-              placeholder="Pseudo AniList…" disabled={alStatus==="importing"}
-              className="flex-1 rounded-xl border border-white/10 bg-white/6 px-3.5 py-3 text-sm text-slate-100 outline-none disabled:opacity-50"/>
+              placeholder="ex : Josh" disabled={alStatus==="importing"}
+              className="flex-1 rounded-xl border-2 border-violet-400/30 bg-white/6 px-3.5 py-3 text-sm text-slate-100 outline-none transition focus:border-violet-400/70 disabled:opacity-50"/>
             <GradientButton onClick={handleAniListImport} disabled={alStatus==="importing"||!alUsername.trim()} className="shrink-0 px-4 py-3 text-[13px]">
-              {alStatus==="importing" ? "…" : "Importer"}
+              {alStatus==="importing" ? "…" : (alStatus==="done" ? "🔄 Réimporter" : "Importer")}
             </GradientButton>
           </div>
           {alStatus==="done" && alStats && (

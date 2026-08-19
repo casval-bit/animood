@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { onAuthChange, loadProfile, saveProfile, signOut, dm, posts } from "../api/supabase.js";
+import { onAuthChange, loadProfile, saveProfile, signOut, dm, posts, sb } from "../api/supabase.js";
 import { DEFAULT_PROFILE } from "../constants/profile.js";
 import { AppContext } from "./appContextObject.js";
 
@@ -9,6 +9,7 @@ function usernameFromEmail(email) {
 
 const lastReadKey = (username, peer) => `animood_dm_read_${username}_${peer}`;
 const postReadKey = (username, postId) => `animood_post_read_${username}_${postId}`;
+const threadReadKey = (username, threadId) => `animood_forum_read_${username}_${threadId}`;
 
 export function AppProvider({ children }) {
   const [session, setSession]         = useState(null);
@@ -75,31 +76,50 @@ export function AppProvider({ children }) {
     });
   }, [myUsername]);
 
-  // Activity notifications — new comments (from someone else) on a post I wrote
-  // or commented on. Same client-side last-read-timestamp approach as DMs above.
-  const [postNotifications, setPostNotifications] = useState([]);
+  // Activity notifications — new comments/replies (from someone else) on a Feed
+  // post or Forum thread I started or took part in. Both sources feed the same
+  // list so the header bell and any inline per-item badge (e.g. Forum's thread
+  // rows) read from one place and never drift out of sync. Same client-side
+  // last-read-timestamp approach as DMs above.
+  const [activityNotifications, setActivityNotifications] = useState([]);
 
   useEffect(() => {
     if(!myUsername) return;
     let cancelled = false;
     const check = async () => {
-      const notifs = await posts.getActivityNotifications(myUsername);
+      const [postNotifs, threadNotifs] = await Promise.all([
+        posts.getActivityNotifications(myUsername),
+        sb.getThreadActivityNotifications(myUsername),
+      ]);
       if(cancelled) return;
-      const unread = notifs.filter(n => {
-        const lastRead = localStorage.getItem(postReadKey(myUsername, n.postId));
-        return !lastRead || new Date(n.lastComment.created_at) > new Date(lastRead);
-      });
-      setPostNotifications(unread);
+
+      const toEntry = (type, id, title, isMine, items, readKey) => {
+        const lastRead = localStorage.getItem(readKey);
+        const unseen = items.filter(it => !lastRead || new Date(it.created_at) > new Date(lastRead));
+        if(!unseen.length) return null;
+        return { type, id, title, isMine, count: unseen.length, lastComment: unseen[0] };
+      };
+
+      const posts_ = postNotifs
+        .map(n => toEntry("post", n.postId, n.postContent, n.isMine, n.items, postReadKey(myUsername, n.postId)))
+        .filter(Boolean);
+      const threads_ = threadNotifs
+        .map(n => toEntry("thread", n.threadId, n.threadTitle, n.isMine, n.items, threadReadKey(myUsername, n.threadId)))
+        .filter(Boolean);
+
+      const merged = [...posts_, ...threads_].sort((a, b) => new Date(b.lastComment.created_at) - new Date(a.lastComment.created_at));
+      setActivityNotifications(merged);
     };
     check();
     const interval = setInterval(check, 20000);
     return () => { cancelled = true; clearInterval(interval); };
   }, [myUsername]);
 
-  const markPostRead = useCallback((postId) => {
+  const markActivityRead = useCallback((type, id) => {
     if(!myUsername) return;
-    localStorage.setItem(postReadKey(myUsername, postId), new Date().toISOString());
-    setPostNotifications(prev => prev.filter(n => n.postId !== postId));
+    const key = type === "thread" ? threadReadKey(myUsername, id) : postReadKey(myUsername, id);
+    localStorage.setItem(key, new Date().toISOString());
+    setActivityNotifications(prev => prev.filter(n => !(n.type === type && n.id === id)));
   }, [myUsername]);
 
   // Update + persist in one call — every write path goes through here so nothing
@@ -113,7 +133,7 @@ export function AppProvider({ children }) {
 
   const ctx = {
     session, me, setMe, saveMe, myUsername, profileReady, logout,
-    unreadPeers, markRead, postNotifications, markPostRead,
+    unreadPeers, markRead, activityNotifications, markActivityRead,
   };
 
   return <AppContext.Provider value={ctx}>{children}</AppContext.Provider>;
