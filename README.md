@@ -31,10 +31,7 @@ npm run lint      # eslint across the project
 - **Notifications** — unread-message badge (with count) on the ✉️ icon; a 🔔 bell for activity (new comments on Feed posts and new replies on Forum threads you wrote or took part in, *plus* any post/comment/thread/reply where someone `@mentions` you). The bell and Forum's per-thread unread badge read from the same feed, so they never disagree. Both update automatically in the background — no page refresh needed.
 - **Theme** — selectable light/dark appearance (Settings → 🎨 Apparence). Dark (glass/gradient) stays the default; the light theme is a softer, violet-tinted "social feed" look, not a flat white dashboard.
 - **AniList import** — also pulls a public AniList account's custom (sub-)lists, filterable from Profile → Journal. Re-run the same import anytime (same username, now with a clearly labeled field and a "🔄 Réimporter" button) to resync after updating your list on AniList.
-
-## À faire / à corriger (v0.2)
-
-- **Octogone (thrills)** : le calcul a été aligné sur `new-features` (mood "thrills" traité comme les 7 autres, plus d'exclusion spéciale du calcul de dominante). Logique vérifiée unitairement, mais pas encore revue visuellement avec de vraies données de vote — à re-checker à l'œil une fois que Jikan/AniList répond.
+- **Fixes (v.05)** — `@mentions` in Feed posts/comments and Forum threads/replies now actually notify the mentioned member; before, the 🔔 bell only ever looked at posts/threads you'd already written or commented on, so a mention on something you'd never touched was silently dropped. Also fixed two leftover reads still pointing at the retired `mood_pts_v2` table instead of `mood_pts_v4`.
 
 ## Database (Supabase)
 
