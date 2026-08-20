@@ -79,7 +79,7 @@ export const sb = {
   async getMoodPtsBatch(ids) {
     if(!ids.length) return {};
     try {
-      const rows = await this.query(`mood_pts_v2?mal_id=in.(${ids.join(",")})&limit=${ids.length}`);
+      const rows = await this.query(`mood_pts_v4?mal_id=in.(${ids.join(",")})&limit=${ids.length}`);
       const out = {};
       (rows||[]).forEach(r => { out[r.mal_id] = r; });
       return out;
@@ -136,6 +136,43 @@ export const sb = {
       }));
     } catch { return []; }
   },
+  // Threads/replies where someone else typed "@username" — independent of
+  // getThreadActivityNotifications above, since a mention can pull you into a
+  // thread you've never started or replied to. ilike casts a wide net (plain
+  // substring), then isMention re-checks the exact token so "@bob" doesn't
+  // also fire for a post mentioning "@bobby".
+  async getThreadMentionNotifications(username) {
+    const u = encodeURIComponent(username);
+    const tag = encodeURIComponent(`@${username}`);
+    const isMention = txt => new RegExp(`(?:^|\\s)@${username}(?![a-zA-Z0-9_])`, "i").test(txt || "");
+    try {
+      const [threadRows, replyRows] = await Promise.all([
+        this.query(`forum_threads?body=ilike.*${tag}*&username=neq.${u}&order=created_at.desc&select=id,title,body,username,created_at&limit=100`),
+        this.query(`forum_replies?body=ilike.*${tag}*&username=neq.${u}&order=created_at.desc&select=thread_id,username,body,created_at&limit=100`),
+      ]);
+      const byThread = {};
+      (threadRows||[]).filter(t => isMention(t.body)).forEach(t => {
+        const g = (byThread[t.id] ||= { threadId: t.id, threadTitle: t.title, items: [] });
+        g.items.push({ username: t.username, body: t.body, created_at: t.created_at });
+      });
+      (replyRows||[]).filter(r => isMention(r.body)).forEach(r => {
+        const g = (byThread[r.thread_id] ||= { threadId: r.thread_id, threadTitle: null, items: [] });
+        g.items.push({ username: r.username, body: r.body, created_at: r.created_at });
+      });
+      const missing = Object.values(byThread).filter(g => g.threadTitle === null).map(g => g.threadId);
+      if(missing.length) {
+        const rows = await this.query(`forum_threads?id=in.(${missing.join(",")})&select=id,title`);
+        const titleById = {}; (rows||[]).forEach(r => { titleById[r.id] = r.title; });
+        missing.forEach(id => { byThread[id].threadTitle = titleById[id] || ""; });
+      }
+      return Object.values(byThread).map(g => ({
+        threadId: g.threadId,
+        threadTitle: g.threadTitle || "",
+        isMine: false,
+        items: g.items.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)),
+      }));
+    } catch { return []; }
+  },
   async getThreadReplies(threadId) {
     try { return await this.query(`forum_replies?thread_id=eq.${threadId}&order=created_at.asc`) || []; }
     catch { return []; }
@@ -157,7 +194,7 @@ export const sb = {
 
   async getMoodPts(mal_id) {
     try {
-      const rows = await this.query(`mood_pts_v2?mal_id=eq.${mal_id}&limit=1`);
+      const rows = await this.query(`mood_pts_v4?mal_id=eq.${mal_id}&limit=1`);
       if(rows?.[0]) return rows[0];
     } catch {}
     return null;
@@ -359,6 +396,43 @@ export const posts = {
         postContent: postById[id]?.content || "",
         isMine: postById[id]?.username === username,
         items: commentsByPost[id],
+      }));
+    } catch { return []; }
+  },
+  // Posts/comments where someone else typed "@username" — independent of
+  // getActivityNotifications above, since a mention can pull you into a post
+  // you've never written or commented on. ilike casts a wide net (plain
+  // substring), then isMention re-checks the exact token so "@bob" doesn't
+  // also fire for a post mentioning "@bobby".
+  async getMentionNotifications(username) {
+    const u = encodeURIComponent(username);
+    const tag = encodeURIComponent(`@${username}`);
+    const isMention = txt => new RegExp(`(?:^|\\s)@${username}(?![a-zA-Z0-9_])`, "i").test(txt || "");
+    try {
+      const [postRows, commentRows] = await Promise.all([
+        sb.query(`posts?content=ilike.*${tag}*&username=neq.${u}&order=created_at.desc&select=id,content,username,created_at&limit=100`),
+        sb.query(`comments?content=ilike.*${tag}*&username=neq.${u}&order=created_at.desc&select=post_id,username,content,created_at&limit=100`),
+      ]);
+      const byPost = {};
+      (postRows||[]).filter(p => isMention(p.content)).forEach(p => {
+        const g = (byPost[p.id] ||= { postId: p.id, postContent: p.content, items: [] });
+        g.items.push({ username: p.username, content: p.content, created_at: p.created_at });
+      });
+      (commentRows||[]).filter(c => isMention(c.content)).forEach(c => {
+        const g = (byPost[c.post_id] ||= { postId: c.post_id, postContent: null, items: [] });
+        g.items.push({ username: c.username, content: c.content, created_at: c.created_at });
+      });
+      const missing = Object.values(byPost).filter(g => g.postContent === null).map(g => g.postId);
+      if(missing.length) {
+        const rows = await sb.query(`posts?id=in.(${missing.join(",")})&select=id,content`);
+        const byId = {}; (rows||[]).forEach(r => { byId[r.id] = r.content; });
+        missing.forEach(id => { byPost[id].postContent = byId[id] || ""; });
+      }
+      return Object.values(byPost).map(g => ({
+        postId: g.postId,
+        postContent: g.postContent,
+        isMine: false,
+        items: g.items.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)),
       }));
     } catch { return []; }
   },

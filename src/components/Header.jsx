@@ -19,7 +19,7 @@ function NotificationBell({ onChangeTab }) {
   const openNotif = (n) => {
     markActivityRead(n.type, n.id);
     setOpen(false);
-    onChangeTab(n.type === "thread" ? "forum" : "feed");
+    onChangeTab(n.type === "thread" || n.type === "thread-mention" ? "forum" : "feed");
   };
 
   return (
@@ -59,12 +59,15 @@ function NotificationBell({ onChangeTab }) {
             ) : (
               <div className="max-h-80 overflow-y-auto">
                 {activityNotifications.map(n => {
-                  const isThread = n.type === "thread";
+                  const isThread = n.type === "thread" || n.type === "thread-mention";
+                  const isMention = n.type === "post-mention" || n.type === "thread-mention";
                   const text = n.lastComment.content ?? n.lastComment.body;
-                  const place = isThread
+                  const place = isMention
+                    ? (isThread ? "un sujet" : "un post")
+                    : isThread
                     ? (n.isMine ? "ton sujet" : "un sujet que tu suis")
                     : (n.isMine ? "ton post" : "un post que tu suis");
-                  const verb = isThread ? "a répondu à" : "a commenté";
+                  const verb = isMention ? "t'a mentionné dans" : isThread ? "a répondu à" : "a commenté";
                   return (
                     <button key={`${n.type}-${n.id}`} onClick={() => openNotif(n)}
                       className="flex w-full flex-col items-start gap-0.5 border-b border-white/6 px-4 py-3 text-left transition last:border-b-0 hover:bg-white/5">

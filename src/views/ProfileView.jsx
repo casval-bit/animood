@@ -35,7 +35,7 @@ function PersonalMoodRadar({ ratings, watched }) {
       for(let i=0;i<allIds.length;i+=100) chunks.push(allIds.slice(i,i+100));
       for(const chunk of chunks) {
         try {
-          const rows = await sb.query(`mood_pts_v2?mal_id=in.(${chunk.join(",")})&select=mal_id,emotional,happy,twisted,chill,in_love,hype,dark,thrills`);
+          const rows = await sb.query(`mood_pts_v4?mal_id=in.(${chunk.join(",")})&select=mal_id,emotional,happy,twisted,chill,in_love,hype,dark,thrills`);
           (rows||[]).forEach(row => {
             const hasData = MOOD_KEYS.some(k => (row[k]||0) > 0);
             if(hasData) { MOOD_KEYS.forEach(k => { totals[k] += row[k]||0; }); cnt++; }

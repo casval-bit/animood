@@ -10,6 +10,12 @@ function usernameFromEmail(email) {
 const lastReadKey = (username, peer) => `animood_dm_read_${username}_${peer}`;
 const postReadKey = (username, postId) => `animood_post_read_${username}_${postId}`;
 const threadReadKey = (username, threadId) => `animood_forum_read_${username}_${threadId}`;
+const postMentionReadKey = (username, postId) => `animood_mention_post_read_${username}_${postId}`;
+const threadMentionReadKey = (username, threadId) => `animood_mention_thread_read_${username}_${threadId}`;
+const activityReadKeyFns = {
+  post: postReadKey, thread: threadReadKey,
+  "post-mention": postMentionReadKey, "thread-mention": threadMentionReadKey,
+};
 
 export function AppProvider({ children }) {
   const [session, setSession]         = useState(null);
@@ -77,8 +83,10 @@ export function AppProvider({ children }) {
   }, [myUsername]);
 
   // Activity notifications — new comments/replies (from someone else) on a Feed
-  // post or Forum thread I started or took part in. Both sources feed the same
-  // list so the header bell and any inline per-item badge (e.g. Forum's thread
+  // post or Forum thread I started or took part in, PLUS any post/comment/
+  // thread/reply where someone else typed "@myUsername" (regardless of whether
+  // I've ever posted/commented there). All four sources feed the same list so
+  // the header bell and any inline per-item badge (e.g. Forum's thread
   // rows) read from one place and never drift out of sync. Same client-side
   // last-read-timestamp approach as DMs above.
   const [activityNotifications, setActivityNotifications] = useState([]);
@@ -87,9 +95,11 @@ export function AppProvider({ children }) {
     if(!myUsername) return;
     let cancelled = false;
     const check = async () => {
-      const [postNotifs, threadNotifs] = await Promise.all([
+      const [postNotifs, threadNotifs, postMentions, threadMentions] = await Promise.all([
         posts.getActivityNotifications(myUsername),
         sb.getThreadActivityNotifications(myUsername),
+        posts.getMentionNotifications(myUsername),
+        sb.getThreadMentionNotifications(myUsername),
       ]);
       if(cancelled) return;
 
@@ -106,8 +116,15 @@ export function AppProvider({ children }) {
       const threads_ = threadNotifs
         .map(n => toEntry("thread", n.threadId, n.threadTitle, n.isMine, n.items, threadReadKey(myUsername, n.threadId)))
         .filter(Boolean);
+      const postMentions_ = postMentions
+        .map(n => toEntry("post-mention", n.postId, n.postContent, n.isMine, n.items, postMentionReadKey(myUsername, n.postId)))
+        .filter(Boolean);
+      const threadMentions_ = threadMentions
+        .map(n => toEntry("thread-mention", n.threadId, n.threadTitle, n.isMine, n.items, threadMentionReadKey(myUsername, n.threadId)))
+        .filter(Boolean);
 
-      const merged = [...posts_, ...threads_].sort((a, b) => new Date(b.lastComment.created_at) - new Date(a.lastComment.created_at));
+      const merged = [...posts_, ...threads_, ...postMentions_, ...threadMentions_]
+        .sort((a, b) => new Date(b.lastComment.created_at) - new Date(a.lastComment.created_at));
       setActivityNotifications(merged);
     };
     check();
@@ -117,7 +134,7 @@ export function AppProvider({ children }) {
 
   const markActivityRead = useCallback((type, id) => {
     if(!myUsername) return;
-    const key = type === "thread" ? threadReadKey(myUsername, id) : postReadKey(myUsername, id);
+    const key = (activityReadKeyFns[type] || postReadKey)(myUsername, id);
     localStorage.setItem(key, new Date().toISOString());
     setActivityNotifications(prev => prev.filter(n => !(n.type === type && n.id === id)));
   }, [myUsername]);
