@@ -271,9 +271,11 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
   // Sourced from the same activityNotifications the header bell reads — so the
   // inline badge below and the bell always agree on what's actually unread.
   const unreadCounts = {};
-  (activityNotifications || []).forEach(n => { if(n.type === "thread") unreadCounts[n.id] = n.count; });
+  (activityNotifications || []).forEach(n => {
+    if(n.type === "thread" || n.type === "thread-mention") unreadCounts[n.id] = (unreadCounts[n.id] || 0) + n.count;
+  });
 
-  const openThreadRead = (t) => { markActivityRead("thread", t.id); setOpenThread(t); };
+  const openThreadRead = (t) => { markActivityRead("thread", t.id); markActivityRead("thread-mention", t.id); setOpenThread(t); };
 
   useEffect(() => {
     let cancelled = false;
