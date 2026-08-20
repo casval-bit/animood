@@ -17,7 +17,7 @@ export function GradientButton({ className = "", disabled, children, as: Comp = 
     <Comp
       disabled={disabled}
       className={`rounded-full font-extrabold text-white transition-all duration-300 ${disabled ? "cursor-not-allowed opacity-40" : "hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-[0_20px_50px_rgba(139,92,246,.5)]"} ${className}`}
-      style={{ background: disabled ? "rgba(255,255,255,.06)" : GRADIENT_PRIMARY, boxShadow: disabled ? "none" : "0 12px 34px rgba(109,91,255,.35)" }}
+      style={{ background: disabled ? "rgba(var(--fg-rgb),.06)" : GRADIENT_PRIMARY, boxShadow: disabled ? "none" : "0 12px 34px rgba(109,91,255,.35)" }}
       {...rest}
     >
       {children}
@@ -34,8 +34,8 @@ export function Chip({ label, emoji, selected, onClick }) {
     <button onClick={onClick}
       className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-200 ${selected ? "text-white" : "text-slate-400 hover:text-slate-200"}`}
       style={{
-        background: selected ? GRADIENT_PRIMARY : "rgba(255,255,255,0.04)",
-        border: selected ? "1px solid transparent" : "1px solid rgba(255,255,255,0.08)",
+        background: selected ? GRADIENT_PRIMARY : "rgba(var(--fg-rgb),0.04)",
+        border: selected ? "1px solid transparent" : "1px solid rgba(var(--fg-rgb),0.08)",
         boxShadow: selected ? "0 6px 20px rgba(109,91,255,.35)" : "none",
       }}>
       {emoji && <span>{emoji}</span>}{label}
@@ -62,7 +62,7 @@ export function TabBar({ tabs, active, onChange, className = "" }) {
         return (
           <button key={t.id} onClick={() => onChange(t.id)}
             className="relative flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-bold transition"
-            style={{ color: isActive ? "#f8fafc" : "#4b5563" }}>
+            style={{ color: isActive ? "var(--text-1)" : "var(--text-4)" }}>
             {t.emoji && <span className={isActive ? "" : "opacity-50 grayscale"}>{t.emoji}</span>}
             {t.label}
             {isActive && <div className="absolute inset-x-1 bottom-0 h-0.5 rounded-full" style={{ background: GRADIENT_PRIMARY }} />}
@@ -81,9 +81,6 @@ export function StatPill({ label, emoji = "⭐" }) {
   );
 }
 
-// Quick-tap favorite/watched toggles overlaid on a poster — always visible (not
-// hover-only) so it works as well on mobile taps as on desktop clicks.
-// Favorites reuse the profile's 5-slot showcase array; no-ops silently once full.
 // Bookmark SVG icon (watchlist)
 function BookmarkIcon({ filled, color = "#22c55e" }) {
   return (
@@ -92,7 +89,6 @@ function BookmarkIcon({ filled, color = "#22c55e" }) {
     </svg>
   );
 }
-
 
 // Eye icon for watched
 function EyeIcon({ filled, color = "#818cf8" }) {
@@ -104,6 +100,9 @@ function EyeIcon({ filled, color = "#818cf8" }) {
   );
 }
 
+// Quick-tap watchlist/watched + highlight toggles overlaid on a poster — always
+// visible (not hover-only) so it works as well on mobile taps as on desktop clicks.
+// Highlights reuse the profile's 5-slot favorites showcase (first 5 auto-synced).
 export function QuickActionIcons({ anime, variant = "watched" }) {
   const { me, saveMe } = useApp();
   const malId = anime.mal_id;

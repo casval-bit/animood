@@ -9,6 +9,7 @@ import { Spinner } from "../components/Spinner.jsx";
 import { AnimePoster } from "../components/AnimeCard.jsx";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { Modal } from "../components/Modal.jsx";
+import { ChatModal } from "../components/ChatModal.jsx";
 import { TabBar } from "../components/ui.jsx";
 import { GRADIENT_PRIMARY } from "../constants/theme.js";
 
@@ -26,6 +27,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [animeCache, setAnimeCache]   = useState({});
+  const [showChat, setShowChat]       = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +84,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
   const rated = Object.keys(profile?.ratings||{}).map(Number);
 
   return (
+    <>
     <Modal onClose={onClose} maxWidth="max-w-2xl">
       {loading ? <Spinner label="Chargement…" /> : !profile ? (
         <EmptyState emoji="😶" title="Profil introuvable" />
@@ -99,11 +102,17 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
               {profile.bio && <div className="mt-0.5 text-xs italic text-slate-400">{profile.bio}</div>}
             </div>
             {!isOwnProfile && (
-              <button onClick={handleFollow} disabled={followLoading}
-                className="shrink-0 rounded-full px-4 py-2 text-[13px] font-bold transition hover:-translate-y-0.5"
-                style={{ border: isFollowing?"1px solid rgba(255,255,255,0.15)":"none", background: isFollowing?"transparent":GRADIENT_PRIMARY, color: isFollowing?"#9ca3af":"#fff", boxShadow: isFollowing?"none":"0 8px 24px rgba(109,91,255,.35)" }}>
-                {followLoading ? "…" : isFollowing ? "Suivi ✓" : "Suivre"}
-              </button>
+              <div className="flex shrink-0 flex-col gap-1.5">
+                <button onClick={handleFollow} disabled={followLoading}
+                  className="rounded-full px-4 py-2 text-[13px] font-bold transition hover:-translate-y-0.5"
+                  style={{ border: isFollowing?"1px solid rgba(var(--fg-rgb),0.15)":"none", background: isFollowing?"transparent":GRADIENT_PRIMARY, color: isFollowing?"var(--text-2)":"#fff", boxShadow: isFollowing?"none":"0 8px 24px rgba(109,91,255,.35)" }}>
+                  {followLoading ? "…" : isFollowing ? "Suivi ✓" : "Suivre"}
+                </button>
+                <button onClick={() => setShowChat(true)}
+                  className="rounded-full border border-white/15 px-4 py-2 text-[13px] font-bold text-slate-300 transition hover:-translate-y-0.5 hover:bg-white/5">
+                  💬 Message
+                </button>
+              </div>
             )}
           </div>
 
@@ -163,5 +172,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
         </div>
       )}
     </Modal>
+    {showChat && <ChatModal username={myUsername} peer={username} onClose={() => setShowChat(false)} />}
+    </>
   );
 }

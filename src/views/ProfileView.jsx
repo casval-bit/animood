@@ -35,7 +35,7 @@ function PersonalMoodRadar({ ratings, watched }) {
       for(let i=0;i<allIds.length;i+=100) chunks.push(allIds.slice(i,i+100));
       for(const chunk of chunks) {
         try {
-          const rows = await sb.query(`mood_pts_v2?mal_id=in.(${chunk.join(",")})&select=mal_id,emotional,happy,twisted,chill,in_love,hype,dark,thrills`);
+          const rows = await sb.query(`mood_pts_v4?mal_id=in.(${chunk.join(",")})&select=mal_id,emotional,happy,twisted,chill,in_love,hype,dark,thrills`);
           (rows||[]).forEach(row => {
             const hasData = MOOD_KEYS.some(k => (row[k]||0) > 0);
             if(hasData) { MOOD_KEYS.forEach(k => { totals[k] += row[k]||0; }); cnt++; }
@@ -117,6 +117,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
   const { me, saveMe, myUsername } = useApp();
   const [tab, setTab] = useState("profile");
   const [journalFilter, setJournalFilter] = useState(null);
+  const [customListFilter, setCustomListFilter] = useState(null);
   const [journalGrid, setJournalGrid] = useState(true);
   const [watchlistPage, setWatchlistPage] = useState(0);
   const [animeCache, setAnimeCache] = useState({});
@@ -125,6 +126,8 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
   const [showFramePicker, setShowFramePicker] = useState(false);
   const [unlockedFrames, setUnlockedFrames] = useState([]);
   const [activeFrame, setActiveFrame] = useState(null);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
   const [editingBio, setEditingBio] = useState(false);
   const [bioInput, setBioInput] = useState(me.bio||"");
   const [openList, setOpenList] = useState(null);
@@ -174,10 +177,13 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
   useEffect(() => {
     (async () => {
       try {
-        const [followerRows, voteRows] = await Promise.all([
+        const [followerRows, followingRows, voteRows] = await Promise.all([
           follows.getFollowers(myUsername),
+          follows.getFollowing(myUsername).catch(()=>[]),
           sb.query(`user_votes?username=eq.${myUsername}&select=pts_added&limit=1000`),
         ]);
+        setFollowerCount((followerRows||[]).length);
+        setFollowingCount((followingRows||[]).length);
         const genreCounts = {};
         const chunks = [];
         for(let i=0;i<me.watched.length;i+=100) chunks.push(me.watched.slice(i,i+100));
@@ -187,7 +193,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
             (rows||[]).forEach(row => { (row.genres||[]).forEach(g => { const name=g.name||g; genreCounts[name]=(genreCounts[name]||0)+1; }); });
           } catch {}
         }
-        const unlocked = getUnlockedFrames({ watchedCount: me.watched.length, genreCounts, followerCount: followerRows.length, userVotes: voteRows||[] });
+        const unlocked = getUnlockedFrames({ watchedCount: me.watched.length, genreCounts, followerCount: (followerRows||[]).length, userVotes: voteRows||[] });
         setUnlockedFrames(unlocked);
         const savedFrameId = me.activeFrame;
         const saved = savedFrameId ? FRAMES[savedFrameId] : null;
@@ -205,8 +211,10 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
 
   const watchlistIds = Object.entries(me.statuses||{}).filter(([,s])=>s==="watchlist").map(([id])=>parseInt(id));
   const allTrackedIds = [...new Set([...me.watched, ...watchlistIds])];
+  const customListNames = [...new Set(Object.values(me.anilistSubLists||{}).flat())].sort();
   const journalEntries = allTrackedIds
     .filter(id => !journalFilter || ((me.statuses||{})[id]||"completed") === journalFilter)
+    .filter(id => !customListFilter || (me.anilistSubLists||{})[id]?.includes(customListFilter))
     .sort((a,b) => (STATUS_PRIORITY[(me.statuses||{})[a]||"completed"]??5) - (STATUS_PRIORITY[(me.statuses||{})[b]||"completed"]??5));
 
   const saveBio = () => saveMe({ ...me, bio: bioInput });
@@ -289,7 +297,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
           <FrameSVG frame={activeFrame} size={96}>
             <button onClick={() => setShowAvatarPicker(true)}
               className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full text-4xl transition hover:scale-105" style={{ background: GRADIENT_PRIMARY }}>
-              {me.avatar && me.avatar.startsWith("http") ? <img src={me.avatar} alt="avatar" className="h-full w-full object-cover" /> : me.avatar}
+              {(me.avatar_base64 || (me.avatar?.startsWith?.("http") ? me.avatar : null))
+                ? <img src={me.avatar_base64 || me.avatar} alt="avatar" className="h-full w-full object-cover" />
+                : (me.avatar || "👤")}
             </button>
           </FrameSVG>
           <div onClick={() => setShowAvatarPicker(true)} className="absolute bottom-0 right-0 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-2 border-slate-950 bg-violet-600 text-[10px]">✏️</div>
@@ -328,6 +338,19 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
               {me.bio || "✏️ Ajoute une bio…"}
             </button>
           )}
+
+          {/* Followers / Following */}
+          <div className="flex items-center gap-4 mt-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[13px] font-black text-slate-100">{followerCount}</span>
+              <span className="text-[11px] text-slate-500">abonné{followerCount!==1?"s":""}</span>
+            </div>
+            <div className="w-px h-3 bg-white/10"/>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[13px] font-black text-slate-100">{followingCount}</span>
+              <span className="text-[11px] text-slate-500">abonnement{followingCount!==1?"s":""}</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -449,7 +472,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                 return (
                   <button key={k} onClick={() => setJournalFilter(active?null:k)}
                     className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold transition"
-                    style={{ border: active ? `1px solid ${v.dot}` : "1px solid rgba(255,255,255,0.08)", background: active ? `${v.dot}22` : "rgba(255,255,255,0.03)", color: active ? v.dot : "#6b7280" }}>
+                    style={{ border: active ? `1px solid ${v.dot}` : "1px solid rgba(var(--fg-rgb),0.08)", background: active ? `${v.dot}22` : "rgba(var(--fg-rgb),0.03)", color: active ? v.dot : "var(--text-3)" }}>
                     <span className="h-1.5 w-1.5 rounded-full" style={{ background:v.dot }} />{v.label}
                   </button>
                 );
@@ -460,6 +483,22 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
               {journalGrid ? "⊞" : "☰"}
             </button>
           </div>
+
+          {customListNames.length > 0 && (
+            <div className="mb-4 flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-[10px] font-bold uppercase tracking-wider text-slate-600">📋 Sous-listes AniList</span>
+              {customListNames.map(name => {
+                const active = customListFilter === name;
+                return (
+                  <button key={name} onClick={() => setCustomListFilter(active?null:name)}
+                    className="rounded-full px-3 py-1.5 text-[11px] font-semibold transition"
+                    style={{ border:`1px solid ${active?"#a78bfa":"rgba(var(--fg-rgb),0.08)"}`, background: active?"rgba(167,139,250,0.15)":"rgba(var(--fg-rgb),0.03)", color: active?"#a78bfa":"var(--text-3)" }}>
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {journalEntries.length === 0 && <EmptyState emoji="📖" title="Ton journal est vide" />}
 
@@ -509,8 +548,8 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
           <div className="mb-3 flex items-center gap-4 rounded-2xl border border-white/7 bg-white/3 p-4 cursor-pointer hover:bg-white/6 transition"
             onClick={()=>setOpenList("watchlist")}>
             <div className="flex gap-1 shrink-0">
-              {watchlistIds.slice(0,4).map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)",flexShrink:0}}>{img&&<img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
-              {watchlistIds.length===0&&<div style={{width:36,height:54,borderRadius:6,background:"rgba(255,255,255,0.04)",border:"2px dashed rgba(255,255,255,0.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"rgba(255,255,255,0.2)"}}>
+              {watchlistIds.slice(0,4).map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(var(--fg-rgb),0.05)",border:"1px solid rgba(var(--fg-rgb),0.08)",flexShrink:0}}>{img&&<img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
+              {watchlistIds.length===0&&<div style={{width:36,height:54,borderRadius:6,background:"rgba(var(--fg-rgb),0.04)",border:"2px dashed rgba(var(--fg-rgb),0.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"rgba(var(--fg-rgb),0.2)"}}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
               </div>}
             </div>
@@ -528,8 +567,8 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
           <div className="mb-3 flex items-center gap-4 rounded-2xl border border-white/7 bg-white/3 p-4 cursor-pointer hover:bg-white/6 transition"
             onClick={()=>setOpenList("highlights")}>
             <div className="flex gap-1 shrink-0">
-              {(me.highlights||[]).slice(0,4).map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)"}}>{img&&<img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
-              {(me.highlights||[]).length===0&&<div style={{width:36,height:54,borderRadius:6,background:"rgba(255,255,255,0.04)",border:"2px dashed rgba(255,255,255,0.1)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              {(me.highlights||[]).slice(0,4).map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(var(--fg-rgb),0.05)",border:"1px solid rgba(var(--fg-rgb),0.08)"}}>{img&&<img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
+              {(me.highlights||[]).length===0&&<div style={{width:36,height:54,borderRadius:6,background:"rgba(var(--fg-rgb),0.04)",border:"2px dashed rgba(var(--fg-rgb),0.1)",display:"flex",alignItems:"center",justifyContent:"center"}}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
               </div>}
             </div>
@@ -552,8 +591,8 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                 <div key={list.id} className="flex items-center gap-4 rounded-2xl border border-white/7 bg-white/3 p-4 cursor-pointer hover:bg-white/6 transition"
                   onClick={()=>setOpenList(list.id)}>
                   <div className="flex gap-1 shrink-0">
-                    {preview.map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)"}}>{img&&<img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
-                    {preview.length===0&&<div style={{width:36,height:54,borderRadius:6,background:"rgba(255,255,255,0.04)",border:"2px dashed rgba(255,255,255,0.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,color:"rgba(255,255,255,0.2)"}}>📋</div>}
+                    {preview.map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(var(--fg-rgb),0.05)",border:"1px solid rgba(var(--fg-rgb),0.08)"}}>{img&&<img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
+                    {preview.length===0&&<div style={{width:36,height:54,borderRadius:6,background:"rgba(var(--fg-rgb),0.04)",border:"2px dashed rgba(var(--fg-rgb),0.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,color:"rgba(var(--fg-rgb),0.2)"}}>📋</div>}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -767,7 +806,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                         return (
                           <button key={frame.id} onClick={() => setFrame(frame)}
                             className="flex flex-col items-center gap-1 rounded-xl p-2"
-                            style={{ border: isActive?"2px solid #7c3aed":"2px solid transparent", background: isActive?"rgba(124,58,237,0.1)":"rgba(255,255,255,0.03)" }}>
+                            style={{ border: isActive?"2px solid #7c3aed":"2px solid transparent", background: isActive?"rgba(124,58,237,0.1)":"rgba(var(--fg-rgb),0.03)" }}>
                             <div className="relative h-11 w-11">
                               <div className="flex h-11 w-11 items-center justify-center rounded-full text-lg" style={{ background: GRADIENT_PRIMARY }}>👤</div>
                               <svg className="absolute inset-0" viewBox="0 0 44 44" dangerouslySetInnerHTML={{ __html: frame.svg(44) }} />
@@ -794,7 +833,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
               {AVATAR_EMOJIS.map(e => (
                 <button key={e} onClick={() => setAvatar(e)}
                   className="flex h-12.5 w-12.5 items-center justify-center rounded-xl text-2xl"
-                  style={{ background: me.avatar===e?"rgba(124,58,237,0.3)":"rgba(255,255,255,0.05)", border: me.avatar===e?"2px solid #7c3aed":"2px solid transparent" }}>
+                  style={{ background: me.avatar===e?"rgba(124,58,237,0.3)":"rgba(var(--fg-rgb),0.05)", border: me.avatar===e?"2px solid #7c3aed":"2px solid transparent" }}>
                   {e}
                 </button>
               ))}

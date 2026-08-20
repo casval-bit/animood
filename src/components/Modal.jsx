@@ -16,7 +16,7 @@ export function Modal({ onClose, children, maxWidth = "max-w-lg", bodyClassName 
       <div
         onClick={e => e.stopPropagation()}
         className={`max-h-[88vh] w-full ${maxWidth} overflow-y-auto rounded-[22px] border border-white/9 backdrop-blur-xl transition-all duration-200 ${visible ? "translate-y-0 scale-100 opacity-100" : "translate-y-4 scale-95 opacity-0"} ${bodyClassName}`}
-        style={{ background: "rgba(17,24,39,.92)", boxShadow: "0 25px 60px rgba(0,0,0,.5)" }}
+        style={{ background: "var(--surface-1-strong)", boxShadow: "var(--shadow-modal)" }}
       >
         {typeof children === "function" ? children(close) : children}
       </div>

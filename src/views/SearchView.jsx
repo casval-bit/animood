@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/useApp.js";
 import { jikan, supabaseRowToAnime, fetchPopularAnime, fetchTitleSuggestions } from "../api/jikan.js";
 import { fetchPopularStudios, studioBlurb, getStudioCountries } from "../api/studios.js";
-import { sb } from "../api/supabase.js";
+import { sb, follows } from "../api/supabase.js";
 import { ptsStore } from "../api/moods.js";
 import { AnimeCard } from "../components/AnimeCard.jsx";
 import { Spinner } from "../components/Spinner.jsx";
@@ -52,6 +52,37 @@ function StudioLogo({ studio }) {
   );
 }
 
+function MemberCard({ u, onOpenUser }) {
+  const avatar = u.avatar_base64 || (u.avatar?.startsWith?.("http") ? u.avatar : null);
+  return (
+    <button onClick={()=>onOpenUser(u.username)}
+      className={`flex items-center gap-3 p-3.5 text-left transition-all duration-300 hover:-translate-y-1 hover:border-white/15 ${GLASS}`} style={GLASS_STYLE}>
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-violet-600 to-fuchsia-500 text-lg">
+        {avatar ? <img src={avatar} alt={u.name} className="h-full w-full object-cover"/> : (u.avatar||"👤")}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[13px] font-black text-slate-100">{u.name||u.username}</div>
+        <div className="mt-0.5 text-[10px] text-slate-500">
+          @{u.username}{u.watched?.length ? ` · ${u.watched.length} animés` : ""}
+        </div>
+        <div className="mt-0.5 flex items-center gap-2">
+          {u.followerCount !== undefined && (
+            <>
+              <span className="text-[10px] text-slate-400"><span className="font-bold text-slate-300">{u.followerCount}</span> abonné{u.followerCount!==1?"s":""}</span>
+              <span className="text-slate-600">·</span>
+              <span className="text-[10px] text-slate-400"><span className="font-bold text-slate-300">{u.followingCount}</span> suivi{u.followingCount!==1?"s":""}</span>
+            </>
+          )}
+          {u.isFollowing && <span className="text-[9px] font-bold text-violet-400 bg-violet-400/10 rounded-full px-1.5 py-0.5">Suivi</span>}
+          {u.isFollower && <span className="text-[9px] font-bold text-slate-400 bg-white/5 rounded-full px-1.5 py-0.5">Abonné</span>}
+        </div>
+        {u.bio && <div className="mt-0.5 text-[10px] italic text-slate-400 truncate">{u.bio}</div>}
+      </div>
+      <span className="text-slate-600">›</span>
+    </button>
+  );
+}
+
 function StudioCard({ studio, onClick }) {
   return (
     <button onClick={onClick} className={`group flex flex-col gap-3 p-4 text-left transition-all duration-300 hover:-translate-y-1 hover:border-white/15 ${GLASS}`} style={GLASS_STYLE}>
@@ -81,7 +112,7 @@ function StudioCard({ studio, onClick }) {
 }
 
 export function SearchView({ onOpenDetail, onOpenUser }) {
-  const { me } = useApp();
+  const { me, myUsername } = useApp();
   const [tab, setTab]           = useState("anime");
   const [query, setQuery]       = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -98,6 +129,38 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
 
   const [suggestions, setSuggestions]         = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Default members list (following + followers)
+  const [defaultMembers, setDefaultMembers] = useState([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+
+  useEffect(() => {
+    if(tab !== "members" || defaultMembers.length) return;
+    setLoadingMembers(true);
+    (async () => {
+      try {
+        const [followingList, followerList] = await Promise.all([
+          follows.getFollowing(myUsername).catch(()=>[]),
+          follows.getFollowers(myUsername).catch(()=>[]),
+        ]);
+        const allUsernames = [...new Set([...followingList, ...followerList])].filter(u=>u!==myUsername);
+        if(!allUsernames.length) { setDefaultMembers([]); setLoadingMembers(false); return; }
+        const rows = await sb.query(`profiles?username=in.(${allUsernames.map(u=>encodeURIComponent(u)).join(",")})&select=username,name,avatar,avatar_base64,bio,watched`);
+        // Add following/follower counts
+        const enriched = await Promise.all((rows||[]).map(async u => {
+          const [frs, fng] = await Promise.all([
+            follows.getFollowers(u.username).catch(()=>[]),
+            follows.getFollowing(u.username).catch(()=>[]),
+          ]);
+          return { ...u, followerCount: frs.length, followingCount: fng.length,
+            isFollowing: followingList.includes(u.username),
+            isFollower: followerList.includes(u.username) };
+        }));
+        setDefaultMembers(enriched);
+      } catch {}
+      setLoadingMembers(false);
+    })();
+  }, [tab]);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
 
   const inputRef = useRef(null);
@@ -164,13 +227,46 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
         });
         setResults(sorted);
       } else if(tab === "studio") {
-        const r = await fetch(`https://api.jikan.moe/v4/producers?q=${encodeURIComponent(t)}&order_by=count&sort=desc&limit=20`);
-        const d = await r.json();
-        const studios = (d.data||[]).map(s => ({
-          mal_id: s.mal_id, name: s.titles?.[0]?.title || "Studio", count: s.count, established: s.established,
-          logo: s.images?.jpg?.image_url || null, blurb: studioBlurb(s.titles?.[0]?.title),
-        }));
+        // First try Supabase — extract unique studios from anime_cache
+        let studios = [];
+        try {
+          const { sb } = await import("../api/supabase.js");
+          const enc = encodeURIComponent(t);
+          // Search studios JSONB array for matching names
+          const rows = await sb.query(
+            `anime_cache?select=studios,country&studios=cs.%5B%7B%22name%22%3A%22${enc}%22%7D%5D&limit=500`
+          );
+          // Extract unique studio entries
+          const studioMap = new Map();
+          (rows||[]).forEach(row => {
+            (row.studios||[]).forEach(s => {
+              if(!s?.name || !s.name.toLowerCase().includes(t.toLowerCase())) return;
+              if(!studioMap.has(s.mal_id)) {
+                studioMap.set(s.mal_id, { mal_id: s.mal_id, name: s.name, count: 0, blurb: studioBlurb(s.name), titles: [], country: null });
+              }
+              studioMap.get(s.mal_id).count++;
+            });
+          });
+          studios = [...studioMap.values()].sort((a,b) => b.count - a.count).slice(0,30);
+        } catch {}
+
+        // Also try Jikan producers endpoint for broader coverage
+        try {
+          const r = await fetch(`https://api.jikan.moe/v4/producers?q=${encodeURIComponent(t)}&order_by=count&sort=desc&limit=20`);
+          const d = await r.json();
+          const jikanStudios = (d.data||[]).map(s => ({
+            mal_id: s.mal_id, name: s.titles?.[0]?.title || "Studio", count: s.count,
+            established: s.established, logo: s.images?.jpg?.image_url || null,
+            blurb: studioBlurb(s.titles?.[0]?.title), titles: [],
+          }));
+          // Merge — prefer Jikan entries (more complete) but keep Supabase-only ones
+          const merged = new Map(studios.map(s => [s.mal_id, s]));
+          jikanStudios.forEach(s => { merged.set(s.mal_id, { ...merged.get(s.mal_id)||{}, ...s }); });
+          studios = [...merged.values()].sort((a,b) => b.count - a.count).slice(0,30);
+        } catch {}
+
         setResults(studios);
+        // Fetch country badges in background
         getStudioCountries(studios.map(s => s.mal_id)).then(countries => {
           if(!Object.keys(countries).length) return;
           setResults(prev => prev.map(s => countries[s.mal_id] ? { ...s, country: countries[s.mal_id] } : s));
@@ -313,7 +409,22 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
 
       {/* ── MEMBERS TAB (search-only) ── */}
       {tab === "members" && !submitted && (
-        <EmptyState emoji="👥" title="Cherche un membre" subtitle="Tape un pseudo ou un nom pour commencer" />
+        <div>
+          {loadingMembers && <Spinner label="Chargement…"/>}
+          {!loadingMembers && defaultMembers.length === 0 && (
+            <EmptyState emoji="👥" title="Aucun membre pour l'instant" subtitle="Cherche un pseudo pour trouver des membres" />
+          )}
+          {!loadingMembers && defaultMembers.length > 0 && (
+            <>
+              <div className="mb-3 text-[11px] font-semibold text-slate-500">Tes abonnements et abonnés</div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {defaultMembers.map(u => (
+                  <MemberCard key={u.username} u={u} onOpenUser={onOpenUser}/>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       )}
 
       {/* ── SEARCH RESULTS (any tab) ── */}
@@ -342,20 +453,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
 
           {!loading && tab === "members" && results.length > 0 && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {results.map(u => (
-                <button key={u.username} onClick={() => onOpenUser(u.username)}
-                  className={`flex items-center gap-3 p-3.5 text-left transition-all duration-300 hover:-translate-y-1 hover:border-white/15 ${GLASS}`} style={GLASS_STYLE}>
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-violet-600 to-fuchsia-500 text-lg">
-                    {u.avatar && u.avatar.startsWith("http") ? <img src={u.avatar} alt={u.name} className="h-full w-full object-cover" /> : (u.avatar||"👤")}
-                  </div>
-                  <div className="flex-1">
-                    <div className="text-[13px] font-black text-slate-100">{u.name||u.username}</div>
-                    <div className="mt-0.5 text-[10px] text-slate-500">@{u.username}{u.watched?.length ? ` · ${u.watched.length} animés vus` : ""}</div>
-                    {u.bio && <div className="mt-0.5 text-[10px] italic text-slate-400">{u.bio}</div>}
-                  </div>
-                  <span className="text-slate-600">›</span>
-                </button>
-              ))}
+              {results.map(u => <MemberCard key={u.username} u={u} onOpenUser={onOpenUser}/>)}
             </div>
           )}
         </>
