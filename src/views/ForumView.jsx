@@ -9,6 +9,8 @@ import { Spinner } from "../components/Spinner.jsx";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { NewThreadModal, ThreadModal, TagPill, timeAgo } from "../components/ForumThreadModal.jsx";
 import { MoodOctagon } from "../components/MoodOctagon.jsx";
+import { WordleGame, PosterGame } from "../components/MiniGames.jsx";
+import { Modal } from "../components/Modal.jsx";
 import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY } from "../constants/theme.js";
 
 const FALLBACK_IMG = "https://placehold.co/64x92/1a1a2e/818cf8?text=?";
@@ -267,6 +269,8 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
   const [threadsLoaded, setThreadsLoaded] = useState(false);
   const [showNewThread, setShowNewThread] = useState(false);
   const [openThread, setOpenThread]       = useState(null);
+  const [showWordle, setShowWordle]       = useState(false);
+  const [showPoster, setShowPoster]       = useState(false);
 
   // Sourced from the same activityNotifications the header bell reads — so the
   // inline badge below and the bell always agree on what's actually unread.
@@ -410,6 +414,33 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
 
           <aside className="w-full shrink-0 lg:sticky lg:top-6 lg:w-[280px]">
             <CommunityMoodBlock loaded={moodLoaded} counts={moodCounts} total={moodTotal} />
+
+            {/* Mini-jeux */}
+            <div className="mt-4 rounded-2xl border border-white/8 bg-white/3 p-4">
+              <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎮 Mini-jeux du jour</div>
+              <div className="flex gap-3 justify-center">
+                <button onClick={()=>setShowWordle(true)}
+                  title="Wordle Animé"
+                  style={{width:56,height:56,borderRadius:"50%",border:"2px solid rgba(124,58,237,0.4)",
+                    background:"rgba(124,58,237,0.12)",cursor:"pointer",display:"flex",flexDirection:"column",
+                    alignItems:"center",justifyContent:"center",gap:2,transition:"all 0.2s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.background="rgba(124,58,237,0.25)";e.currentTarget.style.transform="scale(1.08)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.background="rgba(124,58,237,0.12)";e.currentTarget.style.transform="scale(1)";}}>
+                  <span style={{fontSize:20}}>🎯</span>
+                  <span style={{fontSize:8,color:"#c084fc",fontWeight:700}}>Wordle</span>
+                </button>
+                <button onClick={()=>setShowPoster(true)}
+                  title="Poster Mystère"
+                  style={{width:56,height:56,borderRadius:"50%",border:"2px solid rgba(236,72,153,0.4)",
+                    background:"rgba(236,72,153,0.1)",cursor:"pointer",display:"flex",flexDirection:"column",
+                    alignItems:"center",justifyContent:"center",gap:2,transition:"all 0.2s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.background="rgba(236,72,153,0.22)";e.currentTarget.style.transform="scale(1.08)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.background="rgba(236,72,153,0.1)";e.currentTarget.style.transform="scale(1)";}}>
+                  <span style={{fontSize:20}}>🖼</span>
+                  <span style={{fontSize:8,color:"#f9a8d4",fontWeight:700}}>Poster</span>
+                </button>
+              </div>
+            </div>
           </aside>
         </div>
       )}
@@ -423,6 +454,16 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
       )}
       {openThread && (
         <ThreadModal thread={openThread} username={myUsername} onClose={() => setOpenThread(null)} onOpenUser={onOpenUser} />
+      )}
+      {showWordle && (
+        <Modal onClose={()=>setShowWordle(false)} maxWidth="max-w-2xl">
+          {() => <WordleGame onClose={()=>setShowWordle(false)}/>}
+        </Modal>
+      )}
+      {showPoster && (
+        <Modal onClose={()=>setShowPoster(false)} maxWidth="max-w-lg">
+          {() => <PosterGame onClose={()=>setShowPoster(false)}/>}
+        </Modal>
       )}
     </div>
   );

@@ -111,7 +111,217 @@ function TopGenres({ watched }) {
   );
 }
 
-const TABS = [{id:"profile",label:"Profil"},{id:"journal",label:"Journal"},{id:"lists",label:"Listes"},{id:"posts",label:"Mes Posts"}];
+const TABS = [{id:"profile",label:"Profil"},{id:"journal",label:"Journal"},{id:"lists",label:"Listes"},{id:"posts",label:"Mes Posts"},{id:"stats",label:"Stats"}];
+
+// ─── STATS TAB ────────────────────────────────────────────────────────────────
+const MOOD_META_STATS = {
+  emotional:{emoji:"💔",color:"#A78BFA",label:"Emotional"},
+  happy:    {emoji:"✨",color:"#FFD93D",label:"Happy"},
+  hype:     {emoji:"⚡",color:"#F97316",label:"Hype"},
+  dark:     {emoji:"🩸",color:"#EF4444",label:"Dark"},
+  chill:    {emoji:"🌿",color:"#34D399",label:"Chill"},
+  twisted:  {emoji:"🌀",color:"#06B6D4",label:"Twisted"},
+  in_love:  {emoji:"🌸",color:"#F9A8D4",label:"In Love"},
+  thrills:  {emoji:"🎢",color:"#FB923C",label:"Thrills"},
+};
+
+function StatBars({ items, color, sortKey, onToggleSort }) {
+  const sorted = [...items].sort((a,b) => sortKey==="avg"
+    ? (parseFloat(b.avg)||0) - (parseFloat(a.avg)||0)
+    : b.count - a.count
+  );
+  const max = Math.max(...sorted.map(x => sortKey==="avg" ? parseFloat(x.avg)||0 : x.count), 1);
+  return (
+    <div>
+      <div className="flex justify-end mb-2 gap-1">
+        {["count","avg"].map(k => (
+          <button key={k} onClick={()=>onToggleSort(k)}
+            className="text-[9px] px-2 py-0.5 rounded-full font-bold transition"
+            style={{background:sortKey===k?"rgba(124,58,237,0.3)":"rgba(255,255,255,0.05)",
+                    color:sortKey===k?"#c084fc":"var(--text-4)"}}>
+            {k==="count"?"Quantité":"Note moy."}
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-col gap-2">
+        {sorted.map(item => {
+          const val = sortKey==="avg" ? parseFloat(item.avg)||0 : item.count;
+          return (
+            <div key={item.name}>
+              <div className="flex justify-between text-[11px] mb-1">
+                <span className="text-slate-300 font-semibold truncate max-w-[60%]">{item.name}</span>
+                <span className="text-slate-500 shrink-0 ml-2">
+                  {sortKey==="avg"
+                    ? (item.avg ? `★${item.avg} · ${item.count}` : item.count)
+                    : (item.count + (item.avg ? ` · ★${item.avg}` : ""))}
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full bg-white/6 overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-500"
+                  style={{width:`${(val/max)*100}%`, background:color}}/>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function YearCurve({ data }) {
+  if(!data?.length) return null;
+  const W = 600, H = 160, PAD = 32;
+  const years = data.map(d=>d.year);
+  const avgs  = data.map(d=>d.avg);
+  const minY = Math.floor(Math.min(...avgs) - 0.5);
+  const maxY = Math.ceil(Math.max(...avgs) + 0.5);
+  const minX = Math.min(...years), maxX = Math.max(...years);
+  const toX = y => PAD + ((y - minX) / Math.max(maxX - minX, 1)) * (W - PAD*2);
+  const toY = v => H - PAD - ((v - minY) / Math.max(maxY - minY, 1)) * (H - PAD*2);
+  // Smooth bezier path
+  const pts = data.map(d => [toX(d.year), toY(d.avg)]);
+  let path = `M ${pts[0][0]} ${pts[0][1]}`;
+  for(let i=1; i<pts.length; i++) {
+    const cpx = (pts[i-1][0] + pts[i][0]) / 2;
+    path += ` C ${cpx} ${pts[i-1][1]} ${cpx} ${pts[i][1]} ${pts[i][0]} ${pts[i][1]}`;
+  }
+  // Y grid lines
+  const gridY = [];
+  for(let v = Math.ceil(minY); v <= Math.floor(maxY); v++) gridY.push(v);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{maxHeight:160}}>
+      {gridY.map(v => (
+        <g key={v}>
+          <line x1={PAD} x2={W-PAD} y1={toY(v)} y2={toY(v)} stroke="rgba(255,255,255,0.06)" strokeWidth="1"/>
+          <text x={PAD-4} y={toY(v)+4} textAnchor="end" fontSize="8" fill="rgba(148,163,184,0.6)">{v}</text>
+        </g>
+      ))}
+      <path d={path} fill="none" stroke="#7c3aed" strokeWidth="2" strokeLinejoin="round"/>
+      <path d={path + ` L ${pts[pts.length-1][0]} ${H-PAD} L ${pts[0][0]} ${H-PAD} Z`}
+        fill="rgba(124,58,237,0.1)" strokeWidth="0"/>
+      {data.map((d,i) => (
+        <circle key={i} cx={toX(d.year)} cy={toY(d.avg)} r="3"
+          fill="#7c3aed" stroke="#c084fc" strokeWidth="1.5">
+          <title>{d.year} — ★{d.avg} ({d.count} animés)</title>
+        </circle>
+      ))}
+      {/* X axis labels — every 5 years */}
+      {data.filter(d=>d.year%5===0).map(d=>(
+        <text key={d.year} x={toX(d.year)} y={H-4} textAnchor="middle" fontSize="8" fill="rgba(148,163,184,0.5)">{d.year}</text>
+      ))}
+    </svg>
+  );
+}
+
+function StatsTab({ statsData, ratings, watched }) {
+  const [genreSort,  setGenreSort]  = useState("count");
+  const [studioSort, setStudioSort] = useState("count");
+  const [vaSort,     setVaSort]     = useState("count");
+  const [moodSort,   setMoodSort]   = useState("count");
+
+  const rated = Object.keys(ratings).map(Number);
+  const moodItems = statsData.moodAvgData || [];
+
+  return (
+    <div className="grid gap-8 lg:grid-cols-2">
+      {/* Compteurs globaux */}
+      <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          {l:"Animés vus (TV)", v: watched.length},
+          {l:"Épisodes vus",    v: statsData.totalEpisodes.toLocaleString()},
+          {l:"Animés notés",    v: rated.length},
+          {l:"Note moyenne",    v: rated.length
+            ? (rated.reduce((a,id)=>a+(ratings[id]?.score||0),0)/rated.length).toFixed(2) : "—"},
+        ].map(s => (
+          <div key={s.l} className="rounded-xl border border-white/6 bg-white/3 p-4 text-center">
+            <div className="text-2xl font-black text-violet-400">{s.v}</div>
+            <div className="mt-1 text-[10px] text-slate-500">{s.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Histogramme des notes */}
+      <div className="lg:col-span-2">
+        <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">📊 Distribution des notes</div>
+        <div className="rounded-2xl border border-white/6 bg-white/3 p-4">
+          <ScoreChart ratings={ratings}/>
+        </div>
+      </div>
+
+      {/* Courbe note par année */}
+      {statsData.yearCurve?.length > 1 && (
+        <div className="lg:col-span-2">
+          <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">📅 Note moyenne par année</div>
+          <div className="rounded-2xl border border-white/6 bg-white/3 p-4">
+            <YearCurve data={statsData.yearCurve}/>
+          </div>
+        </div>
+      )}
+
+      {/* Top Genres */}
+      <div>
+        <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎌 Top Genres</div>
+        <StatBars items={statsData.topGenres} color="linear-gradient(90deg,#7c3aed,#4f46e5)"
+          sortKey={genreSort} onToggleSort={setGenreSort}/>
+      </div>
+
+      {/* Top Studios */}
+      <div>
+        <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎬 Top Studios</div>
+        <StatBars items={statsData.topStudios} color="linear-gradient(90deg,#ec4899,#f97316)"
+          sortKey={studioSort} onToggleSort={setStudioSort}/>
+      </div>
+
+      {/* Top Voice Actors */}
+      {statsData.topVAs?.length > 0 && (
+        <div>
+          <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎙️ Top Voice Actors</div>
+          <StatBars items={statsData.topVAs} color="linear-gradient(90deg,#34d399,#06b6d4)"
+            sortKey={vaSort} onToggleSort={setVaSort}/>
+        </div>
+      )}
+
+      {/* Moods */}
+      {moodItems.length > 0 && (
+        <div>
+          <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎭 Moods dominants</div>
+          <div className="flex justify-end mb-2 gap-1">
+            {["count","avg"].map(k => (
+              <button key={k} onClick={()=>setMoodSort(k)}
+                className="text-[9px] px-2 py-0.5 rounded-full font-bold transition"
+                style={{background:moodSort===k?"rgba(124,58,237,0.3)":"rgba(255,255,255,0.05)",
+                        color:moodSort===k?"#c084fc":"var(--text-4)"}}>
+                {k==="count"?"Nb #1":"Score moy."}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-col gap-2">
+            {[...moodItems].sort((a,b) => moodSort==="avg" ? b.avg-a.avg : b.count-a.count).map(item => {
+              const val = moodSort==="avg" ? item.avg : item.count;
+              const max = Math.max(...moodItems.map(x => moodSort==="avg" ? x.avg : x.count), 1);
+              return (
+                <div key={item.key}>
+                  <div className="flex justify-between text-[11px] mb-1">
+                    <span className="text-slate-300 font-semibold">{MOOD_META_STATS[item.key]?.emoji} {MOOD_META_STATS[item.key]?.label}</span>
+                    <span className="text-slate-500">
+                      {moodSort==="count"
+                        ? `${item.count} animés${item.avg ? ` · ★${item.avg}` : ""}`
+                        : `★${item.avg||"—"} · ${item.count} animés`}
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-white/6 overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-500"
+                      style={{width:`${(val/max)*100}%`, background:MOOD_META_STATS[item.key]?.color||"#7c3aed"}}/>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function ProfileView({ onOpenDetail, onOpenSettings }) {
   const { me, saveMe, myUsername } = useApp();
@@ -139,6 +349,12 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
   const [editingFavs, setEditingFavs] = useState(false);
   const [dragging, setDragging] = useState(null);
   const [dragOver, setDragOver] = useState(null);
+  // Posts tab
+  const [myPosts, setMyPosts] = useState([]);
+  const [postsLoading, setPostsLoading] = useState(false);
+  // Stats tab
+  const [statsData, setStatsData] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(false);
 
   const fetchAnime = async (id) => {
     if(!id || animeCache[id]) return;
@@ -172,6 +388,145 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
     if(tab !== "lists") return;
     const watchlistIds = Object.entries(me.statuses||{}).filter(([,s])=>s==="watchlist").map(([id])=>parseInt(id));
     watchlistIds.forEach(id => fetchAnime(id));
+  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load posts when tab is active
+  useEffect(() => {
+    if(tab !== "posts") return;
+    if(myPosts.length > 0) return; // already loaded
+    setPostsLoading(true);
+    (async () => {
+      try {
+        const [writtenPosts, commentedPostIds] = await Promise.all([
+          sb.query(`posts?username=eq.${encodeURIComponent(myUsername)}&order=created_at.desc&limit=50`),
+          sb.query(`comments?username=eq.${encodeURIComponent(myUsername)}&select=post_id&limit=200`),
+        ]);
+        // Fetch posts where user commented (excluding own posts)
+        const ownIds = new Set((writtenPosts||[]).map(p=>p.id));
+        const commentedIds = [...new Set((commentedPostIds||[]).map(c=>c.post_id))].filter(id=>!ownIds.has(id));
+        let commentedPosts = [];
+        if(commentedIds.length > 0) {
+          commentedPosts = await sb.query(`posts?id=in.(${commentedIds.join(",")})&order=created_at.desc&limit=50`) || [];
+        }
+        // Merge and sort by date
+        const all = [
+          ...(writtenPosts||[]).map(p=>({...p, _type:"written"})),
+          ...commentedPosts.map(p=>({...p, _type:"commented"})),
+        ].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+        setMyPosts(all);
+      } catch(e) { console.error(e); }
+      setPostsLoading(false);
+    })();
+  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load stats when tab is active
+  useEffect(() => {
+    if(tab !== "stats") return;
+    if(statsData) return;
+    setStatsLoading(true);
+    (async () => {
+      try {
+        const genreCount = {}, genreScores = {};
+        const studioCount = {}, studioScores = {};
+        const vaCount = {}, vaScores = {};
+        const yearScores = {};
+        const moodTotals = {}; const moodDominantCount = {}; const moodScores = {}; let moodCount = 0;
+        MOOD_KEYS.forEach(k => { moodTotals[k] = 0; moodDominantCount[k] = 0; moodScores[k] = []; });
+        let totalEpisodes = 0;
+
+        const chunks = [];
+        for(let i=0;i<me.watched.length;i+=100) chunks.push(me.watched.slice(i,i+100));
+
+        for(const chunk of chunks) {
+          try {
+            const [animeRows, moodRows] = await Promise.all([
+              sb.query(`anime_cache?mal_id=in.(${chunk.join(",")})&select=mal_id,type,genres,studios,characters,episodes,year&limit=${chunk.length}`),
+              sb.query(`mood_pts_v4?mal_id=in.(${chunk.join(",")})&select=mal_id,${MOOD_KEYS.join(",")}&limit=${chunk.length}`),
+            ]);
+
+            const moodByMalId = {};
+            (moodRows||[]).forEach(r => { moodByMalId[r.mal_id] = r; });
+
+            (animeRows||[]).forEach(a => {
+              if(a.type && a.type !== "TV") return;
+              const userScore = me.ratings[a.mal_id]?.score || null;
+              if(a.episodes) totalEpisodes += a.episodes;
+
+              // Genres
+              (a.genres||[]).forEach(g => {
+                const n = g.name||g;
+                genreCount[n] = (genreCount[n]||0) + 1;
+                if(userScore) { if(!genreScores[n]) genreScores[n]=[]; genreScores[n].push(userScore); }
+              });
+              // Studios
+              (a.studios||[]).forEach(s => {
+                const n = s.name||s;
+                studioCount[n] = (studioCount[n]||0) + 1;
+                if(userScore) { if(!studioScores[n]) studioScores[n]=[]; studioScores[n].push(userScore); }
+              });
+              // Voice actors
+              (a.characters||[]).forEach(c => {
+                if(c.va?.name) {
+                  const n = c.va.name;
+                  vaCount[n] = (vaCount[n]||0) + 1;
+                  if(userScore) { if(!vaScores[n]) vaScores[n]=[]; vaScores[n].push(userScore); }
+                }
+              });
+              // Year scores
+              if(a.year && userScore) {
+                if(!yearScores[a.year]) yearScores[a.year] = [];
+                yearScores[a.year].push(userScore);
+              }
+              // Moods — compte le mood dominant + moyenne des notes utilisateur
+              const mp = moodByMalId[a.mal_id];
+              if(mp && MOOD_KEYS.some(k=>(mp[k]||0)>0)) {
+                const dominant = MOOD_KEYS.reduce((best, k) => (mp[k]||0) > (mp[best]||0) ? k : best, MOOD_KEYS[0]);
+                if(!moodDominantCount[dominant]) moodDominantCount[dominant] = 0;
+                moodDominantCount[dominant]++;
+                // Track user score for this dominant mood
+                if(userScore) {
+                  if(!moodScores[dominant]) moodScores[dominant] = [];
+                  moodScores[dominant].push(userScore);
+                }
+                moodCount++;
+              }
+            });
+          } catch {}
+        }
+
+        const calcAvg = (scores) => scores?.length ? (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) : null;
+
+        const buildEntries = (count, scores, limit) =>
+          Object.entries(count)
+            .map(([name, cnt]) => ({ name, count: cnt, avg: calcAvg(scores[name]) }))
+            .sort((a,b) => b.count - a.count)
+            .slice(0, limit);
+
+        const topGenres  = buildEntries(genreCount, genreScores, 15);
+        const topStudios = buildEntries(studioCount, studioScores, 10);
+        const topVAs     = buildEntries(vaCount, vaScores, 10);
+
+        // Moods — dominant count + moyenne des notes utilisateur
+        const moodAvgData = moodCount > 0
+          ? MOOD_KEYS.map(k => ({
+              key: k,
+              count: moodDominantCount[k] || 0,
+              avg: moodScores[k]?.length
+                ? (moodScores[k].reduce((a,b)=>a+b,0)/moodScores[k].length).toFixed(1)
+                : null,
+            })).sort((a,b) => b.count - a.count)
+          : [];
+
+        // Year curve
+        const yearCurve = Object.entries(yearScores)
+          .map(([year, scores]) => ({ year: parseInt(year), avg: parseFloat(calcAvg(scores)), count: scores.length }))
+          .filter(d => d.year >= 1990 && d.year <= new Date().getFullYear())
+          .sort((a,b) => a.year - b.year);
+
+        setStatsData({ topGenres, topStudios, topVAs, moodAvgData, yearCurve, totalEpisodes });
+      } catch(e) { console.error(e); }
+      setStatsLoading(false);
+    })();
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -768,16 +1123,55 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
 
       {/* ── MES POSTS TAB ── */}
       {tab === "posts" && (
-        (me.posts||[]).length === 0
-          ? <EmptyState emoji="✍️" title="Aucun post pour l'instant" />
-          : <div className="flex max-w-2xl flex-col gap-2.5">
-              {(me.posts||[]).map((post,i) => (
-                <div key={i} className="rounded-xl border border-white/7 bg-white/4 p-3.5">
-                  <div className="mb-1.5 text-[10px] text-slate-600">{post.source} · {post.date}</div>
-                  <div className="text-[13px] text-slate-200">{post.content}</div>
+        postsLoading ? (
+          <div className="flex justify-center py-12"><Spinner label="Chargement des posts…"/></div>
+        ) : myPosts.length === 0 ? (
+          <EmptyState emoji="✍️" title="Aucun post pour l'instant" />
+        ) : (
+          <div className="flex max-w-2xl flex-col gap-3">
+            {myPosts.map((post, i) => (
+              <div key={post.id||i} className="rounded-xl border border-white/7 bg-white/4 p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                      style={{background: post._type==="written" ? "rgba(124,58,237,0.2)" : "rgba(99,102,241,0.15)",
+                              color: post._type==="written" ? "#c084fc" : "#818cf8"}}>
+                      {post._type==="written" ? "✍️ Post" : "💬 Commenté"}
+                    </span>
+                    {post.anime_title && (
+                      <span className="text-[10px] text-indigo-400 font-semibold">📺 {post.anime_title}</span>
+                    )}
+                  </div>
+                  <span className="text-[9px] text-slate-600">
+                    {new Date(post.created_at).toLocaleDateString("fr-FR",{day:"numeric",month:"short",year:"numeric"})}
+                  </span>
                 </div>
-              ))}
-            </div>
+                {post.spoiler && (
+                  <div className="mb-2 text-[10px] font-bold text-red-400 bg-red-400/10 px-2 py-0.5 rounded w-fit">⚠️ SPOILER</div>
+                )}
+                <p className="text-[13px] text-slate-200 leading-relaxed">{post.content}</p>
+                {post.image_url && (
+                  <img src={post.image_url} alt="" className="mt-2 max-h-48 rounded-lg object-cover w-full"
+                    onClick={()=>window.open(post.image_url,"_blank")} style={{cursor:"pointer"}}/>
+                )}
+                <div className="mt-2 flex gap-4 text-[10px] text-slate-600">
+                  <span>❤️ {(post.likes||[]).length}</span>
+                  <span>💬 {post.comment_count||0}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      )}
+
+      {tab === "stats" && (
+        statsLoading ? (
+          <div className="flex justify-center py-12"><Spinner label="Calcul des stats…"/></div>
+        ) : !statsData ? (
+          <EmptyState emoji="📊" title="Aucune donnée disponible" />
+        ) : (
+          <StatsTab statsData={statsData} ratings={me.ratings} watched={me.watched}/>
+        )
       )}
 
       {/* Frame picker */}
