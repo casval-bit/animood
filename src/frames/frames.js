@@ -140,7 +140,60 @@ export const FRAMES = {
       </circle>`,
   },
 
-  // ── TOTAL ANIME VUS ────────────────────────────────────────────────────────
+  // ── JEUX ───────────────────────────────────────────────────────────────────
+  games_rookie: {
+    id:"games_rookie", category:"games",
+    label:"Rookie", desc:"100 pts de jeu",
+    color:"#86EFAC",
+    svg: (size) => `
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-3}" fill="none" stroke="#86EFAC" stroke-width="3" stroke-dasharray="6 3"/>`,
+  },
+  games_challenger: {
+    id:"games_challenger", category:"games",
+    label:"Master", desc:"500 pts de jeu",
+    color:"#60A5FA",
+    svg: (size) => `
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-3}" fill="none" stroke="#60A5FA" stroke-width="3"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-7}" fill="none" stroke="#60A5FA" stroke-width="1" opacity="0.4" stroke-dasharray="4 6">
+        <animateTransform attributeName="transform" type="rotate" from="0 ${size/2} ${size/2}" to="360 ${size/2} ${size/2}" dur="12s" repeatCount="indefinite"/>
+      </circle>`,
+  },
+  games_master: {
+    id:"games_master", category:"games",
+    label:"GrandMaster", desc:"2000 pts de jeu",
+    color:"#F97316",
+    svg: (size) => `
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-3}" fill="none" stroke="#F97316" stroke-width="3.5"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-7}" fill="none" stroke="#FED7AA" stroke-width="1.5" stroke-dasharray="5 3"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-11}" fill="none" stroke="#F97316" stroke-width="1" opacity="0.4" stroke-dasharray="2 4">
+        <animateTransform attributeName="transform" type="rotate" from="360 ${size/2} ${size/2}" to="0 ${size/2} ${size/2}" dur="8s" repeatCount="indefinite"/>
+      </circle>`,
+  },
+  games_grandmaster: {
+    id:"games_grandmaster", category:"games",
+    label:"Radiant", desc:"5000 pts de jeu",
+    color:"#F0ABFC", animated:true,
+    svg: (size) => `
+      <defs>
+        <linearGradient id="gmGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#F0ABFC"><animate attributeName="stop-color" values="#F0ABFC;#FBBF24;#F97316;#F0ABFC" dur="2s" repeatCount="indefinite"/></stop>
+          <stop offset="100%" stop-color="#FBBF24"><animate attributeName="stop-color" values="#FBBF24;#F0ABFC;#60A5FA;#FBBF24" dur="2s" repeatCount="indefinite"/></stop>
+        </linearGradient>
+        <filter id="gmGlow">
+          <feGaussianBlur stdDeviation="2.5" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-3}" fill="none" stroke="url(#gmGrad)" stroke-width="4" filter="url(#gmGlow)"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-8}" fill="none" stroke="#F0ABFC" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.7">
+        <animateTransform attributeName="transform" type="rotate" from="0 ${size/2} ${size/2}" to="360 ${size/2} ${size/2}" dur="6s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-13}" fill="none" stroke="#FBBF24" stroke-width="1" stroke-dasharray="2 5" opacity="0.5">
+        <animateTransform attributeName="transform" type="rotate" from="360 ${size/2} ${size/2}" to="0 ${size/2} ${size/2}" dur="9s" repeatCount="indefinite"/>
+      </circle>`,
+  },
+
+
   watched_50: {
     id:"watched_50", category:"watched",
     label:"Débutant", desc:"50 animés vus",
@@ -196,7 +249,7 @@ function sumPtsAdded(ptsAdded) {
 }
 
 // ── Get all unlocked frames for a user ────────────────────────────────────────
-export function getUnlockedFrames({ watchedCount, genreCounts, followerCount, userVotes }) {
+export function getUnlockedFrames({ watchedCount, genreCounts, followerCount, userVotes, gamePoints=0 }) {
   const unlocked = [];
 
   // Followers
@@ -226,6 +279,12 @@ export function getUnlockedFrames({ watchedCount, genreCounts, followerCount, us
   if(watchedCount >= 500)  unlocked.push(FRAMES.watched_500);
   if(watchedCount >= 1000) unlocked.push(FRAMES.watched_1000);
   if(watchedCount >= 5000) unlocked.push(FRAMES.watched_5000);
+
+  // Jeux — basé sur points_total dans game_elo
+  if(gamePoints >= 100)  unlocked.push(FRAMES.games_rookie);
+  if(gamePoints >= 500)  unlocked.push(FRAMES.games_challenger);
+  if(gamePoints >= 2000) unlocked.push(FRAMES.games_master);
+  if(gamePoints >= 5000) unlocked.push(FRAMES.games_grandmaster);
 
   return unlocked;
 }
