@@ -10,6 +10,7 @@ import { EmptyState } from "../components/EmptyState.jsx";
 import { NewThreadModal, ThreadModal, TagPill, timeAgo } from "../components/ForumThreadModal.jsx";
 import { MoodOctagon } from "../components/MoodOctagon.jsx";
 import { WordleGame, PosterGame } from "../components/MiniGames.jsx";
+import { Matchmaking, ChainGame, TimelineGame } from "../components/GameSystem.jsx";
 import { Modal } from "../components/Modal.jsx";
 import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY } from "../constants/theme.js";
 
@@ -271,6 +272,9 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
   const [openThread, setOpenThread]       = useState(null);
   const [showWordle, setShowWordle]       = useState(false);
   const [showPoster, setShowPoster]       = useState(false);
+  const [matchmaking, setMatchmaking]     = useState(null); // 'chain' | 'timeline' | null
+  const [activeRoom, setActiveRoom]       = useState(null);
+  const [activeGame, setActiveGame]       = useState(null); // 'chain' | 'timeline'
 
   // Sourced from the same activityNotifications the header bell reads — so the
   // inline badge below and the bell always agree on what's actually unread.
@@ -439,6 +443,26 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
                   <span style={{fontSize:20}}>🖼</span>
                   <span style={{fontSize:8,color:"#f9a8d4",fontWeight:700}}>Poster</span>
                 </button>
+                <button onClick={()=>setMatchmaking("chain")}
+                  title="Chaîne Animé — 1v1"
+                  style={{width:56,height:56,borderRadius:"50%",border:"2px solid rgba(251,191,36,0.4)",
+                    background:"rgba(251,191,36,0.08)",cursor:"pointer",display:"flex",flexDirection:"column",
+                    alignItems:"center",justifyContent:"center",gap:2,transition:"all 0.2s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.background="rgba(251,191,36,0.2)";e.currentTarget.style.transform="scale(1.08)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.background="rgba(251,191,36,0.08)";e.currentTarget.style.transform="scale(1)";}}>
+                  <span style={{fontSize:20}}>⛓</span>
+                  <span style={{fontSize:8,color:"#fbbf24",fontWeight:700}}>Chaîne</span>
+                </button>
+                <button onClick={()=>setMatchmaking("timeline")}
+                  title="Timeline — 1v1"
+                  style={{width:56,height:56,borderRadius:"50%",border:"2px solid rgba(34,197,94,0.4)",
+                    background:"rgba(34,197,94,0.08)",cursor:"pointer",display:"flex",flexDirection:"column",
+                    alignItems:"center",justifyContent:"center",gap:2,transition:"all 0.2s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.background="rgba(34,197,94,0.2)";e.currentTarget.style.transform="scale(1.08)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.background="rgba(34,197,94,0.08)";e.currentTarget.style.transform="scale(1)";}}>
+                  <span style={{fontSize:20}}>📅</span>
+                  <span style={{fontSize:8,color:"#22c55e",fontWeight:700}}>Timeline</span>
+                </button>
               </div>
             </div>
           </aside>
@@ -463,6 +487,22 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
       {showPoster && (
         <Modal onClose={()=>setShowPoster(false)} maxWidth="max-w-lg">
           {() => <PosterGame onClose={()=>setShowPoster(false)}/>}
+        </Modal>
+      )}
+      {matchmaking && !activeRoom && (
+        <Modal onClose={()=>setMatchmaking(null)} maxWidth="max-w-sm">
+          {() => <Matchmaking gameType={matchmaking} onClose={()=>setMatchmaking(null)}
+            onMatch={room=>{setActiveRoom(room);setActiveGame(matchmaking);setMatchmaking(null);}}/>}
+        </Modal>
+      )}
+      {activeRoom && activeGame === "chain" && (
+        <Modal onClose={()=>{setActiveRoom(null);setActiveGame(null);}} maxWidth="max-w-2xl">
+          {() => <ChainGame room={activeRoom} onClose={()=>{setActiveRoom(null);setActiveGame(null);}}/>}
+        </Modal>
+      )}
+      {activeRoom && activeGame === "timeline" && (
+        <Modal onClose={()=>{setActiveRoom(null);setActiveGame(null);}} maxWidth="max-w-3xl">
+          {() => <TimelineGame room={activeRoom} onClose={()=>{setActiveRoom(null);setActiveGame(null);}}/>}
         </Modal>
       )}
     </div>

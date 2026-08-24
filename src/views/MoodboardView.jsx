@@ -251,10 +251,13 @@ export function MoodboardView({ onOpenDetail }) {
             </div>
 
             <div>
-              <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Coups de cœur amis</p>
+              <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Recommandations amis</p>
               <button onClick={()=>setShowFriendHighlights(p=>!p)}
-                className={`flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-bold transition ${showFriendHighlights ? "border border-red-400/30 bg-red-400/10 text-red-400" : "border border-white/8 bg-white/3 text-slate-500"}`}>
-                ❤️ {showFriendHighlights ? "Actif — bordure rouge" : "Désactivé"}
+                className="flex items-center justify-between w-full rounded-xl px-3 py-2 text-[11px] font-bold transition border border-white/8 bg-white/3">
+                <span className="text-slate-300">❤️ Coups de cœur amis</span>
+                <div className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${showFriendHighlights ? "bg-violet-500" : "bg-white/15"}`}>
+                  <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${showFriendHighlights ? "translate-x-4" : "translate-x-0.5"}`}/>
+                </div>
               </button>
             </div>
 

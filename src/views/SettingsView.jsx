@@ -27,16 +27,19 @@ export function SettingsView({ onClose }) {
   const [avatarError,     setAvatarError]     = useState(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [unlockedFrames, setUnlockedFrames] = useState([]);
+  const [allFrames, setAllFrames]           = useState([]);
   const [activeFrame,    setActiveFrame]    = useState(null);
   const [framesLoading,  setFramesLoading]  = useState(true);
   useEffect(() => {
     (async () => {
       try {
         const { FRAMES, getUnlockedFrames, getBestFrame } = await import("../frames/frames.js");
-        const [followerRows, voteRows] = await Promise.all([
+        const [followerRows, voteRows, gameEloRows] = await Promise.all([
           follows.getFollowers(myUsername).catch(()=>[]),
           sb.query(`user_votes?username=eq.${encodeURIComponent(myUsername)}&select=pts_added&limit=1000`).catch(()=>[]),
+          sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&select=points_total&limit=1`).catch(()=>[]),
         ]);
+        const gamePoints = gameEloRows?.[0]?.points_total || 0;
         const genreCounts = {};
         const chunks = [];
         for(let i=0;i<me.watched.length;i+=100) chunks.push(me.watched.slice(i,i+100));
@@ -46,8 +49,10 @@ export function SettingsView({ onClose }) {
             (rows||[]).forEach(r => { (r.genres||[]).forEach(g => { const n=g.name||g; genreCounts[n]=(genreCounts[n]||0)+1; }); });
           } catch {}
         }
-        const unlocked = getUnlockedFrames({ watchedCount:me.watched.length, genreCounts, followerCount:(followerRows||[]).length, userVotes:voteRows||[] });
+        const unlocked = getUnlockedFrames({ watchedCount:me.watched.length, genreCounts, followerCount:(followerRows||[]).length, userVotes:voteRows||[], gamePoints });
         setUnlockedFrames(unlocked);
+        // Also store all frames for display
+        setAllFrames(Object.values(FRAMES));
         if(me.activeFrame) {
           const saved = FRAMES[me.activeFrame];
           if(saved && unlocked.find(f=>f.id===me.activeFrame)) setActiveFrame(saved);
@@ -148,10 +153,6 @@ export function SettingsView({ onClose }) {
         <Section title="🎖 Cadre de profil">
           {framesLoading ? (
             <p className="text-xs text-slate-500 text-center py-2">Chargement des cadres…</p>
-          ) : unlockedFrames.length === 0 ? (
-            <p className="text-xs text-slate-500 text-center py-3 leading-relaxed">
-              Aucun cadre débloqué.<br/>Regarde des animés, vote sur les moods et gagne des abonnés !
-            </p>
           ) : (
             <>
               <button onClick={()=>applyFrame(null)}
@@ -164,21 +165,28 @@ export function SettingsView({ onClose }) {
                   <div className="text-[10px] text-slate-500">Avatar sans cadre</div>
                 </div>
               </button>
-              {["watched","contribution","followers","genre"].map(cat => {
-                const catFrames = unlockedFrames.filter(f=>f.category===cat);
-                if(!catFrames.length) return null;
-                const catLabels = {watched:"📺 Animés vus",contribution:"🗳️ Contribution",followers:"👥 Followers",genre:"🎌 Genre"};
+              {["watched","contribution","followers","genre","games"].map(cat => {
+                const catAllFrames = allFrames.filter(f=>f.category===cat);
+                if(!catAllFrames.length) return null;
+                const catLabels = {watched:"📺 Animés vus",contribution:"🗳️ Contribution",followers:"👥 Followers",genre:"🎌 Genre",games:"🎮 Jeux"};
                 return (
                   <div key={cat} className="mb-4">
                     <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-600">{catLabels[cat]}</div>
                     <div className="flex flex-wrap gap-2">
-                      {catFrames.map(frame => {
+                      {catAllFrames.map(frame => {
+                        const isUnlocked = unlockedFrames.some(f=>f.id===frame.id);
                         const isActive = activeFrame?.id === frame.id;
                         const sz = 44;
                         return (
-                          <button key={frame.id} onClick={()=>applyFrame(frame)}
-                            style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:8,borderRadius:12,cursor:"pointer",
-                              border:isActive?"2px solid #7c3aed":"2px solid transparent",background:isActive?"rgba(124,58,237,0.1)":"rgba(255,255,255,0.03)"}}>
+                          <button key={frame.id}
+                            onClick={()=>isUnlocked && applyFrame(frame)}
+                            title={isUnlocked ? frame.label : `🔒 ${frame.label} — non débloqué`}
+                            style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:8,borderRadius:12,
+                              cursor:isUnlocked?"pointer":"not-allowed",
+                              border:isActive?"2px solid #7c3aed":"2px solid transparent",
+                              background:isActive?"rgba(124,58,237,0.1)":"rgba(255,255,255,0.03)",
+                              opacity:isUnlocked?1:0.4,
+                              filter:isUnlocked?"none":"grayscale(1)"}}>
                             <div style={{position:"relative",width:sz,height:sz}}>
                               <div style={{width:sz,height:sz,borderRadius:"50%",overflow:"hidden",
                                 background:"linear-gradient(135deg,#7c3aed,#4f46e5)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>
@@ -186,8 +194,14 @@ export function SettingsView({ onClose }) {
                               </div>
                               <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",overflow:"visible",pointerEvents:"none"}}
                                 viewBox={`0 0 ${sz} ${sz}`} dangerouslySetInnerHTML={{__html:frame.svg(sz)}}/>
+                              {!isUnlocked && (
+                                <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",
+                                  fontSize:16,background:"rgba(0,0,0,0.3)",borderRadius:"50%"}}>🔒</div>
+                              )}
                             </div>
-                            <span style={{fontSize:9,fontWeight:700,color:frame.color,textAlign:"center",maxWidth:56,lineHeight:1.2}}>{frame.label}</span>
+                            <span style={{fontSize:9,fontWeight:700,color:isUnlocked?frame.color:"rgba(148,163,184,0.5)",textAlign:"center",maxWidth:56,lineHeight:1.2}}>
+                              {frame.label}
+                            </span>
                           </button>
                         );
                       })}
