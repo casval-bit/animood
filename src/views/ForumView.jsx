@@ -250,7 +250,7 @@ function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, onOpenTh
 }
 
 export function ForumView({ onOpenDetail, onOpenUser }) {
-  const { myUsername, activityNotifications, markActivityRead } = useApp();
+  const { myUsername, activityNotifications, markActivityRead, blockedUsers } = useApp();
   const [newAnime, setNewAnime] = useState([]);
   const [upcoming, setUpcoming] = useState([]);
   const [trailers, setTrailers] = useState([]);
@@ -355,12 +355,13 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
     let cancelled = false;
     sb.listThreads(20).then(async rows => {
       if(cancelled) return;
-      setThreads(rows);
-      const counts = await sb.getReplyCounts(rows.map(r => r.id));
+      const visible = blockedUsers?.size ? rows.filter(t => !blockedUsers.has(t.username)) : rows;
+      setThreads(visible);
+      const counts = await sb.getReplyCounts(visible.map(r => r.id));
       if(!cancelled) setReplyCounts(counts);
     }).finally(() => { if(!cancelled) setThreadsLoaded(true); });
     return () => { cancelled = true; };
-  }, [myUsername]);
+  }, [myUsername, blockedUsers]);
 
   const empty = !loading && !upcoming.length && !newAnime.length && !trailers.length;
   const mostAnticipated = upcoming.reduce((best, a) => {

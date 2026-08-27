@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { sb } from "../api/supabase.js";
+import { useApp } from "../context/useApp.js";
 import { Modal } from "./Modal.jsx";
 import { GRADIENT_PRIMARY } from "../constants/theme.js";
 
 // ─── Search a username and pick one to start a fresh 1:1 conversation ─────────
 export function NewMessageModal({ myUsername, onClose, onSelect }) {
+  const { blockedUsers } = useApp();
   const [q, setQ] = useState("");
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -16,12 +18,12 @@ export function NewMessageModal({ myUsername, onClose, onSelect }) {
     const enc = encodeURIComponent(query);
     const t = setTimeout(() => {
       sb.query(`profiles?or=(name.ilike.*${enc}*,username.ilike.*${enc}*)&select=username,name,avatar&limit=8`)
-        .then(rows => setResults((rows||[]).filter(r => r.username !== myUsername)))
+        .then(rows => setResults((rows||[]).filter(r => r.username !== myUsername && !blockedUsers?.has(r.username))))
         .catch(() => setResults([]))
         .finally(() => setSearching(false));
     }, 300);
     return () => clearTimeout(t);
-  }, [q, myUsername]);
+  }, [q, myUsername, blockedUsers]);
 
   return (
     <Modal onClose={onClose} maxWidth="max-w-md" bodyClassName="flex flex-col">

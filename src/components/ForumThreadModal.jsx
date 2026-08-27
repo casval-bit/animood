@@ -5,6 +5,7 @@ import { Modal } from "./Modal.jsx";
 import { Spinner } from "./Spinner.jsx";
 import { FORUM_TAGS, getForumTag, MAX_THREAD_TAGS } from "../constants/forumTags.js";
 import { MentionText, useMentionAutocomplete, MentionSuggestions } from "./Mentions.jsx";
+import { useApp } from "../context/useApp.js";
 
 export function timeAgo(iso) {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -142,6 +143,7 @@ export function NewThreadModal({ username, onClose, onCreated }) {
 
 // ─── Thread detail — body + replies + reply box, no reactions/pagination ──────
 export function ThreadModal({ thread, username, onClose, onOpenUser }) {
+  const { blockedUsers } = useApp();
   const [replies, setReplies]   = useState([]);
   const [loading, setLoading]   = useState(true);
   const [reply, setReply]       = useState("");
@@ -168,6 +170,8 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
     } finally { setSubmitting(false); }
   };
 
+  const visibleReplies = blockedUsers?.size ? replies.filter(r => !blockedUsers.has(r.username)) : replies;
+
   return (
     <Modal onClose={onClose} maxWidth="max-w-2xl">
       <div className="max-h-[80vh] overflow-y-auto p-5">
@@ -184,17 +188,17 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
         )}
 
         <div className="mb-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-          {replies.length} réponse{replies.length !== 1 ? "s" : ""}
+          {visibleReplies.length} réponse{visibleReplies.length !== 1 ? "s" : ""}
         </div>
         {loading ? <Spinner small /> : (
           <div className="mb-5 flex flex-col gap-3">
-            {replies.map(r => (
+            {visibleReplies.map(r => (
               <div key={r.id} className="rounded-xl border border-white/7 bg-white/4 p-3">
                 <div className="mb-1 text-[10px] font-bold text-slate-500">@{r.username} · {timeAgo(r.created_at)}</div>
                 <div className="whitespace-pre-wrap text-[13px] text-slate-200"><MentionText text={r.body} onOpenUser={onOpenUser}/></div>
               </div>
             ))}
-            {!replies.length && <div className="text-xs text-slate-600">Aucune réponse pour l'instant — sois le premier·e.</div>}
+            {!visibleReplies.length && <div className="text-xs text-slate-600">Aucune réponse pour l'instant — sois le premier·e.</div>}
           </div>
         )}
 

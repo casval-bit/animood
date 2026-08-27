@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { sb } from "../api/supabase.js";
+import { useApp } from "../context/useApp.js";
 
 const MENTION_RE = /(?<=^|\s)(@[a-zA-Z0-9_]{2,20})/g;
 const TRAILING_MENTION_RE = /(?:^|\s)@([a-zA-Z0-9_]{1,20})$/;
@@ -27,6 +28,7 @@ export function MentionText({ text, onOpenUser }) {
 // a mention typed at the end of the text, not mid-sentence (covers the common
 // case without needing to track caret position across differently-styled inputs).
 export function useMentionAutocomplete(value, myUsername) {
+  const { blockedUsers } = useApp();
   const [suggestions, setSuggestions] = useState([]);
   const match = TRAILING_MENTION_RE.exec(value || "");
   const query = match ? match[1] : null;
@@ -37,11 +39,11 @@ export function useMentionAutocomplete(value, myUsername) {
     const enc = encodeURIComponent(query);
     const t = setTimeout(() => {
       sb.query(`profiles?or=(name.ilike.*${enc}*,username.ilike.${enc}*)&select=username,name,avatar&limit=6`)
-        .then(rows => { if(!cancelled) setSuggestions((rows||[]).filter(r => r.username !== myUsername)); })
+        .then(rows => { if(!cancelled) setSuggestions((rows||[]).filter(r => r.username !== myUsername && !blockedUsers?.has(r.username))); })
         .catch(() => { if(!cancelled) setSuggestions([]); });
     }, 200);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [query, myUsername]);
+  }, [query, myUsername, blockedUsers]);
 
   const applyMention = (currentValue, username) => {
     if(query === null) return currentValue;

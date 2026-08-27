@@ -44,7 +44,7 @@ function Section({ title, children }) {
 }
 
 export function SettingsView({ onClose }) {
-  const { me, saveMe, logout, myUsername } = useApp();
+  const { me, saveMe, logout, myUsername, blockedUsers, unblockUser } = useApp();
   const { theme, setTheme } = useTheme();
   const { lang, setLang } = useLang();
   const t = SETTINGS_I18N[lang] || SETTINGS_I18N.fr;
@@ -402,6 +402,24 @@ export function SettingsView({ onClose }) {
           <button onClick={logout} className="w-full rounded-xl border border-red-400/30 bg-red-400/6 py-3.5 text-sm font-bold text-red-400">
             {t.logoutBtn}
           </button>
+        </Section>
+
+        <Section title={t.blockedUsers}>
+          {!blockedUsers?.size ? (
+            <p className="text-xs text-slate-500 text-center py-2">{t.blockedUsersEmpty}</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {[...blockedUsers].map(u => (
+                <div key={u} className="flex items-center justify-between rounded-xl border border-white/7 bg-white/4 px-3 py-2.5">
+                  <span className="text-xs font-bold text-slate-200">@{u}</span>
+                  <button onClick={()=>unblockUser(u)}
+                    className="rounded-full border border-white/10 px-3 py-1 text-[11px] font-bold text-slate-300 transition hover:bg-white/5">
+                    {t.unblockBtn}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </Section>
 
         <Section title={t.deleteAccountTitle}>

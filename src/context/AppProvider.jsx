@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { onAuthChange, loadProfile, saveProfile, signOut, dm, posts, sb } from "../api/supabase.js";
+import { onAuthChange, loadProfile, saveProfile, signOut, dm, posts, sb, blocks } from "../api/supabase.js";
 import { DEFAULT_PROFILE } from "../constants/profile.js";
 import { AppContext } from "./appContextObject.js";
 
@@ -69,6 +69,33 @@ export function AppProvider({ children }) {
     check();
     const interval = setInterval(check, 15000);
     return () => { cancelled = true; clearInterval(interval); };
+  }, [myUsername]);
+
+  // Blocked users — one-directional, enforced at the UI level only (this app
+  // has no per-user RLS: every request already uses the shared anon key).
+  const [blockedUsers, setBlockedUsers] = useState(new Set());
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const list = myUsername ? await blocks.getBlockedByMe(myUsername).catch(()=>[]) : [];
+      if(!cancelled) setBlockedUsers(new Set(list));
+    })();
+    return () => { cancelled = true; };
+  }, [myUsername]);
+
+  const blockUser = useCallback(async (username) => {
+    if(!myUsername || username === myUsername) return;
+    setBlockedUsers(prev => new Set(prev).add(username));
+    try { await blocks.block(myUsername, username); }
+    catch(e) { console.error(e); setBlockedUsers(prev => { const n = new Set(prev); n.delete(username); return n; }); }
+  }, [myUsername]);
+
+  const unblockUser = useCallback(async (username) => {
+    if(!myUsername) return;
+    setBlockedUsers(prev => { const n = new Set(prev); n.delete(username); return n; });
+    try { await blocks.unblock(myUsername, username); }
+    catch(e) { console.error(e); setBlockedUsers(prev => new Set(prev).add(username)); }
   }, [myUsername]);
 
   const markRead = useCallback((peer) => {
@@ -151,6 +178,7 @@ export function AppProvider({ children }) {
   const ctx = {
     session, me, setMe, saveMe, myUsername, profileReady, logout,
     unreadPeers, markRead, activityNotifications, markActivityRead,
+    blockedUsers, blockUser, unblockUser,
   };
 
   return <AppContext.Provider value={ctx}>{children}</AppContext.Provider>;

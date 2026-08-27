@@ -307,6 +307,30 @@ export const follows = {
   },
 };
 
+// ─── BLOCKS — one-directional "I don't want to see this person" ───────────────
+export const blocks = {
+  async getBlockedByMe(username) {
+    const rows = await sb.query(`user_blocks?blocker=eq.${encodeURIComponent(username)}&select=blocked`);
+    return (rows||[]).map(r=>r.blocked);
+  },
+  async isBlocked(blocker, blocked) {
+    const rows = await sb.query(`user_blocks?blocker=eq.${encodeURIComponent(blocker)}&blocked=eq.${encodeURIComponent(blocked)}&limit=1`);
+    return (rows||[]).length > 0;
+  },
+  async block(blocker, blocked) {
+    await sb.query("user_blocks", {
+      method:"POST",
+      headers:{...sb.headers,"Prefer":"resolution=ignore-duplicates"},
+      body: JSON.stringify({ blocker, blocked }),
+    });
+  },
+  async unblock(blocker, blocked) {
+    await sb.query(`user_blocks?blocker=eq.${encodeURIComponent(blocker)}&blocked=eq.${encodeURIComponent(blocked)}`, {
+      method:"DELETE",
+    });
+  },
+};
+
 // ─── DIRECT MESSAGES — 1:1 chat, no group threads/attachments ─────────────────
 export const dm = {
   // Distinct conversations involving `username`, each with its last message —
