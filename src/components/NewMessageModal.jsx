@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { sb } from "../api/supabase.js";
 import { useApp } from "../context/useApp.js";
 import { Modal } from "./Modal.jsx";
+import { Avatar } from "./Avatar.jsx";
 import { GRADIENT_PRIMARY } from "../constants/theme.js";
 
 // ─── Search a username and pick one to start a fresh 1:1 conversation ─────────
@@ -17,7 +18,7 @@ export function NewMessageModal({ myUsername, onClose, onSelect }) {
     setSearching(true);
     const enc = encodeURIComponent(query);
     const t = setTimeout(() => {
-      sb.query(`profiles?or=(name.ilike.*${enc}*,username.ilike.*${enc}*)&select=username,name,avatar&limit=8`)
+      sb.query(`profiles?or=(name.ilike.*${enc}*,username.ilike.*${enc}*)&select=username,name,avatar,avatar_base64&limit=8`)
         .then(rows => setResults((rows||[]).filter(r => r.username !== myUsername && !blockedUsers?.has(r.username))))
         .catch(() => setResults([]))
         .finally(() => setSearching(false));
@@ -48,9 +49,7 @@ export function NewMessageModal({ myUsername, onClose, onSelect }) {
               key={r.username} onClick={() => onSelect(r.username)}
               className="flex w-full items-center gap-3 border-b border-white/6 px-5 py-3 text-left transition last:border-b-0 hover:bg-white/5"
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/8 text-sm font-black text-slate-300">
-                {r.avatar?.startsWith?.("http") ? <img src={r.avatar} alt="" className="h-full w-full object-cover" /> : (r.avatar || r.username.slice(0,2).toUpperCase())}
-              </div>
+              <Avatar profile={r} size={40} fallback={r.username.slice(0,2).toUpperCase()} className="text-sm"/>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13.5px] font-bold text-slate-100">{r.name || r.username}</div>
                 <div className="truncate text-[11px] text-slate-500">@{r.username}</div>

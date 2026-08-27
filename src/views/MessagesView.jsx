@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { useApp } from "../context/useApp.js";
-import { dm } from "../api/supabase.js";
+import { dm, sb } from "../api/supabase.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { EmptyState } from "../components/EmptyState.jsx";
+import { Avatar } from "../components/Avatar.jsx";
 import { ChatModal } from "../components/ChatModal.jsx";
 import { NewMessageModal } from "../components/NewMessageModal.jsx";
 import { timeAgo } from "../components/ForumThreadModal.jsx";
@@ -11,14 +12,28 @@ import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY } from "../constants/theme.js";
 export function MessagesView() {
   const { myUsername, unreadPeers, markRead, blockedUsers } = useApp();
   const [conversations, setConversations] = useState([]);
+  const [profileCache, setProfileCache]   = useState({});
   const [loading, setLoading]   = useState(true);
   const [openPeer, setOpenPeer] = useState(null);
   const [newChat, setNewChat]   = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    dm.listConversations(myUsername).then(rows => {
-      if(!cancelled) setConversations(blockedUsers?.size ? rows.filter(c => !blockedUsers.has(c.peer)) : rows);
+    dm.listConversations(myUsername).then(async rows => {
+      if(cancelled) return;
+      const filtered = blockedUsers?.size ? rows.filter(c => !blockedUsers.has(c.peer)) : rows;
+      setConversations(filtered);
+      const peers = filtered.map(c => c.peer);
+      if(peers.length) {
+        try {
+          const profs = await sb.query(`profiles?username=in.(${peers.map(u=>encodeURIComponent(u)).join(",")})&select=username,name,avatar,avatar_base64`);
+          if(!cancelled && profs?.length) {
+            const cache = {};
+            profs.forEach(p => { cache[p.username] = p; });
+            setProfileCache(cache);
+          }
+        } catch {}
+      }
     }).finally(() => { if(!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [myUsername, blockedUsers]);
@@ -54,16 +69,16 @@ export function MessagesView() {
           <div>
             {conversations.map(c => {
               const unread = unreadPeers?.has(c.peer);
+              const profile = profileCache[c.peer];
               return (
                 <button
                   key={c.peer} onClick={() => { setOpenPeer(c.peer); markRead(c.peer); }}
                   className="flex w-full items-center gap-3 border-b border-white/6 px-5 py-3.5 text-left transition last:border-b-0 hover:bg-white/5"
                 >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/8 text-sm font-black text-slate-300">
-                    {c.peer.slice(0, 2).toUpperCase()}
-                  </div>
+                  <Avatar profile={profile} size={40} fallback={c.peer.slice(0,2).toUpperCase()} className="text-sm"/>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13.5px] font-bold text-slate-100">@{c.peer}</div>
+                    <div className="truncate text-[13.5px] font-bold text-slate-100">{profile?.name || c.peer}</div>
+                    <div className="truncate text-[10.5px] text-slate-500">@{c.peer}</div>
                     <div className={`truncate text-[11px] ${unread ? "font-semibold text-slate-200" : "text-slate-500"}`}>
                       {c.lastMessage.sender === myUsername ? "Toi: " : ""}{c.lastMessage.body}
                     </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/useApp.js";
 import { dm, sb } from "../api/supabase.js";
+import { Avatar } from "./Avatar.jsx";
 import { timeAgo } from "./ForumThreadModal.jsx";
 import { GRADIENT_PRIMARY } from "../constants/theme.js";
 
@@ -24,6 +25,7 @@ function BubbleIcon({ open }) {
 // ─── Inline thread — same 1:1 chat as ChatModal, restyled for the compact panel ─
 function ThreadPane({ username, peer, onBack }) {
   const [messages, setMessages] = useState([]);
+  const [peerProfile, setPeerProfile] = useState(null);
   const [loading, setLoading]   = useState(true);
   const [draft, setDraft]       = useState("");
   const [sending, setSending]   = useState(false);
@@ -37,6 +39,14 @@ function ThreadPane({ username, peer, onBack }) {
     }, 4000);
     return () => { cancelled = true; clearInterval(interval); };
   }, [username, peer]);
+
+  useEffect(() => {
+    let cancelled = false;
+    sb.query(`profiles?username=eq.${encodeURIComponent(peer)}&select=username,name,avatar,avatar_base64&limit=1`)
+      .then(rows => { if(!cancelled && rows?.[0]) setPeerProfile(rows[0]); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [peer]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ block: "end" }); }, [messages.length]);
 
@@ -57,7 +67,11 @@ function ThreadPane({ username, peer, onBack }) {
         <button onClick={onBack} className="flex h-6 w-6 items-center justify-center rounded-full text-white/90 transition hover:bg-white/15">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
         </button>
-        <div className="text-[13px] font-black text-white">@{peer}</div>
+        <Avatar profile={peerProfile} size={26} fallback={peer.slice(0,2).toUpperCase()} className="text-[10px] bg-white/15 text-white"/>
+        <div className="min-w-0">
+          <div className="truncate text-[13px] font-black text-white">{peerProfile?.name || peer}</div>
+          <div className="truncate text-[9.5px] text-white/70">@{peer}</div>
+        </div>
       </div>
 
       <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-3">
@@ -103,7 +117,7 @@ function ThreadPane({ username, peer, onBack }) {
 }
 
 // ─── Conversation list — compact rows, same data as MessagesView ──────────────
-function ConversationList({ conversations, loading, myUsername, onOpen }) {
+function ConversationList({ conversations, profileCache, loading, myUsername, onOpen }) {
   if(loading) return <div className="m-auto text-xs text-slate-600">Chargement…</div>;
   if(conversations.length === 0) {
     return (
@@ -114,23 +128,25 @@ function ConversationList({ conversations, loading, myUsername, onOpen }) {
   }
   return (
     <div className="flex-1 overflow-y-auto">
-      {conversations.map(c => (
-        <button
-          key={c.peer} onClick={() => onOpen(c.peer)}
-          className="flex w-full items-center gap-2.5 border-b border-white/6 px-3.5 py-2.5 text-left transition last:border-b-0 hover:bg-white/5"
-        >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/8 text-[11px] font-black text-slate-300">
-            {c.peer.slice(0, 2).toUpperCase()}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[12.5px] font-bold text-slate-100">@{c.peer}</div>
-            <div className="truncate text-[10.5px] text-slate-500">
-              {c.lastMessage.sender === myUsername ? "Toi: " : ""}{c.lastMessage.body}
+      {conversations.map(c => {
+        const profile = profileCache[c.peer];
+        return (
+          <button
+            key={c.peer} onClick={() => onOpen(c.peer)}
+            className="flex w-full items-center gap-2.5 border-b border-white/6 px-3.5 py-2.5 text-left transition last:border-b-0 hover:bg-white/5"
+          >
+            <Avatar profile={profile} size={36} fallback={c.peer.slice(0,2).toUpperCase()} className="text-[11px]"/>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[12.5px] font-bold text-slate-100">{profile?.name || c.peer}</div>
+              <div className="truncate text-[10px] text-slate-500">@{c.peer}</div>
+              <div className="truncate text-[10.5px] text-slate-500">
+                {c.lastMessage.sender === myUsername ? "Toi: " : ""}{c.lastMessage.body}
+              </div>
             </div>
-          </div>
-          <div className="shrink-0 text-[9.5px] text-slate-600">{timeAgo(c.lastMessage.created_at)}</div>
-        </button>
-      ))}
+            <div className="shrink-0 text-[9.5px] text-slate-600">{timeAgo(c.lastMessage.created_at)}</div>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -147,7 +163,7 @@ function NewMessageSearch({ myUsername, onBack, onSelect }) {
     setSearching(true);
     const enc = encodeURIComponent(query);
     const t = setTimeout(() => {
-      sb.query(`profiles?or=(name.ilike.*${enc}*,username.ilike.*${enc}*)&select=username,name,avatar&limit=8`)
+      sb.query(`profiles?or=(name.ilike.*${enc}*,username.ilike.*${enc}*)&select=username,name,avatar,avatar_base64&limit=8`)
         .then(rows => setResults((rows||[]).filter(r => r.username !== myUsername)))
         .catch(() => setResults([]))
         .finally(() => setSearching(false));
@@ -181,9 +197,7 @@ function NewMessageSearch({ myUsername, onBack, onSelect }) {
               key={r.username} onClick={() => onSelect(r.username)}
               className="flex w-full items-center gap-2.5 border-b border-white/6 px-3.5 py-2.5 text-left transition last:border-b-0 hover:bg-white/5"
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/8 text-[11px] font-black text-slate-300">
-                {r.avatar?.startsWith?.("http") ? <img src={r.avatar} alt="" className="h-full w-full object-cover" /> : (r.avatar || r.username.slice(0,2).toUpperCase())}
-              </div>
+              <Avatar profile={r} size={36} fallback={r.username.slice(0,2).toUpperCase()} className="text-[11px]"/>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[12.5px] font-bold text-slate-100">{r.name || r.username}</div>
                 <div className="truncate text-[10.5px] text-slate-500">@{r.username}</div>
@@ -201,6 +215,7 @@ export function ChatBubble({ hidden }) {
   const { myUsername } = useApp();
   const [open, setOpen] = useState(false);
   const [conversations, setConversations] = useState([]);
+  const [profileCache, setProfileCache] = useState({});
   const [loading, setLoading] = useState(true);
   const [peer, setPeer] = useState(null);
   const [newChat, setNewChat] = useState(false);
@@ -209,7 +224,21 @@ export function ChatBubble({ hidden }) {
     if(!open) return;
     let cancelled = false;
     setLoading(true);
-    dm.listConversations(myUsername).then(rows => { if(!cancelled) setConversations(rows); }).finally(() => { if(!cancelled) setLoading(false); });
+    dm.listConversations(myUsername).then(async rows => {
+      if(cancelled) return;
+      setConversations(rows);
+      const peers = rows.map(c => c.peer);
+      if(peers.length) {
+        try {
+          const profs = await sb.query(`profiles?username=in.(${peers.map(u=>encodeURIComponent(u)).join(",")})&select=username,name,avatar,avatar_base64`);
+          if(!cancelled && profs?.length) {
+            const cache = {};
+            profs.forEach(p => { cache[p.username] = p; });
+            setProfileCache(cache);
+          }
+        } catch {}
+      }
+    }).finally(() => { if(!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [open, myUsername]);
 
@@ -237,7 +266,7 @@ export function ChatBubble({ hidden }) {
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>
                 </button>
               </div>
-              <ConversationList conversations={conversations} loading={loading} myUsername={myUsername} onOpen={setPeer} />
+              <ConversationList conversations={conversations} profileCache={profileCache} loading={loading} myUsername={myUsername} onOpen={setPeer} />
             </>
           )}
         </div>

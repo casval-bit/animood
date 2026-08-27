@@ -3,6 +3,7 @@ import { sb } from "../api/supabase.js";
 import { uploadToCloudinary } from "../api/cloudinary.js";
 import { Modal } from "./Modal.jsx";
 import { Spinner } from "./Spinner.jsx";
+import { Avatar } from "./Avatar.jsx";
 import { FORUM_TAGS, getForumTag, MAX_THREAD_TAGS } from "../constants/forumTags.js";
 import { MentionText, useMentionAutocomplete, MentionSuggestions } from "./Mentions.jsx";
 import { useApp } from "../context/useApp.js";
@@ -145,6 +146,7 @@ export function NewThreadModal({ username, onClose, onCreated }) {
 export function ThreadModal({ thread, username, onClose, onOpenUser }) {
   const { blockedUsers } = useApp();
   const [replies, setReplies]   = useState([]);
+  const [profileCache, setProfileCache] = useState({});
   const [loading, setLoading]   = useState(true);
   const [reply, setReply]       = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -156,6 +158,19 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
     sb.getThreadReplies(thread.id).then(rows => { if(!cancelled) setReplies(rows); }).finally(() => { if(!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [thread.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const usernames = [...new Set([thread.username, ...replies.map(r => r.username)])];
+    const missing = usernames.filter(u => !profileCache[u]);
+    if(!missing.length) return;
+    sb.query(`profiles?username=in.(${missing.map(u=>encodeURIComponent(u)).join(",")})&select=username,name,avatar,avatar_base64`)
+      .then(profs => {
+        if(cancelled || !profs?.length) return;
+        setProfileCache(p => { const c = {...p}; profs.forEach(pr => { c[pr.username] = pr; }); return c; });
+      }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [thread.username, replies]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const submitReply = async () => {
     const b = reply.trim();
@@ -175,7 +190,12 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
   return (
     <Modal onClose={onClose} maxWidth="max-w-2xl">
       <div className="max-h-[80vh] overflow-y-auto p-5">
-        <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">@{thread.username} · {timeAgo(thread.created_at)}</div>
+        <div className="mb-1.5 flex items-center gap-2">
+          <Avatar profile={profileCache[thread.username]} size={22} fallback={thread.username.slice(0,2).toUpperCase()} className="text-[9px]"/>
+          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+            {profileCache[thread.username]?.name || thread.username} · @{thread.username} · {timeAgo(thread.created_at)}
+          </div>
+        </div>
         <div className="mb-1.5 text-lg font-black text-slate-100">{thread.title}</div>
         {thread.tags?.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-1.5">
@@ -194,7 +214,10 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
           <div className="mb-5 flex flex-col gap-3">
             {visibleReplies.map(r => (
               <div key={r.id} className="rounded-xl border border-white/7 bg-white/4 p-3">
-                <div className="mb-1 text-[10px] font-bold text-slate-500">@{r.username} · {timeAgo(r.created_at)}</div>
+                <div className="mb-1 flex items-center gap-1.5">
+                  <Avatar profile={profileCache[r.username]} size={18} fallback={r.username.slice(0,2).toUpperCase()} className="text-[8px]"/>
+                  <div className="text-[10px] font-bold text-slate-500">{profileCache[r.username]?.name || r.username} · @{r.username} · {timeAgo(r.created_at)}</div>
+                </div>
                 <div className="whitespace-pre-wrap text-[13px] text-slate-200"><MentionText text={r.body} onOpenUser={onOpenUser}/></div>
               </div>
             ))}
