@@ -1,35 +1,86 @@
 import { useState, useRef, useEffect } from "react";
 import { useApp } from "../context/useApp.js";
+import { useTheme } from "../context/useTheme.js";
+import { useLang } from "../context/useLang.js";
 import { parseMALXml } from "../constants/mal-import.js";
 import { importAniListUser } from "../api/anilist.js";
-import { GradientButton } from "../components/ui.jsx";
+import { GradientButton, TabBar } from "../components/ui.jsx";
 import { sb, follows } from "../api/supabase.js";
 import { uploadToCloudinary } from "../api/cloudinary.js";
+import { GRADIENT_PRIMARY } from "../constants/theme.js";
+import { SETTINGS_I18N } from "../constants/settingsI18n.js";
+
+const LANG_OPTIONS = [
+  { id: "fr", label: "Français", flag: "🇫🇷" },
+  { id: "en", label: "English",  flag: "🇬🇧" },
+];
+
+function ThemePreview({ id }) {
+  const dark = id === "dark";
+  return (
+    <div
+      className="h-14 w-full overflow-hidden rounded-lg"
+      style={{
+        background: dark ? "#0f172a" : "#d3cce8",
+        border: `1px solid ${dark ? "rgba(255,255,255,.1)" : "rgba(24,18,43,.14)"}`,
+      }}
+    >
+      <div className="h-3 w-full" style={{ background: GRADIENT_PRIMARY }} />
+      <div className="flex flex-col gap-1 p-1.5">
+        <div className="h-1 w-3/4 rounded-full" style={{ background: dark ? "rgba(255,255,255,.25)" : "#120f24" }} />
+        <div className="h-1 w-1/2 rounded-full" style={{ background: dark ? "rgba(255,255,255,.15)" : "#817a9b" }} />
+      </div>
+    </div>
+  );
+}
+
 function Section({ title, children }) {
   return (
-    <div className="mb-6">
+    <div className="mb-4">
       <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">{title}</div>
       <div className="rounded-2xl border border-white/6 bg-white/3 p-4">{children}</div>
     </div>
   );
 }
+
 export function SettingsView({ onClose }) {
   const { me, saveMe, logout, myUsername } = useApp();
+  const { theme, setTheme } = useTheme();
+  const { lang, setLang } = useLang();
+  const t = SETTINGS_I18N[lang] || SETTINGS_I18N.fr;
   const fileRef   = useRef(null);
   const avatarRef = useRef(null);
+
+  const [category, setCategory] = useState("preferences");
+  const CATEGORY_TABS = [
+    { id: "preferences", label: t.catPreferences },
+    { id: "profile",     label: t.catProfile },
+    { id: "data",        label: t.catData },
+    { id: "account",     label: t.catAccount },
+  ];
+
+  const [usernameInput, setUsernameInput] = useState(me.name || "");
+  const [usernameSaved, setUsernameSaved] = useState(false);
+
+  const [deleteNotice, setDeleteNotice] = useState(false);
+
   const [importStatus, setImportStatus] = useState(null);
   const [importStats,  setImportStats]  = useState(null);
   const [importError,  setImportError]  = useState(null);
+
   const [alUsername, setAlUsername] = useState("");
   const [alStatus,   setAlStatus]   = useState(null);
   const [alStats,    setAlStats]    = useState(null);
   const [alError,    setAlError]    = useState(null);
+
   const [avatarError,     setAvatarError]     = useState(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
+
   const [unlockedFrames, setUnlockedFrames] = useState([]);
   const [allFrames, setAllFrames]           = useState([]);
   const [activeFrame,    setActiveFrame]    = useState(null);
   const [framesLoading,  setFramesLoading]  = useState(true);
+
   useEffect(() => {
     (async () => {
       try {
@@ -64,10 +115,25 @@ export function SettingsView({ onClose }) {
       setFramesLoading(false);
     })();
   }, []);
+
   const applyFrame = async (frame) => {
     setActiveFrame(frame);
     saveMe({ ...me, activeFrame: frame?.id || null });
   };
+
+  const handleSaveUsername = () => {
+    const name = usernameInput.trim();
+    if(!name || name === me.name) return;
+    saveMe({ ...me, name });
+    setUsernameSaved(true);
+    setTimeout(() => setUsernameSaved(false), 2000);
+  };
+
+  const handleDeleteAccount = () => {
+    setDeleteNotice(true);
+    setTimeout(() => setDeleteNotice(false), 3000);
+  };
+
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
     if(!file) return;
@@ -82,6 +148,7 @@ export function SettingsView({ onClose }) {
     setAvatarUploading(false);
     e.target.value = "";
   };
+
   const mergeImport = ({ watched, ratings, statuses }) => {
     saveMe({
       ...me,
@@ -90,6 +157,7 @@ export function SettingsView({ onClose }) {
       statuses: { ...(me.statuses||{}),     ...statuses },
     });
   };
+
   const handleXmlImportFixed = (e) => {
     const file = e.target.files?.[0]; if(!file) return;
     setImportStatus("importing"); setImportError(null);
@@ -104,6 +172,7 @@ export function SettingsView({ onClose }) {
     };
     reader.readAsText(file);
   };
+
   const handleAniListImport = async () => {
     setAlStatus("importing"); setAlError(null);
     try {
@@ -114,15 +183,63 @@ export function SettingsView({ onClose }) {
       setAlStatus("done");
     } catch(err) { setAlError(err.message); setAlStatus("error"); }
   };
+
   const currentAvatar = me.avatar?.startsWith?.("http") ? me.avatar : null;
+
   return (
-    <div className="fixed inset-0 z-400 flex flex-col backdrop-blur-2xl" style={{ background:"rgba(7,11,23,.92)" }}>
+    <div className="fixed inset-0 z-400 flex flex-col backdrop-blur-2xl" style={{ background:"var(--overlay)" }}>
       <div className="flex items-center gap-3 border-b border-white/6 px-6 py-4">
         <button onClick={onClose} className="text-xl text-slate-400">←</button>
-        <span className="text-base font-black text-slate-100">Paramètres</span>
+        <span className="text-base font-black text-slate-100">{t.title}</span>
       </div>
+
       <div className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto px-6 py-6">
-        <Section title="🖼 Avatar">
+
+        <TabBar tabs={CATEGORY_TABS} active={category} onChange={setCategory} className="mb-6" />
+
+        {/* ─── PRÉFÉRENCES ─── */}
+        {category === "preferences" && <>
+        <Section title={t.appearance}>
+          <div className="grid grid-cols-2 gap-3">
+            {["dark","light"].map(id => {
+              const active = theme === id;
+              const label = id === "dark" ? t.themeDark : t.themeLight;
+              const desc  = id === "dark" ? t.themeDarkDesc : t.themeLightDesc;
+              return (
+                <button key={id} onClick={() => setTheme(id)}
+                  className="flex flex-col items-center gap-2 rounded-xl p-2.5 text-center transition"
+                  style={{ border: active ? "2px solid #7c3aed" : "2px solid transparent", background: active ? "rgba(124,58,237,0.1)" : "rgba(var(--fg-rgb),0.03)" }}>
+                  <ThemePreview id={id} />
+                  <div>
+                    <div className="text-xs font-bold text-slate-100">{label}</div>
+                    <div className="text-[10px] text-slate-500">{desc}</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </Section>
+
+        <Section title={t.language}>
+          <div className="grid grid-cols-2 gap-3">
+            {LANG_OPTIONS.map(opt => {
+              const active = lang === opt.id;
+              return (
+                <button key={opt.id} onClick={() => setLang(opt.id)}
+                  className="flex items-center justify-center gap-2 rounded-xl p-3 text-center transition"
+                  style={{ border: active ? "2px solid #7c3aed" : "2px solid transparent", background: active ? "rgba(124,58,237,0.1)" : "rgba(var(--fg-rgb),0.03)" }}>
+                  <span className="text-xl">{opt.flag}</span>
+                  <span className="text-xs font-bold text-slate-100">{opt.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </Section>
+        </>}
+
+        {/* ─── PROFIL ─── */}
+        {category === "profile" && <>
+        <Section title={t.avatar}>
           <div className="flex items-center gap-5 mb-3">
             <div style={{width:72,height:72,borderRadius:"50%",overflow:"hidden",flexShrink:0,
               background:"linear-gradient(135deg,#7c3aed,#4f46e5)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32}}>
@@ -134,25 +251,44 @@ export function SettingsView({ onClose }) {
               <input ref={avatarRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleAvatarUpload} className="hidden"/>
               <button onClick={()=>avatarRef.current?.click()} disabled={avatarUploading}
                 className="w-full rounded-xl border-2 border-dashed border-violet-400/40 bg-violet-400/6 py-2.5 text-sm font-bold text-violet-300 disabled:opacity-50">
-                {avatarUploading ? "Traitement…" : "📁 Uploader une image"}
+                {avatarUploading ? t.avatarUploading : t.avatarUpload}
               </button>
-              <p className="text-[10px] text-slate-600 text-center">JPG, PNG ou WebP · max 2 Mo</p>
+              <p className="text-[10px] text-slate-600 text-center">{t.avatarHint}</p>
               {me.avatar?.startsWith?.("http") && !me.avatar?.includes?.("googleusercontent") && (
                 <button onClick={()=>saveMe({...me, avatar: null})}
                   className="w-full rounded-xl border border-red-400/20 bg-red-400/6 py-2 text-xs font-bold text-red-400">
-                  Supprimer l'avatar personnalisé
+                  {t.avatarRemove}
                 </button>
               )}
               {me.avatar?.startsWith?.("http") && me.avatar?.includes?.("googleusercontent") && (
-                <p className="text-[10px] text-slate-500 text-center">Avatar Google actif — uploade une image pour le remplacer</p>
+                <p className="text-[10px] text-slate-500 text-center">{t.avatarGoogle}</p>
               )}
             </div>
           </div>
           {avatarError && <p className="text-xs text-red-400">{avatarError}</p>}
         </Section>
-        <Section title="🎖 Cadre de profil">
+
+        <Section title={t.username}>
+          <p className="mb-3 text-xs leading-relaxed text-slate-500">{t.usernameDesc}</p>
+          <div className="flex gap-2">
+            <input value={usernameInput} onChange={e=>setUsernameInput(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&handleSaveUsername()}
+              placeholder={t.usernamePlaceholder} maxLength={30}
+              className="flex-1 rounded-xl border border-white/10 bg-white/6 px-3.5 py-3 text-sm text-slate-100 outline-none"/>
+            <GradientButton onClick={handleSaveUsername} disabled={!usernameInput.trim()||usernameInput.trim()===me.name} className="shrink-0 px-4 py-3 text-[13px]">
+              {t.usernameSaveBtn}
+            </GradientButton>
+          </div>
+          {usernameSaved && (
+            <div className="mt-2.5 rounded-lg border border-emerald-400/20 bg-emerald-400/8 px-3 py-2.5 text-xs text-emerald-400">
+              {t.usernameSaved}
+            </div>
+          )}
+        </Section>
+
+        <Section title={t.frame}>
           {framesLoading ? (
-            <p className="text-xs text-slate-500 text-center py-2">Chargement des cadres…</p>
+            <p className="text-xs text-slate-500 text-center py-2">{t.framesLoading}</p>
           ) : (
             <>
               <button onClick={()=>applyFrame(null)}
@@ -161,14 +297,14 @@ export function SettingsView({ onClose }) {
                 <div style={{width:44,height:44,borderRadius:"50%",background:"rgba(255,255,255,0.05)",
                   border:"2px dashed rgba(255,255,255,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🚫</div>
                 <div>
-                  <div className="text-xs font-bold text-slate-100">Aucun cadre</div>
-                  <div className="text-[10px] text-slate-500">Avatar sans cadre</div>
+                  <div className="text-xs font-bold text-slate-100">{t.frameNone}</div>
+                  <div className="text-[10px] text-slate-500">{t.frameNoneDesc}</div>
                 </div>
               </button>
               {["watched","contribution","followers","genre","games"].map(cat => {
                 const catAllFrames = allFrames.filter(f=>f.category===cat);
                 if(!catAllFrames.length) return null;
-                const catLabels = {watched:"📺 Animés vus",contribution:"🗳️ Contribution",followers:"👥 Followers",genre:"🎌 Genre",games:"🎮 Jeux"};
+                const catLabels = {watched:t.frameCatWatched,contribution:t.frameCatContribution,followers:t.frameCatFollowers,genre:t.frameCatGenre,games:t.frameCatGames};
                 return (
                   <div key={cat} className="mb-4">
                     <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-600">{catLabels[cat]}</div>
@@ -180,7 +316,7 @@ export function SettingsView({ onClose }) {
                         return (
                           <button key={frame.id}
                             onClick={()=>isUnlocked && applyFrame(frame)}
-                            title={isUnlocked ? frame.label : `🔒 ${frame.label} — non débloqué`}
+                            title={isUnlocked ? frame.label : t.frameLocked(frame.label)}
                             style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:8,borderRadius:12,
                               cursor:isUnlocked?"pointer":"not-allowed",
                               border:isActive?"2px solid #7c3aed":"2px solid transparent",
@@ -212,69 +348,76 @@ export function SettingsView({ onClose }) {
             </>
           )}
         </Section>
-        <Section title="📥 Importer depuis AniList">
+        </>}
+
+        {/* ─── DONNÉES ─── */}
+        {category === "data" && <>
+        <Section title={t.importAnilist}>
           <p className="mb-3 text-xs leading-relaxed text-slate-500">
-            Entre ton pseudo AniList — ta liste doit être publique. Les notes seront synchronisées pour le système de notes AniMood.
-            Tu peux relancer l'import à tout moment (même pseudo) pour resynchroniser ta liste après l'avoir mise à jour sur AniList.
+            {t.importAnilistDesc}
           </p>
           <label htmlFor="anilist-username" className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            Pseudo AniList
+            {t.importAnilistLabel}
           </label>
           <div className="flex gap-2">
             <input id="anilist-username" value={alUsername} onChange={e=>setAlUsername(e.target.value)}
               onKeyDown={e=>e.key==="Enter"&&alUsername.trim()&&handleAniListImport()}
-              placeholder="ex : Josh" disabled={alStatus==="importing"}
+              placeholder={t.importAnilistPlaceholder} disabled={alStatus==="importing"}
               className="flex-1 rounded-xl border-2 border-violet-400/30 bg-white/6 px-3.5 py-3 text-sm text-slate-100 outline-none transition focus:border-violet-400/70 disabled:opacity-50"/>
             <GradientButton onClick={handleAniListImport} disabled={alStatus==="importing"||!alUsername.trim()} className="shrink-0 px-4 py-3 text-[13px]">
-              {alStatus==="importing" ? "…" : (alStatus==="done" ? "🔄 Réimporter" : "Importer")}
+              {alStatus==="importing" ? "…" : (alStatus==="done" ? t.importBtnReimport : t.importBtn)}
             </GradientButton>
           </div>
           {alStatus==="done" && alStats && (
             <div className="mt-2.5 rounded-lg border border-emerald-400/20 bg-emerald-400/8 px-3 py-2.5 text-xs text-emerald-400">
-              ✅ {alStats.watched} animés · {alStats.rated} notes synchronisées{alStats.skipped>0?` · ${alStats.skipped} ignorés`:""}
+              {t.importAnilistSuccess(alStats)}
             </div>
           )}
           {alStatus==="error" && (
             <div className="mt-2.5 rounded-lg border border-red-400/20 bg-red-400/8 px-3 py-2.5 text-xs text-red-400">❌ {alError}</div>
           )}
         </Section>
-        <Section title="📥 Importer un fichier XML (MyAnimeList)">
-          <p className="mb-3 text-xs leading-relaxed text-slate-500">Exporte ta liste MAL au format XML depuis ton profil et importe-la ici.</p>
+
+        <Section title={t.importXml}>
+          <p className="mb-3 text-xs leading-relaxed text-slate-500">{t.importXmlDesc}</p>
           <input ref={fileRef} type="file" accept=".xml" onChange={handleXmlImportFixed} className="hidden"/>
           <button onClick={()=>fileRef.current?.click()}
             className="w-full rounded-xl border-2 border-dashed border-indigo-400/40 bg-indigo-400/6 py-3.5 text-sm font-bold text-indigo-300">
-            {importStatus==="importing" ? "Import en cours…" : "📂 Choisir un fichier XML"}
+            {importStatus==="importing" ? t.importXmlBtnLoading : t.importXmlBtn}
           </button>
           {importStatus==="done" && importStats && (
             <div className="mt-2.5 rounded-lg border border-emerald-400/20 bg-emerald-400/8 px-3 py-2.5 text-xs text-emerald-400">
-              ✅ {importStats.watched} animés · {importStats.rated} notes
+              {t.importXmlSuccess(importStats)}
             </div>
           )}
           {importStatus==="error" && (
             <div className="mt-2.5 rounded-lg border border-red-400/20 bg-red-400/8 px-3 py-2.5 text-xs text-red-400">❌ {importError}</div>
           )}
         </Section>
-        <Section title="📊 Mes statistiques">
-          <div className="grid grid-cols-3 gap-2.5">
-            {[
-              {l:"Vus",    v:me.watched.length},
-              {l:"Notés",  v:Object.keys(me.ratings).length},
-              {l:"Moy.",   v:Object.keys(me.ratings).length
-                ? (Object.values(me.ratings).reduce((a,r)=>a+r.score,0)/Object.keys(me.ratings).length).toFixed(1)
-                : "—"},
-            ].map(s=>(
-              <div key={s.l} className="rounded-xl border border-white/7 bg-white/4 py-3 text-center">
-                <div className="text-xl font-black text-purple-300">{s.v}</div>
-                <div className="mt-0.5 text-[10px] text-slate-500">{s.l}</div>
-              </div>
-            ))}
-          </div>
-        </Section>
-        <Section title="🚪 Déconnexion">
+        </>}
+
+        {/* ─── COMPTE ─── */}
+        {category === "account" && <>
+        <Section title={t.logoutTitle}>
           <button onClick={logout} className="w-full rounded-xl border border-red-400/30 bg-red-400/6 py-3.5 text-sm font-bold text-red-400">
-            Se déconnecter
+            {t.logoutBtn}
           </button>
         </Section>
+
+        <Section title={t.deleteAccountTitle}>
+          <p className="mb-3 text-xs leading-relaxed text-slate-500">{t.deleteAccountDesc}</p>
+          <button onClick={handleDeleteAccount}
+            className="w-full rounded-xl border border-red-500/40 bg-red-500/10 py-3.5 text-sm font-bold text-red-400">
+            {t.deleteAccountBtn}
+          </button>
+          {deleteNotice && (
+            <div className="mt-2.5 rounded-lg border border-white/10 bg-white/6 px-3 py-2.5 text-xs text-slate-400">
+              {t.deleteAccountNotReady}
+            </div>
+          )}
+        </Section>
+        </>}
+
       </div>
     </div>
   );
