@@ -217,14 +217,17 @@ function PostComposer({ onPost }) {
   );
 }
 // ─── CommentSection ───────────────────────────────────────────────────────────
-function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommentAdded }) {
+function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommentAdded, onLoadProfiles }) {
   const [commentList, setCommentList] = useState(null);
   const [newComment, setNewComment] = useState("");
   const [posting, setPosting] = useState(false);
   const mention = useMentionAutocomplete(newComment, myUsername);
   useEffect(() => {
-    commentsApi.getForPost(postId).then(setCommentList).catch(()=>setCommentList([]));
-  }, [postId]);
+    commentsApi.getForPost(postId).then(rows => {
+      setCommentList(rows);
+      onLoadProfiles?.((rows||[]).map(c=>c.username));
+    }).catch(()=>setCommentList([]));
+  }, [postId]); // eslint-disable-line react-hooks/exhaustive-deps
   const handleComment = async () => {
     if(!newComment.trim() || posting) return;
     setPosting(true);
@@ -253,8 +256,11 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
           <Avatar profile={profileCache[c.username]||{avatar:"👤"}} size={26}/>
           <div style={{flex:1}}>
             <div style={{background:"rgba(var(--fg-rgb),0.04)",borderRadius:"0 10px 10px 10px",padding:"7px 10px"}}>
-              <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}>
-                <span style={{fontSize:11,fontWeight:800,color:"#c084fc"}}>@{c.username}</span>
+              <div style={{display:"flex",alignItems:"baseline",gap:5,marginBottom:3,flexWrap:"wrap"}}>
+                <span onClick={()=>onOpenUser?.(c.username)}
+                  style={{fontSize:11,fontWeight:800,color:"var(--text-1)",cursor:onOpenUser?"pointer":"default"}}>{profileCache[c.username]?.name||c.username}</span>
+                <span onClick={()=>onOpenUser?.(c.username)}
+                  style={{fontSize:10,color:"#c084fc",fontWeight:700,cursor:onOpenUser?"pointer":"default"}}>@{c.username}</span>
                 <span style={{fontSize:9,color:"var(--text-4)"}}>{timeAgo(c.created_at)}</span>
               </div>
               <p style={{fontSize:12,color:"var(--text-1)",margin:0,lineHeight:1.5}}><MentionText text={c.content} onOpenUser={onOpenUser}/></p>
@@ -294,7 +300,7 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
   );
 }
 // ─── PostCard ─────────────────────────────────────────────────────────────────
-function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser }) {
+function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoadProfiles }) {
   const [liked, setLiked] = useState((post.likes||[]).includes(myUsername));
   const [likeCount, setLikeCount] = useState((post.likes||[]).length);
   const [showComments, setShowComments] = useState(false);
@@ -322,10 +328,17 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser }) {
       padding:14,marginBottom:10,animation:"fadeIn 0.2s ease"}}>
       {/* Header */}
       <div style={{display:"flex",gap:10,marginBottom:10}}>
-        <Avatar profile={profile} size={36}/>
+        <div onClick={()=>onOpenUser?.(post.username)} style={{cursor:onOpenUser?"pointer":"default"}}>
+          <Avatar profile={profile} size={36}/>
+        </div>
         <div style={{flex:1}}>
           <div style={{display:"flex",alignItems:"baseline",gap:6,flexWrap:"wrap"}}>
-            <span style={{fontSize:13,fontWeight:800,color:"#c084fc"}}>@{post.username}</span>
+            <span onClick={()=>onOpenUser?.(post.username)}
+              style={{fontSize:13,fontWeight:800,color:"var(--text-1)",cursor:onOpenUser?"pointer":"default"}}
+              onMouseEnter={e=>{if(onOpenUser)e.currentTarget.style.textDecoration="underline";}}
+              onMouseLeave={e=>{e.currentTarget.style.textDecoration="none";}}>{profile.name||post.username}</span>
+            <span onClick={()=>onOpenUser?.(post.username)}
+              style={{fontSize:11,color:"#c084fc",fontWeight:700,cursor:onOpenUser?"pointer":"default"}}>@{post.username}</span>
             <span style={{fontSize:10,color:"var(--text-4)"}}>{timeAgo(post.created_at)}</span>
             {post.spoiler && <span style={{fontSize:9,fontWeight:700,color:"#ef4444",background:"rgba(239,68,68,0.1)",borderRadius:4,padding:"1px 5px"}}>SPOILER</span>}
           </div>
@@ -388,7 +401,7 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser }) {
         </button>
       </div>
       {showComments && <CommentSection postId={post.id} myUsername={myUsername}
-        profileCache={profileCache} onOpenUser={onOpenUser} onCommentAdded={handleCommentAdded}/>}
+        profileCache={profileCache} onOpenUser={onOpenUser} onCommentAdded={handleCommentAdded} onLoadProfiles={onLoadProfiles}/>}
     </div>
   );
 }
@@ -406,7 +419,7 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
     const missing = usernames.filter(u => !profileCache[u]);
     if(!missing.length) return;
     try {
-      const rows = await sb.query(`profiles?username=in.(${missing.map(u=>encodeURIComponent(u)).join(",")})&select=username,avatar,avatar_base64`);
+      const rows = await sb.query(`profiles?username=in.(${missing.map(u=>encodeURIComponent(u)).join(",")})&select=username,name,avatar,avatar_base64`);
       if(rows?.length) {
         const newCache = {};
         rows.forEach(r => { newCache[r.username] = r; });
@@ -485,7 +498,7 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
       )}
       {feed.map(post => (
         <PostCard key={post.id||post.created_at} post={post} myUsername={myUsername}
-          profileCache={profileCache} onDelete={handleDelete} onOpenUser={onOpenUser}/>
+          profileCache={profileCache} onDelete={handleDelete} onOpenUser={onOpenUser} onLoadProfiles={loadProfiles}/>
       ))}
       {hasMore && feed.length>0 && (
         <button onClick={()=>loadFeed(false)} disabled={loading}

@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { dm } from "../api/supabase.js";
+import { dm, sb } from "../api/supabase.js";
 import { useApp } from "../context/useApp.js";
 import { Modal } from "./Modal.jsx";
 import { Spinner } from "./Spinner.jsx";
+import { Avatar } from "./Avatar.jsx";
 import { timeAgo } from "./ForumThreadModal.jsx";
 import { GRADIENT_PRIMARY } from "../constants/theme.js";
 
@@ -13,10 +14,19 @@ export function ChatModal({ username, peer, onClose }) {
   const { markRead, blockedUsers } = useApp();
   const isBlocked = blockedUsers?.has(peer);
   const [messages, setMessages]     = useState([]);
+  const [peerProfile, setPeerProfile] = useState(null);
   const [loading, setLoading]       = useState(true);
   const [draft, setDraft]           = useState("");
   const [sending, setSending]       = useState(false);
   const bottomRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    sb.query(`profiles?username=eq.${encodeURIComponent(peer)}&select=username,name,avatar,avatar_base64&limit=1`)
+      .then(rows => { if(!cancelled && rows?.[0]) setPeerProfile(rows[0]); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [peer]);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,8 +57,12 @@ export function ChatModal({ username, peer, onClose }) {
 
   return (
     <Modal onClose={onClose} maxWidth="max-w-lg" bodyClassName="flex flex-col">
-      <div className="px-5 py-3.5" style={{ background: GRADIENT_PRIMARY }}>
-        <div className="text-[13px] font-black text-white">💬 @{peer}</div>
+      <div className="flex items-center gap-2.5 px-5 py-3" style={{ background: GRADIENT_PRIMARY }}>
+        <Avatar profile={peerProfile} size={32} fallback={peer.slice(0,2).toUpperCase()} className="text-xs bg-white/15 text-white"/>
+        <div className="min-w-0">
+          <div className="truncate text-[13px] font-black text-white">{peerProfile?.name || peer}</div>
+          <div className="truncate text-[10.5px] text-white/70">@{peer}</div>
+        </div>
       </div>
 
       <div className="flex max-h-[55vh] min-h-[40vh] flex-col gap-2 overflow-y-auto p-4">

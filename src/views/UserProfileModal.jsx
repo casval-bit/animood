@@ -36,6 +36,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
   const isOwnProfile = myUsername === username.toLowerCase();
   const isBlocked = blockedUsers?.has(username);
   const [blockLoading, setBlockLoading] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   const [profile, setProfile]         = useState(null);
   const [tab, setTab]                 = useState("profile");
@@ -124,7 +125,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
       if(isBlocked) await unblockUser(username);
       else { await blockUser(username); if(isFollowing) { await follows.unfollow(myUsername, username); setIsFollowing(false); } }
     } catch(e) { console.error(e); }
-    finally { setBlockLoading(false); }
+    finally { setBlockLoading(false); setShowMoreMenu(false); }
   };
 
   const handleFollow = async () => {
@@ -163,8 +164,8 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
             <FrameSVG frame={profile.activeFrame ? FRAMES[profile.activeFrame] : null} size={72}>
               <div className="flex h-18 w-18 items-center justify-center overflow-hidden rounded-full text-3xl"
                 style={{background:GRADIENT_PRIMARY, width:72, height:72}}>
-                {profile.avatar?.startsWith?.("http")
-                  ? <img src={profile.avatar} alt={profile.name} className="h-full w-full object-cover"/>
+                {(profile.avatar_base64 || (profile.avatar?.startsWith?.("http") ? profile.avatar : null))
+                  ? <img src={profile.avatar_base64 || profile.avatar} alt={profile.name} className="h-full w-full object-cover"/>
                   : (profile.avatar||"👤")}
               </div>
             </FrameSVG>
@@ -178,9 +179,9 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
               </div>
             </div>
             {!isOwnProfile && (
-              <div className="flex shrink-0 flex-col gap-2">
+              <div className="flex shrink-0 items-start gap-1.5">
                 {!isBlocked && (
-                  <>
+                  <div className="flex flex-col gap-2">
                     <button onClick={handleFollow} disabled={followLoading}
                       className="rounded-full px-4 py-2 text-[13px] font-bold transition"
                       style={{border:isFollowing?"1px solid rgba(var(--fg-rgb),0.15)":"none",
@@ -193,15 +194,26 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
                       className="rounded-full border border-white/15 px-4 py-2 text-[13px] font-bold text-slate-300 transition hover:bg-white/5">
                       💬 Message
                     </button>
-                  </>
+                  </div>
                 )}
-                <button onClick={handleBlock} disabled={blockLoading}
-                  className="rounded-full px-4 py-2 text-[13px] font-bold transition"
-                  style={{border:"1px solid rgba(248,113,113,0.3)",
-                    background:isBlocked?"rgba(248,113,113,0.12)":"transparent",
-                    color:"#f87171"}}>
-                  {blockLoading?"…":isBlocked?"Débloquer":"🚫 Bloquer"}
-                </button>
+                <div className="relative">
+                  <button onClick={()=>setShowMoreMenu(p=>!p)} title="Plus d'options"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-white/8 hover:text-slate-300">
+                    ⋯
+                  </button>
+                  {showMoreMenu && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={()=>setShowMoreMenu(false)}/>
+                      <div className="absolute right-0 top-9 z-20 min-w-[150px] overflow-hidden rounded-xl border border-white/10 py-1 shadow-xl"
+                        style={{background:"var(--surface-1-strong)"}}>
+                        <button onClick={handleBlock} disabled={blockLoading}
+                          className="block w-full px-3.5 py-2 text-left text-[12.5px] font-semibold text-slate-400 transition hover:bg-white/6 hover:text-red-400">
+                          {blockLoading?"…":isBlocked?"Débloquer":"🚫 Bloquer @"+username}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             )}
           </div>

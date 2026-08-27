@@ -8,6 +8,7 @@ import { useApp } from "../context/useApp.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { NewThreadModal, ThreadModal, TagPill, timeAgo } from "../components/ForumThreadModal.jsx";
+import { Avatar } from "../components/Avatar.jsx";
 import { MoodOctagon } from "../components/MoodOctagon.jsx";
 import { WordleGame, PosterGame } from "../components/MiniGames.jsx";
 import { Matchmaking, ChainGame, TimelineGame } from "../components/GameSystem.jsx";
@@ -190,7 +191,7 @@ function CommunityMoodBlock({ loaded, counts, total }) {
 }
 
 // ─── Real discussions — threads + reply counts, no reactions/pagination ───────
-function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, onOpenThread, onNewThread }) {
+function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, profileCache, onOpenThread, onNewThread }) {
   return (
     <div className={`mb-6 overflow-hidden ${GLASS}`} style={GLASS_STYLE}>
       <div className="flex items-center justify-between px-5 py-3.5" style={{ background: GRADIENT_PRIMARY }}>
@@ -213,17 +214,19 @@ function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, onOpenTh
         <div>
           {threads.map(t => {
             const unread = unreadCounts[t.id] || 0;
+            const profile = profileCache[t.username];
             return (
               <button
                 key={t.id} onClick={() => onOpenThread(t)}
                 className="flex w-full items-start gap-3 border-b border-white/6 px-5 py-3.5 text-left transition last:border-b-0 hover:bg-white/5"
               >
+                <Avatar profile={profile} size={36} fallback={t.username.slice(0,2).toUpperCase()} className="mt-0.5 text-[11px]"/>
                 {t.image_url && (
                   <img src={t.image_url} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" onError={e=>{e.target.style.display="none";}} />
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13.5px] font-bold text-slate-100">💬 {t.title}</div>
-                  <div className="mb-1 truncate text-[11px] text-slate-500">@{t.username} · {timeAgo(t.created_at)}</div>
+                  <div className="mb-1 truncate text-[11px] text-slate-500">{profile?.name || t.username} · @{t.username} · {timeAgo(t.created_at)}</div>
                   {t.tags?.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {t.tags.map(id => <TagPill key={id} id={id} />)}
@@ -268,6 +271,7 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
   const [threads, setThreads]         = useState([]);
   const [replyCounts, setReplyCounts] = useState({});
   const [threadsLoaded, setThreadsLoaded] = useState(false);
+  const [profileCache, setProfileCache] = useState({});
   const [showNewThread, setShowNewThread] = useState(false);
   const [openThread, setOpenThread]       = useState(null);
   const [showWordle, setShowWordle]       = useState(false);
@@ -359,6 +363,17 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
       setThreads(visible);
       const counts = await sb.getReplyCounts(visible.map(r => r.id));
       if(!cancelled) setReplyCounts(counts);
+      const usernames = [...new Set(visible.map(t => t.username))];
+      if(usernames.length) {
+        try {
+          const profs = await sb.query(`profiles?username=in.(${usernames.map(u=>encodeURIComponent(u)).join(",")})&select=username,name,avatar,avatar_base64`);
+          if(!cancelled && profs?.length) {
+            const cache = {};
+            profs.forEach(p => { cache[p.username] = p; });
+            setProfileCache(cache);
+          }
+        } catch {}
+      }
     }).finally(() => { if(!cancelled) setThreadsLoaded(true); });
     return () => { cancelled = true; };
   }, [myUsername, blockedUsers]);
@@ -385,7 +400,7 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
           <div className="min-w-0 flex-1">
             <DiscussionsBlock
               threads={threads} replyCounts={replyCounts} unreadCounts={unreadCounts} loaded={threadsLoaded}
-              onOpenThread={openThreadRead} onNewThread={() => setShowNewThread(true)}
+              profileCache={profileCache} onOpenThread={openThreadRead} onNewThread={() => setShowNewThread(true)}
             />
             <AnticipatedCard anime={mostAnticipated} airedDates={airedDates} onOpenDetail={onOpenDetail} />
 
