@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ThemeProvider } from "./context/ThemeProvider.jsx";
+import { LangProvider } from "./context/LangProvider.jsx";
 import { AppProvider } from "./context/AppProvider.jsx";
 import { useApp } from "./context/useApp.js";
 import { Header } from "./components/Header.jsx";
@@ -72,9 +73,11 @@ function Shell() {
 export default function App() {
   return (
     <ThemeProvider>
-      <AppProvider>
-        <Shell />
-      </AppProvider>
+      <LangProvider>
+        <AppProvider>
+          <Shell />
+        </AppProvider>
+      </LangProvider>
     </ThemeProvider>
   );
 }
