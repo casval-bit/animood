@@ -9,7 +9,7 @@ import { timeAgo } from "../components/ForumThreadModal.jsx";
 import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY } from "../constants/theme.js";
 
 export function MessagesView() {
-  const { myUsername, unreadPeers, markRead } = useApp();
+  const { myUsername, unreadPeers, markRead, blockedUsers } = useApp();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [openPeer, setOpenPeer] = useState(null);
@@ -17,9 +17,11 @@ export function MessagesView() {
 
   useEffect(() => {
     let cancelled = false;
-    dm.listConversations(myUsername).then(rows => { if(!cancelled) setConversations(rows); }).finally(() => { if(!cancelled) setLoading(false); });
+    dm.listConversations(myUsername).then(rows => {
+      if(!cancelled) setConversations(blockedUsers?.size ? rows.filter(c => !blockedUsers.has(c.peer)) : rows);
+    }).finally(() => { if(!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [myUsername]);
+  }, [myUsername, blockedUsers]);
 
   const startChat = (username) => { setNewChat(false); setOpenPeer(username); };
 

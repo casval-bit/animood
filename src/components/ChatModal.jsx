@@ -10,7 +10,8 @@ const INPUT = "flex-1 rounded-full border border-white/12 bg-white/7 px-4 py-2.5
 
 // ─── 1:1 chat with a friend — message bubbles + send box, polls while open ────
 export function ChatModal({ username, peer, onClose }) {
-  const { markRead } = useApp();
+  const { markRead, blockedUsers } = useApp();
+  const isBlocked = blockedUsers?.has(peer);
   const [messages, setMessages]     = useState([]);
   const [loading, setLoading]       = useState(true);
   const [draft, setDraft]           = useState("");
@@ -72,20 +73,26 @@ export function ChatModal({ username, peer, onClose }) {
         <div ref={bottomRef} />
       </div>
 
-      <div className="flex gap-2 border-t border-white/6 p-3">
-        <input
-          value={draft} onChange={e => setDraft(e.target.value)} maxLength={2000}
-          onKeyDown={e => { if(e.key === "Enter" && !sending) send(); }}
-          placeholder="Écrire un message…" className={INPUT}
-        />
-        <button
-          onClick={send} disabled={sending || !draft.trim()}
-          className="shrink-0 rounded-full px-4 py-2.5 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
-          style={{ background: GRADIENT_PRIMARY }}
-        >
-          {sending ? "…" : "Envoyer"}
-        </button>
-      </div>
+      {isBlocked ? (
+        <div className="border-t border-white/6 p-4 text-center text-xs text-slate-500">
+          🚫 Tu as bloqué @{peer} — débloque-le depuis son profil pour lui écrire.
+        </div>
+      ) : (
+        <div className="flex gap-2 border-t border-white/6 p-3">
+          <input
+            value={draft} onChange={e => setDraft(e.target.value)} maxLength={2000}
+            onKeyDown={e => { if(e.key === "Enter" && !sending) send(); }}
+            placeholder="Écrire un message…" className={INPUT}
+          />
+          <button
+            onClick={send} disabled={sending || !draft.trim()}
+            className="shrink-0 rounded-full px-4 py-2.5 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
+            style={{ background: GRADIENT_PRIMARY }}
+          >
+            {sending ? "…" : "Envoyer"}
+          </button>
+        </div>
+      )}
     </Modal>
   );
 }

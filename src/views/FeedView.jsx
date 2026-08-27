@@ -394,7 +394,7 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser }) {
 }
 // ─── FEED VIEW ────────────────────────────────────────────────────────────────
 export function FeedView({ onOpenDetail, onOpenUser }) {
-  const { me, myUsername } = useApp();
+  const { me, myUsername, blockedUsers } = useApp();
   const [feed, setFeed]           = useState([]);
   const [loading, setLoading]     = useState(true);
   const [channel, setChannel]     = useState("general");
@@ -429,6 +429,7 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
         const seasonFilter = RECENT_SEASONS.map(s=>`anime_season_label.eq.${encodeURIComponent(s)}`).join(",");
         url = `posts?select=*&or=(${seasonFilter})&order=created_at.desc&limit=${LIMIT}&offset=${currentOffset}`;
       }
+      if(blockedUsers?.size) url += `&username=not.in.(${[...blockedUsers].map(u=>encodeURIComponent(u)).join(",")})`;
       const rows = await sb.query(url);
       const newPosts = rows || [];
       if(reset) { setFeed(newPosts); setOffset(LIMIT); }

@@ -32,8 +32,10 @@ function timeAgo(ts) {
 }
 
 export function UserProfileModal({ username, onClose, onOpenDetail }) {
-  const { myUsername } = useApp();
+  const { myUsername, blockedUsers, blockUser, unblockUser } = useApp();
   const isOwnProfile = myUsername === username.toLowerCase();
+  const isBlocked = blockedUsers?.has(username);
+  const [blockLoading, setBlockLoading] = useState(false);
 
   const [profile, setProfile]         = useState(null);
   const [tab, setTab]                 = useState("profile");
@@ -116,6 +118,15 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
     });
   }, [profile]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleBlock = async () => {
+    setBlockLoading(true);
+    try {
+      if(isBlocked) await unblockUser(username);
+      else { await blockUser(username); if(isFollowing) { await follows.unfollow(myUsername, username); setIsFollowing(false); } }
+    } catch(e) { console.error(e); }
+    finally { setBlockLoading(false); }
+  };
+
   const handleFollow = async () => {
     setFollowLoading(true);
     try {
@@ -168,17 +179,28 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
             </div>
             {!isOwnProfile && (
               <div className="flex shrink-0 flex-col gap-2">
-                <button onClick={handleFollow} disabled={followLoading}
+                {!isBlocked && (
+                  <>
+                    <button onClick={handleFollow} disabled={followLoading}
+                      className="rounded-full px-4 py-2 text-[13px] font-bold transition"
+                      style={{border:isFollowing?"1px solid rgba(var(--fg-rgb),0.15)":"none",
+                        background:isFollowing?"transparent":GRADIENT_PRIMARY,
+                        color:isFollowing?"var(--text-2)":"#fff",
+                        boxShadow:isFollowing?"none":"0 8px 24px rgba(109,91,255,.35)"}}>
+                      {followLoading?"…":isFollowing?"Suivi ✓":"Suivre"}
+                    </button>
+                    <button onClick={()=>setShowChat(true)}
+                      className="rounded-full border border-white/15 px-4 py-2 text-[13px] font-bold text-slate-300 transition hover:bg-white/5">
+                      💬 Message
+                    </button>
+                  </>
+                )}
+                <button onClick={handleBlock} disabled={blockLoading}
                   className="rounded-full px-4 py-2 text-[13px] font-bold transition"
-                  style={{border:isFollowing?"1px solid rgba(var(--fg-rgb),0.15)":"none",
-                    background:isFollowing?"transparent":GRADIENT_PRIMARY,
-                    color:isFollowing?"var(--text-2)":"#fff",
-                    boxShadow:isFollowing?"none":"0 8px 24px rgba(109,91,255,.35)"}}>
-                  {followLoading?"…":isFollowing?"Suivi ✓":"Suivre"}
-                </button>
-                <button onClick={()=>setShowChat(true)}
-                  className="rounded-full border border-white/15 px-4 py-2 text-[13px] font-bold text-slate-300 transition hover:bg-white/5">
-                  💬 Message
+                  style={{border:"1px solid rgba(248,113,113,0.3)",
+                    background:isBlocked?"rgba(248,113,113,0.12)":"transparent",
+                    color:"#f87171"}}>
+                  {blockLoading?"…":isBlocked?"Débloquer":"🚫 Bloquer"}
                 </button>
               </div>
             )}

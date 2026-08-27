@@ -56,6 +56,10 @@ export const SETTINGS_I18N = {
     logoutTitle: "🚪 Déconnexion",
     logoutBtn: "Se déconnecter",
 
+    blockedUsers: "🚫 Utilisateurs bloqués",
+    blockedUsersEmpty: "Aucun utilisateur bloqué.",
+    unblockBtn: "Débloquer",
+
     deleteAccountTitle: "⚠️ Supprimer le compte",
     deleteAccountDesc: "Cette action supprimera définitivement ton compte et toutes tes données. Irréversible.",
     deleteAccountBtn: "Supprimer mon compte",
@@ -118,6 +122,10 @@ export const SETTINGS_I18N = {
 
     logoutTitle: "🚪 Log out",
     logoutBtn: "Log out",
+
+    blockedUsers: "🚫 Blocked users",
+    blockedUsersEmpty: "No blocked users.",
+    unblockBtn: "Unblock",
 
     deleteAccountTitle: "⚠️ Delete account",
     deleteAccountDesc: "This will permanently delete your account and all your data. Irreversible.",
