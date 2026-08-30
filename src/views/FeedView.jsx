@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/useApp.js";
 import { sb, posts as postsApi, comments as commentsApi, follows } from "../api/supabase.js";
+import { dispatchPostEvent, addPostEventListener } from "../utils/postEvents.js";
 import { uploadToCloudinary } from "../api/cloudinary.js";
 import { jikan } from "../api/jikan.js";
 import { MentionText, useMentionAutocomplete, MentionSuggestions } from "../components/Mentions.jsx";
@@ -104,6 +105,7 @@ function PostComposer({ onPost }) {
   const [imageUrl, setImageUrl] = useState(null);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState(null);
+  const [poll, setPoll] = useState(null); // null or {options:["",""], multi:false}
   const imageInputRef = useRef(null);
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -121,7 +123,7 @@ function PostComposer({ onPost }) {
   };
   const profile = { avatar: me.avatar, avatar_base64: me.avatar_base64 };
   const remaining = 280 - content.length;
-  const canPost = content.trim().length > 0 && !posting && !imageUploading;
+  const canPost = (content.trim().length > 0 || poll) && !posting && !imageUploading;
   const mention = useMentionAutocomplete(content, myUsername);
   const handlePost = async () => {
     if(!canPost) return;
@@ -143,8 +145,25 @@ function PostComposer({ onPost }) {
         created_at: new Date().toISOString(),
       };
       const result = await postsApi.create(post);
-      setContent(""); setSpoiler(false); setLinkedAnime(null); setImageUrl(null);
-      onPost?.(result?.[0] || post);
+      const createdPost = result?.[0] || post;
+      // Create poll if set
+      if(poll && createdPost.id) {
+        const validOptions = poll.options.filter(o=>o.trim());
+        if(validOptions.length >= 2) {
+          await sb.query("polls", {
+            method: "POST",
+            headers: { ...sb.headers, "Prefer": "return=minimal" },
+            body: JSON.stringify({
+              post_id: createdPost.id,
+              options: validOptions.map((text,i)=>({id:String(i+1),text,votes:[]})),
+              multi: poll.multi,
+            }),
+          }).catch(()=>{});
+          createdPost.has_poll = true;
+        }
+      }
+      setContent(""); setSpoiler(false); setLinkedAnime(null); setImageUrl(null); setPoll(null);
+      onPost?.(createdPost);
     } catch(e) { console.error(e); }
     setPosting(false);
   };
@@ -179,6 +198,47 @@ function PostComposer({ onPost }) {
                 style={{background:"none",border:"none",color:"var(--text-3)",cursor:"pointer",fontSize:14}}>✕</button>
             </div>
           )}
+          {/* Poll builder */}
+          {poll && (
+            <div style={{marginBottom:10,padding:"10px 12px",borderRadius:10,
+              background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <span style={{fontSize:11,fontWeight:800,color:"#c084fc"}}>📊 Sondage</span>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <label style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:"var(--text-3)",cursor:"pointer"}}>
+                    <input type="checkbox" checked={poll.multi} onChange={e=>setPoll(p=>({...p,multi:e.target.checked}))}/>
+                    Choix multiple
+                  </label>
+                  <button onClick={()=>setPoll(null)}
+                    style={{background:"none",border:"none",color:"var(--text-4)",cursor:"pointer",fontSize:13}}>✕</button>
+                </div>
+              </div>
+              {poll.options.map((opt,i)=>(
+                <div key={i} style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+                  <input value={opt} onChange={e=>{
+                    const opts = [...poll.options];
+                    opts[i] = e.target.value;
+                    setPoll(p=>({...p,options:opts}));
+                  }}
+                    placeholder={`Option ${i+1}`}
+                    maxLength={80}
+                    style={{flex:1,padding:"6px 10px",borderRadius:8,
+                      background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",
+                      color:"var(--text-1)",fontSize:12,outline:"none"}}/>
+                  {poll.options.length > 2 && (
+                    <button onClick={()=>setPoll(p=>({...p,options:p.options.filter((_,j)=>j!==i)}))}
+                      style={{background:"none",border:"none",color:"var(--text-4)",cursor:"pointer",fontSize:12}}>✕</button>
+                  )}
+                </div>
+              ))}
+              {poll.options.length < 6 && (
+                <button onClick={()=>setPoll(p=>({...p,options:[...p.options,""]}))}
+                  style={{fontSize:11,color:"#c084fc",background:"none",border:"none",cursor:"pointer",padding:"4px 0",fontWeight:700}}>
+                  + Ajouter une option
+                </button>
+              )}
+            </div>
+          )}
           <div style={{display:"flex",alignItems:"center",gap:8,borderTop:"1px solid rgba(var(--fg-rgb),0.06)",paddingTop:10}}>
             <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{display:"none"}}/>
             <button onClick={()=>imageInputRef.current?.click()} disabled={imageUploading}
@@ -200,6 +260,13 @@ function PostComposer({ onPost }) {
                 border:`1px solid ${spoiler?"rgba(239,68,68,0.3)":"rgba(var(--fg-rgb),0.1)"}`,
                 color:spoiler?"#ef4444":"var(--text-2)",fontSize:11,fontWeight:700,cursor:"pointer"}}>
               ⚠️ Spoiler
+            </button>
+            <button onClick={()=>!poll && setPoll({options:["",""],multi:false})}
+              style={{padding:"5px 10px",borderRadius:8,
+                background:poll?"rgba(124,58,237,0.15)":"rgba(var(--fg-rgb),0.05)",
+                border:`1px solid ${poll?"rgba(124,58,237,0.3)":"rgba(var(--fg-rgb),0.1)"}`,
+                color:poll?"#c084fc":"var(--text-2)",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+              📊 Sondage
             </button>
             <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10}}>
               <span style={{fontSize:11,color:remaining<20?"#ef4444":"var(--text-3)",fontWeight:600}}>{remaining}</span>
@@ -293,6 +360,107 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
     </div>
   );
 }
+// ─── PollDisplay ──────────────────────────────────────────────────────────────
+function PollDisplay({ postId, myUsername }) {
+  const [poll, setPoll] = useState(null);
+  const [voted, setVoted] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    sb.query(`polls?post_id=eq.${postId}&limit=1`)
+      .then(rows => {
+        if(rows?.[0]) {
+          setPoll(rows[0]);
+          // Check if already voted
+          const alreadyVoted = rows[0].options.some(o=>(o.votes||[]).includes(myUsername));
+          setVoted(alreadyVoted);
+        }
+      })
+      .catch(()=>{})
+      .finally(()=>setLoading(false));
+  }, [postId, myUsername]);
+
+  const vote = async (optionId) => {
+    if(!poll || voted) return;
+    if(!poll.multi) {
+      // Single vote — add username to chosen option
+      const newOptions = poll.options.map(o=>
+        o.id === optionId ? {...o, votes:[...(o.votes||[]), myUsername]} : o
+      );
+      const updated = {...poll, options: newOptions};
+      setPoll(updated);
+      setVoted(true);
+      await sb.query(`polls?id=eq.${poll.id}`, {
+        method: "PATCH",
+        headers: { ...sb.headers, "Prefer": "return=minimal" },
+        body: JSON.stringify({ options: newOptions }),
+      }).catch(()=>{});
+    } else {
+      // Multi vote — toggle
+      const alreadyVotedThis = poll.options.find(o=>o.id===optionId)?.votes?.includes(myUsername);
+      const newOptions = poll.options.map(o=>
+        o.id === optionId
+          ? {...o, votes: alreadyVotedThis ? (o.votes||[]).filter(u=>u!==myUsername) : [...(o.votes||[]), myUsername]}
+          : o
+      );
+      const updated = {...poll, options: newOptions};
+      setPoll(updated);
+      // For multi, voted = at least one selected
+      const hasVoted = newOptions.some(o=>(o.votes||[]).includes(myUsername));
+      setVoted(hasVoted);
+      await sb.query(`polls?id=eq.${poll.id}`, {
+        method: "PATCH",
+        headers: { ...sb.headers, "Prefer": "return=minimal" },
+        body: JSON.stringify({ options: newOptions }),
+      }).catch(()=>{});
+    }
+  };
+
+  if(loading || !poll) return null;
+
+  const totalVotes = poll.options.reduce((sum,o)=>sum+(o.votes||[]).length, 0);
+
+  return (
+    <div style={{marginBottom:10,borderRadius:10,overflow:"hidden",
+      border:"1px solid rgba(124,58,237,0.2)",background:"rgba(124,58,237,0.04)"}}>
+      {poll.multi && !voted && (
+        <div style={{padding:"6px 12px",fontSize:10,color:"#c084fc",borderBottom:"1px solid rgba(124,58,237,0.1)"}}>
+          📊 Choix multiple — vote pour plusieurs options
+        </div>
+      )}
+      {poll.options.map(opt=>{
+        const count = (opt.votes||[]).length;
+        const pct = totalVotes > 0 ? Math.round(count/totalVotes*100) : 0;
+        const myVote = (opt.votes||[]).includes(myUsername);
+        return (
+          <div key={opt.id} style={{padding:"8px 12px",
+            borderBottom:"1px solid rgba(255,255,255,0.04)",position:"relative",overflow:"hidden",
+            cursor:voted?"default":"pointer",
+            background:myVote?"rgba(124,58,237,0.1)":"transparent"}}
+            onClick={()=>!voted && vote(opt.id)}>
+            {/* Progress bar — only shown after vote */}
+            {voted && (
+              <div style={{position:"absolute",inset:0,background:"rgba(124,58,237,0.12)",
+                width:`${pct}%`,transition:"width 0.5s ease",pointerEvents:"none"}}/>
+            )}
+            <div style={{position:"relative",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontSize:13,color:myVote?"#c084fc":"var(--text-1)",fontWeight:myVote?700:400}}>
+                {myVote && "✓ "}{opt.text}
+              </span>
+              {voted && (
+                <span style={{fontSize:11,fontWeight:800,color:"#c084fc"}}>{pct}%</span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+      <div style={{padding:"5px 12px",fontSize:10,color:"var(--text-4)",textAlign:"right"}}>
+        {totalVotes} vote{totalVotes!==1?"s":""}
+      </div>
+    </div>
+  );
+}
+
 // ─── PostCard ─────────────────────────────────────────────────────────────────
 function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser }) {
   const [liked, setLiked] = useState((post.likes||[]).includes(myUsername));
@@ -304,7 +472,9 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser }) {
   const toggleLike = async () => {
     const newLiked = !liked;
     setLiked(newLiked); setLikeCount(c => c + (newLiked?1:-1));
-    await postsApi.toggleLike(post.id, myUsername);
+    const result = await postsApi.toggleLike(post.id, myUsername);
+    const newLikes = result?.[0]?.likes || (newLiked ? [...(post.likes||[]),myUsername] : (post.likes||[]).filter(u=>u!==myUsername));
+    dispatchPostEvent("like", { id: post.id, likes: newLikes });
   };
 
   const handleCommentAdded = () => {
@@ -360,6 +530,7 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser }) {
                 onClick={()=>window.open(post.image_url,"_blank")}/>
             </div>
           )}
+          <PollDisplay postId={post.id} myUsername={myUsername}/>
         </>
       )}
       {/* Genre tags */}
@@ -402,6 +573,14 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
   const [offset, setOffset]       = useState(0);
   const [hasMore, setHasMore]     = useState(true);
   const LIMIT = 20;
+
+  // Sync with ProfileView Mes Posts
+  useEffect(() => {
+    return addPostEventListener(({ type, id, likes }) => {
+      if(type === "like") setFeed(f => f.map(p => p.id===id ? {...p, likes} : p));
+      if(type === "delete") setFeed(f => f.filter(p => p.id!==id));
+    });
+  }, []);
   const loadProfiles = async (usernames) => {
     const missing = usernames.filter(u => !profileCache[u]);
     if(!missing.length) return;
@@ -442,7 +621,8 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
   const handlePost = (newPost) => { setFeed(p => [newPost, ...p]); };
   const handleDelete = async (id) => {
     await postsApi.delete(id);
-    setFeed(p => p.filter(post => post.id !== id));
+    setFeed(f => f.filter(p => p.id !== id));
+    dispatchPostEvent("delete", { id });
   };
   const CHANNELS = [
     { id:"general",   label:"Général",   emoji:"🌐" },

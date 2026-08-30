@@ -5,6 +5,7 @@ import { AVATAR_EMOJIS } from "../constants/avatars.js";
 import { MOOD_KEYS } from "../constants/moods.js";
 import { jikan } from "../api/jikan.js";
 import { follows, sb } from "../api/supabase.js";
+import { dispatchPostEvent, addPostEventListener } from "../utils/postEvents.js";
 import { FRAMES, getUnlockedFrames, getBestFrame } from "../frames/frames.js";
 import { FrameSVG } from "../frames/FrameSVG.jsx";
 import { Spinner } from "../components/Spinner.jsx";
@@ -214,10 +215,11 @@ function YearCurve({ data }) {
 }
 
 function StatsTab({ statsData, ratings, watched }) {
-  const [genreSort,  setGenreSort]  = useState("count");
-  const [studioSort, setStudioSort] = useState("count");
-  const [vaSort,     setVaSort]     = useState("count");
-  const [moodSort,   setMoodSort]   = useState("count");
+  const [genreSort,    setGenreSort]    = useState("count");
+  const [studioSort,   setStudioSort]   = useState("count");
+  const [vaSort,       setVaSort]       = useState("count");
+  const [directorSort, setDirectorSort] = useState("count");
+  const [moodSort,     setMoodSort]     = useState("count");
 
   const rated = Object.keys(ratings).map(Number);
   const moodItems = statsData.moodAvgData || [];
@@ -281,6 +283,15 @@ function StatsTab({ statsData, ratings, watched }) {
         </div>
       )}
 
+      {/* Top Directors */}
+      {statsData.topDirectors?.length > 0 && (
+        <div>
+          <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎬 Top Réalisateurs</div>
+          <StatBars items={statsData.topDirectors} color="linear-gradient(90deg,#f59e0b,#ef4444)"
+            sortKey={directorSort} onToggleSort={setDirectorSort}/>
+        </div>
+      )}
+
       {/* Moods */}
       {moodItems.length > 0 && (
         <div>
@@ -320,6 +331,163 @@ function StatsTab({ statsData, ratings, watched }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ─── PROFILE POST CARD ────────────────────────────────────────────────────────
+function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
+  const [liked, setLiked]             = useState((post.likes||[]).includes(myUsername));
+  const [likeCount, setLikeCount]     = useState((post.likes||[]).length);
+  const [showComments, setShowComments] = useState(false);
+  const [postComments, setPostComments] = useState([]);
+  const [commentsLoaded, setCommentsLoaded] = useState(false);
+
+  const handleLike = async () => {
+    const newLiked = !liked;
+    const newLikes = newLiked
+      ? [...(post.likes||[]), myUsername]
+      : (post.likes||[]).filter(u=>u!==myUsername);
+    setLiked(newLiked);
+    setLikeCount(newLikes.length);
+    try {
+      await sb.query(`posts?id=eq.${post.id}`, {
+        method:"PATCH",
+        headers:{...sb.headers,"Prefer":"return=minimal"},
+        body:JSON.stringify({likes:newLikes}),
+      });
+      onLikeUpdate?.(post.id, newLikes);
+      dispatchPostEvent("like", { id: post.id, likes: newLikes });
+    } catch {}
+  };
+
+  const loadComments = async () => {
+    if(commentsLoaded) return;
+    try {
+      const rows = await sb.query(`comments?post_id=eq.${post.id}&order=created_at.asc&limit=50`);
+      setPostComments(rows||[]);
+    } catch {}
+    setCommentsLoaded(true);
+  };
+
+  const toggleComments = () => {
+    setShowComments(p => !p);
+    if(!commentsLoaded) loadComments();
+  };
+
+  const handleDeletePost = async () => {
+    if(!window.confirm("Supprimer ce post ?")) return;
+    try {
+      await sb.query(`posts?id=eq.${post.id}`, { method:"DELETE" });
+      onDelete?.(post.id);
+      dispatchPostEvent("delete", { id: post.id });
+    } catch {}
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    try {
+      await sb.query(`comments?id=eq.${commentId}`, { method:"DELETE" });
+      setPostComments(p => p.filter(c=>c.id!==commentId));
+    } catch {}
+  };
+
+  return (
+    <div style={{background:"rgba(var(--fg-rgb),0.03)",borderRadius:16,
+      border:"1px solid rgba(var(--fg-rgb),0.06)",padding:14,marginBottom:10}}>
+      {/* Header */}
+      <div style={{display:"flex",gap:10,marginBottom:10,alignItems:"flex-start"}}>
+        <div style={{flex:1}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:2}}>
+            <span style={{fontSize:10,color:"var(--text-4)"}}>{new Date(post.created_at).toLocaleDateString("fr-FR",{day:"numeric",month:"short",year:"numeric"})}</span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+              style={{background:post._type==="written"?"rgba(124,58,237,0.2)":"rgba(99,102,241,0.15)",
+                      color:post._type==="written"?"#c084fc":"#818cf8"}}>
+              {post._type==="written"?"✍️ Post":"💬 Commenté"}
+            </span>
+            {post.anime_title && <span style={{fontSize:10,color:"#818cf8",fontWeight:600}}>📺 {post.anime_title}</span>}
+          </div>
+        </div>
+        {post._type==="written" && (
+          <button onClick={handleDeletePost}
+            style={{background:"none",border:"none",color:"var(--text-4)",cursor:"pointer",fontSize:14}}
+            onMouseEnter={e=>e.currentTarget.style.color="#ef4444"}
+            onMouseLeave={e=>e.currentTarget.style.color="var(--text-4)"}>✕</button>
+        )}
+      </div>
+      {post.spoiler && <div style={{marginBottom:8,fontSize:10,fontWeight:700,color:"#ef4444",background:"rgba(239,68,68,0.1)",padding:"2px 8px",borderRadius:4,width:"fit-content"}}>⚠️ SPOILER</div>}
+      <p style={{fontSize:14,color:"var(--text-1)",lineHeight:1.6,margin:"0 0 10px",whiteSpace:"pre-wrap"}}>{post.content}</p>
+      {post.image_url && (
+        <div style={{borderRadius:10,overflow:"hidden",marginBottom:10,maxHeight:400}}>
+          <img src={post.image_url} alt="" style={{width:"100%",objectFit:"cover",maxHeight:400,display:"block",cursor:"pointer"}}
+            onClick={()=>window.open(post.image_url,"_blank")}/>
+        </div>
+      )}
+      {/* Actions */}
+      <div style={{display:"flex",gap:14,alignItems:"center"}}>
+        <button onClick={handleLike}
+          style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:4,
+            color:liked?"#ef4444":"var(--text-3)",fontSize:12,fontWeight:700,transition:"color 0.15s"}}>
+          {liked?"❤️":"🤍"} {likeCount||""}
+        </button>
+        <button onClick={toggleComments}
+          style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:5,
+            color:showComments?"#818cf8":"var(--text-3)",fontSize:12,fontWeight:700}}>
+          💬 Commentaires{postComments.length>0||post.comment_count>0?` (${commentsLoaded?postComments.length:post.comment_count||0})`:""} {showComments?"▲":"▼"}
+        </button>
+      </div>
+      {/* Comments — read only */}
+      {showComments && (
+        <div style={{marginTop:12,borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:10}}>
+          {!commentsLoaded ? (
+            <div style={{fontSize:10,color:"var(--text-5)"}}>Chargement…</div>
+          ) : postComments.length===0 ? (
+            <div style={{fontSize:10,color:"var(--text-5)",fontStyle:"italic"}}>Aucun commentaire</div>
+          ) : (
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {postComments.map((c,i)=>(
+                <div key={c.id||i} style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+                  <div style={{flex:1}}>
+                    <span style={{fontSize:10,fontWeight:800,color:"#c084fc",marginRight:6}}>@{c.username}</span>
+                    <span style={{fontSize:12,color:"var(--text-2)"}}>{c.content}</span>
+                  </div>
+                  {c.username===myUsername && (
+                    <button onClick={()=>handleDeleteComment(c.id)}
+                      style={{background:"none",border:"none",color:"var(--text-5)",cursor:"pointer",fontSize:11,flexShrink:0}}
+                      onMouseEnter={e=>e.currentTarget.style.color="#ef4444"}
+                      onMouseLeave={e=>e.currentTarget.style.color="var(--text-5)"}>✕</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GamePtsDisplay({ myUsername, compact }) {
+  const [pts, setPts] = useState(null);
+  useEffect(() => {
+    if(!myUsername) return;
+    sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&select=points_total&limit=1`)
+      .then(r => { if(r?.[0]) setPts(r[0].points_total||0); })
+      .catch(()=>{});
+  }, [myUsername]);
+  if(pts === null) return compact ? <div/> : null;
+  if(compact) return (
+    <div className="rounded-xl border border-white/6 bg-white/3 p-3 text-center">
+      <div className="text-xl font-black text-violet-400">{pts}</div>
+      <div className="mt-0.5 text-[9px] text-slate-500">🎮 Pts jeux</div>
+    </div>
+  );
+  return (
+    <>
+      <div className="w-px h-3 bg-white/10"/>
+      <div className="flex items-center gap-1.5">
+        <span className="text-[13px] font-black text-violet-400">{pts}</span>
+        <span className="text-[11px] text-slate-500">pts jeux 🎮</span>
+      </div>
+    </>
   );
 }
 
@@ -390,6 +558,14 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
     watchlistIds.forEach(id => fetchAnime(id));
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Sync likes/deletes from FeedView
+  useEffect(() => {
+    return addPostEventListener(({ type, id, likes }) => {
+      if(type === "like") setMyPosts(prev => prev.map(p => p.id===id ? {...p, likes} : p));
+      if(type === "delete") setMyPosts(prev => prev.filter(p => p.id!==id));
+    });
+  }, []);
+
   // Load posts when tab is active
   useEffect(() => {
     if(tab !== "posts") return;
@@ -429,6 +605,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
         const genreCount = {}, genreScores = {};
         const studioCount = {}, studioScores = {};
         const vaCount = {}, vaScores = {};
+        const directorCount = {}, directorScores = {};
         const yearScores = {};
         const moodTotals = {}; const moodDominantCount = {}; const moodScores = {}; let moodCount = 0;
         MOOD_KEYS.forEach(k => { moodTotals[k] = 0; moodDominantCount[k] = 0; moodScores[k] = []; });
@@ -440,7 +617,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
         for(const chunk of chunks) {
           try {
             const [animeRows, moodRows] = await Promise.all([
-              sb.query(`anime_cache?mal_id=in.(${chunk.join(",")})&select=mal_id,type,genres,studios,characters,episodes,year&limit=${chunk.length}`),
+              sb.query(`anime_cache?mal_id=in.(${chunk.join(",")})&select=mal_id,type,genres,studios,characters,staff,episodes,year&limit=${chunk.length}`),
               sb.query(`mood_pts_v4?mal_id=in.(${chunk.join(",")})&select=mal_id,${MOOD_KEYS.join(",")}&limit=${chunk.length}`),
             ]);
 
@@ -470,6 +647,14 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                   const n = c.va.name;
                   vaCount[n] = (vaCount[n]||0) + 1;
                   if(userScore) { if(!vaScores[n]) vaScores[n]=[]; vaScores[n].push(userScore); }
+                }
+              });
+              // Directors from staff
+              (a.staff||[]).forEach(s => {
+                if(s.name && (s.positions||[]).includes("Director")) {
+                  const n = s.name;
+                  directorCount[n] = (directorCount[n]||0) + 1;
+                  if(userScore) { if(!directorScores[n]) directorScores[n]=[]; directorScores[n].push(userScore); }
                 }
               });
               // Year scores
@@ -502,9 +687,10 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
             .sort((a,b) => b.count - a.count)
             .slice(0, limit);
 
-        const topGenres  = buildEntries(genreCount, genreScores, 15);
-        const topStudios = buildEntries(studioCount, studioScores, 10);
-        const topVAs     = buildEntries(vaCount, vaScores, 10);
+        const topGenres    = buildEntries(genreCount, genreScores, 15);
+        const topStudios   = buildEntries(studioCount, studioScores, 10);
+        const topVAs       = buildEntries(vaCount, vaScores, 10);
+        const topDirectors = buildEntries(directorCount, directorScores, 10);
 
         // Moods — dominant count + moyenne des notes utilisateur
         const moodAvgData = moodCount > 0
@@ -523,7 +709,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
           .filter(d => d.year >= 1990 && d.year <= new Date().getFullYear())
           .sort((a,b) => a.year - b.year);
 
-        setStatsData({ topGenres, topStudios, topVAs, moodAvgData, yearCurve, totalEpisodes });
+        setStatsData({ topGenres, topStudios, topVAs, topDirectors, moodAvgData, yearCurve, totalEpisodes });
       } catch(e) { console.error(e); }
       setStatsLoading(false);
     })();
@@ -649,9 +835,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
       {/* Header */}
       <div className="mb-6 flex flex-col gap-6 sm:flex-row sm:items-start">
         <div className="relative shrink-0">
-          <FrameSVG frame={activeFrame} size={96}>
+          <FrameSVG frame={activeFrame} size={112}>
             <button onClick={() => setShowAvatarPicker(true)}
-              className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full text-4xl transition hover:scale-105" style={{ background: GRADIENT_PRIMARY }}>
+              className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full text-5xl transition hover:scale-105" style={{ background: GRADIENT_PRIMARY }}>
               {(me.avatar_base64 || (me.avatar?.startsWith?.("http") ? me.avatar : null))
                 ? <img src={me.avatar_base64 || me.avatar} alt="avatar" className="h-full w-full object-cover" />
                 : (me.avatar || "👤")}
@@ -672,15 +858,6 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
             <button onClick={onOpenSettings} className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs font-bold text-slate-400">⚙️</button>
           </div>
 
-          <div className="my-4 grid grid-cols-3 gap-3 sm:max-w-sm">
-            {[{l:"Vus",v:me.watched.length},{l:"Notés",v:rated.length},{l:"Moy.",v:avgScore}].map(s => (
-              <div key={s.l} className="rounded-xl bg-white/3 py-2.5 text-center">
-                <div className="text-lg font-black text-purple-300">{s.v}</div>
-                <div className="mt-0.5 text-[9px] text-slate-500">{s.l}</div>
-              </div>
-            ))}
-          </div>
-
           {editingBio ? (
             <div className="flex max-w-md gap-2">
               <input value={bioInput} onChange={e => setBioInput(e.target.value)} maxLength={80} placeholder="Ton style d'anime…"
@@ -695,7 +872,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
           )}
 
           {/* Followers / Following */}
-          <div className="flex items-center gap-4 mt-2">
+          <div className="flex items-center gap-4 mt-2 flex-wrap">
             <div className="flex items-center gap-1.5">
               <span className="text-[13px] font-black text-slate-100">{followerCount}</span>
               <span className="text-[11px] text-slate-500">abonné{followerCount!==1?"s":""}</span>
@@ -794,7 +971,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
 
           {/* RIGHT — 3 stats + Distribution + MoodRadar + TopGenres */}
           <div className="flex flex-col gap-8">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-3">
               {[
                 {l:"Vus", v:me.watched.length},
                 {l:"Notés", v:rated.length},
@@ -805,6 +982,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                   <div className="mt-0.5 text-[9px] text-slate-500">{s.l}</div>
                 </div>
               ))}
+              <GamePtsDisplay myUsername={myUsername} compact/>
             </div>
             <div>
               <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">📊 Distribution des notes</div>
@@ -1130,35 +1308,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
         ) : (
           <div className="flex max-w-2xl flex-col gap-3">
             {myPosts.map((post, i) => (
-              <div key={post.id||i} className="rounded-xl border border-white/7 bg-white/4 p-4">
-                <div className="mb-2 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                      style={{background: post._type==="written" ? "rgba(124,58,237,0.2)" : "rgba(99,102,241,0.15)",
-                              color: post._type==="written" ? "#c084fc" : "#818cf8"}}>
-                      {post._type==="written" ? "✍️ Post" : "💬 Commenté"}
-                    </span>
-                    {post.anime_title && (
-                      <span className="text-[10px] text-indigo-400 font-semibold">📺 {post.anime_title}</span>
-                    )}
-                  </div>
-                  <span className="text-[9px] text-slate-600">
-                    {new Date(post.created_at).toLocaleDateString("fr-FR",{day:"numeric",month:"short",year:"numeric"})}
-                  </span>
-                </div>
-                {post.spoiler && (
-                  <div className="mb-2 text-[10px] font-bold text-red-400 bg-red-400/10 px-2 py-0.5 rounded w-fit">⚠️ SPOILER</div>
-                )}
-                <p className="text-[13px] text-slate-200 leading-relaxed">{post.content}</p>
-                {post.image_url && (
-                  <img src={post.image_url} alt="" className="mt-2 max-h-48 rounded-lg object-cover w-full"
-                    onClick={()=>window.open(post.image_url,"_blank")} style={{cursor:"pointer"}}/>
-                )}
-                <div className="mt-2 flex gap-4 text-[10px] text-slate-600">
-                  <span>❤️ {(post.likes||[]).length}</span>
-                  <span>💬 {post.comment_count||0}</span>
-                </div>
-              </div>
+              <ProfilePostCard key={post.id||i} post={post} myUsername={myUsername}
+                onLikeUpdate={(id, newLikes) => setMyPosts(prev => prev.map(p => p.id===id ? {...p, likes:newLikes} : p))}
+                onDelete={(id) => setMyPosts(prev => prev.filter(p => p.id!==id))}/>
             ))}
           </div>
         )
