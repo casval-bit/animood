@@ -10,11 +10,13 @@ const RED    = "#ef4444";
 const sleep  = ms => new Promise(r => setTimeout(r, ms));
 
 // ─── ELO helpers ──────────────────────────────────────────────────────────────
-function calcElo(eloA, eloB, resultA) {
-  const K = 32;
-  const expected = 1 / (1 + Math.pow(10, (eloB - eloA) / 400));
-  return Math.round(eloA + K * (resultA - expected));
-}
+// Chain Elo rules:
+// Same bracket: +20/-18 for 2-1, +23/-22 for 2-0
+// Higher bracket vs lower: higher wins +10/-30, lower wins +30/-10
+// Forfait/cheat: cheater -40, victim +5
+// Timeline Elo rules:
+// Same bracket: +20/-20
+// Different bracket: higher wins +15/-25, lower wins +25/-15
 
 async function getOrCreateElo(username) {
   const rows = await sb.query(`game_elo?username=eq.${encodeURIComponent(username)}&limit=1`).catch(()=>[]);
@@ -27,13 +29,52 @@ async function getOrCreateElo(username) {
   return { username, elo_chain:400, elo_timeline:400, points_total:0 };
 }
 
-async function updateElo(username, field, newElo, pointsDelta=0) {
+function getEloBracket(elo, waitTime=0) {
+  // Brackets expand with wait time: starts at ±50, grows by 5 per 2s
+  const range = Math.min(50 + waitTime * 5, 400);
+  return Math.floor(elo / range);
+}
+
+function calcChainElo(eloA, eloB, resultA, score) {
+  // resultA: 1=win, 0=loss, 0.5=draw
+  // score: "2-0" or "2-1"
+  const bracketA = Math.floor(eloA / 100);
+  const bracketB = Math.floor(eloB / 100);
+  const sameBracket = bracketA === bracketB;
+
+  if(resultA === 1) {
+    if(sameBracket) return score === "2-0" ? 23 : 20;
+    return eloA > eloB ? 10 : 30;
+  } else if(resultA === 0) {
+    if(sameBracket) return score === "2-0" ? -22 : -18;
+    return eloA > eloB ? -30 : -10;
+  }
+  return 0;
+}
+
+function calcTimelineElo(eloA, eloB, resultA) {
+  const bracketA = Math.floor(eloA / 100);
+  const bracketB = Math.floor(eloB / 100);
+  const sameBracket = bracketA === bracketB;
+  if(resultA === 1) return sameBracket ? 20 : (eloA > eloB ? 15 : 25);
+  if(resultA === 0) return sameBracket ? -20 : (eloA > eloB ? -25 : -15);
+  return 0; // draw
+}
+
+async function updateElo(username, field, delta, pointsDelta=0) {
   const row = await getOrCreateElo(username);
+  const current = row[field] || 400;
+  const newElo = Math.max(0, current + delta);
   await sb.query(`game_elo?username=eq.${encodeURIComponent(username)}`, {
     method: "PATCH",
     headers: { ...sb.headers, "Prefer": "return=minimal" },
-    body: JSON.stringify({ [field]: newElo, points_total: (row.points_total||0) + pointsDelta, updated_at: new Date().toISOString() }),
+    body: JSON.stringify({
+      [field]: newElo,
+      points_total: Math.max(0, (row.points_total||0) + pointsDelta),
+      updated_at: new Date().toISOString()
+    }),
   }).catch(()=>{});
+  return newElo;
 }
 
 // ─── MATCHMAKING ──────────────────────────────────────────────────────────────
@@ -68,10 +109,38 @@ export function Matchmaking({ gameType, onMatch, onClose }) {
       const eloField = gameType === "chain" ? "elo_chain" : "elo_timeline";
       const eloVal = elo[eloField] || 400;
       setMyElo(eloVal);
+
+      // Random delay 0-1s so players don't all create rooms simultaneously
+      await new Promise(r => setTimeout(r, Math.random() * 1000));
+      if(cancelled) return;
+
+      // First check if there's already a room to join
       const findRoom = async (range) => {
         const rooms = await sb.query(`game_rooms?game_type=eq.${gameType}&status=eq.waiting&player1=neq.${encodeURIComponent(myUsername)}&private_code=is.null&limit=10`).catch(()=>[]);
         return (rooms||[]).filter(r=>Math.abs((r.elo1||400)-eloVal)<=range).sort((a,b)=>Math.abs((a.elo1||400)-eloVal)-Math.abs((b.elo1||400)-eloVal))[0]||null;
       };
+
+      // Try joining immediately before creating own room
+      const immediate = await findRoom(400);
+      if(immediate && !cancelled) {
+        if(subRef.current) supabase.removeChannel(subRef.current);
+        const joinSub = supabase.channel(`room_${immediate.id}`)
+          .on("postgres_changes",{event:"UPDATE",schema:"public",table:"game_rooms",filter:`id=eq.${immediate.id}`},
+            p=>{const r=p.new;if(r.status==="active"&&r.player2&&!cancelled){setStatus("found");setTimeout(()=>onMatch(r),500);}})
+          .subscribe();
+        subRef.current = joinSub;
+        roomRef.current = immediate.id;
+        const patched = await sb.query(`game_rooms?id=eq.${immediate.id}`,{
+          method:"PATCH",
+          headers:{...sb.headers,"Prefer":"return=representation"},
+          body:JSON.stringify({player2:myUsername,elo2:eloVal,status:"active",updated_at:new Date().toISOString()})
+        }).catch(()=>null);
+        if(patched?.[0]&&!cancelled){
+          setStatus("found");
+          setTimeout(()=>onMatch({...immediate,player2:myUsername,elo2:eloVal,status:"active"}),500);
+        }
+        return;
+      }
       const created = await sb.query("game_rooms",{method:"POST",headers:{...sb.headers,"Prefer":"return=representation"},body:JSON.stringify({game_type:gameType,player1:myUsername,elo1:eloVal,status:"waiting",state:{},ranked:true})}).catch(()=>null);
       const myRoom = created?.[0];
       if(!myRoom||cancelled) return;
@@ -82,15 +151,48 @@ export function Matchmaking({ gameType, onMatch, onClose }) {
         .subscribe();
       subRef.current = sub;
       let waited = 0;
+
+      // Polling fallback for creator — in case Realtime misses the update
+      const creatorPoll = setInterval(async () => {
+        if(cancelled) return;
+        const rows = await sb.query(`game_rooms?id=eq.${myRoom.id}&limit=1`).catch(()=>[]);
+        const r = rows?.[0];
+        if(r?.status === "active" && r?.player2 && !cancelled) {
+          clearInterval(creatorPoll);
+          clearInterval(interval);
+          setStatus("found");
+          setTimeout(()=>onMatch(r), 500);
+        }
+      }, 2000);
+
       interval = setInterval(async()=>{
         if(cancelled) return;
         waited+=2; setWaitTime(waited);
         const range = Math.min(50+waited*5,400);
         const existing = await findRoom(range);
         if(existing&&!cancelled){
-          await sb.query(`game_rooms?id=eq.${existing.id}`,{method:"PATCH",headers:{...sb.headers,"Prefer":"return=minimal"},body:JSON.stringify({player2:myUsername,elo2:eloVal,status:"active",updated_at:new Date().toISOString()})}).catch(()=>{});
-          await sb.query(`game_rooms?id=eq.${myRoom.id}`,{method:"DELETE"}).catch(()=>{});
+          clearInterval(interval);
+          // Subscribe to the existing room BEFORE patching
+          if(subRef.current) supabase.removeChannel(subRef.current);
+          const joinSub = supabase.channel(`room_${existing.id}`)
+            .on("postgres_changes",{event:"UPDATE",schema:"public",table:"game_rooms",filter:`id=eq.${existing.id}`},
+              p=>{const r=p.new;if(r.status==="active"&&r.player2&&!cancelled){setStatus("found");setTimeout(()=>onMatch(r),500);}})
+            .subscribe();
+          subRef.current = joinSub;
           roomRef.current = existing.id;
+          // Delete own waiting room
+          await sb.query(`game_rooms?id=eq.${myRoom.id}`,{method:"DELETE"}).catch(()=>{});
+          // Patch the existing room to active
+          const patched = await sb.query(`game_rooms?id=eq.${existing.id}`,{
+            method:"PATCH",
+            headers:{...sb.headers,"Prefer":"return=representation"},
+            body:JSON.stringify({player2:myUsername,elo2:eloVal,status:"active",updated_at:new Date().toISOString()})
+          }).catch(()=>null);
+          // Trigger onMatch directly for the joiner since we won't receive our own UPDATE
+          if(patched?.[0]&&!cancelled){
+            setStatus("found");
+            setTimeout(()=>onMatch({...existing,player2:myUsername,elo2:eloVal,status:"active"}),500);
+          }
         }
       },2000);
     })();
@@ -106,13 +208,22 @@ export function Matchmaking({ gameType, onMatch, onClose }) {
     roomRef.current = myRoom.id;
     const sub = supabase.channel(`room_${myRoom.id}`)
       .on("postgres_changes",{event:"UPDATE",schema:"public",table:"game_rooms",filter:`id=eq.${myRoom.id}`},
-        p=>{const r=p.new;if(r.status==="active"&&r.player2){setStatus("found");setTimeout(()=>onMatch(r),1000);}})
+        p=>{const r=p.new;if(r.status==="active"&&r.player2){setStatus("found");setTimeout(()=>onMatch(r),500);}})
       .subscribe();
     subRef.current = sub;
+
+    // Polling fallback in case Realtime misses the update
+    const pollInterval = setInterval(async () => {
+      const rows = await sb.query(`game_rooms?id=eq.${myRoom.id}&limit=1`).catch(()=>[]);
+      const r = rows?.[0];
+      if(r?.status === "active" && r?.player2) {
+        clearInterval(pollInterval);
+        setStatus("found");
+        setTimeout(()=>onMatch(r), 500);
+      }
+    }, 2000);
     setMode("private-create");
   };
-
-  // ── JOIN PRIVATE ─────────────────────────────────────────────────────────────
   const joinPrivateRoom = async () => {
     setJoinError("");
     const code = joinCode.trim().toUpperCase();
@@ -121,9 +232,27 @@ export function Matchmaking({ gameType, onMatch, onClose }) {
     const room = rooms?.[0];
     if(!room){setJoinError("Code invalide ou room introuvable.");return;}
     if(room.player1===myUsername){setJoinError("Tu ne peux pas rejoindre ta propre room.");return;}
-    await sb.query(`game_rooms?id=eq.${room.id}`,{method:"PATCH",headers:{...sb.headers,"Prefer":"return=minimal"},body:JSON.stringify({player2:myUsername,elo2:400,status:"active",updated_at:new Date().toISOString()})}).catch(()=>{});
-    setStatus("found");
-    setTimeout(()=>onMatch({...room,player2:myUsername,status:"active"}),1000);
+
+    // Subscribe to the room BEFORE patching so both players get the update
+    const joinSub = supabase.channel(`room_join_${room.id}`)
+      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"game_rooms",filter:`id=eq.${room.id}`},
+        p=>{const r=p.new;if(r.status==="active"&&r.player2){setStatus("found");setTimeout(()=>onMatch(r),500);}})
+      .subscribe();
+    subRef.current = joinSub;
+    roomRef.current = room.id;
+
+    // Patch the room
+    const patched = await sb.query(`game_rooms?id=eq.${room.id}`,{
+      method:"PATCH",
+      headers:{...sb.headers,"Prefer":"return=representation"},
+      body:JSON.stringify({player2:myUsername,elo2:400,status:"active",updated_at:new Date().toISOString()})
+    }).catch(()=>null);
+
+    // Trigger onMatch for the joiner directly (they won't receive their own UPDATE)
+    if(patched?.[0]){
+      setStatus("found");
+      setTimeout(()=>onMatch({...room,player2:myUsername,elo2:400,status:"active"}),500);
+    }
   };
 
   // ── RENDER ───────────────────────────────────────────────────────────────────
@@ -210,20 +339,22 @@ export function ChainGame({ room, onClose }) {
   const myElo  = isP1 ? (room.elo1||400) : (room.elo2||400);
   const oppElo = isP1 ? (room.elo2||400) : (room.elo1||400);
 
-  const [state, setState] = useState(room.state || {
-    round: 1,           // 1 | 2 | 3
-    scores: [0, 0],     // [p1wins, p2wins]
-    linkType: null,     // 'studio' | 'genre' | null
+  const defaultState = {
+    round: 1,
+    scores: [0, 0],
+    linkType: null,
     currentAnime: null,
     chain: [],
-    turn: null,         // username whose turn it is
-    chooser: null,      // username who chooses link type this round
-    phase: "choose",    // choose | play | roundEnd | gameEnd
+    turn: null,
+    chooser: room.player1,
+    phase: "choose",
     timer: 40,
     roundStart: null,
-    times: [0, 0],      // cumulative time each player took (for tiebreak)
-    elimTime: null,     // when the losing player ran out of time
-  });
+    times: [0, 0],
+  };
+  const [state, setState] = useState(
+    (room.state && room.state.scores) ? room.state : defaultState
+  );
 
   const [query, setQuery]       = useState("");
   const [suggestions, setSugs]  = useState([]);
@@ -235,6 +366,25 @@ export function ChainGame({ room, onClose }) {
   const searchTimer = useRef(null);
   const startTsRef = useRef(null);
 
+  const isRanked = room.ranked !== false;
+
+  // Anti-cheat: if ranked, forfait when tab becomes hidden
+  useEffect(() => {
+    if(!isRanked) return;
+    const handleVisibility = async () => {
+      if(document.hidden && state.phase === "play") {
+        await sb.query(`game_rooms?id=eq.${room.id}`, {
+          method: "PATCH",
+          headers: { ...sb.headers, "Prefer": "return=minimal" },
+          body: JSON.stringify({ status: "waiting", updated_at: new Date().toISOString() }),
+        }).catch(()=>{});
+        onClose();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [state.phase, isRanked]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const isMyTurn = state.turn === myUsername;
   const amChooser = state.chooser === myUsername;
 
@@ -244,20 +394,32 @@ export function ChainGame({ room, onClose }) {
       .then(r => setPool(r||[])).catch(()=>{});
   }, []);
 
-  // Sync state from Supabase
+  // Sync state from Supabase via polling (more reliable than Realtime)
+  const lastStateRef = useRef(JSON.stringify(state));
   useEffect(() => {
-    const sub = supabase.channel(`chain_${room.id}`)
-      .on("postgres_changes", { event:"UPDATE", schema:"public", table:"game_rooms", filter:`id=eq.${room.id}` },
-        p => {
-          const newState = p.new.state;
+    const poll = setInterval(async () => {
+      try {
+        const rows = await sb.query(`game_rooms?id=eq.${room.id}&select=state,status&limit=1`);
+        const r = rows?.[0];
+        if(!r) return;
+        // Check if opponent left
+        if(r.status === "waiting") {
+          clearInterval(poll);
+          setState(s => ({...s, phase:"gameEnd", winner: myUsername, opponentLeft: true}));
+          return;
+        }
+        const newState = r.state;
+        if(!newState?.scores) return;
+        const str = JSON.stringify(newState);
+        if(str !== lastStateRef.current) {
+          lastStateRef.current = str;
           setState(newState);
           setTimerVal(newState.timer || 40);
-          if(p.new.status === "finished") clearInterval(timerRef.current);
-        })
-      .subscribe();
-    subRef.current = sub;
-    return () => supabase.removeChannel(sub);
-  }, [room.id]);
+        }
+      } catch {}
+    }, 1500);
+    return () => clearInterval(poll);
+  }, [room.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Timer countdown
   useEffect(() => {
@@ -286,9 +448,24 @@ export function ChainGame({ room, onClose }) {
     }).catch(()=>{});
   };
 
+  const handleForfait = async () => {
+    if(state.phase !== "gameEnd" && room.ranked) {
+      const victim = myUsername === room.player1 ? room.player2 : room.player1;
+      await Promise.all([
+        updateElo(myUsername, "elo_chain", -40, 0),   // cheater/quitter -40
+        updateElo(victim, "elo_chain", 5, 5),          // victim +5 elo +5 pts
+      ]);
+    }
+    await sb.query(`game_rooms?id=eq.${room.id}`, {
+      method: "PATCH",
+      headers: { ...sb.headers, "Prefer": "return=minimal" },
+      body: JSON.stringify({ status: "waiting", updated_at: new Date().toISOString() }),
+    }).catch(()=>{});
+    onClose();
+  };
+
   const handleChooseLinkType = async (type) => {
     if(!amChooser || state.phase !== "choose") return;
-    // Pick random start anime
     const seed = Date.now();
     const start = seededPick(pool, seed);
     const newState = {
@@ -296,21 +473,32 @@ export function ChainGame({ room, onClose }) {
       linkType: type,
       currentAnime: start,
       chain: [start],
-      turn: state.chooser, // chooser goes first
+      turn: state.chooser,
       phase: "play",
       timer: 40,
     };
+    setState(newState);
     await pushState(newState);
   };
 
+  const [lastGuess, setLastGuess] = useState(null); // {anime, valid, linkUsed}
+
+  // ABBA pattern: chooser always plays their chosen type, opponent always plays the opposite
+  // e.g. chooser picked "studio" → chooser plays studio, opponent plays genre, always
+  const currentLinkType = state.linkType
+    ? (state.turn === state.chooser
+        ? state.linkType
+        : state.linkType === "studio" ? "genre" : "studio")
+    : null;
+
   const isValidLink = (guess) => {
     const cur = state.currentAnime;
-    if(!cur) return false;
+    if(!cur || !currentLinkType) return false;
     const curStudios = (cur.studios||[]).map(s=>s.name||s);
     const curGenres  = (cur.genres||[]).map(g=>g.name||g);
     const gStudios   = (guess.studios||[]).map(s=>s.name||s);
     const gGenres    = (guess.genres||[]).map(g=>g.name||g);
-    if(state.linkType === "studio") {
+    if(currentLinkType === "studio") {
       const sameStudio = curStudios.some(s => gStudios.includes(s));
       const diffGenre  = !curGenres.every(g => gGenres.includes(g)) || !gGenres.every(g => curGenres.includes(g));
       return sameStudio && diffGenre;
@@ -323,21 +511,24 @@ export function ChainGame({ room, onClose }) {
 
   const handleGuess = async (anime) => {
     if(!isMyTurn || state.phase !== "play") return;
-    // Already used?
     if(state.chain.some(a => a.mal_id === anime.mal_id)) {
       setMsg("❌ Cet animé a déjà été utilisé !");
+      setLastGuess(null);
       return;
     }
-    if(!isValidLink(anime)) {
+    const valid = isValidLink(anime);
+    setLastGuess({ anime, valid, linkUsed: currentLinkType });
+    setQuery(""); setSugs([]);
+    if(!valid) {
       setMsg("❌ Lien invalide — réessaie !");
       return;
     }
     setMsg("");
-    setQuery(""); setSugs([]);
     const elapsed = Math.round((Date.now() - (startTsRef.current||Date.now())) / 1000);
     const newTimes = isP1 ? [state.times[0]+elapsed, state.times[1]] : [state.times[0], state.times[1]+elapsed];
     const nextTurn = state.turn === myUsername ? oppUsername : myUsername;
     const newState = { ...state, currentAnime: anime, chain: [...state.chain, anime], turn: nextTurn, timer: 40, times: newTimes };
+    setState(newState);
     await pushState(newState);
   };
 
@@ -362,22 +553,38 @@ export function ChainGame({ room, onClose }) {
       const newState = { ...state, round: newRound, scores: newScores, phase: "roundEnd",
         linkType: null, currentAnime: null, chain: [], turn: null, timer: 40,
         chooser: chooser || room.player1, times: [0,0] };
+      setState(newState);
       await pushState(newState);
       setTimeout(async () => {
-        await pushState({ ...newState, phase: "choose" });
+        const chooseState = { ...newState, phase: "choose" };
+        setState(chooseState);
+        await pushState(chooseState);
       }, 3000);
     }
   };
 
   const handleGameEnd = async (winner, scores) => {
-    const eloField = "elo_chain";
+    if(!room.ranked) {
+      // Private room — no Elo change
+      await sb.query(`game_rooms?id=eq.${room.id}`, {
+        method: "PATCH",
+        headers: { ...sb.headers, "Prefer": "return=minimal" },
+        body: JSON.stringify({ status: "finished", winner, state: { ...state, phase: "gameEnd", scores } }),
+      }).catch(()=>{});
+      return;
+    }
+    const elo1 = room.elo1||400, elo2 = room.elo2||400;
     const p1Won = winner === room.player1;
     const p2Won = winner === room.player2;
-    const newElo1 = calcElo(room.elo1||400, room.elo2||400, p1Won ? 1 : p2Won ? 0 : 0.5);
-    const newElo2 = calcElo(room.elo2||400, room.elo1||400, p2Won ? 1 : p1Won ? 0 : 0.5);
+    // Determine score string (2-0 or 2-1)
+    const maxScore = Math.max(scores[0], scores[1]);
+    const minScore = Math.min(scores[0], scores[1]);
+    const scoreStr = minScore === 0 ? "2-0" : "2-1";
+    const delta1 = calcChainElo(elo1, elo2, p1Won?1:p2Won?0:0.5, scoreStr);
+    const delta2 = calcChainElo(elo2, elo1, p2Won?1:p1Won?0:0.5, scoreStr);
     await Promise.all([
-      updateElo(room.player1, eloField, newElo1, p1Won ? 20 : 5),
-      updateElo(room.player2, eloField, newElo2, p2Won ? 20 : 5),
+      updateElo(room.player1, "elo_chain", delta1, p1Won?20:5),
+      updateElo(room.player2, "elo_chain", delta2, p2Won?20:5),
     ]);
     await sb.query(`game_rooms?id=eq.${room.id}`, {
       method: "PATCH",
@@ -396,7 +603,7 @@ export function ChainGame({ room, onClose }) {
     }, 300);
   };
 
-  const linkLabel = state.linkType === "studio" ? "Même studio, genre différent" : state.linkType === "genre" ? "Même genre, studio différent" : "";
+  const linkLabel = currentLinkType === "studio" ? "🏢 Même studio, genre différent" : currentLinkType === "genre" ? "🎌 Même genre, studio différent" : "";
 
   return (
     <div style={{padding:16,maxWidth:640,margin:"0 auto"}}>
@@ -423,6 +630,9 @@ export function ChainGame({ room, onClose }) {
             <>
               <div style={{fontSize:15,fontWeight:800,color:"var(--text-1)",marginBottom:8}}>Choisis le type de lien</div>
               <div style={{fontSize:11,color:"var(--text-4)",marginBottom:20}}>Tu commences la manche</div>
+              {pool.length === 0 ? (
+                <div style={{color:"var(--text-4)",fontSize:12}}>⏳ Chargement des animés…</div>
+              ) : (
               <div style={{display:"flex",gap:12,justifyContent:"center"}}>
                 {[{id:"studio",label:"🏢 Même studio",sub:"genres différents"},{id:"genre",label:"🎌 Même genre",sub:"studio différent"}].map(opt=>(
                   <button key={opt.id} onClick={()=>handleChooseLinkType(opt.id)}
@@ -433,6 +643,7 @@ export function ChainGame({ room, onClose }) {
                   </button>
                 ))}
               </div>
+              )}
             </>
           ) : (
             <div>
@@ -483,11 +694,27 @@ export function ChainGame({ room, onClose }) {
           {isMyTurn && (
             <div style={{position:"relative",marginBottom:8}}>
               <input value={query} onChange={e=>search(e.target.value)}
-                placeholder="Tape un animé TV…"
+                onKeyDown={e=>{if(e.key==="Enter"&&suggestions.length>0)handleGuess(suggestions[0]);}}
+                placeholder="Tape un animé TV et appuie sur Entrée…"
                 autoFocus
                 style={{width:"100%",boxSizing:"border-box",padding:"10px 14px",borderRadius:12,
-                  background:"rgba(255,255,255,0.05)",border:`1px solid ${msg?"rgba(239,68,68,0.4)":"rgba(255,255,255,0.1)"}`,
+                  background:"rgba(255,255,255,0.05)",border:`1px solid ${msg.startsWith("❌")?"rgba(239,68,68,0.4)":"rgba(255,255,255,0.1)"}`,
                   color:"var(--text-1)",fontSize:13,outline:"none"}}/>
+              {/* Last guess result — shows studio/genre after attempt */}
+              {lastGuess && (
+                <div style={{marginTop:6,padding:"8px 12px",borderRadius:10,display:"flex",alignItems:"center",gap:8,
+                  background:lastGuess.valid?"rgba(34,197,94,0.08)":"rgba(239,68,68,0.08)",
+                  border:`1px solid ${lastGuess.valid?"rgba(34,197,94,0.2)":"rgba(239,68,68,0.2)"}`}}>
+                  <img src={lastGuess.anime.image_url} alt="" style={{width:24,height:34,objectFit:"cover",borderRadius:4}}
+                    onError={e=>{e.target.style.display="none";}}/>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:11,fontWeight:800,color:"var(--text-1)"}}>{lastGuess.anime.title}</div>
+                    <div style={{fontSize:10,color:lastGuess.valid?"#22c55e":"#ef4444"}}>
+                      {lastGuess.valid?"✅ Valide":"❌ Invalide"} · Studio: {(lastGuess.anime.studios||[]).map(s=>s.name||s).join(", ")||"?"} · Genres: {(lastGuess.anime.genres||[]).map(g=>g.name||g).join(", ")||"?"}
+                    </div>
+                  </div>
+                </div>
+              )}
               {msg && <div style={{fontSize:11,color:RED,marginTop:4}}>{msg}</div>}
               {suggestions.length > 0 && (
                 <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,zIndex:50,
@@ -501,12 +728,8 @@ export function ChainGame({ room, onClose }) {
                       onMouseLeave={e=>e.currentTarget.style.background="none"}>
                       <img src={a.image_url} alt="" style={{width:24,height:34,objectFit:"cover",borderRadius:4}}
                         onError={e=>{e.target.style.display="none";}}/>
-                      <div>
-                        <div style={{fontSize:12,fontWeight:700,color:"var(--text-1)"}}>{a.title}</div>
-                        <div style={{fontSize:10,color:"var(--text-4)"}}>
-                          {(a.studios||[]).map(s=>s.name||s).join(", ")} · {(a.genres||[]).map(g=>g.name||g).slice(0,2).join(", ")}
-                        </div>
-                      </div>
+                      {/* Only title — no studio/genre visible */}
+                      <div style={{fontSize:12,fontWeight:700,color:"var(--text-1)"}}>{a.title}</div>
                     </button>
                   ))}
                 </div>
@@ -534,18 +757,18 @@ export function ChainGame({ room, onClose }) {
           {(() => {
             const myScore = state.scores[isP1?0:1];
             const oppScore = state.scores[isP1?1:0];
-            const won = myScore > oppScore;
-            const draw = myScore === oppScore;
+            const won = state.winner === myUsername || myScore > oppScore;
+            const draw = !state.winner && myScore === oppScore;
             return (
               <>
-                <div style={{fontSize:48,marginBottom:12}}>{won?"🏆":draw?"🤝":"😢"}</div>
-                <div style={{fontSize:20,fontWeight:900,color:won?GREEN:draw?ORANGE:RED,marginBottom:8}}>
-                  {won?"Victoire !":draw?"Égalité":won?"Défaite":"Défaite"}
+                <div style={{fontSize:48,marginBottom:12}}>{state.opponentLeft?"🏃":won?"🏆":draw?"🤝":"😢"}</div>
+                <div style={{fontSize:20,fontWeight:900,color:state.opponentLeft||won?"#22c55e":draw?ORANGE:RED,marginBottom:8}}>
+                  {state.opponentLeft?"Adversaire déconnecté — Victoire !":won?"Victoire !":draw?"Égalité":"Défaite"}
                 </div>
                 <div style={{fontSize:14,color:"var(--text-3)",marginBottom:20}}>
                   {myScore} – {oppScore}
                 </div>
-                <button onClick={onClose}
+                <button onClick={handleForfait}
                   style={{padding:"10px 24px",borderRadius:20,border:"none",
                     background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",
                     fontWeight:800,fontSize:13,cursor:"pointer"}}>
@@ -574,20 +797,20 @@ export function TimelineGame({ room, onClose }) {
   const isP1 = room.player1 === myUsername;
   const oppUsername = isP1 ? room.player2 : room.player1;
 
-  const [state, setState] = useState(room.state || {
-    timeline: [],      // [{mal_id,title,year,image_url}] — placed in order
-    hand1: [],         // p1's 5 anime to place
-    hand2: [],         // p2's 5 anime to place
-    placed1: 0,        // how many p1 has placed
-    placed2: 0,        // how many p2 has placed
-    currentTurn: room.player1, // who goes first (random or p1)
-    phase: "play",     // play | gameEnd
-    winner: null,
-    skipped: null,     // username who lost their turn (for display)
-  });
+  const defaultTimelineState = {
+    timeline: [],
+    hand1: [], hand2: [],
+    placed1: 0, placed2: 0,
+    currentTurn: room.player1,
+    phase: "play", winner: null, skipped: null,
+  };
+  const [state, setState] = useState(
+    (room.state && room.state.hand1?.length) ? room.state : defaultTimelineState
+  );
 
   const [pool, setPool]   = useState([]);
-  const [dragging, setDragging] = useState(null); // index in hand
+  const [dragging, setDragging] = useState(null);
+  const [selectedCard, setSelectedCard] = useState(0); // index in hand
   const [msg, setMsg]     = useState("");
   const subRef = useRef(null);
 
@@ -600,34 +823,49 @@ export function TimelineGame({ room, onClose }) {
     (async () => {
       const rows = await sb.query("anime_cache?type=eq.TV&score=gte.6&scored_by=gte.2000&select=mal_id,title,year,image_url&order=scored_by.desc&limit=3000").catch(()=>[]);
       setPool(rows||[]);
-      // Init hands if not set
+      // Only P1 initializes the game state
+      if(!isP1) return;
       if(room.state && room.state.hand1?.length) return;
       if(!rows?.length) return;
       const rand = seededRand(getDayIndex() * 999 + room.id.charCodeAt(0));
       const shuffled = [...rows].sort(()=>rand()-0.5);
-      // 1 start + 5 for p1 + 5 for p2 = 11
       const picks = shuffled.slice(0,11);
-      const startAnime = picks[0];
-      const hand1 = picks.slice(1,6);
-      const hand2 = picks.slice(6,11);
       const init = {
-        timeline: [startAnime],
-        hand1, hand2,
+        timeline: [picks[0]],
+        hand1: picks.slice(1,6),
+        hand2: picks.slice(6,11),
         placed1:0, placed2:0,
         currentTurn: room.player1,
         phase:"play", winner:null, skipped:null,
       };
+      setState(init);
       await pushState(init);
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Polling sync
+  const lastTLStateRef = useRef(JSON.stringify(state));
   useEffect(() => {
-    const sub = supabase.channel(`timeline_${room.id}`)
-      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"game_rooms",filter:`id=eq.${room.id}`},
-        p => setState(p.new.state || state))
-      .subscribe();
-    subRef.current = sub;
-    return () => supabase.removeChannel(sub);
+    const poll = setInterval(async () => {
+      try {
+        const rows = await sb.query(`game_rooms?id=eq.${room.id}&select=state,status&limit=1`);
+        const r = rows?.[0];
+        if(!r) return;
+        if(r.status === "waiting") {
+          clearInterval(poll);
+          setState(s => ({...s, phase:"gameEnd", winner: myUsername, opponentLeft: true}));
+          return;
+        }
+        const newState = r.state;
+        if(!newState?.hand1) return;
+        const str = JSON.stringify(newState);
+        if(str !== lastTLStateRef.current) {
+          lastTLStateRef.current = str;
+          setState(newState);
+        }
+      } catch {}
+    }, 1500);
+    return () => clearInterval(poll);
   }, [room.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pushState = async (newState) => {
@@ -638,9 +876,9 @@ export function TimelineGame({ room, onClose }) {
     }).catch(()=>{});
   };
 
-  const placeAnime = async (animeIdx, timelinePos) => {
+  const placeAnime = async (handIdx, timelinePos) => {
     if(!isMyTurn || state.phase !== "play") return;
-    const anime = myHandLeft[animeIdx];
+    const anime = myHandLeft[handIdx];
     if(!anime) return;
     // Check if position is correct
     const newTimeline = [...state.timeline];
@@ -651,55 +889,117 @@ export function TimelineGame({ room, onClose }) {
     );
     if(!valid) {
       setMsg("❌ Mauvaise position !");
-      // Pass turn
       const next = state.currentTurn === room.player1 ? room.player2 : room.player1;
       const newState = { ...state, currentTurn: next, skipped: myUsername };
+      setState(newState);
       await pushState(newState);
       setTimeout(()=>setMsg(""), 2000);
       return;
     }
     setMsg("");
-    // Place succeeded
     const newPlaced1 = isP1 ? state.placed1+1 : state.placed1;
     const newPlaced2 = isP1 ? state.placed2 : state.placed2+1;
     const next = state.currentTurn === room.player1 ? room.player2 : room.player1;
-    // Check win: placed all 5
-    const iWon = (isP1 ? newPlaced1 : newPlaced2) >= 5;
-    // Check if other player also finishes this "turn cycle"
+
+    // Win condition: placed all 5 cards
+    // If P1 finishes first, P2 gets one more turn to equalize
+    // If P2 finishes, game ends immediately
+    const myNewPlaced = isP1 ? newPlaced1 : newPlaced2;
+    const oppNewPlaced = isP1 ? newPlaced2 : newPlaced1;
+    
+    let iWon = false;
+    let isDraw = false;
+    
+    if(myNewPlaced >= 5) {
+      if(isP1) {
+        // P1 finished — P2 gets one more turn (don't end yet, pass turn)
+        // But if P2 also has 5, it's a draw
+        if(oppNewPlaced >= 5) isDraw = true;
+        // else just pass turn, P2 will get their last chance
+      } else {
+        // P2 finished — game ends now
+        iWon = true;
+      }
+    }
+    // Special: if we're P2 and P1 already finished (placed1 >= 5)
+    if(!isP1 && state.placed1 >= 5 && myNewPlaced >= 5) {
+      isDraw = newPlaced1 === newPlaced2;
+      iWon = !isDraw;
+    }
+    // If P1 finished last turn and now P2 finishes too
+    if(isP1 && newPlaced1 >= 5 && newPlaced2 >= 5) isDraw = true;
+
+    const gameOver = iWon || isDraw || (newPlaced1 >= 5 && !isP1);
+    const winner = isDraw ? null : iWon ? myUsername : (newPlaced1 >= 5 && !isP1 ? room.player1 : null);
+
+    // Remove the specific card from the hand
+    const newHand1 = isP1 ? [...state.hand1.filter(a=>a.mal_id!==anime.mal_id)] : state.hand1;
+    const newHand2 = isP1 ? state.hand2 : [...state.hand2.filter(a=>a.mal_id!==anime.mal_id)];
+
     const newState = {
       ...state,
       timeline: newTimeline,
+      hand1: newHand1,
+      hand2: newHand2,
       placed1: newPlaced1,
       placed2: newPlaced2,
       currentTurn: next,
       skipped: null,
-      phase: iWon ? "gameEnd" : "play",
-      winner: iWon ? myUsername : null,
+      phase: gameOver ? "gameEnd" : "play",
+      winner,
+      isDraw,
     };
-    if(iWon) {
-      const eloField = "elo_timeline";
-      const newElo1 = calcElo(room.elo1||400, room.elo2||400, isP1?1:0);
-      const newElo2 = calcElo(room.elo2||400, room.elo1||400, isP1?0:1);
+    setState(newState);
+    setSelectedCard(0);
+    if(gameOver && room.ranked) {
+      const p1Won = winner === room.player1;
+      const p2Won = winner === room.player2;
+      const delta1 = calcTimelineElo(room.elo1||400, room.elo2||400, p1Won?1:isDraw?0.5:0);
+      const delta2 = calcTimelineElo(room.elo2||400, room.elo1||400, p2Won?1:isDraw?0.5:0);
       await Promise.all([
-        updateElo(room.player1, eloField, newElo1, isP1?20:5),
-        updateElo(room.player2, eloField, newElo2, isP1?5:20),
+        updateElo(room.player1, "elo_timeline", delta1, p1Won?20:isDraw?10:5),
+        updateElo(room.player2, "elo_timeline", delta2, p2Won?20:isDraw?10:5),
       ]);
     }
     await pushState(newState);
     setDragging(null);
   };
 
-  const currentAnimeToPlace = myHandLeft[0];
+
+  const handleForfaitTL = async () => {
+    if(state.phase !== "gameEnd" && room.ranked) {
+      const victim = myUsername === room.player1 ? room.player2 : room.player1;
+      await Promise.all([
+        updateElo(myUsername, "elo_timeline", -40, 0),
+        updateElo(victim, "elo_timeline", 5, 5),
+      ]);
+    }
+    await sb.query(`game_rooms?id=eq.${room.id}`, {
+      method: "PATCH",
+      headers: { ...sb.headers, "Prefer": "return=minimal" },
+      body: JSON.stringify({ status: "waiting", updated_at: new Date().toISOString() }),
+    }).catch(()=>{});
+    onClose();
+  };
+
+  const currentAnimeToPlace = myHandLeft[selectedCard] || myHandLeft[0];
 
   return (
-    <div style={{padding:16,maxWidth:700,margin:"0 auto"}}>
+    <div style={{padding:16,maxWidth:900,margin:"0 auto"}}>
       {/* Header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
         <div style={{fontSize:13,fontWeight:800,color:"var(--text-2)"}}>
           📅 {myUsername} <span style={{color:"var(--text-4)"}}>vs</span> {oppUsername}
         </div>
-        <div style={{fontSize:11,color:"var(--text-4)"}}>
-          Placés : toi {isP1?state.placed1:state.placed2}/5 · {oppUsername} {isP1?state.placed2:state.placed1}/5
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <div style={{fontSize:11,color:"var(--text-4)"}}>
+            Placés : toi {isP1?state.placed1:state.placed2}/5 · {oppUsername} {isP1?state.placed2:state.placed1}/5
+          </div>
+          <button onClick={handleForfaitTL}
+            style={{fontSize:9,padding:"3px 8px",borderRadius:8,border:"1px solid rgba(239,68,68,0.3)",
+              background:"rgba(239,68,68,0.08)",color:"#ef4444",cursor:"pointer"}}>
+            Abandonner
+          </button>
         </div>
       </div>
 
@@ -710,24 +1010,57 @@ export function TimelineGame({ room, onClose }) {
           border:`1px solid ${isMyTurn?"rgba(34,197,94,0.3)":"rgba(255,255,255,0.08)"}`,
           color:isMyTurn?GREEN:"var(--text-4)",fontSize:11,fontWeight:700}}>
           {state.skipped ? `⏩ ${state.skipped} a raté — ` : ""}
-          {isMyTurn ? "🎯 Ton tour" : `⏳ Tour de ${oppUsername}`}
+          {isMyTurn ? "🎯 Ton tour — clique sur une carte puis sur une position" : `⏳ Tour de ${oppUsername}`}
         </div>
       )}
 
       {msg && <div style={{textAlign:"center",fontSize:12,color:RED,marginBottom:8,fontWeight:700}}>{msg}</div>}
 
-      {/* Anime to place */}
+      {/* My hand — selectable */}
+      {myHandLeft.length > 0 && state.phase==="play" && (
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:10,color:"var(--text-4)",marginBottom:8}}>
+            {isMyTurn ? "Sélectionne une carte à placer :" : "Tes animés restants :"}
+          </div>
+          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+            {myHandLeft.map((a,i)=>{
+              const selected = i === selectedCard;
+              return (
+                <div key={a.mal_id}
+                  onClick={()=>isMyTurn && setSelectedCard(i)}
+                  style={{cursor:isMyTurn?"pointer":"default",
+                    display:"flex",flexDirection:"column",alignItems:"center",gap:4,
+                    padding:6,borderRadius:10,transition:"all 0.15s",
+                    background:selected&&isMyTurn?"rgba(124,58,237,0.15)":"transparent",
+                    border:selected&&isMyTurn?"2px solid #c084fc":"2px solid transparent",
+                    transform:selected&&isMyTurn?"translateY(-4px)":"none"}}>
+                  <img src={a.image_url} alt={a.title}
+                    style={{width:54,height:76,objectFit:"cover",borderRadius:8}}
+                    onError={e=>{e.target.style.display="none";}}
+                    title={a.title}/>
+                  <div style={{fontSize:8,color:selected&&isMyTurn?"#c084fc":"var(--text-4)",
+                    maxWidth:60,textAlign:"center",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {a.title}
+                  </div>
+                  {selected && isMyTurn && (
+                    <div style={{fontSize:8,color:"#c084fc",fontWeight:800}}>▼ Sélectionné</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Card to place preview */}
       {isMyTurn && currentAnimeToPlace && state.phase==="play" && (
-        <div style={{marginBottom:12,padding:"10px 14px",borderRadius:12,
+        <div style={{marginBottom:12,padding:"8px 14px",borderRadius:12,display:"flex",alignItems:"center",gap:10,
           background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)"}}>
-          <div style={{fontSize:10,color:"var(--text-4)",marginBottom:6}}>Place cet animé sur la frise :</div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <img src={currentAnimeToPlace.image_url} alt="" style={{width:32,height:46,objectFit:"cover",borderRadius:6}}
-              onError={e=>{e.target.style.display="none";}}/>
-            <div>
-              <div style={{fontSize:13,fontWeight:800,color:"var(--text-1)"}}>{currentAnimeToPlace.title}</div>
-              <div style={{fontSize:10,color:"var(--text-4)"}}>???</div>
-            </div>
+          <img src={currentAnimeToPlace.image_url} alt="" style={{width:28,height:40,objectFit:"cover",borderRadius:5}}
+            onError={e=>{e.target.style.display="none";}}/>
+          <div>
+            <div style={{fontSize:11,fontWeight:800,color:"var(--text-1)"}}>{currentAnimeToPlace.title}</div>
+            <div style={{fontSize:9,color:"var(--text-4)"}}>Clique sur une position ↓ pour placer</div>
           </div>
         </div>
       )}
@@ -735,58 +1068,46 @@ export function TimelineGame({ room, onClose }) {
       {/* Timeline */}
       <div style={{overflowX:"auto",paddingBottom:8}}>
         <div style={{display:"flex",alignItems:"stretch",gap:0,minWidth:"max-content"}}>
-          {/* Drop zone before first */}
           {isMyTurn && state.phase==="play" && (
-            <DropZone onDrop={()=>placeAnime(0,0)}/>
+            <DropZone onDrop={()=>placeAnime(selectedCard, 0)}/>
           )}
           {state.timeline.map((a,i)=>(
             <div key={a.mal_id} style={{display:"flex",alignItems:"stretch"}}>
-              <div style={{display:"flex",flexDirection:"column",alignItems:"center",width:72}}>
-                <img src={a.image_url} alt="" style={{width:52,height:72,objectFit:"cover",borderRadius:6,flexShrink:0}}
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",width:90}}>
+                <img src={a.image_url} alt="" style={{width:68,height:96,objectFit:"cover",borderRadius:8,flexShrink:0}}
                   onError={e=>{e.target.style.display="none";}}/>
-                <div style={{fontSize:9,color:"#c084fc",fontWeight:800,marginTop:3}}>{a.year||"?"}</div>
-                <div style={{fontSize:8,color:"var(--text-4)",textAlign:"center",maxWidth:70,overflow:"hidden",
+                <div style={{fontSize:10,color:"#c084fc",fontWeight:800,marginTop:4}}>{a.year||"?"}</div>
+                <div style={{fontSize:8,color:"var(--text-4)",textAlign:"center",maxWidth:86,overflow:"hidden",
                   textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.title}</div>
               </div>
               {isMyTurn && state.phase==="play" && (
-                <DropZone onDrop={()=>placeAnime(0,i+1)}/>
+                <DropZone onDrop={()=>placeAnime(selectedCard, i+1)}/>
               )}
             </div>
           ))}
         </div>
       </div>
 
-      {/* My remaining hand */}
-      {myHandLeft.length > 0 && (
-        <div style={{marginTop:12}}>
-          <div style={{fontSize:10,color:"var(--text-4)",marginBottom:6}}>
-            Tes animés restants : {myHandLeft.length}
-          </div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            {myHandLeft.map((a,i)=>(
-              <div key={a.mal_id} style={{opacity:i===0?1:0.35,transition:"opacity 0.2s"}}>
-                <img src={a.image_url} alt={a.title} style={{width:38,height:54,objectFit:"cover",borderRadius:6,
-                  border:i===0?"2px solid #c084fc":"2px solid transparent"}}
-                  onError={e=>{e.target.style.display="none";}}
-                  title={a.title}/>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Game End */}
       {state.phase === "gameEnd" && (
         <div style={{textAlign:"center",padding:24,marginTop:16,background:"rgba(255,255,255,0.03)",
           borderRadius:16,border:"1px solid rgba(255,255,255,0.07)"}}>
-          <div style={{fontSize:40,marginBottom:8}}>{state.winner===myUsername?"🏆":"😢"}</div>
-          <div style={{fontSize:18,fontWeight:900,color:state.winner===myUsername?GREEN:RED,marginBottom:16}}>
-            {state.winner===myUsername?"Victoire !":"Défaite"}
+          <div style={{fontSize:40,marginBottom:8}}>
+            {state.opponentLeft?"🏃":state.isDraw?"🤝":state.winner===myUsername?"🏆":"😢"}
+          </div>
+          <div style={{fontSize:18,fontWeight:900,marginBottom:16,
+            color:state.opponentLeft||state.winner===myUsername?"#22c55e":state.isDraw?ORANGE:"#ef4444"}}>
+            {state.opponentLeft?"Adversaire déconnecté — Victoire !":state.isDraw?"Égalité !":state.winner===myUsername?"Victoire !":"Défaite"}
           </div>
           <div style={{fontSize:12,color:"var(--text-4)",marginBottom:20}}>
-            {state.winner} a placé tous ses animés en premier
+            {state.opponentLeft?"":state.winner+" a placé tous ses animés en premier"}
           </div>
-          <button onClick={onClose}
+          <button onClick={async()=>{
+              if(state.phase!=="gameEnd"){
+                await sb.query(`game_rooms?id=eq.${room.id}`,{method:"PATCH",headers:{...sb.headers,"Prefer":"return=minimal"},body:JSON.stringify({status:"waiting",updated_at:new Date().toISOString()})}).catch(()=>{});
+              }
+              onClose();
+            }}
             style={{padding:"10px 24px",borderRadius:20,border:"none",
               background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",
               fontWeight:800,fontSize:13,cursor:"pointer"}}>
