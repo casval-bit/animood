@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { sb } from "../api/supabase.js";
 import { MOOD_KEYS } from "../constants/moods.js";
+import { useLang } from "../context/useLang.js";
+import { MINI_GAMES_I18N } from "../constants/miniGamesI18n.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function getDayIndex() {
@@ -52,6 +54,8 @@ function CellResult({ label, status, hint }) {
 
 // ─── GAME 1 — Wordle Animé ─────────────────────────────────────────────────
 export function WordleGame({ onClose }) {
+  const { lang } = useLang();
+  const t = (MINI_GAMES_I18N[lang] || MINI_GAMES_I18N.fr).wordle;
   const MAX_TRIES = 10;
   const [pool, setPool]         = useState([]);
   const [target, setTarget]     = useState(null);
@@ -168,12 +172,12 @@ export function WordleGame({ onClose }) {
     const guess = {
       anime,
       cells: [
-        { label:"Studio",  status:studioMatch,  hint:gStudios[0]||"?" },
-        { label:"Genres",  status:genreStatus,  hint:gGenres.slice(0,2).join(", ")||"?" },
-        { label:"Année",   status:yearStatus,   hint:yearHint },
-        { label:"Score",   status:scoreStatus,  hint:scoreHint },
-        { label:"Source",  status:sourceStatus, hint:anime.source||"?" },
-        { label:"Mood #1", status:moodStatus,   hint:moodHint },
+        { label:t.colStudio,  status:studioMatch,  hint:gStudios[0]||"?" },
+        { label:t.colGenres,  status:genreStatus,  hint:gGenres.slice(0,2).join(", ")||"?" },
+        { label:t.colYear,    status:yearStatus,   hint:yearHint },
+        { label:t.colScore,   status:scoreStatus,  hint:scoreHint },
+        { label:t.colSource,  status:sourceStatus, hint:anime.source||"?" },
+        { label:t.colMood,    status:moodStatus,   hint:moodHint },
       ],
       correct: anime.mal_id === target.mal_id,
     };
@@ -196,30 +200,30 @@ export function WordleGame({ onClose }) {
   if(loading) return (
     <div style={{padding:32,textAlign:"center",color:"var(--text-3)"}}>
       <div style={{fontSize:32,marginBottom:8}}>🎮</div>
-      <p>Chargement du jeu…</p>
+      <p>{t.loading}</p>
     </div>
   );
 
   return (
     <div style={{padding:20,maxWidth:640,margin:"0 auto"}}>
       <div style={{textAlign:"center",marginBottom:16}}>
-        <div style={{fontSize:24,marginBottom:4}}>🎯 Wordle Animé</div>
-        <div style={{fontSize:11,color:"var(--text-4)"}}>Devine l'animé du jour · {guesses.length}/{MAX_TRIES} essais</div>
+        <div style={{fontSize:24,marginBottom:4}}>{t.title}</div>
+        <div style={{fontSize:11,color:"var(--text-4)"}}>{t.subtitle(guesses.length, MAX_TRIES)}</div>
       </div>
 
       {/* Result */}
       {status === "won" && (
         <div style={{textAlign:"center",padding:16,marginBottom:16,background:"rgba(34,197,94,0.1)",
           border:"1px solid rgba(34,197,94,0.3)",borderRadius:12}}>
-          <div style={{fontSize:20,marginBottom:4}}>🎉 Bravo !</div>
+          <div style={{fontSize:20,marginBottom:4}}>{t.wonTitle}</div>
           <div style={{fontSize:13,color:GREEN,fontWeight:700}}>{target?.title}</div>
-          <div style={{fontSize:11,color:"var(--text-4)",marginTop:4}}>Trouvé en {guesses.length} essai{guesses.length>1?"s":""}</div>
+          <div style={{fontSize:11,color:"var(--text-4)",marginTop:4}}>{t.wonFoundIn(guesses.length)}</div>
         </div>
       )}
       {status === "lost" && (
         <div style={{textAlign:"center",padding:16,marginBottom:16,background:"rgba(239,68,68,0.1)",
           border:"1px solid rgba(239,68,68,0.3)",borderRadius:12}}>
-          <div style={{fontSize:16,marginBottom:4,color:RED}}>😢 Perdu</div>
+          <div style={{fontSize:16,marginBottom:4,color:RED}}>{t.lostTitle}</div>
           <div style={{fontSize:13,fontWeight:700,color:"var(--text-1)"}}>{target?.title}</div>
           <div style={{fontSize:11,color:"var(--text-4)",marginTop:4}}>{target?.year} · {(target?.studios||[]).map(s=>s.name||s).join(", ")}</div>
         </div>
@@ -229,7 +233,7 @@ export function WordleGame({ onClose }) {
       {status === "playing" && (
         <div style={{position:"relative",marginBottom:16}}>
           <input value={query} onChange={e=>search(e.target.value)}
-            placeholder="Tape le nom d'un animé TV…"
+            placeholder={t.searchPlaceholder}
             style={{width:"100%",boxSizing:"border-box",padding:"10px 14px",borderRadius:12,
               background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",
               color:"var(--text-1)",fontSize:13,outline:"none"}}/>
@@ -261,7 +265,7 @@ export function WordleGame({ onClose }) {
       {/* Column headers */}
       {guesses.length > 0 && (
         <div style={{display:"flex",gap:4,marginBottom:6,paddingLeft:144}}>
-          {["Studio","Genres","Année","Score","Source","Mood #1"].map(h=>(
+          {[t.colStudio,t.colGenres,t.colYear,t.colScore,t.colSource,t.colMood].map(h=>(
             <div key={h} style={{fontSize:8,color:"var(--text-4)",fontWeight:700,minWidth:60,textAlign:"center"}}>{h}</div>
           ))}
         </div>
@@ -341,6 +345,8 @@ function PixelatedImage({ src, pixelSize }) {
 }
 
 export function PosterGame({ onClose }) {
+  const { lang } = useLang();
+  const t = (MINI_GAMES_I18N[lang] || MINI_GAMES_I18N.fr).poster;
   const MAX_TRIES = 8;
   const [pool, setPool]       = useState([]);
   const [target, setTarget]   = useState(null);
@@ -401,18 +407,18 @@ export function PosterGame({ onClose }) {
 
   if(loading) return (
     <div style={{padding:32,textAlign:"center",color:"var(--text-3)"}}>
-      <div style={{fontSize:32,marginBottom:8}}>🖼</div><p>Chargement…</p>
+      <div style={{fontSize:32,marginBottom:8}}>🖼</div><p>{t.loading}</p>
     </div>
   );
 
   return (
     <div style={{padding:20,maxWidth:500,margin:"0 auto"}}>
       <div style={{textAlign:"center",marginBottom:16}}>
-        <div style={{fontSize:24,marginBottom:4}}>🖼 Poster mystère</div>
+        <div style={{fontSize:24,marginBottom:4}}>{t.title}</div>
         <div style={{fontSize:11,color:"var(--text-4)"}}>
           {status==="playing"
-            ? `Essai ${guesses.length+1}/${MAX_TRIES} — Pixel: ${pixelSize}px`
-            : status==="won" ? "🎉 Bravo !" : "😢 Perdu"}
+            ? t.statusPlaying(guesses.length+1, MAX_TRIES, pixelSize)
+            : status==="won" ? t.statusWon : t.statusLost}
         </div>
       </div>
 
@@ -450,7 +456,7 @@ export function PosterGame({ onClose }) {
       {status === "playing" && (
         <div style={{position:"relative",marginBottom:12}}>
           <input value={query} onChange={e=>search(e.target.value)}
-            placeholder="Tape le nom d'un animé TV…"
+            placeholder={t.searchPlaceholder}
             style={{width:"100%",boxSizing:"border-box",padding:"10px 14px",borderRadius:12,
               background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",
               color:"var(--text-1)",fontSize:13,outline:"none"}}/>

@@ -309,3 +309,39 @@ export function getFrameSVGHtml(frame, size=80) {
   if(!frame) return null;
   return frame.svg(size);
 }
+
+// ── i18n for frame label/desc — `frame.label`/`frame.desc` stay French (default)
+// for any code still reading them directly; use these getters for lang-aware text.
+const FRAME_LABELS_EN = {
+  followers_10:"Recognized", followers_50:"Popular", followers_250:"Crystal",
+  genre_romance:"Romantic", genre_scifi:"Explorer", genre_horror:"Survivor",
+  genre_action:"Fighter", genre_comedy:"Comic", genre_drama:"Dramatist",
+  genre_fantasy:"Mage", genre_sports:"Athlete", genre_mystery:"Detective",
+  genre_sliceoflife:"Everyday", genre_mecha:"Pilot", genre_supernatural:"Medium",
+  contrib_10:"Contributor", contrib_100:"Expert", contrib_1000:"Oracle",
+  games_rookie:"Rookie", games_challenger:"Master", games_master:"GrandMaster", games_grandmaster:"Radiant",
+  watched_50:"Beginner", watched_500:"Serious", watched_1000:"Veteran", watched_5000:"Legend",
+};
+
+const FRAME_DESCS_EN = {
+  followers_10:"10 followers", followers_50:"50 followers", followers_250:"250 followers",
+  genre_romance:"100 Romance anime", genre_scifi:"100 Sci-Fi anime", genre_horror:"100 Horror anime",
+  genre_action:"100 Action anime", genre_comedy:"100 Comedy anime", genre_drama:"100 Drama anime",
+  genre_fantasy:"100 Fantasy anime", genre_sports:"100 Sports anime", genre_mystery:"100 Mystery anime",
+  genre_sliceoflife:"100 Slice of Life anime", genre_mecha:"100 Mecha anime", genre_supernatural:"100 Supernatural anime",
+  contrib_10:"10 mood pts assigned", contrib_100:"100 mood pts assigned", contrib_1000:"1000 mood pts assigned",
+  games_rookie:"100 game pts", games_challenger:"500 game pts", games_master:"2000 game pts", games_grandmaster:"5000 game pts",
+  watched_50:"50 anime watched", watched_500:"500 anime watched", watched_1000:"1000 anime watched", watched_5000:"5000 anime watched",
+};
+
+export function getFrameLabel(frameOrId, lang = "fr") {
+  const frame = typeof frameOrId === "string" ? FRAMES[frameOrId] : frameOrId;
+  if(!frame) return "";
+  return lang === "en" ? (FRAME_LABELS_EN[frame.id] || frame.label) : frame.label;
+}
+
+export function getFrameDesc(frameOrId, lang = "fr") {
+  const frame = typeof frameOrId === "string" ? FRAMES[frameOrId] : frameOrId;
+  if(!frame) return "";
+  return lang === "en" ? (FRAME_DESCS_EN[frame.id] || frame.desc) : frame.desc;
+}

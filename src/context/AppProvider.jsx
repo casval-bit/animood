@@ -47,32 +47,11 @@ export function AppProvider({ children }) {
     if(session && profileReady) saveProfile(myUsername, me);
   }, [me]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Unread DM tracking — no read_at column server-side, so "read" is just a
-  // per-peer timestamp kept in localStorage; a conversation is unread when its
-  // last message is newer than that timestamp and wasn't sent by me.
-  const [unreadPeers, setUnreadPeers] = useState(new Set());
-
-  useEffect(() => {
-    if(!myUsername) return;
-    let cancelled = false;
-    const check = async () => {
-      const convos = await dm.listConversations(myUsername);
-      if(cancelled) return;
-      const unread = new Set();
-      convos.forEach(c => {
-        if(c.lastMessage.sender === myUsername) return;
-        const lastRead = localStorage.getItem(lastReadKey(myUsername, c.peer));
-        if(!lastRead || new Date(c.lastMessage.created_at) > new Date(lastRead)) unread.add(c.peer);
-      });
-      setUnreadPeers(unread);
-    };
-    check();
-    const interval = setInterval(check, 15000);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, [myUsername]);
-
   // Blocked users — one-directional, enforced at the UI level only (this app
   // has no per-user RLS: every request already uses the shared anon key).
+  // Declared before DM/notification tracking below so both can filter blocked
+  // peers out of unread counts and the activity bell, not just out of the
+  // Feed/Forum/Search lists.
   const [blockedUsers, setBlockedUsers] = useState(new Set());
 
   useEffect(() => {
@@ -97,6 +76,34 @@ export function AppProvider({ children }) {
     try { await blocks.unblock(myUsername, username); }
     catch(e) { console.error(e); setBlockedUsers(prev => new Set(prev).add(username)); }
   }, [myUsername]);
+
+  // Unread DM tracking — no read_at column server-side, so "read" is just a
+  // per-peer timestamp kept in localStorage; a conversation is unread when its
+  // last message is newer than that timestamp and wasn't sent by me. Blocked
+  // peers are excluded so a message from someone you've blocked (still
+  // deliverable — blocking is enforced client-side only, see above) can't
+  // leave a stuck unread badge for a conversation that's hidden from the list.
+  const [unreadPeers, setUnreadPeers] = useState(new Set());
+
+  useEffect(() => {
+    if(!myUsername) return;
+    let cancelled = false;
+    const check = async () => {
+      const convos = await dm.listConversations(myUsername);
+      if(cancelled) return;
+      const unread = new Set();
+      convos.forEach(c => {
+        if(c.lastMessage.sender === myUsername) return;
+        if(blockedUsers.has(c.peer)) return;
+        const lastRead = localStorage.getItem(lastReadKey(myUsername, c.peer));
+        if(!lastRead || new Date(c.lastMessage.created_at) > new Date(lastRead)) unread.add(c.peer);
+      });
+      setUnreadPeers(unread);
+    };
+    check();
+    const interval = setInterval(check, 15000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [myUsername, blockedUsers]);
 
   const markRead = useCallback((peer) => {
     if(!myUsername) return;
@@ -130,9 +137,14 @@ export function AppProvider({ children }) {
       ]);
       if(cancelled) return;
 
+      // Drop items from blocked users before anything else so a blocked
+      // user's comment/reply/mention never surfaces in the bell — even when
+      // it's on a post/thread of someone else's that you're not blocking.
       const toEntry = (type, id, title, isMine, items, readKey) => {
+        const visible = blockedUsers.size ? items.filter(it => !blockedUsers.has(it.username)) : items;
+        if(!visible.length) return null;
         const lastRead = localStorage.getItem(readKey);
-        const unseen = items.filter(it => !lastRead || new Date(it.created_at) > new Date(lastRead));
+        const unseen = visible.filter(it => !lastRead || new Date(it.created_at) > new Date(lastRead));
         if(!unseen.length) return null;
         return { type, id, title, isMine, count: unseen.length, lastComment: unseen[0] };
       };
@@ -157,7 +169,7 @@ export function AppProvider({ children }) {
     check();
     const interval = setInterval(check, 20000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [myUsername]);
+  }, [myUsername, blockedUsers]);
 
   const markActivityRead = useCallback((type, id) => {
     if(!myUsername) return;

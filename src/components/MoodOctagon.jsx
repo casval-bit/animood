@@ -1,3 +1,5 @@
+import { useLang } from "../context/useLang.js";
+
 const KEYS = ["emotional","happy","hype","dark","chill","twisted","in_love","thrills"];
 
 const MOOD_META = {
@@ -11,7 +13,9 @@ const MOOD_META = {
   thrills:  {emoji:"🎢",color:"#FB923C",label:"Thrills"},
 };
 
-export function MoodOctagon({ pts, size = 340, title = "Profil émotionnel", className = "rounded-2xl border border-white/8 bg-white/3 p-4" }) {
+export function MoodOctagon({ pts, size = 340, title, className = "rounded-2xl border border-white/8 bg-white/3 p-4" }) {
+  const { lang } = useLang();
+  const displayTitle = title !== undefined ? title : (lang === "en" ? "Emotional profile" : "Profil émotionnel");
   const center = size / 2, levels = [25,50,75,100];
   const gridMaxR = size * 0.359;
   const labelR = gridMaxR + size * 0.088;
@@ -49,9 +53,9 @@ export function MoodOctagon({ pts, size = 340, title = "Profil émotionnel", cla
 
   return (
     <div className={className}>
-      {title && (
+      {displayTitle && (
         <div className="mb-1 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500">
-          {title}
+          {displayTitle}
         </div>
       )}
       <svg viewBox={`0 0 ${size} ${size}`} className="mx-auto block w-full" style={{ maxWidth: size }}>

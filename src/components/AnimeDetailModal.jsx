@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { useApp } from "../context/useApp.js";
+import { useLang } from "../context/useLang.js";
 import { MOODS } from "../constants/moods.js";
 import { STREAMING_COLORS } from "../constants/filters.js";
+import { ANIME_DETAIL_I18N } from "../constants/animeDetailI18n.js";
 import { jikan } from "../api/jikan.js";
 import { ptsStore, getPtsForAnime, addUserVote, genreFallbackV2 } from "../api/moods.js";
 import { sb, follows } from "../api/supabase.js";
@@ -44,6 +46,8 @@ function calcAnimoodScore(malScore, scoredBy, userScores) {
 
 export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
   const { me, saveMe, myUsername } = useApp();
+  const { lang } = useLang();
+  const t = ANIME_DETAIL_I18N[lang] || ANIME_DETAIL_I18N.fr;
   const [anime, setAnime]           = useState(null);
   const [staff, setStaff]           = useState([]);
   const [characters, setCharacters] = useState([]);
@@ -238,7 +242,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
                           display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
                         }}>
                           <span style={{fontSize:frSize*0.3,fontWeight:900,color:"#1a1100",lineHeight:1}}>{friendAvg}</span>
-                          <span style={{fontSize:frSize*0.16,color:"rgba(0,0,0,0.6)",fontWeight:700,lineHeight:1}}>amis</span>
+                          <span style={{fontSize:frSize*0.16,color:"rgba(0,0,0,0.6)",fontWeight:700,lineHeight:1}}>{t.friendsLabel}</span>
                         </div>
                       </div>
                     )}
@@ -251,14 +255,14 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
                   {type && <span className="rounded bg-white/10 px-2 py-0.5 text-[11px] text-slate-300">{type}</span>}
                   {eps  && <span className="rounded bg-white/10 px-2 py-0.5 text-[11px] text-slate-300">{eps} eps</span>}
                   {year && <span className="rounded bg-white/10 px-2 py-0.5 text-[11px] text-slate-300">{year}</span>}
-                  {userScore && <span className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-400">Ma note : {userScore}/10</span>}
+                  {userScore && <span className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-400">{t.myScoreBadge(userScore)}</span>}
                 </div>
               </div>
             </div>
 
             <div className="grid gap-6 p-6 md:grid-cols-[1fr_300px]">
               <div className="min-w-0">
-                {loading && <Spinner small label="Chargement…" />}
+                {loading && <Spinner small label={t.loading} />}
                 {studios.length > 0 && (
                   <div className="mb-3 flex flex-wrap gap-1.5">
                     {studios.map(s => (
@@ -274,13 +278,13 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
                 </div>
                 {synopsis && (
                   <div className="mb-4">
-                    <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Synopsis</div>
+                    <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{t.synopsis}</div>
                     <p className="text-[13px] leading-relaxed text-slate-400">{synopsis.length > 420 ? synopsis.slice(0,420)+"…" : synopsis}</p>
                   </div>
                 )}
                 {streaming.length > 0 && (
                   <div className="mb-4">
-                    <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Disponible sur</div>
+                    <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{t.availableOn}</div>
                     <div className="flex flex-wrap gap-1.5">
                       {streaming.map(s => { const name = s.name || s; return <span key={name} className="rounded-md px-2.5 py-1 text-[11px] font-extrabold text-white" style={{ background: STREAMING_COLORS[name] || "#444" }}>{name}</span>; })}
                     </div>
@@ -288,7 +292,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
                 )}
                 {staff.length > 0 && (
                   <div className="mb-4">
-                    <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Staff</div>
+                    <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">{t.staff}</div>
                     <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                       {staff.slice(0,6).map((s,i) => (
                         <button key={i} onClick={() => setPersonModal(s.person?.mal_id)}
@@ -306,7 +310,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
                 )}
                 {characters.length > 0 && (
                   <div className="mb-4">
-                    <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Personnages & Seiyuu</div>
+                    <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">{t.charactersVoice}</div>
                     <div className="flex gap-3 overflow-x-auto pb-1">
                       {characters.slice(0,8).map((c,i) => {
                         const va = c.voice_actors?.find(v => v.language === "Japanese");
@@ -327,7 +331,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
                     </div>
                   </div>
                 )}
-                {error && <div className="py-3 text-center text-xs text-red-400">Erreur : {error}</div>}
+                {error && <div className="py-3 text-center text-xs text-red-400">{t.errorPrefix(error)}</div>}
               </div>
 
               {/* RIGHT COLUMN */}
@@ -341,23 +345,23 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
 
                 {/* AniMood Score */}
                 <div className="rounded-2xl border border-violet-400/20 bg-violet-400/6 p-4">
-                  <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-violet-400/70">Note AniMood</div>
+                  <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-violet-400/70">{t.animoodScore}</div>
                   {animoodScore ? (
                     <div className="flex items-baseline gap-2 mb-3">
                       <span className="text-3xl font-black text-violet-300">{animoodScore.toFixed(2)}</span>
-                      <span className="text-[10px] text-slate-500">/10 · {allUserScores.length} vote{allUserScores.length!==1?"s":""} utilisateur{allUserScores.length!==1?"s":""}</span>
+                      <span className="text-[10px] text-slate-500">{t.userVotes(allUserScores.length)}</span>
                     </div>
                   ) : (
                     <div className="flex items-baseline gap-2 mb-3">
                       <span className="text-3xl font-black text-violet-300">—</span>
-                      <span className="text-[10px] text-slate-500">Pas encore noté</span>
+                      <span className="text-[10px] text-slate-500">{t.notRatedYet}</span>
                     </div>
                   )}
 
                   {/* Friend scores */}
                   {friendScores.length > 0 && (
                     <div className="border-t border-white/6 pt-3">
-                      <div className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-500">Tes amis</div>
+                      <div className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-500">{t.yourFriends}</div>
                       {friendScores.length === 1 ? (
                         <div className="flex items-center gap-2">
                           <span className="text-[11px] text-slate-400">@{friendScores[0].username}</span>
@@ -367,7 +371,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
                         <div>
                           <div className="flex items-baseline gap-2 mb-1">
                             <span className="text-[18px] font-black text-amber-400">★ {friendAvg}</span>
-                            <span className="text-[10px] text-slate-500">moy. de {friendScores.length} amis</span>
+                            <span className="text-[10px] text-slate-500">{t.friendsAvgOf(friendScores.length)}</span>
                           </div>
                           <div className="flex flex-wrap gap-1.5">
                             {friendScores.map(f => (
@@ -384,10 +388,10 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
 
                 {/* Rating + Moods */}
                 <div className="rounded-2xl bg-white/3 p-4">
-                  <div className="mb-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Ma note</div>
+                  <div className="mb-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{t.myRating}</div>
                   <StarRating value={rating} onChange={setRating} />
 
-                  <div className="my-3 text-[10px] text-slate-500">Ton ressenti (max 3 moods) :</div>
+                  <div className="my-3 text-[10px] text-slate-500">{t.moodPrompt}</div>
 
                   {/* Moods grid — 2 columns, bigger buttons */}
                   <div className="mb-3 grid grid-cols-2 gap-2">
@@ -422,15 +426,15 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
                       {saveState === "saving" ? (
                         <span className="flex items-center justify-center gap-1.5">
                           <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                          Enregistrement…
+                          {t.saving}
                         </span>
                       ) : saveState === "saved" ? (
-                        <span className="flex items-center justify-center gap-1.5 animate-mood-pop">✓ Enregistré</span>
-                      ) : "Sauvegarder"}
+                        <span className="flex items-center justify-center gap-1.5 animate-mood-pop">{t.saved}</span>
+                      ) : t.save}
                     </GradientButton>
                     <button onClick={toggleWatched}
                       className={`rounded-xl px-3 py-2.5 text-[13px] font-bold ${isWatched ? "border border-emerald-400 bg-emerald-400/10 text-emerald-400" : "border border-white/10 text-slate-500"}`}>
-                      {isWatched ? "✓ Vu" : "Marquer vu"}
+                      {isWatched ? t.watchedBadge : t.markWatched}
                     </button>
                     <button onClick={toggleFavorite}
                       className={`rounded-xl px-3 py-2.5 text-sm ${isFavorite ? "border border-pink-400 bg-pink-400/10 text-pink-400" : "border border-white/10 text-slate-500"}`}>
@@ -446,7 +450,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
                 {trailer && (
                   <a href={trailer} target="_blank" rel="noopener noreferrer"
                     className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/3 py-2.5 text-[13px] font-bold text-slate-400">
-                    ▶ Voir le trailer
+                    {t.watchTrailer}
                   </a>
                 )}
               </div>

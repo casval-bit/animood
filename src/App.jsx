@@ -3,6 +3,7 @@ import { ThemeProvider } from "./context/ThemeProvider.jsx";
 import { LangProvider } from "./context/LangProvider.jsx";
 import { AppProvider } from "./context/AppProvider.jsx";
 import { useApp } from "./context/useApp.js";
+import { useLang } from "./context/useLang.js";
 import { Header } from "./components/Header.jsx";
 import { Spinner } from "./components/Spinner.jsx";
 import { AnimeDetailModal } from "./components/AnimeDetailModal.jsx";
@@ -19,6 +20,7 @@ import { SettingsView } from "./views/SettingsView.jsx";
 
 function Shell() {
   const { session, profileReady } = useApp();
+  const { lang } = useLang();
   const [activeTab, setActiveTab]   = useState("moodboard");
   const [showSettings, setShowSettings] = useState(false);
   const [detailAnime, setDetailAnime]   = useState(null);
@@ -29,7 +31,7 @@ function Shell() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4">
         <span className="text-3xl">🌀</span>
-        <Spinner label="Chargement du profil…" />
+        <Spinner label={lang === "en" ? "Loading profile…" : "Chargement du profil…"} />
       </div>
     );
   }

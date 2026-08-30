@@ -4,12 +4,21 @@ import { uploadToCloudinary } from "../api/cloudinary.js";
 import { Modal } from "./Modal.jsx";
 import { Spinner } from "./Spinner.jsx";
 import { Avatar } from "./Avatar.jsx";
-import { FORUM_TAGS, getForumTag, MAX_THREAD_TAGS } from "../constants/forumTags.js";
+import { getForumTag, getForumTags, MAX_THREAD_TAGS } from "../constants/forumTags.js";
 import { MentionText, useMentionAutocomplete, MentionSuggestions } from "./Mentions.jsx";
 import { useApp } from "../context/useApp.js";
+import { useLang } from "../context/useLang.js";
+import { GRADIENT_TEXT } from "../constants/theme.js";
+import { FORUM_THREAD_I18N } from "../constants/forumThreadI18n.js";
 
-export function timeAgo(iso) {
+export function timeAgo(iso, lang = "fr") {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if(lang === "en") {
+    if(s < 60) return "just now";
+    if(s < 3600) return `${Math.floor(s / 60)} min ago`;
+    if(s < 86400) return `${Math.floor(s / 3600)} h ago`;
+    return `${Math.floor(s / 86400)} d ago`;
+  }
   if(s < 60) return "à l'instant";
   if(s < 3600) return `il y a ${Math.floor(s / 60)} min`;
   if(s < 86400) return `il y a ${Math.floor(s / 3600)} h`;
@@ -21,7 +30,8 @@ const SUBMIT_BTN = "rounded-xl bg-linear-to-r from-violet-600 to-fuchsia-500 px-
 
 // ─── Small colored pill for a thread tag — shared between list rows and detail ─
 export function TagPill({ id }) {
-  const tag = getForumTag(id);
+  const { lang } = useLang();
+  const tag = getForumTag(id, lang);
   if(!tag) return null;
   return (
     <span
@@ -35,6 +45,8 @@ export function TagPill({ id }) {
 
 // ─── Create a new discussion — title + body + optional tags ───────────────────
 export function NewThreadModal({ username, onClose, onCreated }) {
+  const { lang } = useLang();
+  const t = FORUM_THREAD_I18N[lang] || FORUM_THREAD_I18N.fr;
   const [title, setTitle]     = useState("");
   const [body, setBody]       = useState("");
   const [tags, setTags]       = useState([]);
@@ -56,7 +68,7 @@ export function NewThreadModal({ username, onClose, onCreated }) {
     setImageError(null);
     setImageUploading(true);
     try {
-      const url = await uploadToCloudinary(file, "post");
+      const url = await uploadToCloudinary(file, "post", lang);
       setImageUrl(url);
     } catch(err) {
       setImageError(err.message);
@@ -66,30 +78,30 @@ export function NewThreadModal({ username, onClose, onCreated }) {
   };
 
   const submit = async () => {
-    const t = title.trim(), b = body.trim();
-    if(!t || !b) { setError("Titre et message obligatoires."); return; }
+    const ttl = title.trim(), b = body.trim();
+    if(!ttl || !b) { setError(t.errRequired); return; }
     setSubmitting(true); setError(null);
     try {
-      const rows = await sb.createThread(username, t, b, tags, imageUrl);
+      const rows = await sb.createThread(username, ttl, b, tags, imageUrl);
       if(rows?.[0]) onCreated(rows[0]);
       else throw new Error("empty response");
     } catch {
-      setError("Impossible de publier — le forum n'est peut-être pas encore configuré côté base de données (voir supabase/forum_schema.sql).");
+      setError(t.errCreate);
     } finally { setSubmitting(false); }
   };
 
   return (
     <Modal onClose={onClose} maxWidth="max-w-lg">
       <div className="p-5">
-        <div className="mb-4 text-sm font-extrabold text-slate-100">➕ Nouveau sujet</div>
+        <div className="mb-4 text-sm font-extrabold text-slate-100">{t.newThreadHeader}</div>
         <input
           value={title} onChange={e => setTitle(e.target.value)} maxLength={120}
-          placeholder="Titre du sujet…" className={`mb-3 ${INPUT}`}
+          placeholder={t.titlePlaceholder} className={`mb-3 ${INPUT}`}
         />
         <div className="relative">
           <textarea
             value={body} onChange={e => setBody(e.target.value)} maxLength={2000} rows={5}
-            placeholder="De quoi veux-tu parler ? (@ pour mentionner)" className={`mb-3 resize-none ${INPUT}`}
+            placeholder={t.bodyPlaceholder} className={`mb-3 resize-none ${INPUT}`}
           />
           <MentionSuggestions suggestions={mention.suggestions}
             onPick={u => setBody(mention.applyMention(body, u))}/>
@@ -110,14 +122,14 @@ export function NewThreadModal({ username, onClose, onCreated }) {
           style={imageUrl
             ? { borderColor: "rgba(129,140,248,.3)", background: "rgba(129,140,248,.15)", color: "#818cf8" }
             : { borderColor: "rgba(var(--fg-rgb),.1)", background: "rgba(var(--fg-rgb),.05)", color: "var(--text-2)" }}>
-          {imageUploading ? "⏳ Upload…" : imageUrl ? "🖼 Changer l'image" : "🖼 Ajouter une image"}
+          {imageUploading ? t.imageUploading : imageUrl ? t.imageChange : t.imageAdd}
         </button>
 
         <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-          Tags <span className="normal-case text-slate-600">(optionnel, {MAX_THREAD_TAGS} max)</span>
+          {t.tagsLabel} <span className="normal-case text-slate-600">{t.tagsHint(MAX_THREAD_TAGS)}</span>
         </div>
         <div className="mb-3 flex flex-wrap gap-1.5">
-          {FORUM_TAGS.map(tag => {
+          {getForumTags(lang).map(tag => {
             const active = tags.includes(tag.id);
             return (
               <button
@@ -135,7 +147,7 @@ export function NewThreadModal({ username, onClose, onCreated }) {
         </div>
         {error && <div className="mb-3 text-xs text-red-400">{error}</div>}
         <button onClick={submit} disabled={submitting || imageUploading || !title.trim() || !body.trim()} className={`w-full ${SUBMIT_BTN}`}>
-          {submitting ? "Publication…" : "Publier"}
+          {submitting ? t.publishing : t.publish}
         </button>
       </div>
     </Modal>
@@ -145,6 +157,8 @@ export function NewThreadModal({ username, onClose, onCreated }) {
 // ─── Thread detail — body + replies + reply box, no reactions/pagination ──────
 export function ThreadModal({ thread, username, onClose, onOpenUser }) {
   const { blockedUsers } = useApp();
+  const { lang } = useLang();
+  const t = FORUM_THREAD_I18N[lang] || FORUM_THREAD_I18N.fr;
   const [replies, setReplies]   = useState([]);
   const [profileCache, setProfileCache] = useState({});
   const [loading, setLoading]   = useState(true);
@@ -181,7 +195,7 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
       if(rows?.[0]) setReplies(r => [...r, rows[0]]);
       setReply("");
     } catch {
-      setError("Impossible d'envoyer la réponse — le forum n'est peut-être pas encore configuré côté base de données.");
+      setError(t.errReply);
     } finally { setSubmitting(false); }
   };
 
@@ -193,7 +207,7 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
         <div className="mb-1.5 flex items-center gap-2">
           <Avatar profile={profileCache[thread.username]} size={22} fallback={thread.username.slice(0,2).toUpperCase()} className="text-[9px]"/>
           <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-            {profileCache[thread.username]?.name || thread.username} · @{thread.username} · {timeAgo(thread.created_at)}
+            <span className={GRADIENT_TEXT}>{profileCache[thread.username]?.name || thread.username}</span> · @{thread.username} · {timeAgo(thread.created_at, lang)}
           </div>
         </div>
         <div className="mb-1.5 text-lg font-black text-slate-100">{thread.title}</div>
@@ -208,7 +222,7 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
         )}
 
         <div className="mb-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-          {visibleReplies.length} réponse{visibleReplies.length !== 1 ? "s" : ""}
+          {t.replyCount(visibleReplies.length)}
         </div>
         {loading ? <Spinner small /> : (
           <div className="mb-5 flex flex-col gap-3">
@@ -216,26 +230,26 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
               <div key={r.id} className="rounded-xl border border-white/7 bg-white/4 p-3">
                 <div className="mb-1 flex items-center gap-1.5">
                   <Avatar profile={profileCache[r.username]} size={18} fallback={r.username.slice(0,2).toUpperCase()} className="text-[8px]"/>
-                  <div className="text-[10px] font-bold text-slate-500">{profileCache[r.username]?.name || r.username} · @{r.username} · {timeAgo(r.created_at)}</div>
+                  <div className="text-[10px] font-bold text-slate-500"><span className={GRADIENT_TEXT}>{profileCache[r.username]?.name || r.username}</span> · @{r.username} · {timeAgo(r.created_at, lang)}</div>
                 </div>
                 <div className="whitespace-pre-wrap text-[13px] text-slate-200"><MentionText text={r.body} onOpenUser={onOpenUser}/></div>
               </div>
             ))}
-            {!visibleReplies.length && <div className="text-xs text-slate-600">Aucune réponse pour l'instant — sois le premier·e.</div>}
+            {!visibleReplies.length && <div className="text-xs text-slate-600">{t.noReplies}</div>}
           </div>
         )}
 
         <div className="relative">
           <textarea
             value={reply} onChange={e => setReply(e.target.value)} maxLength={2000} rows={3}
-            placeholder="Écrire une réponse… (@ pour mentionner)" className={`mb-2 resize-none ${INPUT}`}
+            placeholder={t.replyPlaceholder} className={`mb-2 resize-none ${INPUT}`}
           />
           <MentionSuggestions suggestions={mention.suggestions}
             onPick={u => setReply(mention.applyMention(reply, u))}/>
         </div>
         {error && <div className="mb-2 text-xs text-red-400">{error}</div>}
         <button onClick={submitReply} disabled={submitting || !reply.trim()} className={SUBMIT_BTN}>
-          {submitting ? "Envoi…" : "Répondre"}
+          {submitting ? t.sending : t.reply}
         </button>
       </div>
     </Modal>

@@ -3,6 +3,8 @@
 // every screen reads as one product.
 import { GRADIENT_PRIMARY, GLASS, GLASS_STYLE } from "../constants/theme.js";
 import { useApp } from "../context/useApp.js";
+import { useLang } from "../context/useLang.js";
+import { COMMON_I18N } from "../constants/commonI18n.js";
 
 export function GlassCard({ className = "", style = {}, children, as: Comp = "div", ...rest }) {
   return (
@@ -105,6 +107,8 @@ function EyeIcon({ filled, color = "#818cf8" }) {
 // Highlights reuse the profile's 5-slot favorites showcase (first 5 auto-synced).
 export function QuickActionIcons({ anime, variant = "watched" }) {
   const { me, saveMe } = useApp();
+  const { lang } = useLang();
+  const t = COMMON_I18N[lang] || COMMON_I18N.fr;
   const malId = anime.mal_id;
   const isWatched = me.watched.includes(malId);
   const isOnWatchlist = (me.statuses||{})[malId] === "watchlist";
@@ -140,14 +144,14 @@ export function QuickActionIcons({ anime, variant = "watched" }) {
       {/* Left — watchlist bookmark OR watched eye */}
       {variant === "watchlist" ? (
         <button onClick={toggleWatchlist}
-          title={isOnWatchlist ? "Retirer de la watchlist" : "Ajouter à la watchlist"}
+          title={isOnWatchlist ? t.removeFromWatchlist : t.addToWatchlist}
           className="absolute left-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full backdrop-blur transition hover:scale-110"
           style={{ background: isOnWatchlist ? "rgba(34,197,94,.85)" : "rgba(15,23,42,.65)", boxShadow: isOnWatchlist ? "0 0 12px rgba(34,197,94,.5)" : "none" }}>
           <BookmarkIcon filled={isOnWatchlist}/>
         </button>
       ) : (
         <button onClick={toggleWatched}
-          title={isWatched ? "Marquer comme non-vu" : "Marquer comme vu"}
+          title={isWatched ? t.markUnwatched : t.markWatched}
           className="absolute left-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full backdrop-blur transition hover:scale-110"
           style={{ background: isWatched ? "rgba(129,140,248,.85)" : "rgba(15,23,42,.65)", boxShadow: isWatched ? "0 0 12px rgba(129,140,248,.5)" : "none" }}>
           <EyeIcon filled={isWatched}/>
@@ -156,7 +160,7 @@ export function QuickActionIcons({ anime, variant = "watched" }) {
 
       {/* Right — Highlight heart (emoji, original style) */}
       <button onClick={toggleHighlight}
-        title={isHighlighted ? "Retirer des Highlights" : "Ajouter aux Highlights"}
+        title={isHighlighted ? t.removeFromHighlights : t.addToHighlights}
         className="absolute right-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full text-xs backdrop-blur transition hover:scale-110"
         style={{ background: isHighlighted ? "rgba(236,72,153,.85)" : "rgba(15,23,42,.65)", boxShadow: isHighlighted ? "0 0 12px rgba(236,72,153,.5)" : "none" }}>
         {isHighlighted ? "❤️" : "🤍"}

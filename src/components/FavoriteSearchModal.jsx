@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { useLang } from "../context/useLang.js";
+import { FAVORITE_SEARCH_I18N } from "../constants/favoriteSearchI18n.js";
 import { jikan } from "../api/jikan.js";
 import { Spinner } from "./Spinner.jsx";
 import { Modal } from "./Modal.jsx";
@@ -6,6 +8,8 @@ import { Modal } from "./Modal.jsx";
 const FALLBACK = "https://placehold.co/64x92/1a1a2e/818cf8?text=?";
 
 export function FavoriteSearchModal({ onSelect, onClose }) {
+  const { lang } = useLang();
+  const t = FAVORITE_SEARCH_I18N[lang] || FAVORITE_SEARCH_I18N.fr;
   const [q, setQ]             = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -24,10 +28,10 @@ export function FavoriteSearchModal({ onSelect, onClose }) {
   return (
     <Modal onClose={onClose} maxWidth="max-w-md">
       <div className="p-5">
-        <div className="mb-3 text-sm font-extrabold text-slate-100">Ajouter un favori</div>
+        <div className="mb-3 text-sm font-extrabold text-slate-100">{t.heading}</div>
         <div className="relative mb-3.5">
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">🔍</span>
-          <input ref={inputRef} value={q} onChange={e => search(e.target.value)} placeholder="Rechercher un animé…"
+          <input ref={inputRef} value={q} onChange={e => search(e.target.value)} placeholder={t.searchPlaceholder}
             className="w-full rounded-xl border border-white/12 bg-white/7 py-2.5 pl-9 pr-3 text-sm text-slate-100 outline-none" />
         </div>
         {loading && <Spinner small />}

@@ -9,13 +9,13 @@ const UPLOAD_URL    = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/uploa
  * @param {File} file
  * @param {"avatar"|"post"} type  — controls max resize dimensions
  */
-export async function uploadToCloudinary(file, type = "post") {
+export async function uploadToCloudinary(file, type = "post", lang = "fr") {
   // Validate
   if(!["image/jpeg","image/png","image/webp","image/gif"].includes(file.type)) {
-    throw new Error("Format non supporté — JPG, PNG, WebP ou GIF uniquement");
+    throw new Error(lang === "en" ? "Unsupported format — JPG, PNG, WebP or GIF only" : "Format non supporté — JPG, PNG, WebP ou GIF uniquement");
   }
   if(file.size > 10 * 1024 * 1024) {
-    throw new Error("Fichier trop lourd — max 10 Mo");
+    throw new Error(lang === "en" ? "File too large — max 10MB" : "Fichier trop lourd — max 10 Mo");
   }
 
   // Resize client-side before upload to save bandwidth

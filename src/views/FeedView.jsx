@@ -4,14 +4,17 @@ import { sb, posts as postsApi, comments as commentsApi, follows } from "../api/
 import { uploadToCloudinary } from "../api/cloudinary.js";
 import { jikan } from "../api/jikan.js";
 import { MentionText, useMentionAutocomplete, MentionSuggestions } from "../components/Mentions.jsx";
+import { useLang } from "../context/useLang.js";
+import { FEED_I18N } from "../constants/feedI18n.js";
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function timeAgo(ts) {
+function timeAgo(ts, lang) {
+  const t = FEED_I18N[lang] || FEED_I18N.fr;
   const diff = (Date.now() - new Date(ts)) / 1000;
-  if(diff < 60) return "à l'instant";
+  if(diff < 60) return t.timeJustNow;
   if(diff < 3600) return `${Math.floor(diff/60)}min`;
   if(diff < 86400) return `${Math.floor(diff/3600)}h`;
-  if(diff < 604800) return `${Math.floor(diff/86400)}j`;
-  return new Date(ts).toLocaleDateString("fr-FR", {day:"numeric",month:"short"});
+  if(diff < 604800) return `${Math.floor(diff/86400)}${t.timeDayUnit}`;
+  return new Date(ts).toLocaleDateString(lang === "en" ? "en-US" : "fr-FR", {day:"numeric",month:"short"});
 }
 function Avatar({ profile, size=32 }) {
   const src = profile?.avatar_base64 || (profile?.avatar?.startsWith?.("http") ? profile.avatar : null);
@@ -51,6 +54,8 @@ function getLast3Seasons() {
 }
 const RECENT_SEASONS = getLast3Seasons();
 function AnimeSearchPicker({ onSelect, onClose }) {
+  const { lang } = useLang();
+  const t = FEED_I18N[lang] || FEED_I18N.fr;
   const [q, setQ] = useState("");
   const [results, setResults] = useState([]);
   const timer = useRef(null);
@@ -70,7 +75,7 @@ function AnimeSearchPicker({ onSelect, onClose }) {
     <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:50,marginTop:4,
       background:"var(--surface-1-strong)",border:"1px solid rgba(var(--fg-rgb),0.1)",borderRadius:12,padding:8,boxShadow:"var(--shadow-modal)"}}>
       <input autoFocus value={q} onChange={e=>search(e.target.value)}
-        placeholder="Rechercher un animé…"
+        placeholder={t.animeSearchPlaceholder}
         style={{width:"100%",boxSizing:"border-box",padding:"8px 12px",borderRadius:8,
           background:"rgba(var(--fg-rgb),0.06)",border:"1px solid rgba(var(--fg-rgb),0.1)",
           color:"var(--text-1)",fontSize:13,outline:"none",marginBottom:results.length?8:0}}/>
@@ -89,13 +94,15 @@ function AnimeSearchPicker({ onSelect, onClose }) {
         </button>
       ))}
       <button onClick={onClose} style={{width:"100%",marginTop:4,padding:"6px",background:"none",
-        border:"none",color:"var(--text-3)",fontSize:11,cursor:"pointer"}}>Annuler</button>
+        border:"none",color:"var(--text-3)",fontSize:11,cursor:"pointer"}}>{t.cancel}</button>
     </div>
   );
 }
 // ─── PostComposer ─────────────────────────────────────────────────────────────
 function PostComposer({ onPost }) {
   const { me, myUsername } = useApp();
+  const { lang } = useLang();
+  const t = FEED_I18N[lang] || FEED_I18N.fr;
   const [content, setContent] = useState("");
   const [spoiler, setSpoiler] = useState(false);
   const [linkedAnime, setLinkedAnime] = useState(null);
@@ -111,7 +118,7 @@ function PostComposer({ onPost }) {
     setImageError(null);
     setImageUploading(true);
     try {
-      const url = await uploadToCloudinary(file, "post");
+      const url = await uploadToCloudinary(file, "post", lang);
       setImageUrl(url);
     } catch(err) {
       setImageError(err.message);
@@ -154,7 +161,7 @@ function PostComposer({ onPost }) {
         <Avatar profile={profile} size={38}/>
         <div style={{flex:1,position:"relative"}}>
           <textarea value={content} onChange={e=>setContent(e.target.value.slice(0,280))}
-            placeholder="Partage ta réaction, ton avis, une recommandation… (@ pour mentionner)"
+            placeholder={t.composerPlaceholder}
             style={{width:"100%",boxSizing:"border-box",background:"none",border:"none",
               color:"var(--text-1)",fontSize:14,resize:"none",outline:"none",minHeight:70,
               fontFamily:"inherit",lineHeight:1.5}}/>
@@ -184,13 +191,13 @@ function PostComposer({ onPost }) {
             <button onClick={()=>imageInputRef.current?.click()} disabled={imageUploading}
               style={{padding:"5px 10px",borderRadius:8,background:imageUrl?"rgba(129,140,248,0.15)":"rgba(var(--fg-rgb),0.05)",
                 border:"1px solid rgba(var(--fg-rgb),0.1)",color:imageUrl?"#818cf8":"var(--text-2)",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-              {imageUploading ? "⏳" : "🖼"} {imageUploading ? "Upload…" : imageUrl ? "Changer" : "Image"}
+              {imageUploading ? "⏳" : "🖼"} {imageUploading ? t.imageUploading : imageUrl ? t.imageChange : t.imageAdd}
             </button>
             <div style={{position:"relative"}}>
               <button onClick={()=>setShowAnimePicker(p=>!p)}
                 style={{padding:"5px 10px",borderRadius:8,background:linkedAnime?"rgba(129,140,248,0.15)":"rgba(var(--fg-rgb),0.05)",
                   border:"1px solid rgba(var(--fg-rgb),0.1)",color:linkedAnime?"#818cf8":"var(--text-2)",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                📺 {linkedAnime ? "Changer" : "Lier un animé"}
+                📺 {linkedAnime ? t.animeChange : t.animeLink}
               </button>
               {showAnimePicker && <AnimeSearchPicker onSelect={a=>{setLinkedAnime(a);setShowAnimePicker(false);}} onClose={()=>setShowAnimePicker(false)}/>}
             </div>
@@ -199,7 +206,7 @@ function PostComposer({ onPost }) {
                 background:spoiler?"rgba(239,68,68,0.15)":"rgba(var(--fg-rgb),0.05)",
                 border:`1px solid ${spoiler?"rgba(239,68,68,0.3)":"rgba(var(--fg-rgb),0.1)"}`,
                 color:spoiler?"#ef4444":"var(--text-2)",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-              ⚠️ Spoiler
+              ⚠️ {t.spoilerToggle}
             </button>
             <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10}}>
               <span style={{fontSize:11,color:remaining<20?"#ef4444":"var(--text-3)",fontWeight:600}}>{remaining}</span>
@@ -207,7 +214,7 @@ function PostComposer({ onPost }) {
                 style={{padding:"7px 16px",borderRadius:10,border:"none",
                   background:canPost?"linear-gradient(135deg,#7c3aed,#4f46e5)":"rgba(var(--fg-rgb),0.05)",
                   color:canPost?"#fff":"var(--text-4)",fontWeight:800,fontSize:13,cursor:canPost?"pointer":"not-allowed"}}>
-                {posting ? "…" : "Poster"}
+                {posting ? t.posting : t.post}
               </button>
             </div>
           </div>
@@ -218,6 +225,9 @@ function PostComposer({ onPost }) {
 }
 // ─── CommentSection ───────────────────────────────────────────────────────────
 function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommentAdded, onLoadProfiles }) {
+  const { blockedUsers } = useApp();
+  const { lang } = useLang();
+  const t = FEED_I18N[lang] || FEED_I18N.fr;
   const [commentList, setCommentList] = useState(null);
   const [newComment, setNewComment] = useState("");
   const [posting, setPosting] = useState(false);
@@ -228,6 +238,7 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
       onLoadProfiles?.((rows||[]).map(c=>c.username));
     }).catch(()=>setCommentList([]));
   }, [postId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const visibleComments = blockedUsers?.size ? (commentList||[]).filter(c => !blockedUsers.has(c.username)) : commentList;
   const handleComment = async () => {
     if(!newComment.trim() || posting) return;
     setPosting(true);
@@ -248,20 +259,21 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
       return {...c, likes: likes.includes(myUsername) ? likes.filter(u=>u!==myUsername) : [...likes, myUsername]};
     }));
   };
-  if(!commentList) return <div style={{fontSize:11,color:"var(--text-4)",padding:"8px 0"}}>Chargement…</div>;
+  if(!commentList) return <div style={{fontSize:11,color:"var(--text-4)",padding:"8px 0"}}>{t.loading}</div>;
   return (
     <div style={{borderTop:"1px solid rgba(var(--fg-rgb),0.05)",paddingTop:12,marginTop:8}}>
-      {commentList.map(c => (
+      {visibleComments.map(c => (
         <div key={c.id||c.created_at} style={{display:"flex",gap:8,marginBottom:10}}>
           <Avatar profile={profileCache[c.username]||{avatar:"👤"}} size={26}/>
           <div style={{flex:1}}>
             <div style={{background:"rgba(var(--fg-rgb),0.04)",borderRadius:"0 10px 10px 10px",padding:"7px 10px"}}>
               <div style={{display:"flex",alignItems:"baseline",gap:5,marginBottom:3,flexWrap:"wrap"}}>
                 <span onClick={()=>onOpenUser?.(c.username)}
-                  style={{fontSize:11,fontWeight:800,color:"var(--text-1)",cursor:onOpenUser?"pointer":"default"}}>{profileCache[c.username]?.name||c.username}</span>
+                  style={{fontSize:11,fontWeight:800,cursor:onOpenUser?"pointer":"default",
+                    background:"linear-gradient(90deg,#8B5CF6,#EC4899)",WebkitBackgroundClip:"text",backgroundClip:"text",color:"transparent"}}>{profileCache[c.username]?.name||c.username}</span>
                 <span onClick={()=>onOpenUser?.(c.username)}
                   style={{fontSize:10,color:"#c084fc",fontWeight:700,cursor:onOpenUser?"pointer":"default"}}>@{c.username}</span>
-                <span style={{fontSize:9,color:"var(--text-4)"}}>{timeAgo(c.created_at)}</span>
+                <span style={{fontSize:9,color:"var(--text-4)"}}>{timeAgo(c.created_at, lang)}</span>
               </div>
               <p style={{fontSize:12,color:"var(--text-1)",margin:0,lineHeight:1.5}}><MentionText text={c.content} onOpenUser={onOpenUser}/></p>
             </div>
@@ -272,7 +284,7 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
               </button>
               {c.username === myUsername && (
                 <button onClick={async()=>{await commentsApi.delete(c.id);setCommentList(p=>p.filter(x=>x.id!==c.id));}}
-                  style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:"var(--text-4)"}}>Supprimer</button>
+                  style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:"var(--text-4)"}}>{t.delete}</button>
               )}
             </div>
           </div>
@@ -283,7 +295,7 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
         <div style={{flex:1,display:"flex",gap:6,position:"relative"}}>
           <input value={newComment} onChange={e=>setNewComment(e.target.value.slice(0,280))}
             onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&handleComment()}
-            placeholder="Répondre… (@ pour mentionner)"
+            placeholder={t.commentPlaceholder}
             style={{flex:1,padding:"7px 12px",borderRadius:20,background:"rgba(var(--fg-rgb),0.05)",
               border:"1px solid rgba(var(--fg-rgb),0.08)",color:"var(--text-1)",fontSize:12,outline:"none"}}/>
           <MentionSuggestions suggestions={mention.suggestions}
@@ -301,6 +313,8 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
 }
 // ─── PostCard ─────────────────────────────────────────────────────────────────
 function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoadProfiles }) {
+  const { lang } = useLang();
+  const t = FEED_I18N[lang] || FEED_I18N.fr;
   const [liked, setLiked] = useState((post.likes||[]).includes(myUsername));
   const [likeCount, setLikeCount] = useState((post.likes||[]).length);
   const [showComments, setShowComments] = useState(false);
@@ -334,13 +348,15 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
         <div style={{flex:1}}>
           <div style={{display:"flex",alignItems:"baseline",gap:6,flexWrap:"wrap"}}>
             <span onClick={()=>onOpenUser?.(post.username)}
-              style={{fontSize:13,fontWeight:800,color:"var(--text-1)",cursor:onOpenUser?"pointer":"default"}}
+              style={{fontSize:13,fontWeight:800,cursor:onOpenUser?"pointer":"default",
+                background:"linear-gradient(90deg,#8B5CF6,#EC4899)",WebkitBackgroundClip:"text",backgroundClip:"text",
+                WebkitTextFillColor:"transparent",color:"#EC4899"}}
               onMouseEnter={e=>{if(onOpenUser)e.currentTarget.style.textDecoration="underline";}}
               onMouseLeave={e=>{e.currentTarget.style.textDecoration="none";}}>{profile.name||post.username}</span>
             <span onClick={()=>onOpenUser?.(post.username)}
               style={{fontSize:11,color:"#c084fc",fontWeight:700,cursor:onOpenUser?"pointer":"default"}}>@{post.username}</span>
-            <span style={{fontSize:10,color:"var(--text-4)"}}>{timeAgo(post.created_at)}</span>
-            {post.spoiler && <span style={{fontSize:9,fontWeight:700,color:"#ef4444",background:"rgba(239,68,68,0.1)",borderRadius:4,padding:"1px 5px"}}>SPOILER</span>}
+            <span style={{fontSize:10,color:"var(--text-4)"}}>{timeAgo(post.created_at, lang)}</span>
+            {post.spoiler && <span style={{fontSize:9,fontWeight:700,color:"#ef4444",background:"rgba(239,68,68,0.1)",borderRadius:4,padding:"1px 5px"}}>{t.spoilerTag}</span>}
           </div>
           {post.anime_title && (
             <div style={{display:"flex",alignItems:"center",gap:5,marginTop:2}}>
@@ -362,7 +378,7 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
         <button onClick={()=>setRevealed(true)}
           style={{width:"100%",padding:"12px",borderRadius:10,background:"rgba(239,68,68,0.08)",
             border:"1px dashed rgba(239,68,68,0.3)",color:"#ef4444",fontSize:12,fontWeight:700,cursor:"pointer",marginBottom:10}}>
-          ⚠️ Contenu spoiler — cliquer pour révéler
+          {t.spoilerReveal}
         </button>
       ) : (
         <>
@@ -396,7 +412,7 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
           style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:5,
             color:showComments?"#818cf8":"var(--text-3)",fontSize:12,fontWeight:700}}>
           <span>💬</span>
-          <span>Commentaires{commentCount > 0 ? ` (${commentCount})` : ""}</span>
+          <span>{t.comments}{commentCount > 0 ? ` (${commentCount})` : ""}</span>
           <span style={{fontSize:10}}>{showComments?"▲":"▼"}</span>
         </button>
       </div>
@@ -408,6 +424,8 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
 // ─── FEED VIEW ────────────────────────────────────────────────────────────────
 export function FeedView({ onOpenDetail, onOpenUser }) {
   const { me, myUsername, blockedUsers } = useApp();
+  const { lang } = useLang();
+  const t = FEED_I18N[lang] || FEED_I18N.fr;
   const [feed, setFeed]           = useState([]);
   const [loading, setLoading]     = useState(true);
   const [channel, setChannel]     = useState("general");
@@ -452,16 +470,16 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
     } catch(e) { console.error(e); }
     setLoading(false);
   };
-  useEffect(() => { loadFeed(true); }, [channel]);
+  useEffect(() => { loadFeed(true); }, [channel, blockedUsers]); // eslint-disable-line react-hooks/exhaustive-deps
   const handlePost = (newPost) => { setFeed(p => [newPost, ...p]); };
   const handleDelete = async (id) => {
     await postsApi.delete(id);
     setFeed(p => p.filter(post => post.id !== id));
   };
   const CHANNELS = [
-    { id:"general",   label:"Général",   emoji:"🌐" },
-    { id:"recent",    label:"Récents",    emoji:"✨" },
-    { id:"following", label:"Abonnements", emoji:"👥" },
+    { id:"general",   label:t.channelGeneral,   emoji:"🌐" },
+    { id:"recent",    label:t.channelRecent,    emoji:"✨" },
+    { id:"following", label:t.channelFollowing, emoji:"👥" },
   ];
   return (
     <div style={{maxWidth:600,margin:"0 auto",padding:"0 16px 80px"}}>
@@ -480,20 +498,20 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
       </div>
       {channel==="recent" && (
         <div style={{fontSize:10,color:"var(--text-4)",marginBottom:12,textAlign:"center"}}>
-          Posts liés aux animés des saisons : {RECENT_SEASONS.join(", ")}
+          {t.recentSeasonsNote(RECENT_SEASONS.join(", "))}
         </div>
       )}
       {loading && feed.length===0 && (
         <div style={{textAlign:"center",padding:"40px 0",color:"var(--text-4)"}}>
           <div style={{fontSize:32,marginBottom:8}}>🌀</div>
-          <p style={{fontSize:12}}>Chargement…</p>
+          <p style={{fontSize:12}}>{t.loading}</p>
         </div>
       )}
       {!loading && feed.length===0 && (
         <div style={{textAlign:"center",padding:"40px 0",color:"var(--text-4)"}}>
           <div style={{fontSize:40,marginBottom:12}}>📭</div>
-          <p style={{fontWeight:700,color:"var(--text-3)"}}>Aucun post</p>
-          <p style={{fontSize:12,marginTop:4}}>Sois le premier à poster quelque chose !</p>
+          <p style={{fontWeight:700,color:"var(--text-3)"}}>{t.emptyTitle}</p>
+          <p style={{fontSize:12,marginTop:4}}>{t.emptyDesc}</p>
         </div>
       )}
       {feed.map(post => (
@@ -504,7 +522,7 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
         <button onClick={()=>loadFeed(false)} disabled={loading}
           style={{width:"100%",padding:"12px",borderRadius:12,border:"1px solid rgba(var(--fg-rgb),0.08)",
             background:"rgba(var(--fg-rgb),0.03)",color:"var(--text-3)",fontSize:12,fontWeight:700,cursor:"pointer",marginTop:8}}>
-          {loading?"Chargement…":"Voir plus"}
+          {loading?t.loading:t.loadMore}
         </button>
       )}
       <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
