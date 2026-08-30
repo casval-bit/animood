@@ -3,6 +3,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useApp } from "../context/useApp.js";
 import { sb, supabase } from "../api/supabase.js";
 import { Spinner } from "./Spinner.jsx";
+import { useLang } from "../context/useLang.js";
+import { GAME_SYSTEM_I18N } from "../constants/gameSystemI18n.js";
 
 const GREEN  = "#22c55e";
 const ORANGE = "#f97316";
@@ -43,6 +45,9 @@ function generateCode() {
 
 export function Matchmaking({ gameType, onMatch, onClose }) {
   const { myUsername } = useApp();
+  const { lang } = useLang();
+  const t = (GAME_SYSTEM_I18N[lang] || GAME_SYSTEM_I18N.fr).matchmaking;
+  const tc = (GAME_SYSTEM_I18N[lang] || GAME_SYSTEM_I18N.fr).common;
   const [mode, setMode]           = useState(null); // null | ranked | private-create | private-join
   const [status, setStatus]       = useState("searching");
   const [waitTime, setWaitTime]   = useState(0);
@@ -119,8 +124,8 @@ export function Matchmaking({ gameType, onMatch, onClose }) {
     if(!code) return;
     const rooms = await sb.query(`game_rooms?private_code=eq.${code}&status=eq.waiting&limit=1`).catch(()=>[]);
     const room = rooms?.[0];
-    if(!room){setJoinError("Code invalide ou room introuvable.");return;}
-    if(room.player1===myUsername){setJoinError("Tu ne peux pas rejoindre ta propre room.");return;}
+    if(!room){setJoinError(t.errInvalidCode);return;}
+    if(room.player1===myUsername){setJoinError(t.errOwnRoom);return;}
     await sb.query(`game_rooms?id=eq.${room.id}`,{method:"PATCH",headers:{...sb.headers,"Prefer":"return=minimal"},body:JSON.stringify({player2:myUsername,elo2:400,status:"active",updated_at:new Date().toISOString()})}).catch(()=>{});
     setStatus("found");
     setTimeout(()=>onMatch({...room,player2:myUsername,status:"active"}),1000);
@@ -130,19 +135,19 @@ export function Matchmaking({ gameType, onMatch, onClose }) {
   if(!mode) return (
     <div style={{padding:32,textAlign:"center"}}>
       <div style={{fontSize:24,fontWeight:900,color:"var(--text-1)",marginBottom:20}}>
-        ⚔️ {gameType==="chain"?"Chaîne Animé":"Timeline"}
+        ⚔️ {t.gameTypeName(gameType)}
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:10,maxWidth:240,margin:"0 auto"}}>
         <button onClick={()=>setMode("ranked")} style={{padding:"12px 20px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>
-          🏆 Multijoueur MMR
+          {t.rankedBtn}
         </button>
         <button onClick={createPrivateRoom} style={{padding:"12px 20px",borderRadius:12,border:"2px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"var(--text-2)",fontWeight:700,fontSize:13,cursor:"pointer"}}>
-          🔒 Créer une room privée
+          {t.createPrivateBtn}
         </button>
         <button onClick={()=>setMode("private-join")} style={{padding:"12px 20px",borderRadius:12,border:"2px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"var(--text-2)",fontWeight:700,fontSize:13,cursor:"pointer"}}>
-          🔑 Rejoindre avec un code
+          {t.joinPrivateBtn}
         </button>
-        <button onClick={onClose} style={{padding:"8px",background:"none",border:"none",color:"var(--text-4)",cursor:"pointer",fontSize:12}}>Annuler</button>
+        <button onClick={onClose} style={{padding:"8px",background:"none",border:"none",color:"var(--text-4)",cursor:"pointer",fontSize:12}}>{tc.cancel}</button>
       </div>
     </div>
   );
@@ -150,14 +155,14 @@ export function Matchmaking({ gameType, onMatch, onClose }) {
   if(mode==="private-create") return (
     <div style={{padding:32,textAlign:"center"}}>
       {status==="found" ? (
-        <><div style={{fontSize:48,marginBottom:12}}>⚔️</div><div style={{fontSize:18,fontWeight:900,color:GREEN}}>Adversaire trouvé !</div><div style={{fontSize:12,color:"var(--text-4)",marginTop:8}}>Démarrage…</div></>
+        <><div style={{fontSize:48,marginBottom:12}}>⚔️</div><div style={{fontSize:18,fontWeight:900,color:GREEN}}>{t.opponentFound}</div><div style={{fontSize:12,color:"var(--text-4)",marginTop:8}}>{tc.starting}</div></>
       ) : (
         <>
-          <div style={{fontSize:24,marginBottom:12}}>🔒 Room privée</div>
-          <div style={{fontSize:12,color:"var(--text-4)",marginBottom:8}}>Partage ce code à ton ami :</div>
+          <div style={{fontSize:24,marginBottom:12}}>{t.privateRoomTitle}</div>
+          <div style={{fontSize:12,color:"var(--text-4)",marginBottom:8}}>{t.shareCode}</div>
           <div style={{fontSize:36,fontWeight:900,color:"#c084fc",letterSpacing:8,marginBottom:16,padding:"12px 24px",background:"rgba(124,58,237,0.1)",borderRadius:12,display:"inline-block"}}>{privateCode}</div>
-          <div style={{fontSize:11,color:"var(--text-4)",marginBottom:20}}>En attente de connexion…</div>
-          <button onClick={cancelAndClose} style={{padding:"8px 20px",borderRadius:20,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:"var(--text-3)",cursor:"pointer",fontSize:12}}>Annuler</button>
+          <div style={{fontSize:11,color:"var(--text-4)",marginBottom:20}}>{t.waitingConnection}</div>
+          <button onClick={cancelAndClose} style={{padding:"8px 20px",borderRadius:20,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:"var(--text-3)",cursor:"pointer",fontSize:12}}>{tc.cancel}</button>
         </>
       )}
     </div>
@@ -166,15 +171,15 @@ export function Matchmaking({ gameType, onMatch, onClose }) {
   if(mode==="private-join") return (
     <div style={{padding:32,textAlign:"center"}}>
       {status==="found" ? (
-        <><div style={{fontSize:48,marginBottom:12}}>⚔️</div><div style={{fontSize:18,fontWeight:900,color:GREEN}}>Connecté !</div><div style={{fontSize:12,color:"var(--text-4)",marginTop:8}}>Démarrage…</div></>
+        <><div style={{fontSize:48,marginBottom:12}}>⚔️</div><div style={{fontSize:18,fontWeight:900,color:GREEN}}>{t.connected}</div><div style={{fontSize:12,color:"var(--text-4)",marginTop:8}}>{tc.starting}</div></>
       ) : (
         <>
-          <div style={{fontSize:24,marginBottom:16}}>🔑 Rejoindre une room</div>
-          <input value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} placeholder="Code (ex: AB3XY)" maxLength={6}
+          <div style={{fontSize:24,marginBottom:16}}>{t.joinRoomTitle}</div>
+          <input value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} placeholder={t.joinCodePlaceholder} maxLength={6}
             style={{width:"100%",boxSizing:"border-box",padding:"12px 16px",borderRadius:12,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",color:"var(--text-1)",fontSize:18,fontWeight:900,textAlign:"center",letterSpacing:4,outline:"none",marginBottom:8}}/>
           {joinError&&<div style={{fontSize:11,color:RED,marginBottom:8}}>{joinError}</div>}
-          <button onClick={joinPrivateRoom} style={{width:"100%",padding:"12px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer",marginBottom:8}}>Rejoindre</button>
-          <button onClick={onClose} style={{padding:"8px",background:"none",border:"none",color:"var(--text-4)",cursor:"pointer",fontSize:12}}>Annuler</button>
+          <button onClick={joinPrivateRoom} style={{width:"100%",padding:"12px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer",marginBottom:8}}>{t.joinBtn}</button>
+          <button onClick={onClose} style={{padding:"8px",background:"none",border:"none",color:"var(--text-4)",cursor:"pointer",fontSize:12}}>{tc.cancel}</button>
         </>
       )}
     </div>
@@ -185,13 +190,13 @@ export function Matchmaking({ gameType, onMatch, onClose }) {
       {status==="searching" ? (
         <>
           <div style={{fontSize:32,marginBottom:12}}>🔍</div>
-          <div style={{fontSize:16,fontWeight:800,color:"var(--text-1)",marginBottom:4}}>Recherche d'adversaire…</div>
-          <div style={{fontSize:12,color:"var(--text-4)",marginBottom:16}}>{waitTime>0?`Attente : ${waitTime}s · Plage Elo : ±${Math.min(50+waitTime*5,400)}`:"Connexion…"}</div>
-          <div style={{fontSize:11,color:"#c084fc",marginBottom:20}}>Ton Elo : {myElo}</div>
-          <button onClick={cancelAndClose} style={{padding:"8px 20px",borderRadius:20,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:"var(--text-3)",cursor:"pointer",fontSize:12}}>Annuler</button>
+          <div style={{fontSize:16,fontWeight:800,color:"var(--text-1)",marginBottom:4}}>{t.searchingOpponent}</div>
+          <div style={{fontSize:12,color:"var(--text-4)",marginBottom:16}}>{waitTime>0?t.waitStatus(waitTime, Math.min(50+waitTime*5,400)):t.connecting}</div>
+          <div style={{fontSize:11,color:"#c084fc",marginBottom:20}}>{t.myElo(myElo)}</div>
+          <button onClick={cancelAndClose} style={{padding:"8px 20px",borderRadius:20,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:"var(--text-3)",cursor:"pointer",fontSize:12}}>{tc.cancel}</button>
         </>
       ) : (
-        <><div style={{fontSize:48,marginBottom:12}}>⚔️</div><div style={{fontSize:18,fontWeight:900,color:GREEN}}>Adversaire trouvé !</div><div style={{fontSize:12,color:"var(--text-4)",marginTop:8}}>Démarrage…</div></>
+        <><div style={{fontSize:48,marginBottom:12}}>⚔️</div><div style={{fontSize:18,fontWeight:900,color:GREEN}}>{t.opponentFound}</div><div style={{fontSize:12,color:"var(--text-4)",marginTop:8}}>{tc.starting}</div></>
       )}
     </div>
   );
@@ -205,6 +210,9 @@ function seededPick(arr, seed) {
 
 export function ChainGame({ room, onClose }) {
   const { myUsername } = useApp();
+  const { lang } = useLang();
+  const t = (GAME_SYSTEM_I18N[lang] || GAME_SYSTEM_I18N.fr).chain;
+  const tc = (GAME_SYSTEM_I18N[lang] || GAME_SYSTEM_I18N.fr).common;
   const isP1 = room.player1 === myUsername;
   const oppUsername = isP1 ? room.player2 : room.player1;
   const myElo  = isP1 ? (room.elo1||400) : (room.elo2||400);
@@ -325,11 +333,11 @@ export function ChainGame({ room, onClose }) {
     if(!isMyTurn || state.phase !== "play") return;
     // Already used?
     if(state.chain.some(a => a.mal_id === anime.mal_id)) {
-      setMsg("❌ Cet animé a déjà été utilisé !");
+      setMsg(t.errAlreadyUsed);
       return;
     }
     if(!isValidLink(anime)) {
-      setMsg("❌ Lien invalide — réessaie !");
+      setMsg(t.errInvalidLink);
       return;
     }
     setMsg("");
@@ -396,7 +404,7 @@ export function ChainGame({ room, onClose }) {
     }, 300);
   };
 
-  const linkLabel = state.linkType === "studio" ? "Même studio, genre différent" : state.linkType === "genre" ? "Même genre, studio différent" : "";
+  const linkLabel = state.linkType === "studio" ? t.linkLabelStudio : state.linkType === "genre" ? t.linkLabelGenre : "";
 
   return (
     <div style={{padding:16,maxWidth:640,margin:"0 auto"}}>
@@ -406,7 +414,7 @@ export function ChainGame({ room, onClose }) {
           ⚔️ {myUsername} <span style={{color:"var(--text-4)"}}>vs</span> {oppUsername}
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <span style={{fontSize:11,color:"var(--text-4)"}}>Manche {state.round}/3</span>
+          <span style={{fontSize:11,color:"var(--text-4)"}}>{t.round(state.round)}</span>
           <div style={{display:"flex",gap:4}}>
             {[0,1,2].map(i=>(
               <div key={i} style={{width:10,height:10,borderRadius:"50%",
@@ -421,10 +429,10 @@ export function ChainGame({ room, onClose }) {
         <div style={{textAlign:"center",padding:24}}>
           {amChooser ? (
             <>
-              <div style={{fontSize:15,fontWeight:800,color:"var(--text-1)",marginBottom:8}}>Choisis le type de lien</div>
-              <div style={{fontSize:11,color:"var(--text-4)",marginBottom:20}}>Tu commences la manche</div>
+              <div style={{fontSize:15,fontWeight:800,color:"var(--text-1)",marginBottom:8}}>{t.chooseLinkType}</div>
+              <div style={{fontSize:11,color:"var(--text-4)",marginBottom:20}}>{t.youStartRound}</div>
               <div style={{display:"flex",gap:12,justifyContent:"center"}}>
-                {[{id:"studio",label:"🏢 Même studio",sub:"genres différents"},{id:"genre",label:"🎌 Même genre",sub:"studio différent"}].map(opt=>(
+                {[{id:"studio",label:t.optSameStudio,sub:t.optSameStudioSub},{id:"genre",label:t.optSameGenre,sub:t.optSameGenreSub}].map(opt=>(
                   <button key={opt.id} onClick={()=>handleChooseLinkType(opt.id)}
                     style={{padding:"14px 20px",borderRadius:14,border:"2px solid rgba(124,58,237,0.4)",
                       background:"rgba(124,58,237,0.1)",cursor:"pointer",textAlign:"center",minWidth:140}}>
@@ -437,7 +445,7 @@ export function ChainGame({ room, onClose }) {
           ) : (
             <div>
               <div style={{fontSize:15,fontWeight:700,color:"var(--text-2)",marginBottom:8}}>
-                ⏳ {oppUsername} choisit le type de lien…
+                {t.opponentChoosing(oppUsername)}
               </div>
               <Spinner/>
             </div>
@@ -455,7 +463,7 @@ export function ChainGame({ room, onClose }) {
             <span style={{fontSize:11,color:"#c084fc",fontWeight:700}}>{linkLabel}</span>
             <div style={{display:"flex",alignItems:"center",gap:6}}>
               <span style={{fontSize:11,color:timerVal<=10?RED:"var(--text-3)"}}>
-                {isMyTurn?"⏱ Ton tour":"⏳ Tour de "+oppUsername}
+                {isMyTurn?t.yourTurn:t.turnOf(oppUsername)}
               </span>
               <span style={{fontWeight:900,color:timerVal<=10?RED:GREEN,fontSize:14}}>{timerVal}s</span>
             </div>
@@ -469,7 +477,7 @@ export function ChainGame({ room, onClose }) {
               <img src={state.currentAnime.image_url} alt="" style={{width:36,height:50,objectFit:"cover",borderRadius:6,flexShrink:0}}
                 onError={e=>{e.target.style.display="none";}}/>
               <div>
-                <div style={{fontSize:10,color:"var(--text-4)",marginBottom:2}}>Animé actuel</div>
+                <div style={{fontSize:10,color:"var(--text-4)",marginBottom:2}}>{t.currentAnime}</div>
                 <div style={{fontSize:13,fontWeight:800,color:"var(--text-1)"}}>{state.currentAnime.title}</div>
                 <div style={{fontSize:10,color:"var(--text-4)"}}>
                   {(state.currentAnime.studios||[]).map(s=>s.name||s).join(", ")} ·{" "}
@@ -483,7 +491,7 @@ export function ChainGame({ room, onClose }) {
           {isMyTurn && (
             <div style={{position:"relative",marginBottom:8}}>
               <input value={query} onChange={e=>search(e.target.value)}
-                placeholder="Tape un animé TV…"
+                placeholder={t.searchPlaceholder}
                 autoFocus
                 style={{width:"100%",boxSizing:"border-box",padding:"10px 14px",borderRadius:12,
                   background:"rgba(255,255,255,0.05)",border:`1px solid ${msg?"rgba(239,68,68,0.4)":"rgba(255,255,255,0.1)"}`,
@@ -540,7 +548,7 @@ export function ChainGame({ room, onClose }) {
               <>
                 <div style={{fontSize:48,marginBottom:12}}>{won?"🏆":draw?"🤝":"😢"}</div>
                 <div style={{fontSize:20,fontWeight:900,color:won?GREEN:draw?ORANGE:RED,marginBottom:8}}>
-                  {won?"Victoire !":draw?"Égalité":won?"Défaite":"Défaite"}
+                  {won?tc.victory:draw?tc.draw:won?tc.defeat:tc.defeat}
                 </div>
                 <div style={{fontSize:14,color:"var(--text-3)",marginBottom:20}}>
                   {myScore} – {oppScore}
@@ -549,7 +557,7 @@ export function ChainGame({ room, onClose }) {
                   style={{padding:"10px 24px",borderRadius:20,border:"none",
                     background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",
                     fontWeight:800,fontSize:13,cursor:"pointer"}}>
-                  Retour
+                  {tc.back}
                 </button>
               </>
             );
@@ -571,6 +579,9 @@ function seededRand(seed) {
 
 export function TimelineGame({ room, onClose }) {
   const { myUsername } = useApp();
+  const { lang } = useLang();
+  const t = (GAME_SYSTEM_I18N[lang] || GAME_SYSTEM_I18N.fr).timeline;
+  const tc = (GAME_SYSTEM_I18N[lang] || GAME_SYSTEM_I18N.fr).common;
   const isP1 = room.player1 === myUsername;
   const oppUsername = isP1 ? room.player2 : room.player1;
 
@@ -650,7 +661,7 @@ export function TimelineGame({ room, onClose }) {
       i===0 || (a.year||0) >= (newTimeline[i-1].year||0)
     );
     if(!valid) {
-      setMsg("❌ Mauvaise position !");
+      setMsg(t.errWrongPosition);
       // Pass turn
       const next = state.currentTurn === room.player1 ? room.player2 : room.player1;
       const newState = { ...state, currentTurn: next, skipped: myUsername };
@@ -699,7 +710,7 @@ export function TimelineGame({ room, onClose }) {
           📅 {myUsername} <span style={{color:"var(--text-4)"}}>vs</span> {oppUsername}
         </div>
         <div style={{fontSize:11,color:"var(--text-4)"}}>
-          Placés : toi {isP1?state.placed1:state.placed2}/5 · {oppUsername} {isP1?state.placed2:state.placed1}/5
+          {t.placed(isP1?state.placed1:state.placed2, isP1?state.placed2:state.placed1, oppUsername)}
         </div>
       </div>
 
@@ -709,8 +720,8 @@ export function TimelineGame({ room, onClose }) {
           background:isMyTurn?"rgba(34,197,94,0.1)":"rgba(255,255,255,0.04)",
           border:`1px solid ${isMyTurn?"rgba(34,197,94,0.3)":"rgba(255,255,255,0.08)"}`,
           color:isMyTurn?GREEN:"var(--text-4)",fontSize:11,fontWeight:700}}>
-          {state.skipped ? `⏩ ${state.skipped} a raté — ` : ""}
-          {isMyTurn ? "🎯 Ton tour" : `⏳ Tour de ${oppUsername}`}
+          {state.skipped ? t.skippedTurn(state.skipped) : ""}
+          {isMyTurn ? t.yourTurn : t.turnOf(oppUsername)}
         </div>
       )}
 
@@ -720,7 +731,7 @@ export function TimelineGame({ room, onClose }) {
       {isMyTurn && currentAnimeToPlace && state.phase==="play" && (
         <div style={{marginBottom:12,padding:"10px 14px",borderRadius:12,
           background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)"}}>
-          <div style={{fontSize:10,color:"var(--text-4)",marginBottom:6}}>Place cet animé sur la frise :</div>
+          <div style={{fontSize:10,color:"var(--text-4)",marginBottom:6}}>{t.placeThisAnime}</div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <img src={currentAnimeToPlace.image_url} alt="" style={{width:32,height:46,objectFit:"cover",borderRadius:6}}
               onError={e=>{e.target.style.display="none";}}/>
@@ -760,7 +771,7 @@ export function TimelineGame({ room, onClose }) {
       {myHandLeft.length > 0 && (
         <div style={{marginTop:12}}>
           <div style={{fontSize:10,color:"var(--text-4)",marginBottom:6}}>
-            Tes animés restants : {myHandLeft.length}
+            {t.remainingAnime(myHandLeft.length)}
           </div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             {myHandLeft.map((a,i)=>(
@@ -781,16 +792,16 @@ export function TimelineGame({ room, onClose }) {
           borderRadius:16,border:"1px solid rgba(255,255,255,0.07)"}}>
           <div style={{fontSize:40,marginBottom:8}}>{state.winner===myUsername?"🏆":"😢"}</div>
           <div style={{fontSize:18,fontWeight:900,color:state.winner===myUsername?GREEN:RED,marginBottom:16}}>
-            {state.winner===myUsername?"Victoire !":"Défaite"}
+            {state.winner===myUsername?tc.victory:tc.defeat}
           </div>
           <div style={{fontSize:12,color:"var(--text-4)",marginBottom:20}}>
-            {state.winner} a placé tous ses animés en premier
+            {t.wonFirst(state.winner)}
           </div>
           <button onClick={onClose}
             style={{padding:"10px 24px",borderRadius:20,border:"none",
               background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",
               fontWeight:800,fontSize:13,cursor:"pointer"}}>
-            Retour
+            {tc.back}
           </button>
         </div>
       )}

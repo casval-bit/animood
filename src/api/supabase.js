@@ -96,10 +96,12 @@ export const sb = {
     try { return await this.query(`forum_threads?select=*&order=created_at.desc&limit=${limit}`) || []; }
     catch { return []; }
   },
-  async getReplyCounts(threadIds) {
+  async getReplyCounts(threadIds, excludeUsernames = []) {
     if(!threadIds.length) return {};
     try {
-      const rows = await this.query(`forum_replies?select=thread_id&thread_id=in.(${threadIds.join(",")})`) || [];
+      let url = `forum_replies?select=thread_id&thread_id=in.(${threadIds.join(",")})`;
+      if(excludeUsernames.length) url += `&username=not.in.(${excludeUsernames.map(u=>encodeURIComponent(u)).join(",")})`;
+      const rows = await this.query(url) || [];
       const out = {};
       rows.forEach(r => { out[r.thread_id] = (out[r.thread_id] || 0) + 1; });
       return out;

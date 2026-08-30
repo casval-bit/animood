@@ -25,9 +25,9 @@ const STATUS_MAP = {
   PLANNING:  "watchlist",
 };
 
-export async function importAniListUser(username, myUsername) {
+export async function importAniListUser(username, myUsername, lang = "fr") {
   const name = username.trim();
-  if(!name) throw new Error("Entre un nom d'utilisateur AniList");
+  if(!name) throw new Error(lang === "en" ? "Enter an AniList username" : "Entre un nom d'utilisateur AniList");
 
   const res = await fetch(ANILIST_URL, {
     method: "POST",
@@ -37,9 +37,9 @@ export async function importAniListUser(username, myUsername) {
   const json = await res.json();
   if(json.errors?.length) {
     const msg = json.errors[0]?.message || "";
-    if(msg === "Private User")    throw new Error(`La liste de "${name}" est privée sur AniList`);
-    if(msg === "User not found")  throw new Error(`Utilisateur AniList "${name}" introuvable`);
-    throw new Error(msg || "Erreur AniList");
+    if(msg === "Private User")    throw new Error(lang === "en" ? `"${name}"'s list is private on AniList` : `La liste de "${name}" est privée sur AniList`);
+    if(msg === "User not found")  throw new Error(lang === "en" ? `AniList user "${name}" not found` : `Utilisateur AniList "${name}" introuvable`);
+    throw new Error(msg || (lang === "en" ? "AniList error" : "Erreur AniList"));
   }
 
   const lists = json.data?.MediaListCollection?.lists || [];
@@ -104,7 +104,12 @@ query ($ids: [Int]) {
   }
 }`;
 
-export async function fetchAiredDates(malIds) {
+const SEASON_MAP = {
+  fr: { WINTER:"Hiver", SPRING:"Printemps", SUMMER:"Été", FALL:"Automne" },
+  en: { WINTER:"Winter", SPRING:"Spring", SUMMER:"Summer", FALL:"Fall" },
+};
+
+export async function fetchAiredDates(malIds, lang = "fr") {
   if(!malIds?.length) return {};
   try {
     const res = await fetch(ANILIST_URL, {
@@ -115,11 +120,11 @@ export async function fetchAiredDates(malIds) {
     const json = await res.json();
     const media = json.data?.Page?.media || [];
     const result = {};
-    const SEASON_MAP = { WINTER:"Hiver", SPRING:"Printemps", SUMMER:"Été", FALL:"Automne" };
+    const seasons = SEASON_MAP[lang] || SEASON_MAP.fr;
     media.forEach(m => {
       if(!m.idMal) return;
       result[m.idMal] = {
-        season: m.season ? `${SEASON_MAP[m.season]||m.season} ${m.seasonYear}` : null,
+        season: m.season ? `${seasons[m.season]||m.season} ${m.seasonYear}` : null,
         year: m.seasonYear || m.startDate?.year || null,
         startDate: m.startDate,
       };

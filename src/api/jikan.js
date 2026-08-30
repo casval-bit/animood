@@ -32,7 +32,7 @@ async function jikanFetch(url) {
     if(!r.ok) throw new Error(`Jikan ${r.status}`);
     return r.json();
   }
-  throw new Error("Jikan 429 — réessaie dans quelques secondes");
+  throw new Error(document.documentElement.lang === "en" ? "Jikan 429 — please retry in a few seconds" : "Jikan 429 — réessaie dans quelques secondes");
 }
 
 async function jikanCall(key, url) {

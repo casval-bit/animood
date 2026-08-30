@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useApp } from "../context/useApp.js";
-import { STATUS_COLORS, STATUS_PRIORITY } from "../constants/statuses.js";
+import { useLang } from "../context/useLang.js";
+import { STATUS_COLORS, STATUS_PRIORITY, getStatusLabel } from "../constants/statuses.js";
 import { MOOD_KEYS } from "../constants/moods.js";
 import { sb, follows, loadProfile } from "../api/supabase.js";
 import { jikan } from "../api/jikan.js";
@@ -14,25 +15,32 @@ import { EmptyState } from "../components/EmptyState.jsx";
 import { Modal } from "../components/Modal.jsx";
 import { ChatModal } from "../components/ChatModal.jsx";
 import { TabBar } from "../components/ui.jsx";
-import { GRADIENT_PRIMARY } from "../constants/theme.js";
+import { GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
+import { USER_PROFILE_MODAL_I18N } from "../constants/userProfileModalI18n.js";
+import { COMMON_I18N } from "../constants/commonI18n.js";
 
-const TABS = [
-  {id:"profile", label:"Profil"},
-  {id:"journal", label:"Journal"},
-  {id:"lists",   label:"Listes"},
+const getTabs = (t) => [
+  {id:"profile", label:t.tabProfile},
+  {id:"journal", label:t.tabJournal},
+  {id:"lists",   label:t.tabLists},
 ];
 
-function timeAgo(ts) {
+function timeAgo(ts, lang = "fr") {
+  const t = USER_PROFILE_MODAL_I18N[lang] || USER_PROFILE_MODAL_I18N.fr;
   const diff = (Date.now() - new Date(ts)) / 1000;
-  if(diff < 60) return "à l'instant";
+  if(diff < 60) return t.timeJustNow;
   if(diff < 3600) return `${Math.floor(diff/60)}min`;
   if(diff < 86400) return `${Math.floor(diff/3600)}h`;
-  if(diff < 604800) return `${Math.floor(diff/86400)}j`;
-  return new Date(ts).toLocaleDateString("fr-FR", {day:"numeric",month:"short"});
+  if(diff < 604800) return `${Math.floor(diff/86400)}${t.timeDayUnit}`;
+  return new Date(ts).toLocaleDateString(lang === "en" ? "en-US" : "fr-FR", {day:"numeric",month:"short"});
 }
 
 export function UserProfileModal({ username, onClose, onOpenDetail }) {
   const { myUsername, blockedUsers, blockUser, unblockUser } = useApp();
+  const { lang } = useLang();
+  const t = USER_PROFILE_MODAL_I18N[lang] || USER_PROFILE_MODAL_I18N.fr;
+  const tc = COMMON_I18N[lang] || COMMON_I18N.fr;
+  const TABS = getTabs(t);
   const isOwnProfile = myUsername === username.toLowerCase();
   const isBlocked = blockedUsers?.has(username);
   const [blockLoading, setBlockLoading] = useState(false);
@@ -155,8 +163,8 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
   return (
     <>
     <Modal onClose={onClose} maxWidth="max-w-3xl">
-      {loading ? <div className="p-8 flex justify-center"><Spinner label="Chargement…"/></div> : !profile ? (
-        <EmptyState emoji="😶" title="Profil introuvable" />
+      {loading ? <div className="p-8 flex justify-center"><Spinner label={t.loading}/></div> : !profile ? (
+        <EmptyState emoji="😶" title={t.notFound} />
       ) : (
         <div className="p-6">
           {/* Header */}
@@ -170,12 +178,12 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
               </div>
             </FrameSVG>
             <div className="flex-1 min-w-0">
-              <div className="text-xl font-black text-slate-100">{profile.name||username}</div>
+              <div className={`text-xl font-black ${GRADIENT_TEXT}`}>{profile.name||username}</div>
               <div className="text-xs text-slate-500 mb-1">@{username}</div>
               {profile.bio && <div className="text-xs italic text-slate-400 mb-2">{profile.bio}</div>}
               <div className="flex items-center gap-4 text-[11px]">
-                <span><span className="font-black text-slate-100">{followerCount}</span> <span className="text-slate-500">abonnés</span></span>
-                <span><span className="font-black text-slate-100">{followingCount}</span> <span className="text-slate-500">abonnements</span></span>
+                <span><span className="font-black text-slate-100">{followerCount}</span> <span className="text-slate-500">{t.followers}</span></span>
+                <span><span className="font-black text-slate-100">{followingCount}</span> <span className="text-slate-500">{t.following}</span></span>
               </div>
             </div>
             {!isOwnProfile && (
@@ -188,16 +196,16 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
                         background:isFollowing?"transparent":GRADIENT_PRIMARY,
                         color:isFollowing?"var(--text-2)":"#fff",
                         boxShadow:isFollowing?"none":"0 8px 24px rgba(109,91,255,.35)"}}>
-                      {followLoading?"…":isFollowing?"Suivi ✓":"Suivre"}
+                      {followLoading?"…":isFollowing?t.followingBtn:t.followBtn}
                     </button>
                     <button onClick={()=>setShowChat(true)}
                       className="rounded-full border border-white/15 px-4 py-2 text-[13px] font-bold text-slate-300 transition hover:bg-white/5">
-                      💬 Message
+                      {t.messageBtn}
                     </button>
                   </div>
                 )}
                 <div className="relative">
-                  <button onClick={()=>setShowMoreMenu(p=>!p)} title="Plus d'options"
+                  <button onClick={()=>setShowMoreMenu(p=>!p)} title={t.moreOptions}
                     className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-white/8 hover:text-slate-300">
                     ⋯
                   </button>
@@ -208,7 +216,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
                         style={{background:"var(--surface-1-strong)"}}>
                         <button onClick={handleBlock} disabled={blockLoading}
                           className="block w-full px-3.5 py-2 text-left text-[12.5px] font-semibold text-slate-400 transition hover:bg-white/6 hover:text-red-400">
-                          {blockLoading?"…":isBlocked?"Débloquer":"🚫 Bloquer @"+username}
+                          {blockLoading?"…":isBlocked?t.unblockBtn:t.blockBtn(username)}
                         </button>
                       </div>
                     </>
@@ -221,10 +229,10 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
           {/* Stats row */}
           <div className="mb-5 grid grid-cols-4 gap-2">
             {[
-              {l:"Vus",        v:(profile.watched||[]).length},
-              {l:"Notés",      v:rated.length},
-              {l:"Moy.",       v:rated.length?(rated.reduce((a,id)=>a+(profile.ratings?.[id]?.score||0),0)/rated.length).toFixed(1):"—"},
-              {l:"Abonnés",    v:followerCount},
+              {l:t.statWatched,   v:(profile.watched||[]).length},
+              {l:t.statRated,     v:rated.length},
+              {l:t.statAvg,       v:rated.length?(rated.reduce((a,id)=>a+(profile.ratings?.[id]?.score||0),0)/rated.length).toFixed(1):"—"},
+              {l:t.statFollowers, v:followerCount},
             ].map(s=>(
               <div key={s.l} className="rounded-xl border border-white/6 bg-white/3 py-2 text-center">
                 <div className="text-sm font-black text-purple-300">{s.v}</div>
@@ -241,7 +249,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
               {/* Favoris */}
               {(profile.favorites||[]).some(Boolean) && (
                 <div>
-                  <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">❤️ Favoris</div>
+                  <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.favorites}</div>
                   <div className="grid grid-cols-5 gap-2">
                     {(profile.favorites||[null,null,null,null,null]).slice(0,5).map((favId,i)=>(
                       <AnimePoster key={i} anime={favId?getAnime(favId):null} empty={!favId} loading={!!favId} onClick={onOpenDetail}/>
@@ -253,7 +261,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
               {/* Highlights */}
               {highlights.length > 0 && (
                 <div>
-                  <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">⭐ Highlights</div>
+                  <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.highlightsTitle}</div>
                   <div className="grid grid-cols-5 gap-2">
                     {highlights.slice(0,5).map(id=>(
                       <AnimePoster key={id} anime={getAnime(id)} loading onClick={onOpenDetail}/>
@@ -262,7 +270,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
                 </div>
               )}
 
-              {/* Liste épinglée */}
+              {/* Pinned list */}
               {pinnedList && (
                 <div>
                   <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">📌 {pinnedList.name}</div>
@@ -271,7 +279,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
                       <AnimePoster key={id} anime={getAnime(id)} loading onClick={onOpenDetail}/>
                     ))}
                     {pinnedList.animeIds.length===0 && (
-                      <div className="col-span-5 text-center text-[11px] text-slate-600 py-4">Liste vide</div>
+                      <div className="col-span-5 text-center text-[11px] text-slate-600 py-4">{t.emptyList}</div>
                     )}
                   </div>
                 </div>
@@ -280,7 +288,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
               {/* Mood radar */}
               {moodAvg && (
                 <div>
-                  <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎭 Profil émotionnel</div>
+                  <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.moodRadar}</div>
                   <MoodOctagon pts={moodAvg}/>
                 </div>
               )}
@@ -288,7 +296,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
               {/* Score distribution */}
               {rated.length > 0 && (
                 <div>
-                  <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">📊 Distribution des notes</div>
+                  <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.scoreDistribution}</div>
                   <div className="rounded-2xl border border-white/6 bg-white/3 p-4">
                     <ScoreChart ratings={profile.ratings||{}}/>
                   </div>
@@ -299,7 +307,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
 
           {/* ── JOURNAL TAB ── */}
           {tab === "journal" && (
-            journalIds.length===0 ? <EmptyState emoji="📖" title="Aucun animé dans le journal"/> : (
+            journalIds.length===0 ? <EmptyState emoji="📖" title={t.journalEmpty}/> : (
               <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-1">
                 {journalIds.map(id=>{
                   const status=(profile.statuses||{})[id]||"completed";
@@ -317,7 +325,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
                       <div className="flex flex-1 flex-col justify-between py-2 pr-3">
                         <div className="text-xs font-extrabold leading-tight text-slate-100">{a.title}</div>
                         <div className="flex items-center justify-between">
-                          <span className="text-[9px] font-bold" style={{color:sc.dot}}>{sc.label}</span>
+                          <span className="text-[9px] font-bold" style={{color:sc.dot}}>{getStatusLabel(status, lang)}</span>
                           {r&&<span className="text-[11px] font-extrabold text-amber-400">★{r.score}</span>}
                         </div>
                       </div>
@@ -330,14 +338,14 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
 
           {/* ── LISTES TAB ── */}
           {tab === "lists" && (
-            customLists.length===0 ? <EmptyState emoji="📋" title="Aucune liste"/> : (
+            customLists.length===0 ? <EmptyState emoji="📋" title={t.listsEmpty}/> : (
               <div className="flex flex-col gap-4">
                 {customLists.map(list=>(
                   <div key={list.id}>
                     <div className="mb-2 flex items-center gap-2">
                       <div className="text-[11px] font-bold text-slate-300">{list.name}</div>
                       {list.id===pinnedListId&&<span className="text-[9px] text-slate-500">📌</span>}
-                      <span className="text-[9px] text-slate-600">{list.animeIds.length} animés</span>
+                      <span className="text-[9px] text-slate-600">{tc.animeCount(list.animeIds.length)}</span>
                     </div>
                     {list.animeIds.length>0 ? (
                       <div className="grid grid-cols-5 gap-2">
@@ -346,7 +354,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-[10px] text-slate-600 py-2">Liste vide</div>
+                      <div className="text-[10px] text-slate-600 py-2">{t.emptyList}</div>
                     )}
                   </div>
                 ))}

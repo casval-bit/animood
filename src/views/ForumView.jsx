@@ -5,6 +5,7 @@ import { sb } from "../api/supabase.js";
 import { topMoods } from "../api/moods.js";
 import { MOODS, getMoodObj } from "../constants/moods.js";
 import { useApp } from "../context/useApp.js";
+import { useLang } from "../context/useLang.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { NewThreadModal, ThreadModal, TagPill, timeAgo } from "../components/ForumThreadModal.jsx";
@@ -13,7 +14,8 @@ import { MoodOctagon } from "../components/MoodOctagon.jsx";
 import { WordleGame, PosterGame } from "../components/MiniGames.jsx";
 import { Matchmaking, ChainGame, TimelineGame } from "../components/GameSystem.jsx";
 import { Modal } from "../components/Modal.jsx";
-import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY } from "../constants/theme.js";
+import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
+import { FORUM_I18N } from "../constants/forumI18n.js";
 
 const FALLBACK_IMG = "https://placehold.co/64x92/1a1a2e/818cf8?text=?";
 const TYPE_EMOJI = { TV:"📺", Movie:"🎬", OVA:"💿", ONA:"🌐", Special:"✨" };
@@ -25,16 +27,16 @@ function posterUrl(anime) {
 
 // Real countdown once AniList gives us a day-level date; falls back to the year
 // we already have (from Jikan) rather than showing nothing while it loads.
-function countdownLabel(anime, airedDates) {
+function countdownLabel(anime, airedDates, t) {
   const date = airedDates[anime.mal_id];
   if(date) {
     const days = Math.ceil((date - Date.now()) / 86400000);
-    if(days > 1) return `⏳ Dans ${days} j`;
-    if(days === 1) return "⏳ Demain";
-    if(days === 0) return "⏳ Aujourd'hui";
-    return "Bientôt disponible";
+    if(days > 1) return t.countdownDays(days);
+    if(days === 1) return t.countdownTomorrow;
+    if(days === 0) return t.countdownToday;
+    return t.countdownSoon;
   }
-  return anime.year ? `Prévu en ${anime.year}` : "Date inconnue";
+  return anime.year ? t.countdownYear(anime.year) : t.countdownUnknown;
 }
 
 function defaultStat(anime) {
@@ -42,7 +44,7 @@ function defaultStat(anime) {
 }
 
 // ─── One row = one "sujet" — thumbnail, title, blurb, stats, type/year ─────────
-function ThreadRow({ anime, onClick, metaLabel, trailerLink, statOverride, dominantMood }) {
+function ThreadRow({ anime, onClick, metaLabel, trailerLink, statOverride, dominantMood, t }) {
   const img = posterUrl(anime);
   const genres = (anime.genres || []).map(g => g.name || g).slice(0, 3).join(" · ");
   const stat = (statOverride || defaultStat)(anime);
@@ -58,7 +60,7 @@ function ThreadRow({ anime, onClick, metaLabel, trailerLink, statOverride, domin
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13.5px] font-bold text-slate-100">{anime.title}</div>
           <div className="flex min-w-0 items-center gap-1.5">
-            <span className="truncate text-[11px] text-slate-500">{genres || anime.type || "Anime"}</span>
+            <span className="truncate text-[11px] text-slate-500">{genres || anime.type || t.animeFallback}</span>
             {dominantMood && (
               <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold" style={{ background: `${dominantMood.color}20`, color: dominantMood.color }}>
                 {dominantMood.emoji} {dominantMood.label}
@@ -86,7 +88,7 @@ function ThreadRow({ anime, onClick, metaLabel, trailerLink, statOverride, domin
           onClick={e => e.stopPropagation()}
           className="shrink-0 rounded-full bg-white/8 px-3 py-1.5 text-[11px] font-bold text-slate-100 transition hover:bg-white/15"
         >
-          ▶ Trailer
+          {t.trailerBtn}
         </a>
       )}
     </div>
@@ -96,7 +98,7 @@ function ThreadRow({ anime, onClick, metaLabel, trailerLink, statOverride, domin
 // ─── One category = banner header + list of rows, à la forum sub-section ──────
 // `maxVisible` trims long lists (e.g. "Nouveaux animes") behind a "Voir plus" toggle
 // so obscure/low-interest entries don't dominate the page by default.
-function ForumCategory({ emoji, title, subtitle, items, onOpenDetail, metaLabel, trailerLink, statOverride, dominantMoods, maxVisible }) {
+function ForumCategory({ emoji, title, subtitle, items, onOpenDetail, metaLabel, trailerLink, statOverride, dominantMoods, maxVisible, t }) {
   const [expanded, setExpanded] = useState(false);
   if(!items.length) return null;
   const visible = maxVisible && !expanded ? items.slice(0, maxVisible) : items;
@@ -109,7 +111,7 @@ function ForumCategory({ emoji, title, subtitle, items, onOpenDetail, metaLabel,
           {subtitle && <div className="text-[10.5px] text-white/70">{subtitle}</div>}
         </div>
         <div className="shrink-0 rounded-full bg-black/20 px-2.5 py-1 text-[10px] font-bold text-white/90">
-          {items.length} sujet{items.length !== 1 ? "s" : ""}
+          {t.topicCount(items.length)}
         </div>
       </div>
       <div>
@@ -117,7 +119,7 @@ function ForumCategory({ emoji, title, subtitle, items, onOpenDetail, metaLabel,
           <ThreadRow
             key={a.mal_id} anime={a} onClick={onOpenDetail} metaLabel={metaLabel}
             trailerLink={trailerLink} statOverride={statOverride}
-            dominantMood={dominantMoods?.[a.mal_id]}
+            dominantMood={dominantMoods?.[a.mal_id]} t={t}
           />
         ))}
       </div>
@@ -126,7 +128,7 @@ function ForumCategory({ emoji, title, subtitle, items, onOpenDetail, metaLabel,
           onClick={() => setExpanded(e => !e)}
           className="w-full border-t border-white/6 px-5 py-2.5 text-center text-[11px] font-bold text-violet-300 transition hover:bg-white/5"
         >
-          {expanded ? "▲ Voir moins" : `▼ Voir plus (${items.length - maxVisible})`}
+          {expanded ? t.seeLess : t.seeMore(items.length - maxVisible)}
         </button>
       )}
     </div>
@@ -134,7 +136,7 @@ function ForumCategory({ emoji, title, subtitle, items, onOpenDetail, metaLabel,
 }
 
 // ─── Hero card — the single upcoming anime with the best real MAL popularity rank ──
-function AnticipatedCard({ anime, airedDates, onOpenDetail }) {
+function AnticipatedCard({ anime, airedDates, onOpenDetail, t }) {
   if(!anime) return null;
   const img = posterUrl(anime);
   const genres = (anime.genres || []).map(g => g.name || g).slice(0, 3).join(" · ");
@@ -146,17 +148,17 @@ function AnticipatedCard({ anime, airedDates, onOpenDetail }) {
     >
       <img src={img || FALLBACK_IMG} alt="" onError={e => { e.target.src = FALLBACK_IMG; }} className="h-32 w-24 shrink-0 rounded-xl object-cover shadow-lg sm:h-36 sm:w-26" />
       <div className="min-w-0 flex-1">
-        <div className="mb-1 text-[11px] font-black uppercase tracking-wide text-fuchsia-300">🔥 Anime le plus attendu — meilleure popularité MAL</div>
+        <div className="mb-1 text-[11px] font-black uppercase tracking-wide text-fuchsia-300">{t.mostAnticipated}</div>
         <div className="mb-1 truncate text-[19px] font-black text-slate-50 sm:text-[22px]">{anime.title}</div>
         <div className="mb-3 truncate text-[11.5px] text-slate-400">{genres || anime.type}</div>
-        <div className="inline-block rounded-full bg-white/10 px-3 py-1.5 text-[12px] font-bold text-white">{countdownLabel(anime, airedDates)}</div>
+        <div className="inline-block rounded-full bg-white/10 px-3 py-1.5 text-[12px] font-bold text-white">{countdownLabel(anime, airedDates, t)}</div>
       </div>
     </button>
   );
 }
 
 // ─── Community mood pulse — real aggregation of user_votes.moods over 7 days ──
-function CommunityMoodBlock({ loaded, counts, total }) {
+function CommunityMoodBlock({ loaded, counts, total, t }) {
   if(!loaded) return null;
   const ranked = MOODS.map(m => ({ ...m, count: counts[m.id] || 0 }))
     .sort((a, b) => b.count - a.count)
@@ -165,12 +167,12 @@ function CommunityMoodBlock({ loaded, counts, total }) {
 
   return (
     <div className={`mb-6 p-5 ${GLASS}`} style={GLASS_STYLE}>
-      <div className="mb-0.5 text-[13px] font-black text-slate-100">😊 Humeur de la communauté</div>
+      <div className="mb-0.5 text-[13px] font-black text-slate-100">{t.communityMood}</div>
       {total === 0 ? (
-        <div className="mt-1 text-[11px] text-slate-500">Pas encore assez de votes cette semaine pour dégager une tendance.</div>
+        <div className="mt-1 text-[11px] text-slate-500">{t.communityMoodEmpty}</div>
       ) : (
         <>
-          <div className="mb-4 text-[10.5px] text-slate-500">Cette semaine, d'après {total} réaction{total !== 1 ? "s" : ""} de mood</div>
+          <div className="mb-4 text-[10.5px] text-slate-500">{t.communityMoodSubtitle(total)}</div>
           <MoodOctagon
             pts={counts} size={190} title={null}
             className="mx-auto mb-4 w-fit rounded-xl border border-white/6 bg-white/3 p-2.5"
@@ -191,51 +193,53 @@ function CommunityMoodBlock({ loaded, counts, total }) {
 }
 
 // ─── Real discussions — threads + reply counts, no reactions/pagination ───────
-function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, profileCache, onOpenThread, onNewThread }) {
+function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, profileCache, onOpenThread, onNewThread, t, lang }) {
   return (
     <div className={`mb-6 overflow-hidden ${GLASS}`} style={GLASS_STYLE}>
       <div className="flex items-center justify-between px-5 py-3.5" style={{ background: GRADIENT_PRIMARY }}>
-        <div className="text-[13px] font-black uppercase tracking-wide text-white">🔥 Discussions</div>
+        <div className="text-[13px] font-black uppercase tracking-wide text-white">{t.discussions}</div>
         <button onClick={onNewThread} className="shrink-0 rounded-full bg-white px-3.5 py-2 text-[12px] font-black text-violet-700 shadow-md transition hover:scale-105 hover:shadow-lg">
-          ➕ Nouveau sujet
+          {t.newTopicBtn}
         </button>
       </div>
       {!loaded ? (
-        <div className="p-5"><Spinner small label="Chargement…" /></div>
+        <div className="p-5"><Spinner small label={t.loading} /></div>
       ) : threads.length === 0 ? (
         <div className="p-6 text-center">
-          <div className="mb-1 text-sm font-bold text-slate-300">Aucune discussion pour l'instant</div>
-          <div className="mb-4 text-[11px] text-slate-500">Lance la première conversation de la communauté.</div>
+          <div className="mb-1 text-sm font-bold text-slate-300">{t.noDiscussions}</div>
+          <div className="mb-4 text-[11px] text-slate-500">{t.noDiscussionsSub}</div>
           <button onClick={onNewThread} className="rounded-xl bg-linear-to-r from-violet-600 to-fuchsia-500 px-4 py-2 text-sm font-bold text-white">
-            ➕ Créer un sujet
+            {t.createTopicBtn}
           </button>
         </div>
       ) : (
         <div>
-          {threads.map(t => {
-            const unread = unreadCounts[t.id] || 0;
-            const profile = profileCache[t.username];
+          {threads.map(th => {
+            const unread = unreadCounts[th.id] || 0;
+            const profile = profileCache[th.username];
             return (
               <button
-                key={t.id} onClick={() => onOpenThread(t)}
+                key={th.id} onClick={() => onOpenThread(th)}
                 className="flex w-full items-start gap-3 border-b border-white/6 px-5 py-3.5 text-left transition last:border-b-0 hover:bg-white/5"
               >
-                <Avatar profile={profile} size={36} fallback={t.username.slice(0,2).toUpperCase()} className="mt-0.5 text-[11px]"/>
-                {t.image_url && (
-                  <img src={t.image_url} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" onError={e=>{e.target.style.display="none";}} />
+                <Avatar profile={profile} size={36} fallback={th.username.slice(0,2).toUpperCase()} className="mt-0.5 text-[11px]"/>
+                {th.image_url && (
+                  <img src={th.image_url} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" onError={e=>{e.target.style.display="none";}} />
                 )}
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13.5px] font-bold text-slate-100">💬 {t.title}</div>
-                  <div className="mb-1 truncate text-[11px] text-slate-500">{profile?.name || t.username} · @{t.username} · {timeAgo(t.created_at)}</div>
-                  {t.tags?.length > 0 && (
+                  <div className="truncate text-[13.5px] font-bold text-slate-100">💬 {th.title}</div>
+                  <div className="mb-1 truncate text-[11px] text-slate-500">
+                    <span className={`font-bold ${GRADIENT_TEXT}`}>{profile?.name || th.username}</span> · @{th.username} · {timeAgo(th.created_at, lang)}
+                  </div>
+                  {th.tags?.length > 0 && (
                     <div className="flex flex-wrap gap-1">
-                      {t.tags.map(id => <TagPill key={id} id={id} />)}
+                      {th.tags.map(id => <TagPill key={id} id={id} />)}
                     </div>
                   )}
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1.5">
                   <div className={`text-[11px] font-bold ${unread > 0 ? "text-slate-100" : "text-slate-400"}`}>
-                    {replyCounts[t.id] || 0} réponse{(replyCounts[t.id] || 0) !== 1 ? "s" : ""}
+                    {t.replyCount(replyCounts[th.id] || 0)}
                   </div>
                   {unread > 0 && (
                     <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full px-[3px] text-[9px] font-black leading-none text-white" style={{ background: "#f43f5e" }}>
@@ -254,6 +258,8 @@ function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, profileC
 
 export function ForumView({ onOpenDetail, onOpenUser }) {
   const { myUsername, activityNotifications, markActivityRead, blockedUsers } = useApp();
+  const { lang } = useLang();
+  const t = FORUM_I18N[lang] || FORUM_I18N.fr;
   const [newAnime, setNewAnime] = useState([]);
   const [upcoming, setUpcoming] = useState([]);
   const [trailers, setTrailers] = useState([]);
@@ -302,9 +308,9 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
   useEffect(() => {
     if(!upcoming.length) return;
     let cancelled = false;
-    fetchAiredDates(upcoming.map(a => a.mal_id)).then(dates => { if(!cancelled) setAiredDates(dates); });
+    fetchAiredDates(upcoming.map(a => a.mal_id), lang).then(dates => { if(!cancelled) setAiredDates(dates); });
     return () => { cancelled = true; };
-  }, [upcoming]);
+  }, [upcoming, lang]);
 
   // Dominant mood per visible anime — one batched query for every row on the page.
   useEffect(() => {
@@ -361,7 +367,7 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
       if(cancelled) return;
       const visible = blockedUsers?.size ? rows.filter(t => !blockedUsers.has(t.username)) : rows;
       setThreads(visible);
-      const counts = await sb.getReplyCounts(visible.map(r => r.id));
+      const counts = await sb.getReplyCounts(visible.map(r => r.id), [...(blockedUsers||[])]);
       if(!cancelled) setReplyCounts(counts);
       const usernames = [...new Set(visible.map(t => t.username))];
       if(usernames.length) {
@@ -388,12 +394,12 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
       <div className="mb-8 animate-slide-up">
-        <h1 className="mb-1 text-[28px] font-bold tracking-tight text-slate-50 md:text-[32px]">💬 Forum</h1>
-        <p className="text-sm text-slate-500">Le pouls de la communauté — humeur du moment, sorties à venir, nouveautés et derniers trailers.</p>
+        <h1 className="mb-1 text-[28px] font-bold tracking-tight text-slate-50 md:text-[32px]">{t.title}</h1>
+        <p className="text-sm text-slate-500">{t.subtitle}</p>
       </div>
 
-      {loading && <Spinner label="Chargement des actus…" />}
-      {empty && <EmptyState emoji="💬" title="Rien pour l'instant" subtitle="Reviens bientôt pour les dernières actus." />}
+      {loading && <Spinner label={t.loadingNews} />}
+      {empty && <EmptyState emoji="💬" title={t.emptyTitle} subtitle={t.emptySubtitle} />}
 
       {!loading && (
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
@@ -401,83 +407,84 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
             <DiscussionsBlock
               threads={threads} replyCounts={replyCounts} unreadCounts={unreadCounts} loaded={threadsLoaded}
               profileCache={profileCache} onOpenThread={openThreadRead} onNewThread={() => setShowNewThread(true)}
+              t={t} lang={lang}
             />
-            <AnticipatedCard anime={mostAnticipated} airedDates={airedDates} onOpenDetail={onOpenDetail} />
+            <AnticipatedCard anime={mostAnticipated} airedDates={airedDates} onOpenDetail={onOpenDetail} t={t} />
 
             <ForumCategory
-              emoji="📅" title="Prochaines sorties" subtitle="Annonces à venir"
+              emoji="📅" title={t.upcomingTitle} subtitle={t.upcomingSubtitle}
               items={upcoming} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
-              metaLabel={a => countdownLabel(a, airedDates)}
+              metaLabel={a => countdownLabel(a, airedDates, t)} t={t}
             />
             <ForumCategory
-              emoji="🎬" title="Derniers trailers" subtitle="Bandes-annonces récentes"
+              emoji="🎬" title={t.trailersTitle} subtitle={t.trailersSubtitle}
               items={trailers} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
-              metaLabel={() => "Trailer"} trailerLink
+              metaLabel={() => t.metaTrailer} trailerLink t={t}
             />
             {favoritesLoaded && favorites.length > 0 && (
               <ForumCategory
-                emoji="❤️" title="Les plus ajoutés en favoris" subtitle="D'après les favoris épinglés des membres"
+                emoji="❤️" title={t.favoritesTitle} subtitle={t.favoritesSubtitle}
                 items={favorites.map(f => f.anime)} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
-                metaLabel={() => "Favori"}
+                metaLabel={() => t.metaFavorite} t={t}
                 statOverride={a => {
                   const f = favorites.find(x => x.anime.mal_id === a.mal_id);
-                  return { primary: `❤️ ${f?.count ?? 0}`, secondary: (f?.count ?? 0) > 1 ? "favoris" : "favori" };
+                  return { primary: `❤️ ${f?.count ?? 0}`, secondary: t.favoritesUnit(f?.count ?? 0) };
                 }}
               />
             )}
             <ForumCategory
-              emoji="🆕" title="Nouveaux animes ajoutés" subtitle="Derniers ajouts à la base"
+              emoji="🆕" title={t.newAnimeTitle} subtitle={t.newAnimeSubtitle}
               items={newAnime} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
-              metaLabel={() => "Nouveau"} maxVisible={NEW_ANIME_PREVIEW}
+              metaLabel={() => t.metaNew} maxVisible={NEW_ANIME_PREVIEW} t={t}
             />
           </div>
 
           <aside className="w-full shrink-0 lg:sticky lg:top-6 lg:w-[280px]">
-            <CommunityMoodBlock loaded={moodLoaded} counts={moodCounts} total={moodTotal} />
+            <CommunityMoodBlock loaded={moodLoaded} counts={moodCounts} total={moodTotal} t={t} />
 
             {/* Mini-jeux */}
             <div className="mt-4 rounded-2xl border border-white/8 bg-white/3 p-4">
-              <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎮 Mini-jeux du jour</div>
+              <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.miniGamesTitle}</div>
               <div className="flex gap-3 justify-center">
                 <button onClick={()=>setShowWordle(true)}
-                  title="Wordle Animé"
+                  title={t.wordleTitle}
                   style={{width:56,height:56,borderRadius:"50%",border:"2px solid rgba(124,58,237,0.4)",
                     background:"rgba(124,58,237,0.12)",cursor:"pointer",display:"flex",flexDirection:"column",
                     alignItems:"center",justifyContent:"center",gap:2,transition:"all 0.2s"}}
                   onMouseEnter={e=>{e.currentTarget.style.background="rgba(124,58,237,0.25)";e.currentTarget.style.transform="scale(1.08)";}}
                   onMouseLeave={e=>{e.currentTarget.style.background="rgba(124,58,237,0.12)";e.currentTarget.style.transform="scale(1)";}}>
                   <span style={{fontSize:20}}>🎯</span>
-                  <span style={{fontSize:8,color:"#c084fc",fontWeight:700}}>Wordle</span>
+                  <span style={{fontSize:8,color:"#c084fc",fontWeight:700}}>{t.wordleLabel}</span>
                 </button>
                 <button onClick={()=>setShowPoster(true)}
-                  title="Poster Mystère"
+                  title={t.posterTitle}
                   style={{width:56,height:56,borderRadius:"50%",border:"2px solid rgba(236,72,153,0.4)",
                     background:"rgba(236,72,153,0.1)",cursor:"pointer",display:"flex",flexDirection:"column",
                     alignItems:"center",justifyContent:"center",gap:2,transition:"all 0.2s"}}
                   onMouseEnter={e=>{e.currentTarget.style.background="rgba(236,72,153,0.22)";e.currentTarget.style.transform="scale(1.08)";}}
                   onMouseLeave={e=>{e.currentTarget.style.background="rgba(236,72,153,0.1)";e.currentTarget.style.transform="scale(1)";}}>
                   <span style={{fontSize:20}}>🖼</span>
-                  <span style={{fontSize:8,color:"#f9a8d4",fontWeight:700}}>Poster</span>
+                  <span style={{fontSize:8,color:"#f9a8d4",fontWeight:700}}>{t.posterLabel}</span>
                 </button>
                 <button onClick={()=>setMatchmaking("chain")}
-                  title="Chaîne Animé — 1v1"
+                  title={t.chainTitle}
                   style={{width:56,height:56,borderRadius:"50%",border:"2px solid rgba(251,191,36,0.4)",
                     background:"rgba(251,191,36,0.08)",cursor:"pointer",display:"flex",flexDirection:"column",
                     alignItems:"center",justifyContent:"center",gap:2,transition:"all 0.2s"}}
                   onMouseEnter={e=>{e.currentTarget.style.background="rgba(251,191,36,0.2)";e.currentTarget.style.transform="scale(1.08)";}}
                   onMouseLeave={e=>{e.currentTarget.style.background="rgba(251,191,36,0.08)";e.currentTarget.style.transform="scale(1)";}}>
                   <span style={{fontSize:20}}>⛓</span>
-                  <span style={{fontSize:8,color:"#fbbf24",fontWeight:700}}>Chaîne</span>
+                  <span style={{fontSize:8,color:"#fbbf24",fontWeight:700}}>{t.chainLabel}</span>
                 </button>
                 <button onClick={()=>setMatchmaking("timeline")}
-                  title="Timeline — 1v1"
+                  title={t.timelineTitle}
                   style={{width:56,height:56,borderRadius:"50%",border:"2px solid rgba(34,197,94,0.4)",
                     background:"rgba(34,197,94,0.08)",cursor:"pointer",display:"flex",flexDirection:"column",
                     alignItems:"center",justifyContent:"center",gap:2,transition:"all 0.2s"}}
                   onMouseEnter={e=>{e.currentTarget.style.background="rgba(34,197,94,0.2)";e.currentTarget.style.transform="scale(1.08)";}}
                   onMouseLeave={e=>{e.currentTarget.style.background="rgba(34,197,94,0.08)";e.currentTarget.style.transform="scale(1)";}}>
                   <span style={{fontSize:20}}>📅</span>
-                  <span style={{fontSize:8,color:"#22c55e",fontWeight:700}}>Timeline</span>
+                  <span style={{fontSize:8,color:"#22c55e",fontWeight:700}}>{t.timelineLabel}</span>
                 </button>
               </div>
             </div>

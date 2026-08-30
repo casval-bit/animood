@@ -9,10 +9,11 @@ import { sb, follows } from "../api/supabase.js";
 import { uploadToCloudinary } from "../api/cloudinary.js";
 import { GRADIENT_PRIMARY } from "../constants/theme.js";
 import { SETTINGS_I18N } from "../constants/settingsI18n.js";
+import { getFrameLabel } from "../frames/frames.js";
 
 const LANG_OPTIONS = [
   { id: "fr", label: "Français", flag: "🇫🇷" },
-  { id: "en", label: "English",  flag: "🇬🇧" },
+  { id: "en", label: "English",  flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
 ];
 
 function ThemePreview({ id }) {
@@ -140,7 +141,7 @@ export function SettingsView({ onClose }) {
     setAvatarError(null);
     setAvatarUploading(true);
     try {
-      const url = await uploadToCloudinary(file, "avatar");
+      const url = await uploadToCloudinary(file, "avatar", lang);
       saveMe({ ...me, avatar: url, avatar_base64: null });
     } catch(err) {
       setAvatarError(err.message);
@@ -177,7 +178,7 @@ export function SettingsView({ onClose }) {
     setAlStatus("importing"); setAlError(null);
     try {
       // ── Pass myUsername so imported ratings sync to user_votes ──
-      const { watched, ratings, statuses, skipped } = await importAniListUser(alUsername, myUsername);
+      const { watched, ratings, statuses, skipped } = await importAniListUser(alUsername, myUsername, lang);
       mergeImport({ watched, ratings, statuses });
       setAlStats({ watched: Object.keys(statuses).length, rated: Object.keys(ratings).length, skipped });
       setAlStatus("done");
@@ -316,7 +317,7 @@ export function SettingsView({ onClose }) {
                         return (
                           <button key={frame.id}
                             onClick={()=>isUnlocked && applyFrame(frame)}
-                            title={isUnlocked ? frame.label : t.frameLocked(frame.label)}
+                            title={isUnlocked ? getFrameLabel(frame, lang) : t.frameLocked(getFrameLabel(frame, lang))}
                             style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:8,borderRadius:12,
                               cursor:isUnlocked?"pointer":"not-allowed",
                               border:isActive?"2px solid #7c3aed":"2px solid transparent",
@@ -336,7 +337,7 @@ export function SettingsView({ onClose }) {
                               )}
                             </div>
                             <span style={{fontSize:9,fontWeight:700,color:isUnlocked?frame.color:"rgba(148,163,184,0.5)",textAlign:"center",maxWidth:56,lineHeight:1.2}}>
-                              {frame.label}
+                              {getFrameLabel(frame, lang)}
                             </span>
                           </button>
                         );

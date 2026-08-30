@@ -1,7 +1,11 @@
 import { useState } from "react";
+import { useLang } from "../context/useLang.js";
+import { COMMON_I18N } from "../constants/commonI18n.js";
 
 export function ScoreChart({ ratings }) {
   const [tooltip, setTooltip] = useState(null);
+  const { lang } = useLang();
+  const t = COMMON_I18N[lang] || COMMON_I18N.fr;
   const counts = Array(10).fill(0);
   Object.values(ratings).forEach(r => { if(r.score >= 1 && r.score <= 10) counts[r.score-1]++; });
   const max = Math.max(...counts, 1);
@@ -16,7 +20,7 @@ export function ScoreChart({ ratings }) {
         >
           {tooltip === i && c > 0 && (
             <div className="absolute bottom-full left-1/2 z-10 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-white/15 bg-black/90 px-2 py-1 text-[11px] font-extrabold text-slate-100">
-              {c} animé{c > 1 ? "s" : ""}
+              {t.animeCount(c)}
             </div>
           )}
           <div

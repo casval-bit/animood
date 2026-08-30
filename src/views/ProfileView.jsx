@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { useApp } from "../context/useApp.js";
-import { STATUS_COLORS, STATUS_PRIORITY } from "../constants/statuses.js";
+import { useLang } from "../context/useLang.js";
+import { STATUS_COLORS, STATUS_PRIORITY, getStatusLabel } from "../constants/statuses.js";
+import { PROFILE_I18N } from "../constants/profileI18n.js";
 import { AVATAR_EMOJIS } from "../constants/avatars.js";
 import { MOOD_KEYS } from "../constants/moods.js";
 import { jikan } from "../api/jikan.js";
 import { follows, sb } from "../api/supabase.js";
-import { FRAMES, getUnlockedFrames, getBestFrame } from "../frames/frames.js";
+import { FRAMES, getUnlockedFrames, getBestFrame, getFrameLabel } from "../frames/frames.js";
 import { FrameSVG } from "../frames/FrameSVG.jsx";
 import { Spinner } from "../components/Spinner.jsx";
 import { ScoreChart } from "../components/ScoreChart.jsx";
@@ -15,10 +17,12 @@ import { EmptyState } from "../components/EmptyState.jsx";
 import { Modal } from "../components/Modal.jsx";
 import { FavoriteSearchModal } from "../components/FavoriteSearchModal.jsx";
 import { TabBar } from "../components/ui.jsx";
-import { GRADIENT_PRIMARY } from "../constants/theme.js";
+import { GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
 
 // ─── PERSONAL MOOD RADAR ──────────────────────────────────────────────────────
 function PersonalMoodRadar({ ratings, watched }) {
+  const { lang } = useLang();
+  const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
   const [avg, setAvg] = useState(null);
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -52,13 +56,13 @@ function PersonalMoodRadar({ ratings, watched }) {
     return () => { cancelled = true; };
   }, [allIds.length, watched.length]);
 
-  if(loading) return <div className="mb-2"><Spinner label="Calcul en cours…" /></div>;
+  if(loading) return <div className="mb-2"><Spinner label={t.calculating} /></div>;
   if(!avg) return null;
 
   return (
     <div>
-      <div className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎭 Ton profil émotionnel</div>
-      <div className="mb-2 text-[10px] text-slate-600">Basé sur {count} animés vus sur {allIds.length}</div>
+      <div className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.moodProfileTitle}</div>
+      <div className="mb-2 text-[10px] text-slate-600">{t.basedOn(count, allIds.length)}</div>
       <MoodOctagon pts={avg} />
     </div>
   );
@@ -66,6 +70,8 @@ function PersonalMoodRadar({ ratings, watched }) {
 
 // ─── TOP GENRES ───────────────────────────────────────────────────────────────
 function TopGenres({ watched }) {
+  const { lang } = useLang();
+  const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
   const [top5, setTop5] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -90,13 +96,13 @@ function TopGenres({ watched }) {
     return () => { cancelled = true; };
   }, [watched.length]);
 
-  if(loading) return <div><div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎌 Genres les plus vus</div><Spinner label="Chargement…" /></div>;
+  if(loading) return <div><div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.topGenresTitle}</div><Spinner label={t.loading} /></div>;
   if(top5.length === 0) return null;
   const max = top5[0][1];
 
   return (
     <div>
-      <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎌 Genres les plus vus</div>
+      <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.topGenresTitle}</div>
       <div className="flex flex-col gap-2">
         {top5.map(([name,count]) => (
           <div key={name}>
@@ -111,7 +117,7 @@ function TopGenres({ watched }) {
   );
 }
 
-const TABS = [{id:"profile",label:"Profil"},{id:"journal",label:"Journal"},{id:"lists",label:"Listes"},{id:"posts",label:"Mes Posts"},{id:"stats",label:"Stats"}];
+const getTabs = (t) => [{id:"profile",label:t.tabProfile},{id:"journal",label:t.tabJournal},{id:"lists",label:t.tabLists},{id:"posts",label:t.tabPosts},{id:"stats",label:t.tabStats}];
 
 // ─── STATS TAB ────────────────────────────────────────────────────────────────
 const MOOD_META_STATS = {
@@ -126,6 +132,8 @@ const MOOD_META_STATS = {
 };
 
 function StatBars({ items, color, sortKey, onToggleSort }) {
+  const { lang } = useLang();
+  const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
   const sorted = [...items].sort((a,b) => sortKey==="avg"
     ? (parseFloat(b.avg)||0) - (parseFloat(a.avg)||0)
     : b.count - a.count
@@ -139,7 +147,7 @@ function StatBars({ items, color, sortKey, onToggleSort }) {
             className="text-[9px] px-2 py-0.5 rounded-full font-bold transition"
             style={{background:sortKey===k?"rgba(124,58,237,0.3)":"rgba(255,255,255,0.05)",
                     color:sortKey===k?"#c084fc":"var(--text-4)"}}>
-            {k==="count"?"Quantité":"Note moy."}
+            {k==="count"?t.sortCount:t.sortAvgRating}
           </button>
         ))}
       </div>
@@ -169,6 +177,8 @@ function StatBars({ items, color, sortKey, onToggleSort }) {
 }
 
 function YearCurve({ data }) {
+  const { lang } = useLang();
+  const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
   if(!data?.length) return null;
   const W = 600, H = 160, PAD = 32;
   const years = data.map(d=>d.year);
@@ -202,7 +212,7 @@ function YearCurve({ data }) {
       {data.map((d,i) => (
         <circle key={i} cx={toX(d.year)} cy={toY(d.avg)} r="3"
           fill="#7c3aed" stroke="#c084fc" strokeWidth="1.5">
-          <title>{d.year} — ★{d.avg} ({d.count} animés)</title>
+          <title>{t.yearTooltip(d.year, d.avg, d.count)}</title>
         </circle>
       ))}
       {/* X axis labels — every 5 years */}
@@ -214,6 +224,8 @@ function YearCurve({ data }) {
 }
 
 function StatsTab({ statsData, ratings, watched }) {
+  const { lang } = useLang();
+  const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
   const [genreSort,  setGenreSort]  = useState("count");
   const [studioSort, setStudioSort] = useState("count");
   const [vaSort,     setVaSort]     = useState("count");
@@ -227,10 +239,10 @@ function StatsTab({ statsData, ratings, watched }) {
       {/* Compteurs globaux */}
       <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          {l:"Animés vus (TV)", v: watched.length},
-          {l:"Épisodes vus",    v: statsData.totalEpisodes.toLocaleString()},
-          {l:"Animés notés",    v: rated.length},
-          {l:"Note moyenne",    v: rated.length
+          {l:t.statAnimeWatchedTV, v: watched.length},
+          {l:t.statEpisodesWatched,v: statsData.totalEpisodes.toLocaleString()},
+          {l:t.statAnimeRated,     v: rated.length},
+          {l:t.statAvgRating,      v: rated.length
             ? (rated.reduce((a,id)=>a+(ratings[id]?.score||0),0)/rated.length).toFixed(2) : "—"},
         ].map(s => (
           <div key={s.l} className="rounded-xl border border-white/6 bg-white/3 p-4 text-center">
@@ -242,7 +254,7 @@ function StatsTab({ statsData, ratings, watched }) {
 
       {/* Histogramme des notes */}
       <div className="lg:col-span-2">
-        <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">📊 Distribution des notes</div>
+        <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.ratingDistribution}</div>
         <div className="rounded-2xl border border-white/6 bg-white/3 p-4">
           <ScoreChart ratings={ratings}/>
         </div>
@@ -251,7 +263,7 @@ function StatsTab({ statsData, ratings, watched }) {
       {/* Courbe note par année */}
       {statsData.yearCurve?.length > 1 && (
         <div className="lg:col-span-2">
-          <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">📅 Note moyenne par année</div>
+          <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.avgRatingByYear}</div>
           <div className="rounded-2xl border border-white/6 bg-white/3 p-4">
             <YearCurve data={statsData.yearCurve}/>
           </div>
@@ -284,14 +296,14 @@ function StatsTab({ statsData, ratings, watched }) {
       {/* Moods */}
       {moodItems.length > 0 && (
         <div>
-          <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎭 Moods dominants</div>
+          <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.dominantMoods}</div>
           <div className="flex justify-end mb-2 gap-1">
             {["count","avg"].map(k => (
               <button key={k} onClick={()=>setMoodSort(k)}
                 className="text-[9px] px-2 py-0.5 rounded-full font-bold transition"
                 style={{background:moodSort===k?"rgba(124,58,237,0.3)":"rgba(255,255,255,0.05)",
                         color:moodSort===k?"#c084fc":"var(--text-4)"}}>
-                {k==="count"?"Nb #1":"Score moy."}
+                {k==="count"?t.moodSortCount:t.moodSortAvg}
               </button>
             ))}
           </div>
@@ -305,8 +317,8 @@ function StatsTab({ statsData, ratings, watched }) {
                     <span className="text-slate-300 font-semibold">{MOOD_META_STATS[item.key]?.emoji} {MOOD_META_STATS[item.key]?.label}</span>
                     <span className="text-slate-500">
                       {moodSort==="count"
-                        ? `${item.count} animés${item.avg ? ` · ★${item.avg}` : ""}`
-                        : `★${item.avg||"—"} · ${item.count} animés`}
+                        ? t.moodStatCount(item.count, item.avg)
+                        : t.moodStatAvg(item.avg, item.count)}
                     </span>
                   </div>
                   <div className="h-1.5 rounded-full bg-white/6 overflow-hidden">
@@ -325,6 +337,8 @@ function StatsTab({ statsData, ratings, watched }) {
 
 export function ProfileView({ onOpenDetail, onOpenSettings }) {
   const { me, saveMe, myUsername } = useApp();
+  const { lang } = useLang();
+  const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
   const [tab, setTab] = useState("profile");
   const [journalFilter, setJournalFilter] = useState(null);
   const [customListFilter, setCustomListFilter] = useState(null);
@@ -666,14 +680,14 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
         <div className="flex-1">
           <div className="mb-1 flex items-center justify-between">
             <div>
-              <div className="text-2xl font-black tracking-tight text-slate-100">{me.name}</div>
+              <div className={`text-2xl font-black tracking-tight ${GRADIENT_TEXT}`}>{me.name}</div>
               <div className="text-xs text-slate-500">@{myUsername} · AniMood</div>
             </div>
             <button onClick={onOpenSettings} className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs font-bold text-slate-400">⚙️</button>
           </div>
 
           <div className="my-4 grid grid-cols-3 gap-3 sm:max-w-sm">
-            {[{l:"Vus",v:me.watched.length},{l:"Notés",v:rated.length},{l:"Moy.",v:avgScore}].map(s => (
+            {[{l:t.statVus,v:me.watched.length},{l:t.statNotes,v:rated.length},{l:t.statMoy,v:avgScore}].map(s => (
               <div key={s.l} className="rounded-xl bg-white/3 py-2.5 text-center">
                 <div className="text-lg font-black text-purple-300">{s.v}</div>
                 <div className="mt-0.5 text-[9px] text-slate-500">{s.l}</div>
@@ -683,14 +697,14 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
 
           {editingBio ? (
             <div className="flex max-w-md gap-2">
-              <input value={bioInput} onChange={e => setBioInput(e.target.value)} maxLength={80} placeholder="Ton style d'anime…"
+              <input value={bioInput} onChange={e => setBioInput(e.target.value)} maxLength={80} placeholder={t.bioPlaceholder}
                 className="flex-1 rounded-lg border border-violet-600/40 bg-white/7 px-2.5 py-1.5 text-xs text-slate-100 outline-none"
                 onKeyDown={e => { if(e.key==="Enter"){saveBio();setEditingBio(false);} if(e.key==="Escape")setEditingBio(false); }} />
               <button onClick={() => { saveBio(); setEditingBio(false); }} className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-bold text-white">✓</button>
             </div>
           ) : (
             <button onClick={() => { setBioInput(me.bio||""); setEditingBio(true); }} className="rounded-lg border border-dashed border-white/10 px-2.5 py-1.5 text-left text-[11px] text-slate-500">
-              {me.bio || "✏️ Ajoute une bio…"}
+              {me.bio || t.addBioPlaceholder}
             </button>
           )}
 
@@ -698,19 +712,19 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
           <div className="flex items-center gap-4 mt-2">
             <div className="flex items-center gap-1.5">
               <span className="text-[13px] font-black text-slate-100">{followerCount}</span>
-              <span className="text-[11px] text-slate-500">abonné{followerCount!==1?"s":""}</span>
+              <span className="text-[11px] text-slate-500">{t.followerLabel(followerCount)}</span>
             </div>
             <div className="w-px h-3 bg-white/10"/>
             <div className="flex items-center gap-1.5">
               <span className="text-[13px] font-black text-slate-100">{followingCount}</span>
-              <span className="text-[11px] text-slate-500">abonnement{followingCount!==1?"s":""}</span>
+              <span className="text-[11px] text-slate-500">{t.followingLabel(followingCount)}</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <TabBar tabs={TABS} active={tab} onChange={setTab} className="mb-6" />
+      <TabBar tabs={getTabs(t)} active={tab} onChange={setTab} className="mb-6" />
 
       {/* ── PROFIL TAB ── */}
       {tab === "profile" && (
@@ -721,10 +735,10 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
             {/* Favoris — toujours en premier */}
             <div>
               <div className="mb-2.5 flex items-center justify-between">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">❤️ Favoris</div>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.favoritesTitle}</div>
                 <button onClick={()=>setEditingFavs(e=>!e)}
                   className="text-[10px] font-bold text-slate-500 hover:text-slate-300 transition">
-                  {editingFavs ? "Terminé" : "Modifier"}
+                  {editingFavs ? t.editDone : t.editBtn}
                 </button>
               </div>
               <div className="grid grid-cols-5 gap-2.5">
@@ -754,13 +768,13 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                   );
                 })}
               </div>
-              {editingFavs && <p className="mt-1.5 text-center text-[9px] text-slate-600">Glisse pour réordonner · ✕ pour retirer</p>}
+              {editingFavs && <p className="mt-1.5 text-center text-[9px] text-slate-600">{t.dragHint}</p>}
               <style>{`@keyframes wiggle{from{transform:rotate(-1.5deg)}to{transform:rotate(1.5deg)}}`}</style>
             </div>
 
             {/* Derniers vus */}
             <div>
-              <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">🕐 Derniers vus</div>
+              <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.recentlyWatchedTitle}</div>
               <div className="grid grid-cols-5 gap-2.5">
                 {completed.slice(0,5).map(id => <AnimePoster key={id} anime={getAnime(id)} onClick={onOpenDetail} loading />)}
                 {Array.from({length: Math.max(0,5-completed.length)}).map((_,i) => <div key={i} className="aspect-2/3 rounded-lg border-2 border-dashed border-white/6 bg-white/3" />)}
@@ -774,19 +788,19 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                   <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     <span>📌</span><span>{pinnedList.name}</span>
                   </div>
-                  <button onClick={()=>setTab("lists")} className="text-[10px] text-slate-500 hover:text-slate-300 transition">Voir tout →</button>
+                  <button onClick={()=>setTab("lists")} className="text-[10px] text-slate-500 hover:text-slate-300 transition">{t.seeAllArrow}</button>
                 </div>
                 <div className="grid grid-cols-5 gap-2.5">
                   {pinnedList.animeIds.slice(0,5).map(id => <AnimePoster key={id} anime={animeCache[id]} onClick={onOpenDetail} loading />)}
-                  {pinnedList.animeIds.length===0 && <div className="col-span-5 rounded-xl border border-dashed border-white/8 p-4 text-center text-[11px] text-slate-600">Liste vide — ajoute des animés depuis l'onglet Listes</div>}
+                  {pinnedList.animeIds.length===0 && <div className="col-span-5 rounded-xl border border-dashed border-white/8 p-4 text-center text-[11px] text-slate-600">{t.pinnedListEmpty}</div>}
                 </div>
               </div>
             ) : (
               <button onClick={()=>setTab("lists")} className="flex items-center gap-3 rounded-xl border border-dashed border-white/8 p-4 text-left transition hover:bg-white/3">
                 <span className="text-lg">📌</span>
                 <div>
-                  <div className="text-[12px] font-bold text-slate-400">Épingler une liste</div>
-                  <div className="text-[10px] text-slate-600">Affiche une liste perso sur ton profil</div>
+                  <div className="text-[12px] font-bold text-slate-400">{t.pinListTitle}</div>
+                  <div className="text-[10px] text-slate-600">{t.pinListDesc}</div>
                 </div>
               </button>
             )}
@@ -796,9 +810,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
           <div className="flex flex-col gap-8">
             <div className="grid grid-cols-3 gap-3">
               {[
-                {l:"Vus", v:me.watched.length},
-                {l:"Notés", v:rated.length},
-                {l:"Moy.", v:rated.length?(rated.reduce((a,id)=>a+(me.ratings[id]?.score||0),0)/rated.length).toFixed(1):"—"},
+                {l:t.statVus, v:me.watched.length},
+                {l:t.statNotes, v:rated.length},
+                {l:t.statMoy, v:rated.length?(rated.reduce((a,id)=>a+(me.ratings[id]?.score||0),0)/rated.length).toFixed(1):"—"},
               ].map(s=>(
                 <div key={s.l} className="rounded-xl border border-white/6 bg-white/3 p-3 text-center">
                   <div className="text-xl font-black text-violet-400">{s.v}</div>
@@ -807,9 +821,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
               ))}
             </div>
             <div>
-              <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">📊 Distribution des notes</div>
+              <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.ratingDistribution}</div>
               <div className="rounded-2xl border border-white/6 bg-white/3 p-4">
-                {rated.length>0 ? <ScoreChart ratings={me.ratings}/> : <p className="text-center text-[11px] text-slate-500">Note des animés pour voir ta distribution</p>}
+                {rated.length>0 ? <ScoreChart ratings={me.ratings}/> : <p className="text-center text-[11px] text-slate-500">{t.rateToSeeDistribution}</p>}
               </div>
             </div>
             <PersonalMoodRadar ratings={me.ratings} watched={me.watched}/>
@@ -828,7 +842,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                   <button key={k} onClick={() => setJournalFilter(active?null:k)}
                     className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold transition"
                     style={{ border: active ? `1px solid ${v.dot}` : "1px solid rgba(var(--fg-rgb),0.08)", background: active ? `${v.dot}22` : "rgba(var(--fg-rgb),0.03)", color: active ? v.dot : "var(--text-3)" }}>
-                    <span className="h-1.5 w-1.5 rounded-full" style={{ background:v.dot }} />{v.label}
+                    <span className="h-1.5 w-1.5 rounded-full" style={{ background:v.dot }} />{getStatusLabel(k, lang)}
                   </button>
                 );
               })}
@@ -841,7 +855,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
 
           {customListNames.length > 0 && (
             <div className="mb-4 flex flex-wrap items-center gap-1.5">
-              <span className="mr-1 text-[10px] font-bold uppercase tracking-wider text-slate-600">📋 Sous-listes AniList</span>
+              <span className="mr-1 text-[10px] font-bold uppercase tracking-wider text-slate-600">{t.aniListSubLists}</span>
               {customListNames.map(name => {
                 const active = customListFilter === name;
                 return (
@@ -855,7 +869,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
             </div>
           )}
 
-          {journalEntries.length === 0 && <EmptyState emoji="📖" title="Ton journal est vide" />}
+          {journalEntries.length === 0 && <EmptyState emoji="📖" title={t.journalEmptyTitle} />}
 
           {journalGrid && journalEntries.length > 0 && (
             <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
@@ -883,9 +897,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                     <div className="flex flex-1 flex-col justify-between py-2 pr-3">
                       <div>
                         <div className="text-xs font-extrabold leading-tight text-slate-100">{a.title}</div>
-                        <div className="mt-0.5 text-[10px] font-bold" style={{ color:sc.dot }}>{sc.label}</div>
+                        <div className="mt-0.5 text-[10px] font-bold" style={{ color:sc.dot }}>{getStatusLabel(status, lang)}</div>
                       </div>
-                      {r ? <span className="text-xs font-extrabold text-amber-400">★ {r.score}/10</span> : <span className="text-[10px] text-slate-700">Non noté</span>}
+                      {r ? <span className="text-xs font-extrabold text-amber-400">★ {r.score}/10</span> : <span className="text-[10px] text-slate-700">{t.notRated}</span>}
                     </div>
                   </button>
                 );
@@ -913,7 +927,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
                 <span className="text-[13px] font-black text-slate-100">Watchlist</span>
               </div>
-              <div className="text-[11px] text-slate-500">{watchlistIds.length} animé{watchlistIds.length!==1?"s":""}</div>
+              <div className="text-[11px] text-slate-500">{t.animeCount(watchlistIds.length)}</div>
             </div>
             <span className="text-slate-500 text-lg">›</span>
           </div>
@@ -932,7 +946,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="#ef4444" stroke="#ef4444" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                 <span className="text-[13px] font-black text-slate-100">Highlights</span>
               </div>
-              <div className="text-[11px] text-slate-500">{(me.highlights||[]).length} animé{(me.highlights||[]).length!==1?"s":""} · Les 5 premiers dans tes favoris</div>
+              <div className="text-[11px] text-slate-500">{t.animeCount((me.highlights||[]).length)} · {t.highlightsSuffix}</div>
             </div>
             <span className="text-slate-500 text-lg">›</span>
           </div>
@@ -952,9 +966,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-[13px] font-black text-slate-100">{list.name}</span>
-                      {isPinned && <span className="text-[9px] font-bold text-violet-400 bg-violet-400/10 border border-violet-400/20 rounded-full px-1.5 py-0.5">Épinglée</span>}
+                      {isPinned && <span className="text-[9px] font-bold text-violet-400 bg-violet-400/10 border border-violet-400/20 rounded-full px-1.5 py-0.5">{t.pinnedBadge}</span>}
                     </div>
-                    <div className="text-[11px] text-slate-500">{list.animeIds.length} animé{list.animeIds.length!==1?"s":""}</div>
+                    <div className="text-[11px] text-slate-500">{t.animeCount(list.animeIds.length)}</div>
                   </div>
                   <span className="text-slate-500 text-lg">›</span>
                 </div>
@@ -967,9 +981,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
             <div className="flex items-center gap-2 rounded-xl border border-violet-400/30 bg-violet-400/5 p-3">
               <input autoFocus value={newListName} onChange={e=>setNewListName(e.target.value)}
                 onKeyDown={e=>{if(e.key==="Enter")createList();if(e.key==="Escape"){setCreatingList(false);setNewListName("");}}}
-                placeholder="Nom de la liste…"
+                placeholder={t.createListPlaceholder}
                 className="flex-1 bg-transparent text-[13px] text-slate-100 outline-none placeholder:text-slate-600"/>
-              <button onClick={createList} className="rounded-lg bg-violet-500 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-violet-400 transition">Créer</button>
+              <button onClick={createList} className="rounded-lg bg-violet-500 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-violet-400 transition">{t.createBtn}</button>
               <button onClick={()=>{setCreatingList(false);setNewListName("");}} className="text-slate-500 hover:text-slate-300 text-sm">✕</button>
             </div>
           ) : (
@@ -977,8 +991,8 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
               className="flex w-full items-center gap-3 rounded-xl border border-dashed border-white/8 p-4 text-left transition hover:bg-white/3">
               <span className="text-lg">➕</span>
               <div>
-                <div className="text-[12px] font-bold text-slate-400">Créer une liste</div>
-                <div className="text-[10px] text-slate-600">Organise tes animés par thème</div>
+                <div className="text-[12px] font-bold text-slate-400">{t.createListTitle}</div>
+                <div className="text-[10px] text-slate-600">{t.createListDesc}</div>
               </div>
             </button>
           )}
@@ -994,7 +1008,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="#ef4444" stroke="#ef4444" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                         Highlights
                       </div>
-                      <div className="text-[11px] text-slate-500">{(me.highlights||[]).length} animé{(me.highlights||[]).length!==1?"s":""} · Les 5 premiers dans tes favoris du profil</div>
+                      <div className="text-[11px] text-slate-500">{t.animeCount((me.highlights||[]).length)} · {t.highlightsSuffixModal}</div>
                     </div>
                     <button onClick={close} className="flex h-7 w-7 items-center justify-center rounded-full bg-white/8 text-sm text-slate-400">✕</button>
                   </div>
@@ -1013,7 +1027,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                         </div>
                       ))}
                     </div>
-                  ):<EmptyState emoji="❤️" title="Aucun highlight" subtitle="Ajoute des animés via ❤️ sur leurs fiches"/>}
+                  ):<EmptyState emoji="❤️" title={t.highlightsEmptyTitle} subtitle={t.highlightsEmptySubtitle}/>}
                 </div>
               )}
             </Modal>
@@ -1027,7 +1041,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                   <div className="mb-4 flex items-center justify-between">
                     <div>
                       <div className="text-sm font-black text-slate-100">🎯 Watchlist</div>
-                      <div className="text-[11px] text-slate-500">{watchlistIds.length} animé{watchlistIds.length!==1?"s":""}</div>
+                      <div className="text-[11px] text-slate-500">{t.animeCount(watchlistIds.length)}</div>
                     </div>
                     <button onClick={close} className="flex h-7 w-7 items-center justify-center rounded-full bg-white/8 text-sm text-slate-400">✕</button>
                   </div>
@@ -1035,7 +1049,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                     <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-6">
                       {watchlistIds.map(id=><AnimePoster key={id} anime={animeCache[id]} onClick={a=>{close();onOpenDetail(a);}} loading/>)}
                     </div>
-                  ):<EmptyState emoji="🎯" title="Watchlist vide" subtitle="Ajoute des animés via 🎯 sur leur fiche"/>}
+                  ):<EmptyState emoji="🎯" title={t.watchlistEmptyTitle} subtitle={t.watchlistEmptySubtitle}/>}
                 </div>
               )}
             </Modal>
@@ -1050,23 +1064,23 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                   <div className="mb-4 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className="text-sm font-black text-slate-100">{openListData.name}</div>
-                      <div className="text-[11px] text-slate-500">{openListData.animeIds.length} animé{openListData.animeIds.length!==1?"s":""}</div>
+                      <div className="text-[11px] text-slate-500">{t.animeCount(openListData.animeIds.length)}</div>
                     </div>
                     <div className="flex items-center gap-2">
                       {/* Pin toggle */}
                       <button onClick={()=>pinList(openListData.id)}
                         className={pinnedListId===openListData.id ? "rounded-lg border border-violet-400/40 bg-violet-400/10 px-2.5 py-1.5 text-[10px] font-bold text-violet-400 transition" : "rounded-lg border border-white/10 px-2.5 py-1.5 text-[10px] font-bold text-slate-500 transition hover:border-white/20"}>
-                        {pinnedListId===openListData.id ? "📌 Épinglée" : "📌 Épingler"}
+                        {pinnedListId===openListData.id ? t.pinBtnActive : t.pinBtnInactive}
                       </button>
                       {/* Edit toggle */}
                       <button onClick={()=>setEditingList(editingList===openListData.id?null:openListData.id)}
                         className={editingList===openListData.id ? "rounded-lg border border-indigo-400/40 bg-indigo-400/10 px-2.5 py-1.5 text-[10px] font-bold text-indigo-400 transition" : "rounded-lg border border-white/10 px-2.5 py-1.5 text-[10px] font-bold text-slate-500 transition hover:border-white/20"}>
-                        {editingList===openListData.id ? "Terminé" : "Modifier"}
+                        {editingList===openListData.id ? t.editDone : t.editBtn}
                       </button>
                       {/* Delete */}
                       <button onClick={()=>{deleteList(openListData.id);close();}}
                         className="rounded-lg border border-red-500/20 px-2.5 py-1.5 text-[10px] font-bold text-red-500 hover:bg-red-500/10 transition">
-                        Supprimer
+                        {t.deleteBtn}
                       </button>
                       <button onClick={close} className="flex h-7 w-7 items-center justify-center rounded-full bg-white/8 text-sm text-slate-400">✕</button>
                     </div>
@@ -1086,16 +1100,16 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                       ))}
                     </div>
                   ) : (
-                    <EmptyState emoji="📋" title="Liste vide" subtitle="Recherche des animés à ajouter ci-dessous" className="mb-4"/>
+                    <EmptyState emoji="📋" title={t.listEmptyTitle} subtitle={t.listEmptySubtitle} className="mb-4"/>
                   )}
 
                   {/* Add anime search (edit mode) */}
                   {editingList===openListData.id && (
                     <div className="border-t border-white/6 pt-4">
-                      <div className="mb-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Ajouter un animé</div>
+                      <div className="mb-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">{t.addAnimeTitle}</div>
                       <input value={listSearchQuery}
                         onChange={e=>{setListSearchQuery(e.target.value);searchForList(e.target.value);}}
-                        placeholder="Rechercher…"
+                        placeholder={t.searchPlaceholder}
                         className="mb-3 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-[13px] text-slate-100 outline-none placeholder:text-slate-600 focus:border-violet-400/40"/>
                       {listSearchResults.length>0 && (
                         <div className="flex flex-col gap-2">
@@ -1124,9 +1138,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
       {/* ── MES POSTS TAB ── */}
       {tab === "posts" && (
         postsLoading ? (
-          <div className="flex justify-center py-12"><Spinner label="Chargement des posts…"/></div>
+          <div className="flex justify-center py-12"><Spinner label={t.loadingPosts}/></div>
         ) : myPosts.length === 0 ? (
-          <EmptyState emoji="✍️" title="Aucun post pour l'instant" />
+          <EmptyState emoji="✍️" title={t.noPostsTitle} />
         ) : (
           <div className="flex max-w-2xl flex-col gap-3">
             {myPosts.map((post, i) => (
@@ -1136,14 +1150,14 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                       style={{background: post._type==="written" ? "rgba(124,58,237,0.2)" : "rgba(99,102,241,0.15)",
                               color: post._type==="written" ? "#c084fc" : "#818cf8"}}>
-                      {post._type==="written" ? "✍️ Post" : "💬 Commenté"}
+                      {post._type==="written" ? t.postTypeWritten : t.postTypeCommented}
                     </span>
                     {post.anime_title && (
                       <span className="text-[10px] text-indigo-400 font-semibold">📺 {post.anime_title}</span>
                     )}
                   </div>
                   <span className="text-[9px] text-slate-600">
-                    {new Date(post.created_at).toLocaleDateString("fr-FR",{day:"numeric",month:"short",year:"numeric"})}
+                    {new Date(post.created_at).toLocaleDateString(t.dateLocale,{day:"numeric",month:"short",year:"numeric"})}
                   </span>
                 </div>
                 {post.spoiler && (
@@ -1166,9 +1180,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
 
       {tab === "stats" && (
         statsLoading ? (
-          <div className="flex justify-center py-12"><Spinner label="Calcul des stats…"/></div>
+          <div className="flex justify-center py-12"><Spinner label={t.calculatingStats}/></div>
         ) : !statsData ? (
-          <EmptyState emoji="📊" title="Aucune donnée disponible" />
+          <EmptyState emoji="📊" title={t.noStatsTitle} />
         ) : (
           <StatsTab statsData={statsData} ratings={me.ratings} watched={me.watched}/>
         )
@@ -1178,19 +1192,19 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
       {showFramePicker && (
         <Modal onClose={() => setShowFramePicker(false)} maxWidth="max-w-lg">
           <div className="p-6">
-            <div className="mb-1 text-center text-sm font-black text-slate-100">🖼 Cadres débloqués</div>
-            <div className="mb-4 text-center text-[11px] text-slate-500">{unlockedFrames.length} cadre{unlockedFrames.length!==1?"s":""} débloqué{unlockedFrames.length!==1?"s":""}</div>
+            <div className="mb-1 text-center text-sm font-black text-slate-100">{t.framesUnlockedTitle}</div>
+            <div className="mb-4 text-center text-[11px] text-slate-500">{t.frameCount(unlockedFrames.length)}</div>
             <button onClick={() => setFrame(null)}
               className="mb-2.5 flex w-full items-center gap-3 rounded-xl p-2.5 text-left"
               style={{ border: !activeFrame ? "2px solid #7c3aed" : "2px solid transparent", background: !activeFrame ? "rgba(124,58,237,0.1)" : "transparent" }}>
               <div className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-white/15 bg-white/5 text-lg">🚫</div>
-              <div><div className="text-xs font-bold text-slate-100">Aucun cadre</div><div className="text-[10px] text-slate-500">Avatar sans cadre</div></div>
+              <div><div className="text-xs font-bold text-slate-100">{t.noFrameTitle}</div><div className="text-[10px] text-slate-500">{t.noFrameDesc}</div></div>
             </button>
             <div className="flex flex-col gap-2">
               {["watched","contribution","followers","genre"].map(cat => {
                 const catFrames = unlockedFrames.filter(f=>f.category===cat);
                 if(!catFrames.length) return null;
-                const catLabels = {watched:"📺 Animés vus",contribution:"🗳️ Contribution",followers:"👥 Followers",genre:"🎌 Genre"};
+                const catLabels = {watched:t.frameCatWatched,contribution:t.frameCatContribution,followers:t.frameCatFollowers,genre:t.frameCatGenre};
                 return (
                   <div key={cat}>
                     <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{catLabels[cat]}</div>
@@ -1205,7 +1219,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                               <div className="flex h-11 w-11 items-center justify-center rounded-full text-lg" style={{ background: GRADIENT_PRIMARY }}>👤</div>
                               <svg className="absolute inset-0" viewBox="0 0 44 44" dangerouslySetInnerHTML={{ __html: frame.svg(44) }} />
                             </div>
-                            <div className="max-w-13 text-center text-[9px] font-bold leading-tight" style={{ color:frame.color }}>{frame.label}</div>
+                            <div className="max-w-13 text-center text-[9px] font-bold leading-tight" style={{ color:frame.color }}>{getFrameLabel(frame, lang)}</div>
                           </button>
                         );
                       })}
@@ -1222,7 +1236,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
       {showAvatarPicker && (
         <Modal onClose={() => setShowAvatarPicker(false)} maxWidth="max-w-md">
           <div className="p-6">
-            <div className="mb-4 text-center text-sm font-black text-slate-100">Choisir un avatar</div>
+            <div className="mb-4 text-center text-sm font-black text-slate-100">{t.chooseAvatarTitle}</div>
             <div className="flex flex-wrap justify-center gap-2.5">
               {AVATAR_EMOJIS.map(e => (
                 <button key={e} onClick={() => setAvatar(e)}

@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { sb } from "../api/supabase.js";
 import { useApp } from "../context/useApp.js";
+import { useLang } from "../context/useLang.js";
+import { MENTIONS_I18N } from "../constants/mentionsI18n.js";
 
 const MENTION_RE = /(?<=^|\s)(@[a-zA-Z0-9_]{2,20})/g;
 const TRAILING_MENTION_RE = /(?:^|\s)@([a-zA-Z0-9_]{1,20})$/;
@@ -8,11 +10,20 @@ const TRAILING_MENTION_RE = /(?:^|\s)@([a-zA-Z0-9_]{1,20})$/;
 // ─── Renders text with @username turned into clickable spans ──────────────────
 // Returns an array of strings/elements — drop it straight inside whatever
 // element already carries the text styling (e.g. a <p> with whiteSpace: pre-wrap).
+// A mention of someone you've blocked is redacted instead: even inside a post/
+// reply from someone you haven't blocked, their handle shouldn't surface — no
+// highlight, no click-through to their profile.
 export function MentionText({ text, onOpenUser }) {
+  const { blockedUsers } = useApp();
+  const { lang } = useLang();
+  const t = MENTIONS_I18N[lang] || MENTIONS_I18N.fr;
   if(!text) return null;
   return text.split(MENTION_RE).map((part, i) => {
     const m = /^@([a-zA-Z0-9_]{2,20})$/.exec(part);
     if(!m) return part;
+    if(blockedUsers?.has(m[1])) {
+      return <span key={i} style={{ color: "var(--text-4)", fontStyle: "italic" }}>{t.blockedUser}</span>;
+    }
     return (
       <span key={i} role="button"
         onClick={e => { e.stopPropagation(); onOpenUser?.(m[1]); }}
@@ -68,7 +79,7 @@ export function MentionSuggestions({ suggestions, onPick }) {
             background: "none", border: "none", borderRadius: 6, cursor: "pointer", textAlign: "left" }}
           onMouseEnter={e => { e.currentTarget.style.background = "rgba(var(--fg-rgb),0.06)"; }}
           onMouseLeave={e => { e.currentTarget.style.background = "none"; }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-1)" }}>{s.name || s.username}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, background: "linear-gradient(90deg,#8B5CF6,#EC4899)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>{s.name || s.username}</span>
           <span style={{ fontSize: 11, color: "var(--text-3)" }}>@{s.username}</span>
         </button>
       ))}

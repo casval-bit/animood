@@ -1,18 +1,24 @@
 import { useState } from "react";
 import { useApp } from "../context/useApp.js";
+import { useLang } from "../context/useLang.js";
 import { GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
 import { timeAgo } from "./ForumThreadModal.jsx";
+import { HEADER_I18N } from "../constants/headerI18n.js";
 
-const TABS = [
-  { id: "feed",      label: "Feed",      emoji: "🏠" },
-  { id: "moodboard", label: "Moodboard", emoji: "🎭" },
-  { id: "search",    label: "Search",    emoji: "🔍" },
-  { id: "forum",     label: "Forum",     emoji: "💬" },
-  { id: "profile",   label: "Profil",    emoji: "👤" },
-];
+function getTabs(t) {
+  return [
+    { id: "feed",      label: t.tabFeed,      emoji: "🏠" },
+    { id: "moodboard", label: t.tabMoodboard, emoji: "🎭" },
+    { id: "search",    label: t.tabSearch,    emoji: "🔍" },
+    { id: "forum",     label: t.tabForum,     emoji: "💬" },
+    { id: "profile",   label: t.tabProfile,   emoji: "👤" },
+  ];
+}
 
 function NotificationBell({ onChangeTab }) {
   const { activityNotifications, markActivityRead } = useApp();
+  const { lang } = useLang();
+  const t = HEADER_I18N[lang] || HEADER_I18N.fr;
   const [open, setOpen] = useState(false);
   const count = activityNotifications?.length || 0;
 
@@ -26,7 +32,7 @@ function NotificationBell({ onChangeTab }) {
     <div className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        title="Notifications"
+        title={t.notifications}
         className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition hover:scale-110"
         style={{ background: open ? GRADIENT_PRIMARY : "rgba(var(--fg-rgb),.06)", boxShadow: open ? "0 6px 18px rgba(109,91,255,.45)" : "none" }}
       >
@@ -52,22 +58,18 @@ function NotificationBell({ onChangeTab }) {
             style={{ background: "var(--surface-1-strong)", boxShadow: "var(--shadow-modal)" }}
           >
             <div className="px-4 py-3 text-[13px] font-black uppercase tracking-wide text-white" style={{ background: GRADIENT_PRIMARY }}>
-              🔔 Activité
+              {t.activity}
             </div>
             {count === 0 ? (
-              <div className="px-4 py-6 text-center text-xs text-slate-500">Rien de nouveau pour l'instant.</div>
+              <div className="px-4 py-6 text-center text-xs text-slate-500">{t.nothingNew}</div>
             ) : (
               <div className="max-h-80 overflow-y-auto">
                 {activityNotifications.map(n => {
                   const isThread = n.type === "thread" || n.type === "thread-mention";
                   const isMention = n.type === "post-mention" || n.type === "thread-mention";
                   const text = n.lastComment.content ?? n.lastComment.body;
-                  const place = isMention
-                    ? (isThread ? "un sujet" : "un post")
-                    : isThread
-                    ? (n.isMine ? "ton sujet" : "un sujet que tu suis")
-                    : (n.isMine ? "ton post" : "un post que tu suis");
-                  const verb = isMention ? "t'a mentionné dans" : isThread ? "a répondu à" : "a commenté";
+                  const place = t.place(isMention, isThread, n.isMine);
+                  const verb = t.verb(isMention, isThread);
                   return (
                     <button key={`${n.type}-${n.id}`} onClick={() => openNotif(n)}
                       className="flex w-full flex-col items-start gap-0.5 border-b border-white/6 px-4 py-3 text-left transition last:border-b-0 hover:bg-white/5">
@@ -76,7 +78,7 @@ function NotificationBell({ onChangeTab }) {
                       </div>
                       {n.title && <div className="truncate text-[11px] text-violet-300">{n.title}</div>}
                       {text && <div className="truncate text-[11px] text-slate-500">« {text} »</div>}
-                      <div className="text-[10px] text-slate-600">{timeAgo(n.lastComment.created_at)}</div>
+                      <div className="text-[10px] text-slate-600">{timeAgo(n.lastComment.created_at, lang)}</div>
                     </button>
                   );
                 })}
@@ -91,6 +93,9 @@ function NotificationBell({ onChangeTab }) {
 
 export function Header({ activeTab, onChangeTab }) {
   const { me, session, unreadPeers } = useApp();
+  const { lang } = useLang();
+  const t = HEADER_I18N[lang] || HEADER_I18N.fr;
+  const TABS = getTabs(t);
   const unreadCount = unreadPeers?.size || 0;
 
   // Custom Cloudinary avatar > Google OAuth > emoji
@@ -135,7 +140,7 @@ export function Header({ activeTab, onChangeTab }) {
 
         <button
           onClick={() => onChangeTab("messages")}
-          title="Messages"
+          title={t.messages}
           className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition hover:scale-110"
           style={{
             background: activeTab === "messages" ? GRADIENT_PRIMARY : "rgba(var(--fg-rgb),.06)",

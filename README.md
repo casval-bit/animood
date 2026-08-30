@@ -7,7 +7,7 @@ A mood-driven anime app — moodboard, feed, search, forum, profiles, and messag
 No setup needed — the Supabase key already in the code is the `anon`/publishable key (safe to ship client-side by design; access control lives in RLS policies, not in keeping it secret), and the DB schema is already migrated on the shared Supabase project.
 
 ```bash
-git clone -b animood-v.06 https://github.com/casval-bit/animood.git
+git clone -b animood-v.06.01 https://github.com/casval-bit/animood.git
 cd animood
 npm install
 npm run dev
@@ -31,11 +31,17 @@ npm run lint      # eslint across the project
 - **Cadres de profil** — unlockable decorative avatar borders across 5 tracks (abonnés, contribution aux moods, animés vus, genre préféré, jeux). Settings → Profil shows every frame, locked ones greyed out with a 🔒 and the unlock condition, and lets you pick your active one.
 - **Profils enrichis** — your own profile and any member's profile modal now share the same depth: watch/rating stats, mood average, pinned list, favorites and highlights, with Journal / Listes tabs on both.
 - **Réglages** — reorganized into tabs (Préférences / Profil / Données / Compte); light/dark theme toggle, FR/EN language switch, an editable display name, and a delete-account placeholder.
+- **Traduction FR/EN complète** — the language switch (Settings → Préférences) now actually translates the whole app: every view, modal, and component (Feed, Forum, Moodboard, Search, Profile, Messages, chat bubble, mini-games, anime/person/studio modals, statuses, filters, forum tags, profile frame names, notifications) — not just the setting itself.
 - **Bloquer un utilisateur** — block/unblock from any profile; hides a blocked member's posts, threads and replies, blocks DMs both ways, and excludes them from mentions and search. Tucked into a discreet "⋯" menu on the profile (not a big red button next to Follow/Message) since it's rarely the first thing you want to do there. Manage the full list from Settings → Compte.
 - **Mentions** — `@username` in Feed posts/comments and Forum threads/replies: autocompletes while typing, renders as a clickable link to that member's profile, and notifies the mentioned member (see Notifications below) even on a post/thread they haven't posted or commented on themselves.
 - **Notifications** — unread-message badge (with count) on the ✉️ icon; a 🔔 bell for activity (new comments on Feed posts and new replies on Forum threads you wrote or took part in, *plus* any post/comment/thread/reply where someone `@mentions` you). The bell and Forum's per-thread unread badge read from the same feed, so they never disagree. Both update automatically in the background — no page refresh needed.
 - **Theme** — selectable light/dark appearance (Settings → 🎨 Apparence). Dark (glass/gradient) stays the default; the light theme is a softer, violet-tinted "social feed" look, not a flat white dashboard.
 - **AniList import** — also pulls a public AniList account's custom (sub-)lists, filterable from Profile → Journal. Re-run the same import anytime (same username, now with a clearly labeled field and a "🔄 Réimporter" button) to resync after updating your list on AniList.
+
+## v.06.01 — en comparaison avec v.06
+
+- **Traduction FR/EN complète** — la bascule de langue existait déjà en Réglages depuis `animood-v.06` mais ne traduisait que ce réglage lui-même ; le reste de l'app restait en français quel que soit le choix. Le switch FR/EN traduit maintenant réellement toute l'interface : Feed, Forum (tags, badge non-lu), Moodboard, Recherche (filtres durée/type/pays), Profils, Messages/bulle de chat, Mini-jeux, modales Anime/Personne/Studio (y compris les blurbs de studio), statuts de visionnage, et le nom/la description des cadres de profil.
+- **Fix** — un message, commentaire ou mention d'un utilisateur bloqué pouvait quand même faire apparaître un badge "non lu" sur les Messages ou une entrée dans la cloche 🔔 d'activité, alors que le blocage le masque déjà des listes (Feed/Forum/Recherche/DMs). Les deux flux excluent désormais aussi les utilisateurs bloqués.
 
 ## v.06 — en comparaison avec v.05
 
