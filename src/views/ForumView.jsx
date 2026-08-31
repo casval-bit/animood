@@ -539,7 +539,8 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
         />
       )}
       {openThread && (
-        <ThreadModal thread={openThread} username={myUsername} onClose={() => setOpenThread(null)} onOpenUser={onOpenUser} />
+        <ThreadModal thread={openThread} username={myUsername} onClose={() => setOpenThread(null)} onOpenUser={onOpenUser}
+          onLikeUpdate={(id, likes) => setThreads(list => list.map(th => th.id===id ? {...th, likes} : th))} />
       )}
       {showWordle && (
         <Modal onClose={()=>setShowWordle(false)} maxWidth="max-w-2xl">

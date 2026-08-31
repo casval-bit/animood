@@ -292,8 +292,8 @@ function ForumPollDisplay({ threadId, username }) {
   );
 }
 
-// ─── Thread detail — body + replies + reply box, no reactions/pagination ──────
-export function ThreadModal({ thread, username, onClose, onOpenUser }) {
+// ─── Thread detail — body + replies + reply box ────────────────────────────────
+export function ThreadModal({ thread, username, onClose, onOpenUser, onLikeUpdate }) {
   const { blockedUsers } = useApp();
   const { lang } = useLang();
   const t = FORUM_THREAD_I18N[lang] || FORUM_THREAD_I18N.fr;
@@ -303,7 +303,9 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
   const [reply, setReply]       = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]       = useState(null);
+  const [threadLikes, setThreadLikes] = useState(thread.likes || []);
   const mention = useMentionAutocomplete(reply, username);
+  const threadLiked = threadLikes.includes(username);
 
   useEffect(() => {
     let cancelled = false;
@@ -337,6 +339,27 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
     } finally { setSubmitting(false); }
   };
 
+  const toggleThreadLike = async () => {
+    const newLiked = !threadLiked;
+    setThreadLikes(prev => newLiked ? [...prev, username] : prev.filter(u=>u!==username));
+    const result = await sb.toggleThreadLike(thread.id, username).catch(()=>null);
+    const newLikes = result?.[0]?.likes || (newLiked ? [...threadLikes, username] : threadLikes.filter(u=>u!==username));
+    setThreadLikes(newLikes);
+    onLikeUpdate?.(thread.id, newLikes);
+  };
+
+  const toggleReplyLike = async (replyId) => {
+    const target = replies.find(r => r.id === replyId);
+    if(!target) return;
+    const likes = target.likes || [];
+    const newLiked = !likes.includes(username);
+    const optimistic = newLiked ? [...likes, username] : likes.filter(u=>u!==username);
+    setReplies(prev => prev.map(r => r.id===replyId ? {...r, likes:optimistic} : r));
+    const result = await sb.toggleReplyLike(replyId, username).catch(()=>null);
+    const newLikes = result?.[0]?.likes || optimistic;
+    setReplies(prev => prev.map(r => r.id===replyId ? {...r, likes:newLikes} : r));
+  };
+
   const visibleReplies = blockedUsers?.size ? replies.filter(r => !blockedUsers.has(r.username)) : replies;
 
   return (
@@ -356,8 +379,13 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
         )}
         <div className="mb-3 whitespace-pre-wrap text-sm text-slate-300"><MentionText text={thread.body} onOpenUser={onOpenUser}/></div>
         {thread.image_url && (
-          <img src={thread.image_url} alt="" className="mb-5 max-h-100 w-full rounded-xl object-cover" />
+          <img src={thread.image_url} alt="" className="mb-3 max-h-100 w-full rounded-xl object-cover" />
         )}
+        <button onClick={toggleThreadLike}
+          className="mb-5 flex items-center gap-1 text-xs font-bold transition"
+          style={{color: threadLiked ? "#ef4444" : "var(--text-3)"}}>
+          {threadLiked ? "❤️" : "🤍"} {threadLikes.length || ""}
+        </button>
         <ForumPollDisplay threadId={thread.id} username={username}/>
 
         <div className="mb-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">
@@ -365,15 +393,24 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
         </div>
         {loading ? <Spinner small /> : (
           <div className="mb-5 flex flex-col gap-3">
-            {visibleReplies.map(r => (
-              <div key={r.id} className="rounded-xl border border-white/7 bg-white/4 p-3">
-                <div className="mb-1 flex items-center gap-1.5">
-                  <Avatar profile={profileCache[r.username]} size={18} fallback={r.username.slice(0,2).toUpperCase()} className="text-[8px]"/>
-                  <div className="text-[10px] font-bold text-slate-500"><span className={GRADIENT_TEXT}>{profileCache[r.username]?.name || r.username}</span> · @{r.username} · {timeAgo(r.created_at, lang)}</div>
+            {visibleReplies.map(r => {
+              const rLikes = r.likes || [];
+              const rLiked = rLikes.includes(username);
+              return (
+                <div key={r.id} className="rounded-xl border border-white/7 bg-white/4 p-3">
+                  <div className="mb-1 flex items-center gap-1.5">
+                    <Avatar profile={profileCache[r.username]} size={18} fallback={r.username.slice(0,2).toUpperCase()} className="text-[8px]"/>
+                    <div className="text-[10px] font-bold text-slate-500"><span className={GRADIENT_TEXT}>{profileCache[r.username]?.name || r.username}</span> · @{r.username} · {timeAgo(r.created_at, lang)}</div>
+                  </div>
+                  <div className="mb-1.5 whitespace-pre-wrap text-[13px] text-slate-200"><MentionText text={r.body} onOpenUser={onOpenUser}/></div>
+                  <button onClick={()=>toggleReplyLike(r.id)}
+                    className="flex items-center gap-1 text-[11px] font-bold transition"
+                    style={{color: rLiked ? "#ef4444" : "var(--text-4)"}}>
+                    {rLiked ? "❤️" : "🤍"} {rLikes.length || ""}
+                  </button>
                 </div>
-                <div className="whitespace-pre-wrap text-[13px] text-slate-200"><MentionText text={r.body} onOpenUser={onOpenUser}/></div>
-              </div>
-            ))}
+              );
+            })}
             {!visibleReplies.length && <div className="text-xs text-slate-600">{t.noReplies}</div>}
           </div>
         )}

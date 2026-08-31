@@ -193,6 +193,26 @@ export const sb = {
       body: JSON.stringify([{ thread_id: threadId, username, body }]),
     });
   },
+  async toggleThreadLike(id, username) {
+    const rows = await this.query(`forum_threads?id=eq.${id}&select=likes&limit=1`);
+    const likes = rows?.[0]?.likes || [];
+    const newLikes = likes.includes(username) ? likes.filter(u=>u!==username) : [...likes, username];
+    return this.query(`forum_threads?id=eq.${id}`, {
+      method: "PATCH",
+      headers: { ...this.headers, "Prefer": "return=representation" },
+      body: JSON.stringify({ likes: newLikes }),
+    });
+  },
+  async toggleReplyLike(id, username) {
+    const rows = await this.query(`forum_replies?id=eq.${id}&select=likes&limit=1`);
+    const likes = rows?.[0]?.likes || [];
+    const newLikes = likes.includes(username) ? likes.filter(u=>u!==username) : [...likes, username];
+    return this.query(`forum_replies?id=eq.${id}`, {
+      method: "PATCH",
+      headers: { ...this.headers, "Prefer": "return=representation" },
+      body: JSON.stringify({ likes: newLikes }),
+    });
+  },
 
   async getMoodPts(mal_id) {
     try {

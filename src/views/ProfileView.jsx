@@ -6,7 +6,7 @@ import { PROFILE_I18N } from "../constants/profileI18n.js";
 import { AVATAR_EMOJIS } from "../constants/avatars.js";
 import { MOOD_KEYS } from "../constants/moods.js";
 import { jikan } from "../api/jikan.js";
-import { follows, sb } from "../api/supabase.js";
+import { follows, sb, posts as postsApi } from "../api/supabase.js";
 import { dispatchPostEvent, addPostEventListener } from "../utils/postEvents.js";
 import { FRAMES, getUnlockedFrames, getBestFrame, getFrameLabel } from "../frames/frames.js";
 import { FrameSVG } from "../frames/FrameSVG.jsx";
@@ -358,20 +358,11 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
 
   const handleLike = async () => {
     const newLiked = !liked;
-    const newLikes = newLiked
-      ? [...(post.likes||[]), myUsername]
-      : (post.likes||[]).filter(u=>u!==myUsername);
-    setLiked(newLiked);
-    setLikeCount(newLikes.length);
-    try {
-      await sb.query(`posts?id=eq.${post.id}`, {
-        method:"PATCH",
-        headers:{...sb.headers,"Prefer":"return=minimal"},
-        body:JSON.stringify({likes:newLikes}),
-      });
-      onLikeUpdate?.(post.id, newLikes);
-      dispatchPostEvent("like", { id: post.id, likes: newLikes });
-    } catch {}
+    setLiked(newLiked); setLikeCount(c => c + (newLiked?1:-1));
+    const result = await postsApi.toggleLike(post.id, myUsername).catch(()=>null);
+    const newLikes = result?.[0]?.likes || (newLiked ? [...(post.likes||[]),myUsername] : (post.likes||[]).filter(u=>u!==myUsername));
+    onLikeUpdate?.(post.id, newLikes);
+    dispatchPostEvent("like", { id: post.id, likes: newLikes });
   };
 
   const loadComments = async () => {
