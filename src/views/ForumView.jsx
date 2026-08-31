@@ -256,6 +256,44 @@ function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, profileC
   );
 }
 
+function GameEloDisplay({ myUsername }) {
+  const { lang } = useLang();
+  const t = FORUM_I18N[lang] || FORUM_I18N.fr;
+  const [elo, setElo] = useState(null);
+  useEffect(() => {
+    if(!myUsername) return;
+    sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&limit=1`)
+      .then(r => { if(r?.[0]) setElo(r[0]); })
+      .catch(()=>{});
+  }, [myUsername]);
+  if(!elo) return null;
+  return (
+    <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.06)",
+      display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+      <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(251,191,36,0.06)"}}>
+        <div style={{fontSize:13,fontWeight:900,color:"#fbbf24"}}>{elo.elo_chain||400}</div>
+        <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>{t.eloChainLabel}</div>
+      </div>
+      <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(34,197,94,0.06)"}}>
+        <div style={{fontSize:13,fontWeight:900,color:"#22c55e"}}>{elo.elo_timeline||400}</div>
+        <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>{t.eloTimelineLabel}</div>
+      </div>
+      <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(124,58,237,0.06)"}}>
+        <div style={{fontSize:13,fontWeight:900,color:"#c084fc"}}>{elo.streak_wordle||0}</div>
+        <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>{t.wordlePtsLabel}</div>
+      </div>
+      <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(236,72,153,0.06)"}}>
+        <div style={{fontSize:13,fontWeight:900,color:"#f9a8d4"}}>{elo.streak_poster||0}</div>
+        <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>{t.posterPtsLabel}</div>
+      </div>
+      <div style={{gridColumn:"1/-1",textAlign:"center",padding:"4px",borderRadius:8,background:"rgba(255,255,255,0.03)"}}>
+        <div style={{fontSize:11,fontWeight:900,color:"var(--text-2)"}}>{t.totalPtsLabel(elo.points_total||0)}</div>
+        <div style={{fontSize:8,color:"rgba(148,163,184,0.5)"}}>{t.unlocksFramesLabel}</div>
+      </div>
+    </div>
+  );
+}
+
 export function ForumView({ onOpenDetail, onOpenUser }) {
   const { myUsername, activityNotifications, markActivityRead, blockedUsers } = useApp();
   const { lang } = useLang();
@@ -487,6 +525,7 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
                   <span style={{fontSize:8,color:"#22c55e",fontWeight:700}}>{t.timelineLabel}</span>
                 </button>
               </div>
+              <GameEloDisplay myUsername={myUsername}/>
             </div>
           </aside>
         </div>
@@ -519,13 +558,25 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
         </Modal>
       )}
       {activeRoom && activeGame === "chain" && (
-        <Modal onClose={()=>{setActiveRoom(null);setActiveGame(null);}} maxWidth="max-w-2xl">
-          {() => <ChainGame room={activeRoom} onClose={()=>{setActiveRoom(null);setActiveGame(null);}}/>}
+        <Modal onClose={async()=>{
+          await sb.query(`game_rooms?id=eq.${activeRoom.id}`,{method:"PATCH",headers:{...sb.headers,"Prefer":"return=minimal"},body:JSON.stringify({status:"waiting",updated_at:new Date().toISOString()})}).catch(()=>{});
+          setActiveRoom(null);setActiveGame(null);
+        }} maxWidth="max-w-4xl">
+          {() => <ChainGame room={activeRoom} onClose={async()=>{
+            await sb.query(`game_rooms?id=eq.${activeRoom.id}`,{method:"PATCH",headers:{...sb.headers,"Prefer":"return=minimal"},body:JSON.stringify({status:"waiting",updated_at:new Date().toISOString()})}).catch(()=>{});
+            setActiveRoom(null);setActiveGame(null);
+          }}/>}
         </Modal>
       )}
       {activeRoom && activeGame === "timeline" && (
-        <Modal onClose={()=>{setActiveRoom(null);setActiveGame(null);}} maxWidth="max-w-3xl">
-          {() => <TimelineGame room={activeRoom} onClose={()=>{setActiveRoom(null);setActiveGame(null);}}/>}
+        <Modal onClose={async()=>{
+          await sb.query(`game_rooms?id=eq.${activeRoom.id}`,{method:"PATCH",headers:{...sb.headers,"Prefer":"return=minimal"},body:JSON.stringify({status:"waiting",updated_at:new Date().toISOString()})}).catch(()=>{});
+          setActiveRoom(null);setActiveGame(null);
+        }} maxWidth="max-w-6xl">
+          {() => <TimelineGame room={activeRoom} onClose={async()=>{
+            await sb.query(`game_rooms?id=eq.${activeRoom.id}`,{method:"PATCH",headers:{...sb.headers,"Prefer":"return=minimal"},body:JSON.stringify({status:"waiting",updated_at:new Date().toISOString()})}).catch(()=>{});
+            setActiveRoom(null);setActiveGame(null);
+          }}/>}
         </Modal>
       )}
     </div>
