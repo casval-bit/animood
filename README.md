@@ -45,7 +45,7 @@ Deux chantiers sur cette version : récupérer des fonctionnalités qui existaie
 
 **Fonctionnalités récupérées depuis `animood-v.05.03`** (développées là-bas en parallèle de la traduction FR/EN et du blocage d'utilisateur, jamais fusionnées depuis) :
 
-- **Sondages** — voir plus haut. Stockés dans une nouvelle table `polls` (à créer, voir Database ci-dessous).
+- **Sondages** — voir plus haut. Stockés dans une nouvelle table `polls` (schéma dans `supabase/polls_schema.sql`, voir Database ci-dessous).
 - **Sync Feed ↔ Profil** — voir "Profils enrichis" plus haut ; réalisé via un petit bus d'événements (`src/utils/postEvents.js`) plutôt qu'un rechargement.
 - **Points pour les mini-jeux solo** — voir "Mini-jeux" plus haut (`src/utils/awardSoloPoints.js`).
 - **Matchmaking plus robuste** — élargissement progressif de la fourchette d'Elo si personne n'est trouvé rapidement, un mécanisme de secours par polling en plus du temps réel Supabase (au cas où une mise à jour "adversaire trouvé" serait manquée), et un abandon en pleine partie fiable : la fenêtre de jeu attend maintenant la fin du PATCH de fin de partie avant de se fermer, au lieu de fermer immédiatement et de risquer de perdre l'enregistrement du forfait.
@@ -66,11 +66,11 @@ Ce qui a été fait :
 
 **Pourquoi ça ne marchera pas tout de suite** — le Forum n'a jamais eu de colonne `likes`, et Row Level Security n'autorisait que `SELECT` et `INSERT` sur `forum_threads`/`forum_replies` (aucune policy `UPDATE`). Le code est prêt et poussé, mais tant que la migration SQL ci-dessous n'a pas tourné sur le projet Supabase partagé, cliquer sur ❤️ dans le Forum échouera silencieusement (l'appel est enveloppé dans un `.catch(()=>{})`, comme le reste de l'app : pas de crash, juste rien ne se sauvegarde).
 
-**Reste à faire côté Supabase** (voir la section Database plus bas pour le détail) :
+**Reste à faire côté Supabase** — le SQL existe maintenant (voir la section Database plus bas), il ne reste qu'à l'exécuter sur le projet partagé (SQL Editor → coller → Run), dans cet ordre :
 
-- Exécuter `supabase/forum_schema.sql` sur le projet partagé — il a été mis à jour pour ajouter `likes` sur `forum_threads`/`forum_replies` et les policies `UPDATE` qui manquaient. C'est un script additif (`add column if not exists`), donc sans risque à relancer même si le reste du fichier a déjà été exécuté par le passé.
-- Créer la table `polls` à la main (aucun schéma SQL ne la définissait, même sur la branche d'origine `v.05.03`).
-- Ajouter 4 colonnes à `game_elo` : `streak_wordle`, `last_wordle_date`, `streak_poster`, `last_poster_date` — sans elles, gagner à Wordle/Poster ne persiste aucun point.
+1. `supabase/forum_schema.sql` (re-exécuter) — ajoute `likes` sur `forum_threads`/`forum_replies` et les policies `UPDATE` qui manquaient. Script additif (`add column if not exists`), sans risque à relancer même si le reste du fichier a déjà tourné par le passé.
+2. `supabase/polls_schema.sql` (nouveau fichier) — crée la table `polls`, qu'aucune des deux branches ne suivait en SQL jusqu'ici.
+3. `supabase/game_schema.sql` (nouveau fichier) — documente enfin `game_elo`/`game_rooms` (qui n'avaient aucun schéma tracké) et ajoute les 4 colonnes `streak_wordle` / `last_wordle_date` / `streak_poster` / `last_poster_date`. Sans elles, gagner à Wordle/Poster ne persiste aucun point.
 
 **Fichiers touchés**
 
@@ -78,6 +78,7 @@ Ce qui a été fait :
 |---|---|
 | Sondages, sync posts, points solo, matchmaking | `src/App.jsx`, `src/components/ForumThreadModal.jsx`, `src/components/GameSystem.jsx`, `src/components/MiniGames.jsx`, `src/components/Modal.jsx`, `src/views/FeedView.jsx`, `src/views/ForumView.jsx`, `src/views/ProfileView.jsx`, `src/utils/awardSoloPoints.js` *(nouveau)*, `src/utils/postEvents.js` *(nouveau)*, i18n : `src/constants/forumI18n.js`, `forumThreadI18n.js`, `gameSystemI18n.js`, `profileI18n.js` |
 | Likes Forum + Profil | `src/api/supabase.js`, `src/components/ForumThreadModal.jsx`, `src/views/ForumView.jsx`, `src/views/ProfileView.jsx`, `supabase/forum_schema.sql` |
+| Schémas SQL en attente d'exécution | `supabase/polls_schema.sql` *(nouveau)*, `supabase/game_schema.sql` *(nouveau)* |
 
 ## v.06.01 — en comparaison avec v.06
 
@@ -103,11 +104,9 @@ Schema is already applied on the shared project **except for the three items fla
 | `supabase/messages_schema.sql` | `direct_messages` |
 | `supabase/anilist_sub_lists.sql` | `anilist_sub_lists` column on `profiles` |
 | `supabase/blocks_schema.sql` | `user_blocks` (one-directional user blocking) |
-| ⚠️ *(no file yet)* `polls` | New in v.07, used by the poll feature on Feed posts and Forum threads (`thread_id` or `post_id`, `options` jsonb `{id, text, votes[]}[]`, `multi` boolean). Needs to be created by hand — not tracked as SQL yet. |
-| ⚠️ *(no file yet)* 4 columns on `game_elo` | New in v.07: `streak_wordle`, `last_wordle_date`, `streak_poster`, `last_poster_date` (text/date), used to award and track points for the solo Wordle/Poster mini-games. Without them, winning those games silently awards nothing. |
+| ⚠️ `supabase/polls_schema.sql` | **New file in v.07.** `polls` (belongs to either a Feed post or a Forum thread — `options` jsonb `{id, text, votes[]}[]`, `multi` boolean). Neither branch ever tracked this table before; on a fresh project this is the only place it gets created. |
+| ⚠️ `supabase/game_schema.sql` | **New file in v.07.** `game_elo`, `game_rooms` — these existed on the shared project already but had no tracked schema until now; this file documents them and adds the 4 new columns used to award/track solo Wordle/Poster points (`streak_wordle`, `last_wordle_date`, `streak_poster`, `last_poster_date`). On the shared project, only those 4 `alter table` lines actually do anything — the `create table` statements are no-ops there since the tables already exist. |
 
 Access model: like the rest of the app, these tables use the shared `anon` key with open RLS policies ("anyone can read/insert/update") — not per-user privacy, consistent with `profiles`/`follows`/`user_votes`.
 
 > `profiles.custom_lists` (manually-created lists, `{id, name, animeIds}[]`) is a separate feature living on the `main` branch — unrelated to `anilist_sub_lists` above.
->
-> The mini-games (`game_elo`, `game_rooms`) were created directly on the shared Supabase project and don't have a tracked schema file yet — on a fresh project, the games will fail silently (caught errors) until those two tables are added by hand.
