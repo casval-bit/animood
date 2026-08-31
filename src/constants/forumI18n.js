@@ -64,6 +64,12 @@ export const FORUM_I18N = {
     chainLabel: "Chaîne",
     timelineTitle: "Timeline — 1v1",
     timelineLabel: "Timeline",
+    eloChainLabel: "⛓ Elo Chaîne",
+    eloTimelineLabel: "📅 Elo Timeline",
+    wordlePtsLabel: "🎯 Pts Wordle",
+    posterPtsLabel: "🖼 Pts Poster",
+    totalPtsLabel: (n) => `${n} pts total`,
+    unlocksFramesLabel: "🎮 Débloque des cadres profil",
   },
 
   en: {
@@ -131,5 +137,11 @@ export const FORUM_I18N = {
     chainLabel: "Chain",
     timelineTitle: "Timeline — 1v1",
     timelineLabel: "Timeline",
+    eloChainLabel: "⛓ Chain Elo",
+    eloTimelineLabel: "📅 Timeline Elo",
+    wordlePtsLabel: "🎯 Wordle Pts",
+    posterPtsLabel: "🖼 Poster Pts",
+    totalPtsLabel: (n) => `${n} pts total`,
+    unlocksFramesLabel: "🎮 Unlocks profile frames",
   },
 };

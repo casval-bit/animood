@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { sb } from "../api/supabase.js";
+import { useApp } from "../context/useApp.js";
 import { MOOD_KEYS } from "../constants/moods.js";
 import { useLang } from "../context/useLang.js";
 import { MINI_GAMES_I18N } from "../constants/miniGamesI18n.js";
+import { awardSoloPoints } from "../utils/awardSoloPoints.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function getDayIndex() {
@@ -56,6 +58,7 @@ function CellResult({ label, status, hint }) {
 export function WordleGame({ onClose }) {
   const { lang } = useLang();
   const t = (MINI_GAMES_I18N[lang] || MINI_GAMES_I18N.fr).wordle;
+  const { myUsername } = useApp();
   const MAX_TRIES = 10;
   const [pool, setPool]         = useState([]);
   const [target, setTarget]     = useState(null);
@@ -189,6 +192,9 @@ export function WordleGame({ onClose }) {
     const newStatus = guess.correct ? "won" : newGuesses.length >= MAX_TRIES ? "lost" : "playing";
     setStatus(newStatus);
     saveState(newGuesses, newStatus);
+    if(newStatus === "won") {
+      awardSoloPoints(myUsername, "wordle", newGuesses.length, true).catch(()=>{});
+    }
   };
 
   const tryGuess = async (anime) => {
@@ -347,6 +353,7 @@ function PixelatedImage({ src, pixelSize }) {
 export function PosterGame({ onClose }) {
   const { lang } = useLang();
   const t = (MINI_GAMES_I18N[lang] || MINI_GAMES_I18N.fr).poster;
+  const { myUsername } = useApp();
   const MAX_TRIES = 8;
   const [pool, setPool]       = useState([]);
   const [target, setTarget]   = useState(null);
@@ -393,7 +400,7 @@ export function PosterGame({ onClose }) {
     }, 300);
   };
 
-  const tryGuess = (anime) => {
+  const tryGuess = async (anime) => {
     if(status !== "playing") return;
     if(guesses.some(g=>g.mal_id===anime.mal_id)) return;
     const correct = anime.mal_id === target?.mal_id;
@@ -403,6 +410,9 @@ export function PosterGame({ onClose }) {
     const newStatus = correct ? "won" : newGuesses.length >= MAX_TRIES ? "lost" : "playing";
     setStatus(newStatus);
     saveState(newGuesses, newStatus);
+    if(newStatus === "won") {
+      awardSoloPoints(myUsername, "poster", newGuesses.length, true).catch(()=>{});
+    }
   };
 
   if(loading) return (
