@@ -53,6 +53,7 @@ export function NewThreadModal({ username, onClose, onCreated }) {
   const [imageUrl, setImageUrl] = useState(null);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState(null);
+  const [poll, setPoll] = useState(null); // null or {options:["",""], multi:false}
   const imageInputRef = useRef(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]     = useState(null);
@@ -83,8 +84,25 @@ export function NewThreadModal({ username, onClose, onCreated }) {
     setSubmitting(true); setError(null);
     try {
       const rows = await sb.createThread(username, ttl, b, tags, imageUrl);
-      if(rows?.[0]) onCreated(rows[0]);
-      else throw new Error("empty response");
+      if(!rows?.[0]) throw new Error("empty response");
+      const thread = rows[0];
+      // Create poll if set
+      if(poll) {
+        const validOptions = poll.options.filter(o=>o.trim());
+        if(validOptions.length >= 2) {
+          await sb.query("polls", {
+            method: "POST",
+            headers: { ...sb.headers, "Prefer": "return=minimal" },
+            body: JSON.stringify({
+              thread_id: thread.id,
+              options: validOptions.map((text,i)=>({id:String(i+1),text,votes:[]})),
+              multi: poll.multi,
+            }),
+          }).catch(()=>{});
+          thread.has_poll = true;
+        }
+      }
+      onCreated(thread);
     } catch {
       setError(t.errCreate);
     } finally { setSubmitting(false); }
@@ -117,13 +135,55 @@ export function NewThreadModal({ username, onClose, onCreated }) {
         {imageError && <div className="mb-3 text-xs text-red-400">{imageError}</div>}
 
         <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-        <button onClick={() => imageInputRef.current?.click()} disabled={imageUploading} type="button"
-          className="mb-3 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition"
-          style={imageUrl
-            ? { borderColor: "rgba(129,140,248,.3)", background: "rgba(129,140,248,.15)", color: "#818cf8" }
-            : { borderColor: "rgba(var(--fg-rgb),.1)", background: "rgba(var(--fg-rgb),.05)", color: "var(--text-2)" }}>
-          {imageUploading ? t.imageUploading : imageUrl ? t.imageChange : t.imageAdd}
-        </button>
+        <div className="mb-3 flex gap-2 flex-wrap">
+          <button onClick={() => imageInputRef.current?.click()} disabled={imageUploading} type="button"
+            className="rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition"
+            style={imageUrl
+              ? { borderColor: "rgba(129,140,248,.3)", background: "rgba(129,140,248,.15)", color: "#818cf8" }
+              : { borderColor: "rgba(var(--fg-rgb),.1)", background: "rgba(var(--fg-rgb),.05)", color: "var(--text-2)" }}>
+            {imageUploading ? t.imageUploading : imageUrl ? t.imageChange : t.imageAdd}
+          </button>
+          <button onClick={()=>setPoll(p=>p?null:{options:["",""],multi:false})} type="button"
+            className="rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition"
+            style={poll
+              ? { borderColor: "rgba(124,58,237,.3)", background: "rgba(124,58,237,.15)", color: "#c084fc" }
+              : { borderColor: "rgba(var(--fg-rgb),.1)", background: "rgba(var(--fg-rgb),.05)", color: "var(--text-2)" }}>
+            {poll ? t.pollRemove : t.pollAdd}
+          </button>
+        </div>
+
+        {/* Poll builder */}
+        {poll && (
+          <div className="mb-3 rounded-xl border border-violet-500/20 bg-violet-500/5 p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[11px] font-bold text-violet-400">{t.pollLabel}</span>
+              <label className="flex items-center gap-1.5 text-[10px] text-slate-400 cursor-pointer">
+                <input type="checkbox" checked={poll.multi} onChange={e=>setPoll(p=>({...p,multi:e.target.checked}))}/>
+                {t.pollMultiChoice}
+              </label>
+            </div>
+            {poll.options.map((opt,i)=>(
+              <div key={i} className="mb-2 flex items-center gap-2">
+                <input value={opt} onChange={e=>{
+                  const opts=[...poll.options]; opts[i]=e.target.value;
+                  setPoll(p=>({...p,options:opts}));
+                }}
+                  placeholder={t.pollOptionPlaceholder(i+1)} maxLength={80}
+                  className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-violet-400/40"/>
+                {poll.options.length > 2 && (
+                  <button onClick={()=>setPoll(p=>({...p,options:p.options.filter((_,j)=>j!==i)}))}
+                    className="text-slate-500 hover:text-slate-300 text-xs" type="button">✕</button>
+                )}
+              </div>
+            ))}
+            {poll.options.length < 6 && (
+              <button onClick={()=>setPoll(p=>({...p,options:[...p.options,""]}))} type="button"
+                className="text-[11px] font-bold text-violet-400 hover:text-violet-300">
+                {t.pollAddOption}
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
           {t.tagsLabel} <span className="normal-case text-slate-600">{t.tagsHint(MAX_THREAD_TAGS)}</span>
@@ -151,6 +211,84 @@ export function NewThreadModal({ username, onClose, onCreated }) {
         </button>
       </div>
     </Modal>
+  );
+}
+
+// ─── Poll display for forum threads ──────────────────────────────────────────
+function ForumPollDisplay({ threadId, username }) {
+  const { lang } = useLang();
+  const t = FORUM_THREAD_I18N[lang] || FORUM_THREAD_I18N.fr;
+  const [poll, setPoll] = useState(null);
+  const [voted, setVoted] = useState(false);
+
+  useEffect(() => {
+    sb.query(`polls?thread_id=eq.${threadId}&limit=1`)
+      .then(rows => {
+        if(rows?.[0]) {
+          setPoll(rows[0]);
+          setVoted(rows[0].options.some(o=>(o.votes||[]).includes(username)));
+        }
+      }).catch(()=>{});
+  }, [threadId, username]);
+
+  const vote = async (optId) => {
+    if(!poll || (voted && !poll.multi)) return;
+    const already = poll.options.find(o=>o.id===optId)?.votes?.includes(username);
+    const newOptions = poll.options.map(o => {
+      if(poll.multi) {
+        return o.id===optId
+          ? {...o, votes: already ? (o.votes||[]).filter(u=>u!==username) : [...(o.votes||[]), username]}
+          : o;
+      }
+      return o.id===optId ? {...o, votes:[...(o.votes||[]), username]} : o;
+    });
+    const updated = {...poll, options: newOptions};
+    setPoll(updated);
+    setVoted(newOptions.some(o=>(o.votes||[]).includes(username)));
+    await sb.query(`polls?id=eq.${poll.id}`, {
+      method:"PATCH",
+      headers:{...sb.headers,"Prefer":"return=minimal"},
+      body:JSON.stringify({options:newOptions}),
+    }).catch(()=>{});
+  };
+
+  if(!poll) return null;
+  const total = poll.options.reduce((s,o)=>s+(o.votes||[]).length, 0);
+
+  return (
+    <div className="mb-5 overflow-hidden rounded-xl border border-violet-500/20 bg-violet-500/4">
+      {poll.multi && !voted && (
+        <div className="border-b border-violet-500/10 px-3 py-1.5 text-[10px] text-violet-400">
+          {t.pollMultiHint}
+        </div>
+      )}
+      {poll.options.map(opt => {
+        const count = (opt.votes||[]).length;
+        const pct = total > 0 ? Math.round(count/total*100) : 0;
+        const myVote = (opt.votes||[]).includes(username);
+        return (
+          <div key={opt.id}
+            onClick={()=>!voted || poll.multi ? vote(opt.id) : null}
+            className="relative overflow-hidden border-b border-white/4 px-3 py-2.5 last:border-0"
+            style={{cursor: voted&&!poll.multi ? "default":"pointer",
+              background: myVote ? "rgba(124,58,237,0.12)" : "transparent"}}>
+            {voted && (
+              <div className="absolute inset-0 bg-violet-500/10 transition-all duration-500"
+                style={{width:`${pct}%`}}/>
+            )}
+            <div className="relative flex items-center justify-between">
+              <span className="text-sm" style={{color:myVote?"#c084fc":"var(--text-1)",fontWeight:myVote?700:400}}>
+                {myVote && "✓ "}{opt.text}
+              </span>
+              {voted && <span className="text-[11px] font-bold text-violet-400">{pct}%</span>}
+            </div>
+          </div>
+        );
+      })}
+      <div className="px-3 py-1.5 text-right text-[10px] text-slate-500">
+        {t.pollVoteCount(total)}
+      </div>
+    </div>
   );
 }
 
@@ -220,6 +358,7 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
         {thread.image_url && (
           <img src={thread.image_url} alt="" className="mb-5 max-h-100 w-full rounded-xl object-cover" />
         )}
+        <ForumPollDisplay threadId={thread.id} username={username}/>
 
         <div className="mb-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">
           {t.replyCount(visibleReplies.length)}

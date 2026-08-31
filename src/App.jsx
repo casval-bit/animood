@@ -40,18 +40,26 @@ function Shell() {
   const closeDetail = () => setDetailAnime(null);
 
   const pages = {
-    feed:      <FeedView onOpenUser={setOpenUser} />,
     moodboard: <MoodboardView onOpenDetail={openDetail} />,
     search:    <SearchView onOpenDetail={openDetail} onOpenUser={setOpenUser} />,
     forum:     <ForumView onOpenDetail={openDetail} onOpenUser={setOpenUser} />,
     messages:  <MessagesView />,
-    profile:   <ProfileView onOpenDetail={openDetail} onOpenSettings={() => setShowSettings(true)} />,
   };
 
   return (
     <div className="min-h-screen">
       <Header activeTab={activeTab} onChangeTab={setActiveTab} />
-      <main>{pages[activeTab]}</main>
+      <main>
+        {/* Feed and Profile stay mounted for cross-sync */}
+        <div style={{display: activeTab==="feed" ? "block" : "none"}}>
+          <FeedView onOpenUser={setOpenUser} onOpenDetail={openDetail}/>
+        </div>
+        <div style={{display: activeTab==="profile" ? "block" : "none"}}>
+          <ProfileView onOpenDetail={openDetail} onOpenSettings={() => setShowSettings(true)} />
+        </div>
+        {/* Other pages unmount when hidden — no sync needed */}
+        {pages[activeTab]}
+      </main>
       <ChatBubble hidden={activeTab === "messages"} />
 
       {showSettings && <SettingsView onClose={() => setShowSettings(false)} />}
