@@ -402,13 +402,20 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
   };
 
   const toggleCommentLike = async (commentId) => {
+    const target = postComments.find(c => c.id === commentId);
+    const likes = target?.likes || [];
+    const newLikes = likes.includes(myUsername) ? likes.filter(u=>u!==myUsername) : [...likes, myUsername];
+    setPostComments(prev => prev.map(c => c.id===commentId ? {...c, likes:newLikes} : c));
     await commentsApi.toggleLike(commentId, myUsername).catch(()=>{});
-    setPostComments(prev => prev.map(c => {
-      if(c.id !== commentId) return c;
-      const likes = c.likes||[];
-      return {...c, likes: likes.includes(myUsername) ? likes.filter(u=>u!==myUsername) : [...likes, myUsername]};
-    }));
+    dispatchPostEvent("commentLike", { id: commentId, likes: newLikes });
   };
+
+  // Sync comment likes with other views (e.g. liked from the Feed)
+  useEffect(() => {
+    return addPostEventListener(({ type, id, likes }) => {
+      if(type === "commentLike") setPostComments(prev => prev.map(c => c.id===id ? {...c, likes} : c));
+    });
+  }, []);
 
   return (
     <div style={{background:"rgba(var(--fg-rgb),0.03)",borderRadius:16,

@@ -7,7 +7,7 @@ export function dispatchPostEvent(type, data) {
 
 export function usePostEvents(handler) {
   // Call in a useEffect — handler receives { type, id, likes? }
-  // type: "like" | "delete"
+  // type: "like" (post) | "commentLike" | "delete" (post)
   return handler; // consumers call addPostEventListener themselves
 }
 

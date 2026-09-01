@@ -305,6 +305,14 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
       onLoadProfiles?.((rows||[]).map(c=>c.username));
     }).catch(()=>setCommentList([]));
   }, [postId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync comment likes with other views (e.g. liked from "Mes Posts" in Profile)
+  useEffect(() => {
+    return addPostEventListener(({ type, id, likes }) => {
+      if(type === "commentLike") setCommentList(p => p ? p.map(c => c.id===id ? {...c, likes} : c) : p);
+    });
+  }, []);
+
   const visibleComments = blockedUsers?.size ? (commentList||[]).filter(c => !blockedUsers.has(c.username)) : commentList;
   const handleComment = async () => {
     if(!newComment.trim() || posting) return;
@@ -319,12 +327,12 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
     setPosting(false);
   };
   const toggleLike = async (id) => {
-    await commentsApi.toggleLike(id, myUsername);
-    setCommentList(p => p.map(c => {
-      if(c.id !== id) return c;
-      const likes = c.likes||[];
-      return {...c, likes: likes.includes(myUsername) ? likes.filter(u=>u!==myUsername) : [...likes, myUsername]};
-    }));
+    const target = commentList.find(c => c.id === id);
+    const likes = target?.likes || [];
+    const newLikes = likes.includes(myUsername) ? likes.filter(u=>u!==myUsername) : [...likes, myUsername];
+    setCommentList(p => p.map(c => c.id===id ? {...c, likes:newLikes} : c));
+    await commentsApi.toggleLike(id, myUsername).catch(()=>{});
+    dispatchPostEvent("commentLike", { id, likes: newLikes });
   };
   if(!commentList) return <div style={{fontSize:11,color:"var(--text-4)",padding:"8px 0"}}>{t.loading}</div>;
   return (
