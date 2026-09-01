@@ -64,13 +64,13 @@ Ce qui a été fait :
 1. **Forum** — ajout d'un bouton ❤️/🤍 + compteur sur le sujet et sur chaque réponse dans la fenêtre de discussion (`ThreadModal`), exactement le même style et comportement que Feed et Profil (même émoji, même rouge `#ef4444` à l'état liké, même façon d'afficher le compteur). Deux nouvelles méthodes API, `sb.toggleThreadLike` / `sb.toggleReplyLike`, calquées ligne pour ligne sur `posts.toggleLike`. Le like d'un sujet est remonté à `ForumView` (nouvelle prop `onLikeUpdate`) pour que la liste des sujets reste à jour : sans ça, fermer puis rouvrir le même sujet aurait réaffiché l'ancien compteur, celui d'avant le like.
 2. **Profil** — `ProfilePostCard` bascule sur le même helper partagé `posts.toggleLike` que le Feed (mise à jour optimiste immédiate à l'écran, puis réconciliation avec la réponse du serveur) au lieu de son `PATCH` maison. Feed et Profil ont maintenant exactement le même code de like, pas juste le même résultat.
 
-**Pourquoi ça ne marchera pas tout de suite** — le Forum n'a jamais eu de colonne `likes`, et Row Level Security n'autorisait que `SELECT` et `INSERT` sur `forum_threads`/`forum_replies` (aucune policy `UPDATE`). Le code est prêt et poussé, mais tant que la migration SQL ci-dessous n'a pas tourné sur le projet Supabase partagé, cliquer sur ❤️ dans le Forum échouera silencieusement (l'appel est enveloppé dans un `.catch(()=>{})`, comme le reste de l'app : pas de crash, juste rien ne se sauvegarde).
+**Pourquoi ça ne marchait pas tout de suite** — le Forum n'a jamais eu de colonne `likes`, et Row Level Security n'autorisait que `SELECT` et `INSERT` sur `forum_threads`/`forum_replies` (aucune policy `UPDATE`). Le code était prêt et poussé, mais tant que la migration SQL n'avait pas tourné sur le projet Supabase partagé, cliquer sur ❤️ dans le Forum échouait silencieusement (l'appel est enveloppé dans un `.catch(()=>{})`, comme le reste de l'app : pas de crash, juste rien ne se sauvegardait). Premier essai bloqué par une subtilité Postgres : `CREATE POLICY` n'a pas de `IF NOT EXISTS`, donc le script s'arrêtait net sur la policy `select` déjà existante, avant même d'arriver aux nouvelles policies `UPDATE` — corrigé en ajoutant un `DROP POLICY IF EXISTS` avant chaque `CREATE POLICY`.
 
-**Reste à faire côté Supabase** — le SQL existe maintenant (voir la section Database plus bas), il ne reste qu'à l'exécuter sur le projet partagé (SQL Editor → coller → Run), dans cet ordre :
+**État des migrations Supabase** (SQL Editor → coller → Run) :
 
-1. `supabase/forum_schema.sql` (re-exécuter) — ajoute `likes` sur `forum_threads`/`forum_replies` et les policies `UPDATE` qui manquaient. Script additif (`add column if not exists`), sans risque à relancer même si le reste du fichier a déjà tourné par le passé.
-2. `supabase/polls_schema.sql` (nouveau fichier) — crée la table `polls`, qu'aucune des deux branches ne suivait en SQL jusqu'ici.
-3. `supabase/game_schema.sql` (nouveau fichier) — documente enfin `game_elo`/`game_rooms` (qui n'avaient aucun schéma tracké) et ajoute les 4 colonnes `streak_wordle` / `last_wordle_date` / `streak_poster` / `last_poster_date`. Sans elles, gagner à Wordle/Poster ne persiste aucun point.
+1. ✅ `supabase/forum_schema.sql` — exécuté. Les likes Forum (sujets + réponses) sont fonctionnels.
+2. ✅ `supabase/polls_schema.sql` — exécuté. La table `polls` existe, les sondages Feed/Forum sont fonctionnels.
+3. ⚠️ `supabase/game_schema.sql` — **pas encore exécuté** (laissé à quelqu'un d'autre de l'équipe). Documente `game_elo`/`game_rooms` et ajoute les 4 colonnes `streak_wordle` / `last_wordle_date` / `streak_poster` / `last_poster_date`. Tant que ce n'est pas fait, gagner à Wordle/Poster ne persiste aucun point (le reste des mini-jeux — Elo, matchmaking — fonctionne déjà, ces colonnes ne servent qu'aux points/streaks solo).
 
 **Fichiers touchés**
 
@@ -96,16 +96,16 @@ Tout ce qui suit est nouveau depuis la dernière version documentée (`animood-v
 
 ## Database (Supabase)
 
-Schema is already applied on the shared project **except for the three items flagged ⚠️ below**, added on `v.07` — run those on the shared project before the like buttons on the Forum, polls, or solo mini-game points will actually persist anything. For a fresh Supabase project (or after a reset), run everything in this table in order in the SQL Editor:
+Schema is already applied on the shared project **except for `game_schema.sql`, flagged ⚠️ below** — the other two `v.07` additions (`forum_schema.sql`'s `likes` columns, `polls_schema.sql`) have already been run. For a fresh Supabase project (or after a reset), run everything in this table in order in the SQL Editor:
 
 | File | Adds |
 |---|---|
-| ⚠️ `supabase/forum_schema.sql` | `forum_threads`, `forum_replies` (+ `tags`, `image_url`, and — new in v.07 — `likes` columns and `UPDATE` policies). Safe to re-run even if you already ran an older version: every statement is `add column if not exists`. |
+| ✅ `supabase/forum_schema.sql` | `forum_threads`, `forum_replies` (+ `tags`, `image_url`, and — new in v.07, already applied — `likes` columns and `UPDATE` policies). Safe to re-run even if you already ran an older version: every statement is `add column if not exists` / `drop policy if exists` then `create policy`. |
 | `supabase/messages_schema.sql` | `direct_messages` |
 | `supabase/anilist_sub_lists.sql` | `anilist_sub_lists` column on `profiles` |
 | `supabase/blocks_schema.sql` | `user_blocks` (one-directional user blocking) |
-| ⚠️ `supabase/polls_schema.sql` | **New file in v.07.** `polls` (belongs to either a Feed post or a Forum thread — `options` jsonb `{id, text, votes[]}[]`, `multi` boolean). Neither branch ever tracked this table before; on a fresh project this is the only place it gets created. |
-| ⚠️ `supabase/game_schema.sql` | **New file in v.07.** `game_elo`, `game_rooms` — these existed on the shared project already but had no tracked schema until now; this file documents them and adds the 4 new columns used to award/track solo Wordle/Poster points (`streak_wordle`, `last_wordle_date`, `streak_poster`, `last_poster_date`). On the shared project, only those 4 `alter table` lines actually do anything — the `create table` statements are no-ops there since the tables already exist. |
+| ✅ `supabase/polls_schema.sql` | **New file in v.07, already applied.** `polls` (belongs to either a Feed post or a Forum thread — `options` jsonb `{id, text, votes[]}[]`, `multi` boolean). Neither branch ever tracked this table before. |
+| ⚠️ `supabase/game_schema.sql` | **New file in v.07 — not yet run on the shared project.** `game_elo`, `game_rooms` — these existed on the shared project already but had no tracked schema until now; this file documents them and adds the 4 new columns used to award/track solo Wordle/Poster points (`streak_wordle`, `last_wordle_date`, `streak_poster`, `last_poster_date`). On the shared project, only those 4 `alter table` lines will actually do anything — the `create table` statements are no-ops there since the tables already exist. Until this runs, winning Wordle/Poster silently awards no points. |
 
 Access model: like the rest of the app, these tables use the shared `anon` key with open RLS policies ("anyone can read/insert/update") — not per-user privacy, consistent with `profiles`/`follows`/`user_votes`.
 
