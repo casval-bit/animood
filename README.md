@@ -53,32 +53,36 @@ Deux chantiers sur cette version : récupérer des fonctionnalités qui existaie
 
 **Système de like harmonisé — Feed / Profil / Forum**
 
-Avant cette version, trois endroits différents géraient les likes de trois façons différentes :
+Avant cette version, trois endroits différents géraient les likes de trois façons différentes, et un bug plus profond touchait les deux qui semblaient fonctionner :
 
-- **Feed** (posts et commentaires) — fonctionnait, via un helper partagé `posts.toggleLike` / `comments.toggleLike` dans `src/api/supabase.js`.
-- **Profil → "Mes Posts"** — fonctionnait aussi, mais avec sa **propre** logique copiée-collée (un `PATCH` direct vers Supabase, recalculé côté client) au lieu de réutiliser le helper du Feed. Les deux faisaient la même chose, mais du code dupliqué qui diverge est le genre de chose qui finit par se désynchroniser silencieusement le jour où l'un des deux est corrigé et pas l'autre.
-- **Forum** (sujets et réponses) — **ne fonctionnait pas du tout**. Le code contenait littéralement ce commentaire : `// ─── Thread detail — body + replies + reply box, no reactions/pagination ──────`. Ce n'était pas un bug : c'était documenté comme volontairement hors scope au moment du "squelette" initial du forum (`supabase/forum_schema.sql` disait explicitement *"No reactions, no edit/delete, no pagination — matches the "squelette" scope"*). Il n'y avait ni bouton, ni colonne `likes` en base, ni policy pour la modifier.
+- **Feed** (posts et commentaires) — un helper partagé `posts.toggleLike` / `comments.toggleLike` dans `src/api/supabase.js`, appelé côté client, avec mise à jour optimiste immédiate à l'écran. Ça avait l'air de marcher (le cœur devient rouge, le compteur monte) — voir plus bas pourquoi ce n'était qu'une apparence.
+- **Profil → "Mes Posts"** — sa **propre** logique copiée-collée pour les posts (un `PATCH` direct vers Supabase, recalculé côté client) au lieu de réutiliser le helper du Feed, et carrément aucun bouton like sur les commentaires (juste du texte en lecture seule).
+- **Forum** (sujets et réponses) — **ne fonctionnait pas du tout**, ni le bouton ni la colonne en base. Le code contenait littéralement ce commentaire : `// ─── Thread detail — body + replies + reply box, no reactions/pagination ──────`. Documenté comme volontairement hors scope au moment du "squelette" initial du forum.
 
-Ce qui a été fait :
+Ce qui a été fait, en plusieurs passes :
 
-1. **Forum** — ajout d'un bouton ❤️/🤍 + compteur sur le sujet et sur chaque réponse dans la fenêtre de discussion (`ThreadModal`), exactement le même style et comportement que Feed et Profil (même émoji, même rouge `#ef4444` à l'état liké, même façon d'afficher le compteur). Deux nouvelles méthodes API, `sb.toggleThreadLike` / `sb.toggleReplyLike`, calquées ligne pour ligne sur `posts.toggleLike`. Le like d'un sujet est remonté à `ForumView` (nouvelle prop `onLikeUpdate`) pour que la liste des sujets reste à jour : sans ça, fermer puis rouvrir le même sujet aurait réaffiché l'ancien compteur, celui d'avant le like.
-2. **Profil** — `ProfilePostCard` bascule sur le même helper partagé `posts.toggleLike` que le Feed (mise à jour optimiste immédiate à l'écran, puis réconciliation avec la réponse du serveur) au lieu de son `PATCH` maison. Feed et Profil ont maintenant exactement le même code de like, pas juste le même résultat.
-
-**Pourquoi ça ne marchait pas tout de suite** — le Forum n'a jamais eu de colonne `likes`, et Row Level Security n'autorisait que `SELECT` et `INSERT` sur `forum_threads`/`forum_replies` (aucune policy `UPDATE`). Le code était prêt et poussé, mais tant que la migration SQL n'avait pas tourné sur le projet Supabase partagé, cliquer sur ❤️ dans le Forum échouait silencieusement (l'appel est enveloppé dans un `.catch(()=>{})`, comme le reste de l'app : pas de crash, juste rien ne se sauvegardait). Premier essai bloqué par une subtilité Postgres : `CREATE POLICY` n'a pas de `IF NOT EXISTS`, donc le script s'arrêtait net sur la policy `select` déjà existante, avant même d'arriver aux nouvelles policies `UPDATE` — corrigé en ajoutant un `DROP POLICY IF EXISTS` avant chaque `CREATE POLICY`.
+1. **Forum** — ajout d'un bouton ❤️/🤍 + compteur sur le sujet et sur chaque réponse dans `ThreadModal`, même style que Feed/Profil. Deux nouvelles méthodes API, `sb.toggleThreadLike` / `sb.toggleReplyLike`, calquées sur `posts.toggleLike`. Le like remonte à `ForumView` (prop `onLikeUpdate`) pour que la liste des sujets reste à jour à la réouverture.
+2. **Profil → posts** — `ProfilePostCard` bascule sur le même helper partagé `posts.toggleLike` que le Feed au lieu de son `PATCH` maison.
+3. **Profil → commentaires** — ajout du bouton like sur chaque commentaire affiché dans "Mes Posts" (`comments.toggleLike`), qui n'existait pas du tout (lecture seule jusque-là).
+4. **Synchro entre vues** — App.jsx garde Feed et Profil montés en permanence (juste cachés en CSS), donc un like fait dans l'un doit apparaître instantanément dans l'autre sans recharger. Deux bugs trouvés et corrigés ici :
+   - Les cartes de post (`PostCard`, `ProfilePostCard`) initialisaient leur `liked`/`likeCount` une seule fois avec `useState(post.likes...)` : le bus d'événements (`src/utils/postEvents.js`) mettait bien à jour le tableau `likes` du post dans la vue d'à côté, mais la carte déjà montée ne relisait jamais ce nouveau prop. Ajouté un `useEffect` qui resynchronise à chaque changement de `post.likes`.
+   - Les likes de **commentaires** n'étaient dans aucun bus du tout — ni le Feed ni le Profil ne prévenaient l'autre. Ajouté un type d'événement `"commentLike"` (même mécanique que les likes de post) diffusé et écouté des deux côtés.
+5. **La vraie racine du problème** — malgré tout ce qui précède, les likes sur les posts et les commentaires du Feed **ne survivaient pas à un rechargement de page** : le cœur redevenait blanc et le compteur retombait à zéro. En cause : les tables `posts`/`comments` (jamais suivies par un fichier SQL dans ce dépôt, créées à la main sur le projet partagé comme `game_elo`/`game_rooms` avant `game_schema.sql`) n'avaient probablement qu'un `SELECT`/`INSERT` en Row Level Security, jamais d'`UPDATE` — exactement le même trou que celui trouvé et corrigé sur le Forum au point 1. Le `PATCH` du like échouait donc silencieusement (`.catch(()=>{})`) à chaque fois ; la mise à jour optimiste donnait l'illusion que ça marchait jusqu'au rechargement suivant. `supabase/posts_schema.sql` (nouveau fichier) documente les deux tables et ajoute les policies `UPDATE`/`DELETE` qui manquaient.
 
 **État des migrations Supabase** (SQL Editor → coller → Run) :
 
 1. ✅ `supabase/forum_schema.sql` — exécuté. Les likes Forum (sujets + réponses) sont fonctionnels.
 2. ✅ `supabase/polls_schema.sql` — exécuté. La table `polls` existe, les sondages Feed/Forum sont fonctionnels.
-3. ⚠️ `supabase/game_schema.sql` — **pas encore exécuté** (laissé à quelqu'un d'autre de l'équipe). Documente `game_elo`/`game_rooms` et ajoute les 4 colonnes `streak_wordle` / `last_wordle_date` / `streak_poster` / `last_poster_date`. Tant que ce n'est pas fait, gagner à Wordle/Poster ne persiste aucun point (le reste des mini-jeux — Elo, matchmaking — fonctionne déjà, ces colonnes ne servent qu'aux points/streaks solo).
+3. ⚠️ `supabase/game_schema.sql` — **pas encore exécuté** (laissé à quelqu'un d'autre de l'équipe). Documente `game_elo`/`game_rooms` et ajoute les 4 colonnes `streak_wordle` / `last_wordle_date` / `streak_poster` / `last_poster_date`. Tant que ce n'est pas fait, gagner à Wordle/Poster ne persiste aucun point.
+4. ⚠️ `supabase/posts_schema.sql` — **nouveau, pas encore exécuté.** Ajoute les policies `UPDATE`/`DELETE` sur `posts` et `comments`. **C'est celui-ci qui règle le vrai bug** : sans lui, aucun like sur un post ou un commentaire du Feed ne survit à un rechargement de page, peu importe le code client.
 
 **Fichiers touchés**
 
 | Zone | Fichiers |
 |---|---|
 | Sondages, sync posts, points solo, matchmaking | `src/App.jsx`, `src/components/ForumThreadModal.jsx`, `src/components/GameSystem.jsx`, `src/components/MiniGames.jsx`, `src/components/Modal.jsx`, `src/views/FeedView.jsx`, `src/views/ForumView.jsx`, `src/views/ProfileView.jsx`, `src/utils/awardSoloPoints.js` *(nouveau)*, `src/utils/postEvents.js` *(nouveau)*, i18n : `src/constants/forumI18n.js`, `forumThreadI18n.js`, `gameSystemI18n.js`, `profileI18n.js` |
-| Likes Forum + Profil | `src/api/supabase.js`, `src/components/ForumThreadModal.jsx`, `src/views/ForumView.jsx`, `src/views/ProfileView.jsx`, `supabase/forum_schema.sql` |
-| Schémas SQL en attente d'exécution | `supabase/polls_schema.sql` *(nouveau)*, `supabase/game_schema.sql` *(nouveau)* |
+| Likes Forum + Profil (posts et commentaires) + synchro Feed↔Profil | `src/api/supabase.js`, `src/components/ForumThreadModal.jsx`, `src/views/ForumView.jsx`, `src/views/ProfileView.jsx`, `src/views/FeedView.jsx`, `src/utils/postEvents.js`, `supabase/forum_schema.sql` |
+| Schémas SQL en attente d'exécution | `supabase/polls_schema.sql` *(nouveau, exécuté)*, `supabase/game_schema.sql` *(nouveau, en attente)*, `supabase/posts_schema.sql` *(nouveau, en attente)* |
 
 ## v.06.01 — en comparaison avec v.06
 
@@ -96,7 +100,7 @@ Tout ce qui suit est nouveau depuis la dernière version documentée (`animood-v
 
 ## Database (Supabase)
 
-Schema is already applied on the shared project **except for `game_schema.sql`, flagged ⚠️ below** — the other two `v.07` additions (`forum_schema.sql`'s `likes` columns, `polls_schema.sql`) have already been run. For a fresh Supabase project (or after a reset), run everything in this table in order in the SQL Editor:
+Schema is already applied on the shared project **except for the two items flagged ⚠️ below** — the other two `v.07` additions (`forum_schema.sql`'s `likes` columns, `polls_schema.sql`) have already been run. For a fresh Supabase project (or after a reset), run everything in this table in order in the SQL Editor:
 
 | File | Adds |
 |---|---|
@@ -105,8 +109,9 @@ Schema is already applied on the shared project **except for `game_schema.sql`, 
 | `supabase/anilist_sub_lists.sql` | `anilist_sub_lists` column on `profiles` |
 | `supabase/blocks_schema.sql` | `user_blocks` (one-directional user blocking) |
 | ✅ `supabase/polls_schema.sql` | **New file in v.07, already applied.** `polls` (belongs to either a Feed post or a Forum thread — `options` jsonb `{id, text, votes[]}[]`, `multi` boolean). Neither branch ever tracked this table before. |
-| ⚠️ `supabase/game_schema.sql` | **New file in v.07 — not yet run on the shared project.** `game_elo`, `game_rooms` — these existed on the shared project already but had no tracked schema until now; this file documents them and adds the 4 new columns used to award/track solo Wordle/Poster points (`streak_wordle`, `last_wordle_date`, `streak_poster`, `last_poster_date`). On the shared project, only those 4 `alter table` lines will actually do anything — the `create table` statements are no-ops there since the tables already exist. Until this runs, winning Wordle/Poster silently awards no points. |
+| ⚠️ `supabase/game_schema.sql` | **New file in v.07 — not yet run.** `game_elo`, `game_rooms` — existed already but had no tracked schema until now; adds the 4 new columns used to award/track solo Wordle/Poster points (`streak_wordle`, `last_wordle_date`, `streak_poster`, `last_poster_date`). Only those 4 `alter table` lines actually do anything on the shared project. Until this runs, winning Wordle/Poster silently awards no points. |
+| ⚠️ `supabase/posts_schema.sql` | **New file in v.07 — not yet run, highest priority of the three.** `posts`, `comments` — existed already but had no tracked schema and, it turns out, no `UPDATE` RLS policy at all: liking a Feed post or comment PATCHes the `likes` column, which was silently rejected the whole time. The optimistic client-side update made it *look* like it worked until the next page reload reverted it. This file adds the missing `UPDATE`/`DELETE` policies. |
 
-Access model: like the rest of the app, these tables use the shared `anon` key with open RLS policies ("anyone can read/insert/update") — not per-user privacy, consistent with `profiles`/`follows`/`user_votes`.
+Access model: like the rest of the app, these tables use the shared `anon` key with open RLS policies ("anyone can read/insert/update/delete") — not per-user privacy, consistent with `profiles`/`follows`/`user_votes`.
 
 > `profiles.custom_lists` (manually-created lists, `{id, name, animeIds}[]`) is a separate feature living on the `main` branch — unrelated to `anilist_sub_lists` above.
