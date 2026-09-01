@@ -489,6 +489,12 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
   const [revealed, setRevealed] = useState(!post.spoiler);
   const [commentCount, setCommentCount] = useState(post.comment_count||0);
 
+  // Re-sync when likes change from elsewhere (e.g. liked from "Mes Posts" in Profile)
+  useEffect(() => {
+    setLiked((post.likes||[]).includes(myUsername));
+    setLikeCount((post.likes||[]).length);
+  }, [post.likes, myUsername]);
+
   const toggleLike = async () => {
     const newLiked = !liked;
     setLiked(newLiked); setLikeCount(c => c + (newLiked?1:-1));

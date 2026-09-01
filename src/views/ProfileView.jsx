@@ -356,6 +356,12 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
   const [postComments, setPostComments] = useState([]);
   const [commentsLoaded, setCommentsLoaded] = useState(false);
 
+  // Re-sync when likes change from elsewhere (e.g. liked from the Feed)
+  useEffect(() => {
+    setLiked((post.likes||[]).includes(myUsername));
+    setLikeCount((post.likes||[]).length);
+  }, [post.likes, myUsername]);
+
   const handleLike = async () => {
     const newLiked = !liked;
     setLiked(newLiked); setLikeCount(c => c + (newLiked?1:-1));
