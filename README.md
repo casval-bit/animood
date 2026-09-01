@@ -7,7 +7,7 @@ A mood-driven anime app — moodboard, feed, search, forum, profiles, and messag
 No setup needed — the Supabase key already in the code is the `anon`/publishable key (safe to ship client-side by design; access control lives in RLS policies, not in keeping it secret), and the DB schema is already migrated on the shared Supabase project.
 
 ```bash
-git clone -b animood-v.07 https://github.com/casval-bit/animood.git
+git clone -b animood-v.07.01 https://github.com/casval-bit/animood.git
 cd animood
 npm install
 npm run dev
@@ -39,6 +39,15 @@ npm run lint      # eslint across the project
 - **Theme** — selectable light/dark appearance (Settings → 🎨 Apparence). Dark (glass/gradient) stays the default; the light theme is a softer, violet-tinted "social feed" look, not a flat white dashboard.
 - **AniList import** — also pulls a public AniList account's custom (sub-)lists, filterable from Profile → Journal. Re-run the same import anytime (same username, now with a clearly labeled field and a "🔄 Réimporter" button) to resync after updating your list on AniList.
 
+## v.07.01 — en comparaison avec v.07
+
+`v.07` a été publié avec un système de like qui *semblait* fonctionner (le cœur devenait rouge, le compteur montait) mais qui, dans les faits, avait deux problèmes trouvés et corrigés après coup — voir la section `v.07` ci-dessous pour l'histoire complète, résumée ici :
+
+- Les commentaires affichés dans Profil → "Mes Posts" n'avaient aucun bouton like (lecture seule), et les likes de commentaires n'étaient synchronisés entre aucune vue.
+- **Le vrai bug** : les tables `posts` et `comments` n'avaient jamais eu de policy `UPDATE` en base (Row Level Security), donc liker un post ou un commentaire du Feed semblait marcher à l'écran (mise à jour optimiste) mais ne survivait jamais à un rechargement de page. Corrigé par `supabase/posts_schema.sql` (nouveau), **exécuté et confirmé** sur le projet partagé.
+
+Avec `v.07.01`, le système de like (posts et commentaires, Feed / Profil / Forum) fonctionne et persiste réellement. Il reste un seul point en attente côté Supabase : `supabase/game_schema.sql` (points des mini-jeux solo Wordle/Poster) — voir Database plus bas.
+
 ## v.07 — en comparaison avec v.06.01
 
 Deux chantiers sur cette version : récupérer des fonctionnalités qui existaient sur une branche parallèle (`animood-v.05.03`) mais n'avaient jamais rejoint la ligne `v.06`, puis harmoniser le système de like partout où il existe.
@@ -67,14 +76,14 @@ Ce qui a été fait, en plusieurs passes :
 4. **Synchro entre vues** — App.jsx garde Feed et Profil montés en permanence (juste cachés en CSS), donc un like fait dans l'un doit apparaître instantanément dans l'autre sans recharger. Deux bugs trouvés et corrigés ici :
    - Les cartes de post (`PostCard`, `ProfilePostCard`) initialisaient leur `liked`/`likeCount` une seule fois avec `useState(post.likes...)` : le bus d'événements (`src/utils/postEvents.js`) mettait bien à jour le tableau `likes` du post dans la vue d'à côté, mais la carte déjà montée ne relisait jamais ce nouveau prop. Ajouté un `useEffect` qui resynchronise à chaque changement de `post.likes`.
    - Les likes de **commentaires** n'étaient dans aucun bus du tout — ni le Feed ni le Profil ne prévenaient l'autre. Ajouté un type d'événement `"commentLike"` (même mécanique que les likes de post) diffusé et écouté des deux côtés.
-5. **La vraie racine du problème** — malgré tout ce qui précède, les likes sur les posts et les commentaires du Feed **ne survivaient pas à un rechargement de page** : le cœur redevenait blanc et le compteur retombait à zéro. En cause : les tables `posts`/`comments` (jamais suivies par un fichier SQL dans ce dépôt, créées à la main sur le projet partagé comme `game_elo`/`game_rooms` avant `game_schema.sql`) n'avaient probablement qu'un `SELECT`/`INSERT` en Row Level Security, jamais d'`UPDATE` — exactement le même trou que celui trouvé et corrigé sur le Forum au point 1. Le `PATCH` du like échouait donc silencieusement (`.catch(()=>{})`) à chaque fois ; la mise à jour optimiste donnait l'illusion que ça marchait jusqu'au rechargement suivant. `supabase/posts_schema.sql` (nouveau fichier) documente les deux tables et ajoute les policies `UPDATE`/`DELETE` qui manquaient.
+5. **La vraie racine du problème** — malgré tout ce qui précède, les likes sur les posts et les commentaires du Feed **ne survivaient pas à un rechargement de page** : le cœur redevenait blanc et le compteur retombait à zéro. En cause : les tables `posts`/`comments` (jamais suivies par un fichier SQL dans ce dépôt, créées à la main sur le projet partagé comme `game_elo`/`game_rooms` avant `game_schema.sql`) n'avaient qu'un `SELECT`/`INSERT` en Row Level Security, jamais d'`UPDATE` — confirmé en demandant à l'utilisateur de tester un F5 après un like (le like disparaissait). Exactement le même trou que celui trouvé et corrigé sur le Forum au point 1. Le `PATCH` du like échouait donc silencieusement (`.catch(()=>{})`) à chaque fois ; la mise à jour optimiste donnait l'illusion que ça marchait jusqu'au rechargement suivant. `supabase/posts_schema.sql` (nouveau fichier) documente les deux tables et ajoute les policies `UPDATE`/`DELETE` qui manquaient.
 
 **État des migrations Supabase** (SQL Editor → coller → Run) :
 
 1. ✅ `supabase/forum_schema.sql` — exécuté. Les likes Forum (sujets + réponses) sont fonctionnels.
 2. ✅ `supabase/polls_schema.sql` — exécuté. La table `polls` existe, les sondages Feed/Forum sont fonctionnels.
-3. ⚠️ `supabase/game_schema.sql` — **pas encore exécuté** (laissé à quelqu'un d'autre de l'équipe). Documente `game_elo`/`game_rooms` et ajoute les 4 colonnes `streak_wordle` / `last_wordle_date` / `streak_poster` / `last_poster_date`. Tant que ce n'est pas fait, gagner à Wordle/Poster ne persiste aucun point.
-4. ⚠️ `supabase/posts_schema.sql` — **nouveau, pas encore exécuté.** Ajoute les policies `UPDATE`/`DELETE` sur `posts` et `comments`. **C'est celui-ci qui règle le vrai bug** : sans lui, aucun like sur un post ou un commentaire du Feed ne survit à un rechargement de page, peu importe le code client.
+3. ✅ `supabase/posts_schema.sql` — exécuté. Les likes sur les posts et les commentaires du Feed/Profil persistent maintenant après un rechargement.
+4. ⚠️ `supabase/game_schema.sql` — **pas encore exécuté** (laissé à quelqu'un d'autre de l'équipe). Documente `game_elo`/`game_rooms` et ajoute les 4 colonnes `streak_wordle` / `last_wordle_date` / `streak_poster` / `last_poster_date`. Tant que ce n'est pas fait, gagner à Wordle/Poster ne persiste aucun point (le reste des mini-jeux — Elo, matchmaking — fonctionne déjà).
 
 **Fichiers touchés**
 
@@ -100,7 +109,7 @@ Tout ce qui suit est nouveau depuis la dernière version documentée (`animood-v
 
 ## Database (Supabase)
 
-Schema is already applied on the shared project **except for the two items flagged ⚠️ below** — the other two `v.07` additions (`forum_schema.sql`'s `likes` columns, `polls_schema.sql`) have already been run. For a fresh Supabase project (or after a reset), run everything in this table in order in the SQL Editor:
+Schema is already applied on the shared project **except for `game_schema.sql`, flagged ⚠️ below** — every other `v.07` addition (`forum_schema.sql`'s `likes` columns, `polls_schema.sql`, `posts_schema.sql`) has already been run. For a fresh Supabase project (or after a reset), run everything in this table in order in the SQL Editor:
 
 | File | Adds |
 |---|---|
@@ -109,8 +118,8 @@ Schema is already applied on the shared project **except for the two items flagg
 | `supabase/anilist_sub_lists.sql` | `anilist_sub_lists` column on `profiles` |
 | `supabase/blocks_schema.sql` | `user_blocks` (one-directional user blocking) |
 | ✅ `supabase/polls_schema.sql` | **New file in v.07, already applied.** `polls` (belongs to either a Feed post or a Forum thread — `options` jsonb `{id, text, votes[]}[]`, `multi` boolean). Neither branch ever tracked this table before. |
+| ✅ `supabase/posts_schema.sql` | **New file in v.07, already applied — this was the actual bug.** `posts`, `comments` existed already but had no tracked schema and, it turns out, no `UPDATE` RLS policy at all: liking a Feed post or comment PATCHes the `likes` column, which was silently rejected the whole time. The optimistic client-side update made it *look* like it worked until the next page reload reverted it. This file added the missing `UPDATE`/`DELETE` policies — confirmed fixed. |
 | ⚠️ `supabase/game_schema.sql` | **New file in v.07 — not yet run.** `game_elo`, `game_rooms` — existed already but had no tracked schema until now; adds the 4 new columns used to award/track solo Wordle/Poster points (`streak_wordle`, `last_wordle_date`, `streak_poster`, `last_poster_date`). Only those 4 `alter table` lines actually do anything on the shared project. Until this runs, winning Wordle/Poster silently awards no points. |
-| ⚠️ `supabase/posts_schema.sql` | **New file in v.07 — not yet run, highest priority of the three.** `posts`, `comments` — existed already but had no tracked schema and, it turns out, no `UPDATE` RLS policy at all: liking a Feed post or comment PATCHes the `likes` column, which was silently rejected the whole time. The optimistic client-side update made it *look* like it worked until the next page reload reverted it. This file adds the missing `UPDATE`/`DELETE` policies. |
 
 Access model: like the rest of the app, these tables use the shared `anon` key with open RLS policies ("anyone can read/insert/update/delete") — not per-user privacy, consistent with `profiles`/`follows`/`user_votes`.
 
