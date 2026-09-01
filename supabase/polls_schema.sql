@@ -13,9 +13,10 @@
 
 create table if not exists polls (
   id         bigint generated always as identity primary key,
-  -- No FK on post_id: the `posts` table isn't tracked by any schema file in
-  -- this repo (created directly on the shared project, like game_elo/game_rooms
-  -- — see README → Database), so its exact id type isn't guaranteed here.
+  -- No FK on post_id: this file predates posts_schema.sql (which now tracks
+  -- `posts`) and this table already exists on the shared project without one
+  -- — left as a plain bigint rather than retrofitting a constraint after the
+  -- fact onto live data.
   post_id    bigint,
   thread_id  bigint references forum_threads(id) on delete cascade,
   options    jsonb not null default '[]',
