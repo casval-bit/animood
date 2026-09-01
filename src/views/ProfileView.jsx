@@ -6,7 +6,7 @@ import { PROFILE_I18N } from "../constants/profileI18n.js";
 import { AVATAR_EMOJIS } from "../constants/avatars.js";
 import { MOOD_KEYS } from "../constants/moods.js";
 import { jikan } from "../api/jikan.js";
-import { follows, sb, posts as postsApi } from "../api/supabase.js";
+import { follows, sb, posts as postsApi, comments as commentsApi } from "../api/supabase.js";
 import { dispatchPostEvent, addPostEventListener } from "../utils/postEvents.js";
 import { FRAMES, getUnlockedFrames, getBestFrame, getFrameLabel } from "../frames/frames.js";
 import { FrameSVG } from "../frames/FrameSVG.jsx";
@@ -401,6 +401,15 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
     } catch {}
   };
 
+  const toggleCommentLike = async (commentId) => {
+    await commentsApi.toggleLike(commentId, myUsername).catch(()=>{});
+    setPostComments(prev => prev.map(c => {
+      if(c.id !== commentId) return c;
+      const likes = c.likes||[];
+      return {...c, likes: likes.includes(myUsername) ? likes.filter(u=>u!==myUsername) : [...likes, myUsername]};
+    }));
+  };
+
   return (
     <div style={{background:"rgba(var(--fg-rgb),0.03)",borderRadius:16,
       border:"1px solid rgba(var(--fg-rgb),0.06)",padding:14,marginBottom:10}}>
@@ -445,7 +454,7 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
           {t.commentsLabel}{postComments.length>0||post.comment_count>0?` (${commentsLoaded?postComments.length:post.comment_count||0})`:""} {showComments?"▲":"▼"}
         </button>
       </div>
-      {/* Comments — read only */}
+      {/* Comments — likeable, deletable if yours */}
       {showComments && (
         <div style={{marginTop:12,borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:10}}>
           {!commentsLoaded ? (
@@ -454,20 +463,31 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
             <div style={{fontSize:10,color:"var(--text-5)",fontStyle:"italic"}}>{t.noComments}</div>
           ) : (
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {postComments.map((c,i)=>(
-                <div key={c.id||i} style={{display:"flex",gap:8,alignItems:"flex-start"}}>
-                  <div style={{flex:1}}>
-                    <span style={{fontSize:10,fontWeight:800,color:"#c084fc",marginRight:6}}>@{c.username}</span>
-                    <span style={{fontSize:12,color:"var(--text-2)"}}>{c.content}</span>
+              {postComments.map((c,i)=>{
+                const cLikes = c.likes||[];
+                const cLiked = cLikes.includes(myUsername);
+                return (
+                  <div key={c.id||i} style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+                    <div style={{flex:1}}>
+                      <span style={{fontSize:10,fontWeight:800,color:"#c084fc",marginRight:6}}>@{c.username}</span>
+                      <span style={{fontSize:12,color:"var(--text-2)"}}>{c.content}</span>
+                      <div style={{marginTop:3}}>
+                        <button onClick={()=>toggleCommentLike(c.id)}
+                          style={{background:"none",border:"none",cursor:"pointer",fontSize:10,fontWeight:700,
+                            color:cLiked?"#ef4444":"var(--text-4)"}}>
+                          {cLiked?"❤️":"🤍"} {cLikes.length||""}
+                        </button>
+                      </div>
+                    </div>
+                    {c.username===myUsername && (
+                      <button onClick={()=>handleDeleteComment(c.id)}
+                        style={{background:"none",border:"none",color:"var(--text-5)",cursor:"pointer",fontSize:11,flexShrink:0}}
+                        onMouseEnter={e=>e.currentTarget.style.color="#ef4444"}
+                        onMouseLeave={e=>e.currentTarget.style.color="var(--text-5)"}>✕</button>
+                    )}
                   </div>
-                  {c.username===myUsername && (
-                    <button onClick={()=>handleDeleteComment(c.id)}
-                      style={{background:"none",border:"none",color:"var(--text-5)",cursor:"pointer",fontSize:11,flexShrink:0}}
-                      onMouseEnter={e=>e.currentTarget.style.color="#ef4444"}
-                      onMouseLeave={e=>e.currentTarget.style.color="var(--text-5)"}>✕</button>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
