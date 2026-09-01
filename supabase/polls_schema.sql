@@ -35,6 +35,11 @@ alter table polls enable row level security;
 -- Same open-access model as the rest of the app (see README → Database):
 -- shared anon key, no Supabase Auth session, so access control is
 -- "anyone can read/insert/update" rather than per-user RLS.
+-- create policy has no "if not exists" in Postgres, so drop-then-create makes
+-- this block safe to re-run.
+drop policy if exists "polls_select" on polls;
+drop policy if exists "polls_insert" on polls;
+drop policy if exists "polls_update" on polls;
 create policy "polls_select" on polls for select using (true);
 create policy "polls_insert" on polls for insert with check (true);
 create policy "polls_update" on polls for update using (true) with check (true);

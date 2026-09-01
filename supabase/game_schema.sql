@@ -58,10 +58,20 @@ alter table game_rooms enable row level security;
 -- Same open-access model as the rest of the app (see README → Database):
 -- shared anon key, no Supabase Auth session, so access control is
 -- "anyone can read/insert/update" rather than per-user RLS.
+-- create policy has no "if not exists" in Postgres, so drop-then-create makes
+-- this block safe to re-run — and safe against the shared project already
+-- having equivalent policies under different names from before this file existed.
+drop policy if exists "game_elo_select" on game_elo;
+drop policy if exists "game_elo_insert" on game_elo;
+drop policy if exists "game_elo_update" on game_elo;
 create policy "game_elo_select" on game_elo for select using (true);
 create policy "game_elo_insert" on game_elo for insert with check (true);
 create policy "game_elo_update" on game_elo for update using (true) with check (true);
 
+drop policy if exists "game_rooms_select" on game_rooms;
+drop policy if exists "game_rooms_insert" on game_rooms;
+drop policy if exists "game_rooms_update" on game_rooms;
+drop policy if exists "game_rooms_delete" on game_rooms;
 create policy "game_rooms_select" on game_rooms for select using (true);
 create policy "game_rooms_insert" on game_rooms for insert with check (true);
 create policy "game_rooms_update" on game_rooms for update using (true) with check (true);
