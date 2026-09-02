@@ -1,3 +1,5 @@
+import { useLang } from "../context/useLang.js";
+
 const KEYS = ["emotional","happy","hype","dark","chill","twisted","in_love","thrills"];
 
 const MOOD_META = {
@@ -11,9 +13,12 @@ const MOOD_META = {
   thrills:  {emoji:"🎢",color:"#FB923C",label:"Thrills"},
 };
 
-export function MoodOctagon({ pts }) {
-  const size = 340, center = 170, levels = [25,50,75,100];
-  const gridMaxR = 122;
+export function MoodOctagon({ pts, size = 340, title, className = "rounded-2xl border border-white/8 bg-white/3 p-4" }) {
+  const { lang } = useLang();
+  const displayTitle = title !== undefined ? title : (lang === "en" ? "Emotional profile" : "Profil émotionnel");
+  const center = size / 2, levels = [25,50,75,100];
+  const gridMaxR = size * 0.359;
+  const labelR = gridMaxR + size * 0.088;
 
   const p = pts || {};
 
@@ -38,8 +43,8 @@ export function MoodOctagon({ pts }) {
       key: k,
       x: center + Math.cos(angle)*r,
       y: center + Math.sin(angle)*r,
-      lx: center + Math.cos(angle)*(gridMaxR+30),
-      ly: center + Math.sin(angle)*(gridMaxR+30),
+      lx: center + Math.cos(angle)*labelR,
+      ly: center + Math.sin(angle)*labelR,
       meta: MOOD_META[k] || {emoji:"?", color:"#818cf8"},
     };
   });
@@ -47,25 +52,27 @@ export function MoodOctagon({ pts }) {
   const polygon = ptsList.map(p => `${p.x},${p.y}`).join(" ");
 
   return (
-    <div className="rounded-2xl border border-white/8 bg-white/3 p-4">
-      <div className="mb-1 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500">
-        Profil émotionnel
-      </div>
-      <svg viewBox={`0 0 ${size} ${size}`} className="mx-auto block w-full max-w-[340px]">
+    <div className={className}>
+      {displayTitle && (
+        <div className="mb-1 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          {displayTitle}
+        </div>
+      )}
+      <svg viewBox={`0 0 ${size} ${size}`} className="mx-auto block w-full" style={{ maxWidth: size }}>
         {levels.map(lvl => {
           const gPts = KEYS.map((_, i) => {
             const a = (Math.PI*2*i/KEYS.length) - Math.PI/2;
             return `${center+Math.cos(a)*(lvl/100)*gridMaxR},${center+Math.sin(a)*(lvl/100)*gridMaxR}`;
           }).join(" ");
-          return <polygon key={lvl} points={gPts} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="1"/>;
+          return <polygon key={lvl} points={gPts} fill="none" stroke="rgba(var(--fg-rgb),0.07)" strokeWidth="1"/>;
         })}
         {KEYS.map((_, i) => {
           const a = (Math.PI*2*i/KEYS.length) - Math.PI/2;
-          return <line key={i} x1={center} y1={center} x2={center+Math.cos(a)*gridMaxR} y2={center+Math.sin(a)*gridMaxR} stroke="rgba(255,255,255,0.07)" strokeWidth="1"/>;
+          return <line key={i} x1={center} y1={center} x2={center+Math.cos(a)*gridMaxR} y2={center+Math.sin(a)*gridMaxR} stroke="rgba(var(--fg-rgb),0.07)" strokeWidth="1"/>;
         })}
         <polygon points={polygon} fill={`${fillColor}28`} stroke={fillColor} strokeWidth="2.5" strokeLinejoin="round"/>
         {ptsList.map(p => (
-          <text key={p.key} x={p.lx} y={p.ly} textAnchor="middle" dominantBaseline="middle" fontSize="16">{p.meta.emoji}</text>
+          <text key={p.key} x={p.lx} y={p.ly} textAnchor="middle" dominantBaseline="middle" fontSize={size * 0.047}>{p.meta.emoji}</text>
         ))}
       </svg>
     </div>

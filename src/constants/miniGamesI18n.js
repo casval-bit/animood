@@ -1,0 +1,53 @@
+export const MINI_GAMES_I18N = {
+  fr: {
+    wordle: {
+      title: "🎯 Wordle Animé",
+      loading: "Chargement du jeu…",
+      subtitle: (count, max) => `Devine l'animé du jour · ${count}/${max} essais`,
+      wonTitle: "🎉 Bravo !",
+      wonFoundIn: (count) => `Trouvé en ${count} essai${count > 1 ? "s" : ""}`,
+      lostTitle: "😢 Perdu",
+      searchPlaceholder: "Tape le nom d'un animé TV…",
+      colStudio: "Studio",
+      colGenres: "Genres",
+      colYear: "Année",
+      colScore: "Score",
+      colSource: "Source",
+      colMood: "Mood #1",
+    },
+    poster: {
+      title: "🖼 Poster mystère",
+      loading: "Chargement…",
+      statusPlaying: (attempt, max, pixelSize) => `Essai ${attempt}/${max} — Pixel: ${pixelSize}px`,
+      statusWon: "🎉 Bravo !",
+      statusLost: "😢 Perdu",
+      searchPlaceholder: "Tape le nom d'un animé TV…",
+    },
+  },
+
+  en: {
+    wordle: {
+      title: "🎯 Anime Wordle",
+      loading: "Loading game…",
+      subtitle: (count, max) => `Guess today's anime · ${count}/${max} tries`,
+      wonTitle: "🎉 Well done!",
+      wonFoundIn: (count) => `Found in ${count} tr${count > 1 ? "ies" : "y"}`,
+      lostTitle: "😢 Lost",
+      searchPlaceholder: "Type the name of a TV anime…",
+      colStudio: "Studio",
+      colGenres: "Genres",
+      colYear: "Year",
+      colScore: "Score",
+      colSource: "Source",
+      colMood: "Mood #1",
+    },
+    poster: {
+      title: "🖼 Mystery poster",
+      loading: "Loading…",
+      statusPlaying: (attempt, max, pixelSize) => `Try ${attempt}/${max} — Pixel: ${pixelSize}px`,
+      statusWon: "🎉 Well done!",
+      statusLost: "😢 Lost",
+      searchPlaceholder: "Type the name of a TV anime…",
+    },
+  },
+};
