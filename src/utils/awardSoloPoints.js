@@ -16,7 +16,7 @@ export async function awardSoloPoints(myUsername, gameKey, guessCount, won) {
   const rows = await sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&limit=1`).catch(()=>[]);
   const row  = rows?.[0];
 
-  // Base points: 20 - guesses (min 1)
+// Base points: 20 - guesses (min 1)
   const base = Math.max(1, Math.min(19, 20 - guessCount));
 
   // Streak: consecutive days
@@ -47,7 +47,7 @@ export async function awardSoloPoints(myUsername, gameKey, guessCount, won) {
     sb.query("game_elo", {
       method: "POST",
       headers: { ...sb.headers, "Prefer": "resolution=ignore-duplicates,return=minimal" },
-      body: JSON.stringify({ username: myUsername, elo_chain:400, elo_timeline:400, points_total:0, ...patch }),
+body: JSON.stringify({ username: myUsername, elo_chain:400, elo_timeline:400, points_total:0, ...patch }),
     }).catch(()=>{});
   }
 
