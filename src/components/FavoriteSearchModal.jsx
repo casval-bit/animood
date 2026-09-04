@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { useLang } from "../context/useLang.js";
+import { FAVORITE_SEARCH_I18N } from "../constants/favoriteSearchI18n.js";
 import { jikan } from "../api/jikan.js";
 import { Spinner } from "./Spinner.jsx";
 import { Modal } from "./Modal.jsx";
@@ -6,49 +8,30 @@ import { Modal } from "./Modal.jsx";
 const FALLBACK = "https://placehold.co/64x92/1a1a2e/818cf8?text=?";
 
 export function FavoriteSearchModal({ onSelect, onClose }) {
+  const { lang } = useLang();
+  const t = FAVORITE_SEARCH_I18N[lang] || FAVORITE_SEARCH_I18N.fr;
   const [q, setQ]             = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef(null);
-  const timerRef = useRef(null);
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 100); }, []);
 
   const search = async (val) => {
     setQ(val);
     if(!val.trim()) { setResults([]); return; }
-    // Debounce 400ms
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(async () => {
-      setLoading(true);
-      try {
-        // First try Supabase cache for instant results
-        const { sb } = await import("../api/supabase.js");
-        const enc = encodeURIComponent(val.trim());
-        const cached = await sb.query(`anime_cache?title=ilike.*${enc}*&order=score.desc.nullslast&limit=20&select=mal_id,title,title_en,year,type,score,image_url,large_image`);
-        if(cached?.length >= 3) {
-          setResults(cached.map(r => ({
-            mal_id: r.mal_id, title: r.title, title_english: r.title_en,
-            year: r.year, type: r.type, score: r.score,
-            images: { jpg: { image_url: r.image_url, large_image_url: r.large_image } }
-          })));
-          setLoading(false);
-          return;
-        }
-        // Fallback to Jikan with more results
-        const d = await jikan.searchAnime({ q: val.trim(), limit: 20, order_by:"score", sort:"desc", sfw:false });
-        setResults(d.data||[]);
-      } catch {}
-      setLoading(false);
-    }, 400);
+    setLoading(true);
+    try { const d = await jikan.searchAnime({ q: val, limit: 8, order_by:"score", sort:"desc" }); setResults(d.data||[]); }
+    catch {}
+    setLoading(false);
   };
 
   return (
     <Modal onClose={onClose} maxWidth="max-w-md">
       <div className="p-5">
-        <div className="mb-3 text-sm font-extrabold text-slate-100">Ajouter un favori</div>
+        <div className="mb-3 text-sm font-extrabold text-slate-100">{t.heading}</div>
         <div className="relative mb-3.5">
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">🔍</span>
-          <input ref={inputRef} value={q} onChange={e => search(e.target.value)} placeholder="Rechercher un animé…"
+          <input ref={inputRef} value={q} onChange={e => search(e.target.value)} placeholder={t.searchPlaceholder}
             className="w-full rounded-xl border border-white/12 bg-white/7 py-2.5 pl-9 pr-3 text-sm text-slate-100 outline-none" />
         </div>
         {loading && <Spinner small />}

@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
 import { useApp } from "../context/useApp.js";
-import { STATUS_COLORS, STATUS_PRIORITY } from "../constants/statuses.js";
+import { useLang } from "../context/useLang.js";
+import { STATUS_COLORS, STATUS_PRIORITY, getStatusLabel } from "../constants/statuses.js";
+import { PROFILE_I18N } from "../constants/profileI18n.js";
 import { AVATAR_EMOJIS } from "../constants/avatars.js";
 import { MOOD_KEYS } from "../constants/moods.js";
 import { jikan } from "../api/jikan.js";
-import { follows, sb } from "../api/supabase.js";
-import { FRAMES, getUnlockedFrames, getBestFrame } from "../frames/frames.js";
+import { follows, sb, posts as postsApi, comments as commentsApi } from "../api/supabase.js";
+import { dispatchPostEvent, addPostEventListener } from "../utils/postEvents.js";
+import { FRAMES, getUnlockedFrames, getBestFrame, getFrameLabel } from "../frames/frames.js";
 import { FrameSVG } from "../frames/FrameSVG.jsx";
 import { Spinner } from "../components/Spinner.jsx";
 import { ScoreChart } from "../components/ScoreChart.jsx";
@@ -15,10 +18,12 @@ import { EmptyState } from "../components/EmptyState.jsx";
 import { Modal } from "../components/Modal.jsx";
 import { FavoriteSearchModal } from "../components/FavoriteSearchModal.jsx";
 import { TabBar } from "../components/ui.jsx";
-import { GRADIENT_PRIMARY } from "../constants/theme.js";
+import { GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
 
 // ─── PERSONAL MOOD RADAR ──────────────────────────────────────────────────────
 function PersonalMoodRadar({ ratings, watched }) {
+  const { lang } = useLang();
+  const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
   const [avg, setAvg] = useState(null);
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -35,7 +40,7 @@ function PersonalMoodRadar({ ratings, watched }) {
       for(let i=0;i<allIds.length;i+=100) chunks.push(allIds.slice(i,i+100));
       for(const chunk of chunks) {
         try {
-          const rows = await sb.query(`mood_pts_v2?mal_id=in.(${chunk.join(",")})&select=mal_id,emotional,happy,twisted,chill,in_love,hype,dark,thrills`);
+          const rows = await sb.query(`mood_pts_v4?mal_id=in.(${chunk.join(",")})&select=mal_id,emotional,happy,twisted,chill,in_love,hype,dark,thrills`);
           (rows||[]).forEach(row => {
             const hasData = MOOD_KEYS.some(k => (row[k]||0) > 0);
             if(hasData) { MOOD_KEYS.forEach(k => { totals[k] += row[k]||0; }); cnt++; }
@@ -52,13 +57,13 @@ function PersonalMoodRadar({ ratings, watched }) {
     return () => { cancelled = true; };
   }, [allIds.length, watched.length]);
 
-  if(loading) return <div className="mb-2"><Spinner label="Calcul en cours…" /></div>;
+  if(loading) return <div className="mb-2"><Spinner label={t.calculating} /></div>;
   if(!avg) return null;
 
   return (
     <div>
-      <div className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎭 Ton profil émotionnel</div>
-      <div className="mb-2 text-[10px] text-slate-600">Basé sur {count} animés vus sur {allIds.length}</div>
+      <div className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.moodProfileTitle}</div>
+      <div className="mb-2 text-[10px] text-slate-600">{t.basedOn(count, allIds.length)}</div>
       <MoodOctagon pts={avg} />
     </div>
   );
@@ -66,6 +71,8 @@ function PersonalMoodRadar({ ratings, watched }) {
 
 // ─── TOP GENRES ───────────────────────────────────────────────────────────────
 function TopGenres({ watched }) {
+  const { lang } = useLang();
+  const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
   const [top5, setTop5] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -90,13 +97,13 @@ function TopGenres({ watched }) {
     return () => { cancelled = true; };
   }, [watched.length]);
 
-  if(loading) return <div><div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎌 Genres les plus vus</div><Spinner label="Chargement…" /></div>;
+  if(loading) return <div><div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.topGenresTitle}</div><Spinner label={t.loading} /></div>;
   if(top5.length === 0) return null;
   const max = top5[0][1];
 
   return (
     <div>
-      <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎌 Genres les plus vus</div>
+      <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.topGenresTitle}</div>
       <div className="flex flex-col gap-2">
         {top5.map(([name,count]) => (
           <div key={name}>
@@ -111,12 +118,424 @@ function TopGenres({ watched }) {
   );
 }
 
-const TABS = [{id:"profile",label:"Profil"},{id:"journal",label:"Journal"},{id:"lists",label:"Listes"},{id:"posts",label:"Mes Posts"}];
+const getTabs = (t) => [{id:"profile",label:t.tabProfile},{id:"journal",label:t.tabJournal},{id:"lists",label:t.tabLists},{id:"posts",label:t.tabPosts},{id:"stats",label:t.tabStats}];
+
+// ─── STATS TAB ────────────────────────────────────────────────────────────────
+const MOOD_META_STATS = {
+  emotional:{emoji:"💔",color:"#A78BFA",label:"Emotional"},
+  happy:    {emoji:"✨",color:"#FFD93D",label:"Happy"},
+  hype:     {emoji:"⚡",color:"#F97316",label:"Hype"},
+  dark:     {emoji:"🩸",color:"#EF4444",label:"Dark"},
+  chill:    {emoji:"🌿",color:"#34D399",label:"Chill"},
+  twisted:  {emoji:"🌀",color:"#06B6D4",label:"Twisted"},
+  in_love:  {emoji:"🌸",color:"#F9A8D4",label:"In Love"},
+  thrills:  {emoji:"🎢",color:"#FB923C",label:"Thrills"},
+};
+
+function StatBars({ items, color, sortKey, onToggleSort }) {
+  const { lang } = useLang();
+  const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
+  const sorted = [...items].sort((a,b) => sortKey==="avg"
+    ? (parseFloat(b.avg)||0) - (parseFloat(a.avg)||0)
+    : b.count - a.count
+  );
+  const max = Math.max(...sorted.map(x => sortKey==="avg" ? parseFloat(x.avg)||0 : x.count), 1);
+  return (
+    <div>
+      <div className="flex justify-end mb-2 gap-1">
+        {["count","avg"].map(k => (
+          <button key={k} onClick={()=>onToggleSort(k)}
+            className="text-[9px] px-2 py-0.5 rounded-full font-bold transition"
+            style={{background:sortKey===k?"rgba(124,58,237,0.3)":"rgba(255,255,255,0.05)",
+                    color:sortKey===k?"#c084fc":"var(--text-4)"}}>
+            {k==="count"?t.sortCount:t.sortAvgRating}
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-col gap-2">
+        {sorted.map(item => {
+          const val = sortKey==="avg" ? parseFloat(item.avg)||0 : item.count;
+          return (
+            <div key={item.name}>
+              <div className="flex justify-between text-[11px] mb-1">
+                <span className="text-slate-300 font-semibold truncate max-w-[60%]">{item.name}</span>
+                <span className="text-slate-500 shrink-0 ml-2">
+                  {sortKey==="avg"
+                    ? (item.avg ? `★${item.avg} · ${item.count}` : item.count)
+                    : (item.count + (item.avg ? ` · ★${item.avg}` : ""))}
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full bg-white/6 overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-500"
+                  style={{width:`${(val/max)*100}%`, background:color}}/>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function YearCurve({ data }) {
+  const { lang } = useLang();
+  const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
+  if(!data?.length) return null;
+  const W = 600, H = 160, PAD = 32;
+  const years = data.map(d=>d.year);
+  const avgs  = data.map(d=>d.avg);
+  const minY = Math.floor(Math.min(...avgs) - 0.5);
+  const maxY = Math.ceil(Math.max(...avgs) + 0.5);
+  const minX = Math.min(...years), maxX = Math.max(...years);
+  const toX = y => PAD + ((y - minX) / Math.max(maxX - minX, 1)) * (W - PAD*2);
+  const toY = v => H - PAD - ((v - minY) / Math.max(maxY - minY, 1)) * (H - PAD*2);
+  // Smooth bezier path
+  const pts = data.map(d => [toX(d.year), toY(d.avg)]);
+  let path = `M ${pts[0][0]} ${pts[0][1]}`;
+  for(let i=1; i<pts.length; i++) {
+    const cpx = (pts[i-1][0] + pts[i][0]) / 2;
+    path += ` C ${cpx} ${pts[i-1][1]} ${cpx} ${pts[i][1]} ${pts[i][0]} ${pts[i][1]}`;
+  }
+  // Y grid lines
+  const gridY = [];
+  for(let v = Math.ceil(minY); v <= Math.floor(maxY); v++) gridY.push(v);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{maxHeight:160}}>
+      {gridY.map(v => (
+        <g key={v}>
+          <line x1={PAD} x2={W-PAD} y1={toY(v)} y2={toY(v)} stroke="rgba(255,255,255,0.06)" strokeWidth="1"/>
+          <text x={PAD-4} y={toY(v)+4} textAnchor="end" fontSize="8" fill="rgba(148,163,184,0.6)">{v}</text>
+        </g>
+      ))}
+      <path d={path} fill="none" stroke="#7c3aed" strokeWidth="2" strokeLinejoin="round"/>
+      <path d={path + ` L ${pts[pts.length-1][0]} ${H-PAD} L ${pts[0][0]} ${H-PAD} Z`}
+        fill="rgba(124,58,237,0.1)" strokeWidth="0"/>
+      {data.map((d,i) => (
+        <circle key={i} cx={toX(d.year)} cy={toY(d.avg)} r="3"
+          fill="#7c3aed" stroke="#c084fc" strokeWidth="1.5">
+          <title>{t.yearTooltip(d.year, d.avg, d.count)}</title>
+        </circle>
+      ))}
+      {/* X axis labels — every 5 years */}
+      {data.filter(d=>d.year%5===0).map(d=>(
+        <text key={d.year} x={toX(d.year)} y={H-4} textAnchor="middle" fontSize="8" fill="rgba(148,163,184,0.5)">{d.year}</text>
+      ))}
+    </svg>
+  );
+}
+
+function StatsTab({ statsData, ratings, watched }) {
+  const { lang } = useLang();
+  const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
+  const [genreSort,    setGenreSort]    = useState("count");
+  const [studioSort,   setStudioSort]   = useState("count");
+  const [vaSort,       setVaSort]       = useState("count");
+  const [directorSort, setDirectorSort] = useState("count");
+  const [moodSort,     setMoodSort]     = useState("count");
+
+  const rated = Object.keys(ratings).map(Number);
+  const moodItems = statsData.moodAvgData || [];
+
+  return (
+    <div className="grid gap-8 lg:grid-cols-2">
+      {/* Compteurs globaux */}
+      <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          {l:t.statAnimeWatchedTV, v: watched.length},
+          {l:t.statEpisodesWatched,v: statsData.totalEpisodes.toLocaleString()},
+          {l:t.statAnimeRated,     v: rated.length},
+          {l:t.statAvgRating,      v: rated.length
+            ? (rated.reduce((a,id)=>a+(ratings[id]?.score||0),0)/rated.length).toFixed(2) : "—"},
+        ].map(s => (
+          <div key={s.l} className="rounded-xl border border-white/6 bg-white/3 p-4 text-center">
+            <div className="text-2xl font-black text-violet-400">{s.v}</div>
+            <div className="mt-1 text-[10px] text-slate-500">{s.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Histogramme des notes */}
+      <div className="lg:col-span-2">
+        <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.ratingDistribution}</div>
+        <div className="rounded-2xl border border-white/6 bg-white/3 p-4">
+          <ScoreChart ratings={ratings}/>
+        </div>
+      </div>
+
+      {/* Courbe note par année */}
+      {statsData.yearCurve?.length > 1 && (
+        <div className="lg:col-span-2">
+          <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.avgRatingByYear}</div>
+          <div className="rounded-2xl border border-white/6 bg-white/3 p-4">
+            <YearCurve data={statsData.yearCurve}/>
+          </div>
+        </div>
+      )}
+
+      {/* Top Genres */}
+      <div>
+        <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎌 Top Genres</div>
+        <StatBars items={statsData.topGenres} color="linear-gradient(90deg,#7c3aed,#4f46e5)"
+          sortKey={genreSort} onToggleSort={setGenreSort}/>
+      </div>
+
+      {/* Top Studios */}
+      <div>
+        <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎬 Top Studios</div>
+        <StatBars items={statsData.topStudios} color="linear-gradient(90deg,#ec4899,#f97316)"
+          sortKey={studioSort} onToggleSort={setStudioSort}/>
+      </div>
+
+      {/* Top Voice Actors */}
+      {statsData.topVAs?.length > 0 && (
+        <div>
+          <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎙️ Top Voice Actors</div>
+          <StatBars items={statsData.topVAs} color="linear-gradient(90deg,#34d399,#06b6d4)"
+            sortKey={vaSort} onToggleSort={setVaSort}/>
+        </div>
+      )}
+
+      {/* Top Directors */}
+      {statsData.topDirectors?.length > 0 && (
+        <div>
+          <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎬 Top Réalisateurs</div>
+          <StatBars items={statsData.topDirectors} color="linear-gradient(90deg,#f59e0b,#ef4444)"
+            sortKey={directorSort} onToggleSort={setDirectorSort}/>
+        </div>
+      )}
+
+      {/* Moods */}
+      {moodItems.length > 0 && (
+        <div>
+          <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.dominantMoods}</div>
+          <div className="flex justify-end mb-2 gap-1">
+            {["count","avg"].map(k => (
+              <button key={k} onClick={()=>setMoodSort(k)}
+                className="text-[9px] px-2 py-0.5 rounded-full font-bold transition"
+                style={{background:moodSort===k?"rgba(124,58,237,0.3)":"rgba(255,255,255,0.05)",
+                        color:moodSort===k?"#c084fc":"var(--text-4)"}}>
+                {k==="count"?t.moodSortCount:t.moodSortAvg}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-col gap-2">
+            {[...moodItems].sort((a,b) => moodSort==="avg" ? b.avg-a.avg : b.count-a.count).map(item => {
+              const val = moodSort==="avg" ? item.avg : item.count;
+              const max = Math.max(...moodItems.map(x => moodSort==="avg" ? x.avg : x.count), 1);
+              return (
+                <div key={item.key}>
+                  <div className="flex justify-between text-[11px] mb-1">
+                    <span className="text-slate-300 font-semibold">{MOOD_META_STATS[item.key]?.emoji} {MOOD_META_STATS[item.key]?.label}</span>
+                    <span className="text-slate-500">
+                      {moodSort==="count"
+                        ? t.moodStatCount(item.count, item.avg)
+                        : t.moodStatAvg(item.avg, item.count)}
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-white/6 overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-500"
+                      style={{width:`${(val/max)*100}%`, background:MOOD_META_STATS[item.key]?.color||"#7c3aed"}}/>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── PROFILE POST CARD ────────────────────────────────────────────────────────
+function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
+  const { lang } = useLang();
+  const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
+  const [liked, setLiked]             = useState((post.likes||[]).includes(myUsername));
+  const [likeCount, setLikeCount]     = useState((post.likes||[]).length);
+  const [showComments, setShowComments] = useState(false);
+  const [postComments, setPostComments] = useState([]);
+  const [commentsLoaded, setCommentsLoaded] = useState(false);
+
+  // Re-sync when likes change from elsewhere (e.g. liked from the Feed)
+  useEffect(() => {
+    setLiked((post.likes||[]).includes(myUsername));
+    setLikeCount((post.likes||[]).length);
+  }, [post.likes, myUsername]);
+
+  const handleLike = async () => {
+    const newLiked = !liked;
+    setLiked(newLiked); setLikeCount(c => c + (newLiked?1:-1));
+    const result = await postsApi.toggleLike(post.id, myUsername).catch(()=>null);
+    const newLikes = result?.[0]?.likes || (newLiked ? [...(post.likes||[]),myUsername] : (post.likes||[]).filter(u=>u!==myUsername));
+    onLikeUpdate?.(post.id, newLikes);
+    dispatchPostEvent("like", { id: post.id, likes: newLikes });
+  };
+
+  const loadComments = async () => {
+    if(commentsLoaded) return;
+    try {
+      const rows = await sb.query(`comments?post_id=eq.${post.id}&order=created_at.asc&limit=50`);
+      setPostComments(rows||[]);
+    } catch {}
+    setCommentsLoaded(true);
+  };
+
+  const toggleComments = () => {
+    setShowComments(p => !p);
+    if(!commentsLoaded) loadComments();
+  };
+
+  const handleDeletePost = async () => {
+    if(!window.confirm(t.confirmDeletePost)) return;
+    try {
+      await sb.query(`posts?id=eq.${post.id}`, { method:"DELETE" });
+      onDelete?.(post.id);
+      dispatchPostEvent("delete", { id: post.id });
+    } catch {}
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    try {
+      await sb.query(`comments?id=eq.${commentId}`, { method:"DELETE" });
+      setPostComments(p => p.filter(c=>c.id!==commentId));
+    } catch {}
+  };
+
+  const toggleCommentLike = async (commentId) => {
+    const target = postComments.find(c => c.id === commentId);
+    const likes = target?.likes || [];
+    const newLikes = likes.includes(myUsername) ? likes.filter(u=>u!==myUsername) : [...likes, myUsername];
+    setPostComments(prev => prev.map(c => c.id===commentId ? {...c, likes:newLikes} : c));
+    await commentsApi.toggleLike(commentId, myUsername).catch(()=>{});
+    dispatchPostEvent("commentLike", { id: commentId, likes: newLikes });
+  };
+
+  // Sync comment likes with other views (e.g. liked from the Feed)
+  useEffect(() => {
+    return addPostEventListener(({ type, id, likes }) => {
+      if(type === "commentLike") setPostComments(prev => prev.map(c => c.id===id ? {...c, likes} : c));
+    });
+  }, []);
+
+  return (
+    <div style={{background:"rgba(var(--fg-rgb),0.03)",borderRadius:16,
+      border:"1px solid rgba(var(--fg-rgb),0.06)",padding:14,marginBottom:10}}>
+      {/* Header */}
+      <div style={{display:"flex",gap:10,marginBottom:10,alignItems:"flex-start"}}>
+        <div style={{flex:1}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:2}}>
+            <span style={{fontSize:10,color:"var(--text-4)"}}>{new Date(post.created_at).toLocaleDateString(t.dateLocale,{day:"numeric",month:"short",year:"numeric"})}</span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+              style={{background:post._type==="written"?"rgba(124,58,237,0.2)":"rgba(99,102,241,0.15)",
+                      color:post._type==="written"?"#c084fc":"#818cf8"}}>
+              {post._type==="written"?t.postTypeWritten:t.postTypeCommented}
+            </span>
+            {post.anime_title && <span style={{fontSize:10,color:"#818cf8",fontWeight:600}}>📺 {post.anime_title}</span>}
+          </div>
+        </div>
+        {post._type==="written" && (
+          <button onClick={handleDeletePost}
+            style={{background:"none",border:"none",color:"var(--text-4)",cursor:"pointer",fontSize:14}}
+            onMouseEnter={e=>e.currentTarget.style.color="#ef4444"}
+            onMouseLeave={e=>e.currentTarget.style.color="var(--text-4)"}>✕</button>
+        )}
+      </div>
+      {post.spoiler && <div style={{marginBottom:8,fontSize:10,fontWeight:700,color:"#ef4444",background:"rgba(239,68,68,0.1)",padding:"2px 8px",borderRadius:4,width:"fit-content"}}>⚠️ SPOILER</div>}
+      <p style={{fontSize:14,color:"var(--text-1)",lineHeight:1.6,margin:"0 0 10px",whiteSpace:"pre-wrap"}}>{post.content}</p>
+      {post.image_url && (
+        <div style={{borderRadius:10,overflow:"hidden",marginBottom:10,maxHeight:400}}>
+          <img src={post.image_url} alt="" style={{width:"100%",objectFit:"cover",maxHeight:400,display:"block",cursor:"pointer"}}
+            onClick={()=>window.open(post.image_url,"_blank")}/>
+        </div>
+      )}
+      {/* Actions */}
+      <div style={{display:"flex",gap:14,alignItems:"center"}}>
+        <button onClick={handleLike}
+          style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:4,
+            color:liked?"#ef4444":"var(--text-3)",fontSize:12,fontWeight:700,transition:"color 0.15s"}}>
+          {liked?"❤️":"🤍"} {likeCount||""}
+        </button>
+        <button onClick={toggleComments}
+          style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:5,
+            color:showComments?"#818cf8":"var(--text-3)",fontSize:12,fontWeight:700}}>
+          {t.commentsLabel}{postComments.length>0||post.comment_count>0?` (${commentsLoaded?postComments.length:post.comment_count||0})`:""} {showComments?"▲":"▼"}
+        </button>
+      </div>
+      {/* Comments — likeable, deletable if yours */}
+      {showComments && (
+        <div style={{marginTop:12,borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:10}}>
+          {!commentsLoaded ? (
+            <div style={{fontSize:10,color:"var(--text-5)"}}>{t.loadingComments}</div>
+          ) : postComments.length===0 ? (
+            <div style={{fontSize:10,color:"var(--text-5)",fontStyle:"italic"}}>{t.noComments}</div>
+          ) : (
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {postComments.map((c,i)=>{
+                const cLikes = c.likes||[];
+                const cLiked = cLikes.includes(myUsername);
+                return (
+                  <div key={c.id||i} style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+                    <div style={{flex:1}}>
+                      <span style={{fontSize:10,fontWeight:800,color:"#c084fc",marginRight:6}}>@{c.username}</span>
+                      <span style={{fontSize:12,color:"var(--text-2)"}}>{c.content}</span>
+                      <div style={{marginTop:3}}>
+                        <button onClick={()=>toggleCommentLike(c.id)}
+                          style={{background:"none",border:"none",cursor:"pointer",fontSize:10,fontWeight:700,
+                            color:cLiked?"#ef4444":"var(--text-4)"}}>
+                          {cLiked?"❤️":"🤍"} {cLikes.length||""}
+                        </button>
+                      </div>
+                    </div>
+                    {c.username===myUsername && (
+                      <button onClick={()=>handleDeleteComment(c.id)}
+                        style={{background:"none",border:"none",color:"var(--text-5)",cursor:"pointer",fontSize:11,flexShrink:0}}
+                        onMouseEnter={e=>e.currentTarget.style.color="#ef4444"}
+                        onMouseLeave={e=>e.currentTarget.style.color="var(--text-5)"}>✕</button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GamePtsDisplay({ myUsername, compact }) {
+  const [pts, setPts] = useState(null);
+  useEffect(() => {
+    if(!myUsername) return;
+    sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&select=points_total&limit=1`)
+      .then(r => { if(r?.[0]) setPts(r[0].points_total||0); })
+      .catch(()=>{});
+  }, [myUsername]);
+  if(pts === null) return compact ? <div/> : null;
+  if(compact) return (
+    <div className="rounded-xl border border-white/6 bg-white/3 p-3 text-center">
+      <div className="text-xl font-black text-violet-400">{pts}</div>
+      <div className="mt-0.5 text-[9px] text-slate-500">🎮 Pts jeux</div>
+    </div>
+  );
+  return (
+    <>
+      <div className="w-px h-3 bg-white/10"/>
+      <div className="flex items-center gap-1.5">
+        <span className="text-[13px] font-black text-violet-400">{pts}</span>
+        <span className="text-[11px] text-slate-500">pts jeux 🎮</span>
+      </div>
+    </>
+  );
+}
 
 export function ProfileView({ onOpenDetail, onOpenSettings }) {
   const { me, saveMe, myUsername } = useApp();
+  const { lang } = useLang();
+  const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
   const [tab, setTab] = useState("profile");
   const [journalFilter, setJournalFilter] = useState(null);
+  const [customListFilter, setCustomListFilter] = useState(null);
   const [journalGrid, setJournalGrid] = useState(true);
   const [watchlistPage, setWatchlistPage] = useState(0);
   const [animeCache, setAnimeCache] = useState({});
@@ -125,6 +544,8 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
   const [showFramePicker, setShowFramePicker] = useState(false);
   const [unlockedFrames, setUnlockedFrames] = useState([]);
   const [activeFrame, setActiveFrame] = useState(null);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
   const [editingBio, setEditingBio] = useState(false);
   const [bioInput, setBioInput] = useState(me.bio||"");
   const [openList, setOpenList] = useState(null);
@@ -136,6 +557,12 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
   const [editingFavs, setEditingFavs] = useState(false);
   const [dragging, setDragging] = useState(null);
   const [dragOver, setDragOver] = useState(null);
+  // Posts tab
+  const [myPosts, setMyPosts] = useState([]);
+  const [postsLoading, setPostsLoading] = useState(false);
+  // Stats tab
+  const [statsData, setStatsData] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(false);
 
   const fetchAnime = async (id) => {
     if(!id || animeCache[id]) return;
@@ -171,13 +598,173 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
     watchlistIds.forEach(id => fetchAnime(id));
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Sync likes/deletes from FeedView
+  useEffect(() => {
+    return addPostEventListener(({ type, id, likes }) => {
+      if(type === "like") setMyPosts(prev => prev.map(p => p.id===id ? {...p, likes} : p));
+      if(type === "delete") setMyPosts(prev => prev.filter(p => p.id!==id));
+    });
+  }, []);
+
+  // Load posts when tab is active
+  useEffect(() => {
+    if(tab !== "posts") return;
+    if(myPosts.length > 0) return; // already loaded
+    setPostsLoading(true);
+    (async () => {
+      try {
+        const [writtenPosts, commentedPostIds] = await Promise.all([
+          sb.query(`posts?username=eq.${encodeURIComponent(myUsername)}&order=created_at.desc&limit=50`),
+          sb.query(`comments?username=eq.${encodeURIComponent(myUsername)}&select=post_id&limit=200`),
+        ]);
+        // Fetch posts where user commented (excluding own posts)
+        const ownIds = new Set((writtenPosts||[]).map(p=>p.id));
+        const commentedIds = [...new Set((commentedPostIds||[]).map(c=>c.post_id))].filter(id=>!ownIds.has(id));
+        let commentedPosts = [];
+        if(commentedIds.length > 0) {
+          commentedPosts = await sb.query(`posts?id=in.(${commentedIds.join(",")})&order=created_at.desc&limit=50`) || [];
+        }
+        // Merge and sort by date
+        const all = [
+          ...(writtenPosts||[]).map(p=>({...p, _type:"written"})),
+          ...commentedPosts.map(p=>({...p, _type:"commented"})),
+        ].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+        setMyPosts(all);
+      } catch(e) { console.error(e); }
+      setPostsLoading(false);
+    })();
+  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load stats when tab is active
+  useEffect(() => {
+    if(tab !== "stats") return;
+    if(statsData) return;
+    setStatsLoading(true);
+    (async () => {
+      try {
+        const genreCount = {}, genreScores = {};
+        const studioCount = {}, studioScores = {};
+        const vaCount = {}, vaScores = {};
+        const directorCount = {}, directorScores = {};
+        const yearScores = {};
+        const moodTotals = {}; const moodDominantCount = {}; const moodScores = {}; let moodCount = 0;
+        MOOD_KEYS.forEach(k => { moodTotals[k] = 0; moodDominantCount[k] = 0; moodScores[k] = []; });
+        let totalEpisodes = 0;
+
+        const chunks = [];
+        for(let i=0;i<me.watched.length;i+=100) chunks.push(me.watched.slice(i,i+100));
+
+        for(const chunk of chunks) {
+          try {
+            const [animeRows, moodRows] = await Promise.all([
+              sb.query(`anime_cache?mal_id=in.(${chunk.join(",")})&select=mal_id,type,genres,studios,characters,staff,episodes,year&limit=${chunk.length}`),
+              sb.query(`mood_pts_v4?mal_id=in.(${chunk.join(",")})&select=mal_id,${MOOD_KEYS.join(",")}&limit=${chunk.length}`),
+            ]);
+
+            const moodByMalId = {};
+            (moodRows||[]).forEach(r => { moodByMalId[r.mal_id] = r; });
+
+            (animeRows||[]).forEach(a => {
+              if(a.type && a.type !== "TV") return;
+              const userScore = me.ratings[a.mal_id]?.score || null;
+              if(a.episodes) totalEpisodes += a.episodes;
+
+              // Genres
+              (a.genres||[]).forEach(g => {
+                const n = g.name||g;
+                genreCount[n] = (genreCount[n]||0) + 1;
+                if(userScore) { if(!genreScores[n]) genreScores[n]=[]; genreScores[n].push(userScore); }
+              });
+              // Studios
+              (a.studios||[]).forEach(s => {
+                const n = s.name||s;
+                studioCount[n] = (studioCount[n]||0) + 1;
+                if(userScore) { if(!studioScores[n]) studioScores[n]=[]; studioScores[n].push(userScore); }
+              });
+              // Voice actors
+              (a.characters||[]).forEach(c => {
+                if(c.va?.name) {
+                  const n = c.va.name;
+                  vaCount[n] = (vaCount[n]||0) + 1;
+                  if(userScore) { if(!vaScores[n]) vaScores[n]=[]; vaScores[n].push(userScore); }
+                }
+              });
+              // Directors from staff
+              (a.staff||[]).forEach(s => {
+                if(s.name && (s.positions||[]).includes("Director")) {
+                  const n = s.name;
+                  directorCount[n] = (directorCount[n]||0) + 1;
+                  if(userScore) { if(!directorScores[n]) directorScores[n]=[]; directorScores[n].push(userScore); }
+                }
+              });
+              // Year scores
+              if(a.year && userScore) {
+                if(!yearScores[a.year]) yearScores[a.year] = [];
+                yearScores[a.year].push(userScore);
+              }
+              // Moods — compte le mood dominant + moyenne des notes utilisateur
+              const mp = moodByMalId[a.mal_id];
+              if(mp && MOOD_KEYS.some(k=>(mp[k]||0)>0)) {
+                const dominant = MOOD_KEYS.reduce((best, k) => (mp[k]||0) > (mp[best]||0) ? k : best, MOOD_KEYS[0]);
+                if(!moodDominantCount[dominant]) moodDominantCount[dominant] = 0;
+                moodDominantCount[dominant]++;
+                // Track user score for this dominant mood
+                if(userScore) {
+                  if(!moodScores[dominant]) moodScores[dominant] = [];
+                  moodScores[dominant].push(userScore);
+                }
+                moodCount++;
+              }
+            });
+          } catch {}
+        }
+
+        const calcAvg = (scores) => scores?.length ? (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) : null;
+
+        const buildEntries = (count, scores, limit) =>
+          Object.entries(count)
+            .map(([name, cnt]) => ({ name, count: cnt, avg: calcAvg(scores[name]) }))
+            .sort((a,b) => b.count - a.count)
+            .slice(0, limit);
+
+        const topGenres    = buildEntries(genreCount, genreScores, 15);
+        const topStudios   = buildEntries(studioCount, studioScores, 10);
+        const topVAs       = buildEntries(vaCount, vaScores, 10);
+        const topDirectors = buildEntries(directorCount, directorScores, 10);
+
+        // Moods — dominant count + moyenne des notes utilisateur
+        const moodAvgData = moodCount > 0
+          ? MOOD_KEYS.map(k => ({
+              key: k,
+              count: moodDominantCount[k] || 0,
+              avg: moodScores[k]?.length
+                ? (moodScores[k].reduce((a,b)=>a+b,0)/moodScores[k].length).toFixed(1)
+                : null,
+            })).sort((a,b) => b.count - a.count)
+          : [];
+
+        // Year curve
+        const yearCurve = Object.entries(yearScores)
+          .map(([year, scores]) => ({ year: parseInt(year), avg: parseFloat(calcAvg(scores)), count: scores.length }))
+          .filter(d => d.year >= 1990 && d.year <= new Date().getFullYear())
+          .sort((a,b) => a.year - b.year);
+
+        setStatsData({ topGenres, topStudios, topVAs, topDirectors, moodAvgData, yearCurve, totalEpisodes });
+      } catch(e) { console.error(e); }
+      setStatsLoading(false);
+    })();
+  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     (async () => {
       try {
-        const [followerRows, voteRows] = await Promise.all([
+        const [followerRows, followingRows, voteRows] = await Promise.all([
           follows.getFollowers(myUsername),
+          follows.getFollowing(myUsername).catch(()=>[]),
           sb.query(`user_votes?username=eq.${myUsername}&select=pts_added&limit=1000`),
         ]);
+        setFollowerCount((followerRows||[]).length);
+        setFollowingCount((followingRows||[]).length);
         const genreCounts = {};
         const chunks = [];
         for(let i=0;i<me.watched.length;i+=100) chunks.push(me.watched.slice(i,i+100));
@@ -187,7 +774,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
             (rows||[]).forEach(row => { (row.genres||[]).forEach(g => { const name=g.name||g; genreCounts[name]=(genreCounts[name]||0)+1; }); });
           } catch {}
         }
-        const unlocked = getUnlockedFrames({ watchedCount: me.watched.length, genreCounts, followerCount: followerRows.length, userVotes: voteRows||[] });
+        const unlocked = getUnlockedFrames({ watchedCount: me.watched.length, genreCounts, followerCount: (followerRows||[]).length, userVotes: voteRows||[] });
         setUnlockedFrames(unlocked);
         const savedFrameId = me.activeFrame;
         const saved = savedFrameId ? FRAMES[savedFrameId] : null;
@@ -199,14 +786,15 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
 
   const getAnime = id => animeCache[id] || { mal_id:id, title:`MAL #${id}`, images:{jpg:{}} };
   const rated = Object.keys(me.ratings).map(Number);
-  const avgScore = rated.length ? (rated.reduce((a,id)=>a+me.ratings[id].score,0)/rated.length).toFixed(1) : "—";
   const hidden = me.hiddenCompleted || [];
   const completed = Object.entries(me.statuses||{}).filter(([,s])=>s==="completed").map(([id])=>Number(id)).filter(id=>!hidden.includes(id)).slice(-5).reverse();
 
   const watchlistIds = Object.entries(me.statuses||{}).filter(([,s])=>s==="watchlist").map(([id])=>parseInt(id));
   const allTrackedIds = [...new Set([...me.watched, ...watchlistIds])];
+  const customListNames = [...new Set(Object.values(me.anilistSubLists||{}).flat())].sort();
   const journalEntries = allTrackedIds
     .filter(id => !journalFilter || ((me.statuses||{})[id]||"completed") === journalFilter)
+    .filter(id => !customListFilter || (me.anilistSubLists||{})[id]?.includes(customListFilter))
     .sort((a,b) => (STATUS_PRIORITY[(me.statuses||{})[a]||"completed"]??5) - (STATUS_PRIORITY[(me.statuses||{})[b]||"completed"]??5));
 
   const saveBio = () => saveMe({ ...me, bio: bioInput });
@@ -286,10 +874,12 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
       {/* Header */}
       <div className="mb-6 flex flex-col gap-6 sm:flex-row sm:items-start">
         <div className="relative shrink-0">
-          <FrameSVG frame={activeFrame} size={96}>
+          <FrameSVG frame={activeFrame} size={112}>
             <button onClick={() => setShowAvatarPicker(true)}
-              className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full text-4xl transition hover:scale-105" style={{ background: GRADIENT_PRIMARY }}>
-              {me.avatar && me.avatar.startsWith("http") ? <img src={me.avatar} alt="avatar" className="h-full w-full object-cover" /> : me.avatar}
+              className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full text-5xl transition hover:scale-105" style={{ background: GRADIENT_PRIMARY }}>
+              {(me.avatar_base64 || (me.avatar?.startsWith?.("http") ? me.avatar : null))
+                ? <img src={me.avatar_base64 || me.avatar} alt="avatar" className="h-full w-full object-cover" />
+                : (me.avatar || "👤")}
             </button>
           </FrameSVG>
           <div onClick={() => setShowAvatarPicker(true)} className="absolute bottom-0 right-0 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-2 border-slate-950 bg-violet-600 text-[10px]">✏️</div>
@@ -301,38 +891,42 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
         <div className="flex-1">
           <div className="mb-1 flex items-center justify-between">
             <div>
-              <div className="text-2xl font-black tracking-tight text-slate-100">{me.name}</div>
-              <div className="text-xs text-slate-500">@{me.name?.toLowerCase()} · AniMood</div>
+              <div className={`text-2xl font-black tracking-tight ${GRADIENT_TEXT}`}>{me.name}</div>
+              <div className="text-xs text-slate-500">@{myUsername} · AniMood</div>
             </div>
             <button onClick={onOpenSettings} className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs font-bold text-slate-400">⚙️</button>
           </div>
 
-          <div className="my-4 grid grid-cols-3 gap-3 sm:max-w-sm">
-            {[{l:"Vus",v:me.watched.length},{l:"Notés",v:rated.length},{l:"Moy.",v:avgScore}].map(s => (
-              <div key={s.l} className="rounded-xl bg-white/3 py-2.5 text-center">
-                <div className="text-lg font-black text-purple-300">{s.v}</div>
-                <div className="mt-0.5 text-[9px] text-slate-500">{s.l}</div>
-              </div>
-            ))}
-          </div>
-
           {editingBio ? (
             <div className="flex max-w-md gap-2">
-              <input value={bioInput} onChange={e => setBioInput(e.target.value)} maxLength={80} placeholder="Ton style d'anime…"
+              <input value={bioInput} onChange={e => setBioInput(e.target.value)} maxLength={80} placeholder={t.bioPlaceholder}
                 className="flex-1 rounded-lg border border-violet-600/40 bg-white/7 px-2.5 py-1.5 text-xs text-slate-100 outline-none"
                 onKeyDown={e => { if(e.key==="Enter"){saveBio();setEditingBio(false);} if(e.key==="Escape")setEditingBio(false); }} />
               <button onClick={() => { saveBio(); setEditingBio(false); }} className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-bold text-white">✓</button>
             </div>
           ) : (
             <button onClick={() => { setBioInput(me.bio||""); setEditingBio(true); }} className="rounded-lg border border-dashed border-white/10 px-2.5 py-1.5 text-left text-[11px] text-slate-500">
-              {me.bio || "✏️ Ajoute une bio…"}
+              {me.bio || t.addBioPlaceholder}
             </button>
           )}
+
+          {/* Followers / Following */}
+          <div className="flex items-center gap-4 mt-2 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[13px] font-black text-slate-100">{followerCount}</span>
+              <span className="text-[11px] text-slate-500">{t.followerLabel(followerCount)}</span>
+            </div>
+            <div className="w-px h-3 bg-white/10"/>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[13px] font-black text-slate-100">{followingCount}</span>
+              <span className="text-[11px] text-slate-500">{t.followingLabel(followingCount)}</span>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <TabBar tabs={TABS} active={tab} onChange={setTab} className="mb-6" />
+      <TabBar tabs={getTabs(t)} active={tab} onChange={setTab} className="mb-6" />
 
       {/* ── PROFIL TAB ── */}
       {tab === "profile" && (
@@ -343,10 +937,10 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
             {/* Favoris — toujours en premier */}
             <div>
               <div className="mb-2.5 flex items-center justify-between">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">❤️ Favoris</div>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.favoritesTitle}</div>
                 <button onClick={()=>setEditingFavs(e=>!e)}
                   className="text-[10px] font-bold text-slate-500 hover:text-slate-300 transition">
-                  {editingFavs ? "Terminé" : "Modifier"}
+                  {editingFavs ? t.editDone : t.editBtn}
                 </button>
               </div>
               <div className="grid grid-cols-5 gap-2.5">
@@ -376,13 +970,13 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                   );
                 })}
               </div>
-              {editingFavs && <p className="mt-1.5 text-center text-[9px] text-slate-600">Glisse pour réordonner · ✕ pour retirer</p>}
+              {editingFavs && <p className="mt-1.5 text-center text-[9px] text-slate-600">{t.dragHint}</p>}
               <style>{`@keyframes wiggle{from{transform:rotate(-1.5deg)}to{transform:rotate(1.5deg)}}`}</style>
             </div>
 
             {/* Derniers vus */}
             <div>
-              <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">🕐 Derniers vus</div>
+              <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.recentlyWatchedTitle}</div>
               <div className="grid grid-cols-5 gap-2.5">
                 {completed.slice(0,5).map(id => <AnimePoster key={id} anime={getAnime(id)} onClick={onOpenDetail} loading />)}
                 {Array.from({length: Math.max(0,5-completed.length)}).map((_,i) => <div key={i} className="aspect-2/3 rounded-lg border-2 border-dashed border-white/6 bg-white/3" />)}
@@ -396,19 +990,19 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                   <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     <span>📌</span><span>{pinnedList.name}</span>
                   </div>
-                  <button onClick={()=>setTab("lists")} className="text-[10px] text-slate-500 hover:text-slate-300 transition">Voir tout →</button>
+                  <button onClick={()=>setTab("lists")} className="text-[10px] text-slate-500 hover:text-slate-300 transition">{t.seeAllArrow}</button>
                 </div>
                 <div className="grid grid-cols-5 gap-2.5">
                   {pinnedList.animeIds.slice(0,5).map(id => <AnimePoster key={id} anime={animeCache[id]} onClick={onOpenDetail} loading />)}
-                  {pinnedList.animeIds.length===0 && <div className="col-span-5 rounded-xl border border-dashed border-white/8 p-4 text-center text-[11px] text-slate-600">Liste vide — ajoute des animés depuis l'onglet Listes</div>}
+                  {pinnedList.animeIds.length===0 && <div className="col-span-5 rounded-xl border border-dashed border-white/8 p-4 text-center text-[11px] text-slate-600">{t.pinnedListEmpty}</div>}
                 </div>
               </div>
             ) : (
               <button onClick={()=>setTab("lists")} className="flex items-center gap-3 rounded-xl border border-dashed border-white/8 p-4 text-left transition hover:bg-white/3">
                 <span className="text-lg">📌</span>
                 <div>
-                  <div className="text-[12px] font-bold text-slate-400">Épingler une liste</div>
-                  <div className="text-[10px] text-slate-600">Affiche une liste perso sur ton profil</div>
+                  <div className="text-[12px] font-bold text-slate-400">{t.pinListTitle}</div>
+                  <div className="text-[10px] text-slate-600">{t.pinListDesc}</div>
                 </div>
               </button>
             )}
@@ -416,22 +1010,23 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
 
           {/* RIGHT — 3 stats + Distribution + MoodRadar + TopGenres */}
           <div className="flex flex-col gap-8">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-3">
               {[
-                {l:"Vus", v:me.watched.length},
-                {l:"Notés", v:rated.length},
-                {l:"Moy.", v:rated.length?(rated.reduce((a,id)=>a+(me.ratings[id]?.score||0),0)/rated.length).toFixed(1):"—"},
+                {l:t.statVus, v:me.watched.length},
+                {l:t.statNotes, v:rated.length},
+                {l:t.statMoy, v:rated.length?(rated.reduce((a,id)=>a+(me.ratings[id]?.score||0),0)/rated.length).toFixed(1):"—"},
               ].map(s=>(
                 <div key={s.l} className="rounded-xl border border-white/6 bg-white/3 p-3 text-center">
                   <div className="text-xl font-black text-violet-400">{s.v}</div>
                   <div className="mt-0.5 text-[9px] text-slate-500">{s.l}</div>
                 </div>
               ))}
+              <GamePtsDisplay myUsername={myUsername} compact/>
             </div>
             <div>
-              <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">📊 Distribution des notes</div>
+              <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.ratingDistribution}</div>
               <div className="rounded-2xl border border-white/6 bg-white/3 p-4">
-                {rated.length>0 ? <ScoreChart ratings={me.ratings}/> : <p className="text-center text-[11px] text-slate-500">Note des animés pour voir ta distribution</p>}
+                {rated.length>0 ? <ScoreChart ratings={me.ratings}/> : <p className="text-center text-[11px] text-slate-500">{t.rateToSeeDistribution}</p>}
               </div>
             </div>
             <PersonalMoodRadar ratings={me.ratings} watched={me.watched}/>
@@ -449,8 +1044,8 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                 return (
                   <button key={k} onClick={() => setJournalFilter(active?null:k)}
                     className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold transition"
-                    style={{ border: active ? `1px solid ${v.dot}` : "1px solid rgba(255,255,255,0.08)", background: active ? `${v.dot}22` : "rgba(255,255,255,0.03)", color: active ? v.dot : "#6b7280" }}>
-                    <span className="h-1.5 w-1.5 rounded-full" style={{ background:v.dot }} />{v.label}
+                    style={{ border: active ? `1px solid ${v.dot}` : "1px solid rgba(var(--fg-rgb),0.08)", background: active ? `${v.dot}22` : "rgba(var(--fg-rgb),0.03)", color: active ? v.dot : "var(--text-3)" }}>
+                    <span className="h-1.5 w-1.5 rounded-full" style={{ background:v.dot }} />{getStatusLabel(k, lang)}
                   </button>
                 );
               })}
@@ -461,7 +1056,23 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
             </button>
           </div>
 
-          {journalEntries.length === 0 && <EmptyState emoji="📖" title="Ton journal est vide" />}
+          {customListNames.length > 0 && (
+            <div className="mb-4 flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-[10px] font-bold uppercase tracking-wider text-slate-600">{t.aniListSubLists}</span>
+              {customListNames.map(name => {
+                const active = customListFilter === name;
+                return (
+                  <button key={name} onClick={() => setCustomListFilter(active?null:name)}
+                    className="rounded-full px-3 py-1.5 text-[11px] font-semibold transition"
+                    style={{ border:`1px solid ${active?"#a78bfa":"rgba(var(--fg-rgb),0.08)"}`, background: active?"rgba(167,139,250,0.15)":"rgba(var(--fg-rgb),0.03)", color: active?"#a78bfa":"var(--text-3)" }}>
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {journalEntries.length === 0 && <EmptyState emoji="📖" title={t.journalEmptyTitle} />}
 
           {journalGrid && journalEntries.length > 0 && (
             <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
@@ -489,9 +1100,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                     <div className="flex flex-1 flex-col justify-between py-2 pr-3">
                       <div>
                         <div className="text-xs font-extrabold leading-tight text-slate-100">{a.title}</div>
-                        <div className="mt-0.5 text-[10px] font-bold" style={{ color:sc.dot }}>{sc.label}</div>
+                        <div className="mt-0.5 text-[10px] font-bold" style={{ color:sc.dot }}>{getStatusLabel(status, lang)}</div>
                       </div>
-                      {r ? <span className="text-xs font-extrabold text-amber-400">★ {r.score}/10</span> : <span className="text-[10px] text-slate-700">Non noté</span>}
+                      {r ? <span className="text-xs font-extrabold text-amber-400">★ {r.score}/10</span> : <span className="text-[10px] text-slate-700">{t.notRated}</span>}
                     </div>
                   </button>
                 );
@@ -509,8 +1120,8 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
           <div className="mb-3 flex items-center gap-4 rounded-2xl border border-white/7 bg-white/3 p-4 cursor-pointer hover:bg-white/6 transition"
             onClick={()=>setOpenList("watchlist")}>
             <div className="flex gap-1 shrink-0">
-              {watchlistIds.slice(0,4).map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)",flexShrink:0}}>{img&&<img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
-              {watchlistIds.length===0&&<div style={{width:36,height:54,borderRadius:6,background:"rgba(255,255,255,0.04)",border:"2px dashed rgba(255,255,255,0.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"rgba(255,255,255,0.2)"}}>
+              {watchlistIds.slice(0,4).map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(var(--fg-rgb),0.05)",border:"1px solid rgba(var(--fg-rgb),0.08)",flexShrink:0}}>{img&&<img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
+              {watchlistIds.length===0&&<div style={{width:36,height:54,borderRadius:6,background:"rgba(var(--fg-rgb),0.04)",border:"2px dashed rgba(var(--fg-rgb),0.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"rgba(var(--fg-rgb),0.2)"}}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
               </div>}
             </div>
@@ -519,7 +1130,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
                 <span className="text-[13px] font-black text-slate-100">Watchlist</span>
               </div>
-              <div className="text-[11px] text-slate-500">{watchlistIds.length} animé{watchlistIds.length!==1?"s":""}</div>
+              <div className="text-[11px] text-slate-500">{t.animeCount(watchlistIds.length)}</div>
             </div>
             <span className="text-slate-500 text-lg">›</span>
           </div>
@@ -528,8 +1139,8 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
           <div className="mb-3 flex items-center gap-4 rounded-2xl border border-white/7 bg-white/3 p-4 cursor-pointer hover:bg-white/6 transition"
             onClick={()=>setOpenList("highlights")}>
             <div className="flex gap-1 shrink-0">
-              {(me.highlights||[]).slice(0,4).map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)"}}>{img&&<img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
-              {(me.highlights||[]).length===0&&<div style={{width:36,height:54,borderRadius:6,background:"rgba(255,255,255,0.04)",border:"2px dashed rgba(255,255,255,0.1)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              {(me.highlights||[]).slice(0,4).map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(var(--fg-rgb),0.05)",border:"1px solid rgba(var(--fg-rgb),0.08)"}}>{img&&<img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
+              {(me.highlights||[]).length===0&&<div style={{width:36,height:54,borderRadius:6,background:"rgba(var(--fg-rgb),0.04)",border:"2px dashed rgba(var(--fg-rgb),0.1)",display:"flex",alignItems:"center",justifyContent:"center"}}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
               </div>}
             </div>
@@ -538,7 +1149,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="#ef4444" stroke="#ef4444" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                 <span className="text-[13px] font-black text-slate-100">Highlights</span>
               </div>
-              <div className="text-[11px] text-slate-500">{(me.highlights||[]).length} animé{(me.highlights||[]).length!==1?"s":""} · Les 5 premiers dans tes favoris</div>
+              <div className="text-[11px] text-slate-500">{t.animeCount((me.highlights||[]).length)} · {t.highlightsSuffix}</div>
             </div>
             <span className="text-slate-500 text-lg">›</span>
           </div>
@@ -552,15 +1163,15 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                 <div key={list.id} className="flex items-center gap-4 rounded-2xl border border-white/7 bg-white/3 p-4 cursor-pointer hover:bg-white/6 transition"
                   onClick={()=>setOpenList(list.id)}>
                   <div className="flex gap-1 shrink-0">
-                    {preview.map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)"}}>{img&&<img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
-                    {preview.length===0&&<div style={{width:36,height:54,borderRadius:6,background:"rgba(255,255,255,0.04)",border:"2px dashed rgba(255,255,255,0.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,color:"rgba(255,255,255,0.2)"}}>📋</div>}
+                    {preview.map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(var(--fg-rgb),0.05)",border:"1px solid rgba(var(--fg-rgb),0.08)"}}>{img&&<img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
+                    {preview.length===0&&<div style={{width:36,height:54,borderRadius:6,background:"rgba(var(--fg-rgb),0.04)",border:"2px dashed rgba(var(--fg-rgb),0.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,color:"rgba(var(--fg-rgb),0.2)"}}>📋</div>}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-[13px] font-black text-slate-100">{list.name}</span>
-                      {isPinned && <span className="text-[9px] font-bold text-violet-400 bg-violet-400/10 border border-violet-400/20 rounded-full px-1.5 py-0.5">Épinglée</span>}
+                      {isPinned && <span className="text-[9px] font-bold text-violet-400 bg-violet-400/10 border border-violet-400/20 rounded-full px-1.5 py-0.5">{t.pinnedBadge}</span>}
                     </div>
-                    <div className="text-[11px] text-slate-500">{list.animeIds.length} animé{list.animeIds.length!==1?"s":""}</div>
+                    <div className="text-[11px] text-slate-500">{t.animeCount(list.animeIds.length)}</div>
                   </div>
                   <span className="text-slate-500 text-lg">›</span>
                 </div>
@@ -573,9 +1184,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
             <div className="flex items-center gap-2 rounded-xl border border-violet-400/30 bg-violet-400/5 p-3">
               <input autoFocus value={newListName} onChange={e=>setNewListName(e.target.value)}
                 onKeyDown={e=>{if(e.key==="Enter")createList();if(e.key==="Escape"){setCreatingList(false);setNewListName("");}}}
-                placeholder="Nom de la liste…"
+                placeholder={t.createListPlaceholder}
                 className="flex-1 bg-transparent text-[13px] text-slate-100 outline-none placeholder:text-slate-600"/>
-              <button onClick={createList} className="rounded-lg bg-violet-500 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-violet-400 transition">Créer</button>
+              <button onClick={createList} className="rounded-lg bg-violet-500 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-violet-400 transition">{t.createBtn}</button>
               <button onClick={()=>{setCreatingList(false);setNewListName("");}} className="text-slate-500 hover:text-slate-300 text-sm">✕</button>
             </div>
           ) : (
@@ -583,8 +1194,8 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
               className="flex w-full items-center gap-3 rounded-xl border border-dashed border-white/8 p-4 text-left transition hover:bg-white/3">
               <span className="text-lg">➕</span>
               <div>
-                <div className="text-[12px] font-bold text-slate-400">Créer une liste</div>
-                <div className="text-[10px] text-slate-600">Organise tes animés par thème</div>
+                <div className="text-[12px] font-bold text-slate-400">{t.createListTitle}</div>
+                <div className="text-[10px] text-slate-600">{t.createListDesc}</div>
               </div>
             </button>
           )}
@@ -600,7 +1211,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="#ef4444" stroke="#ef4444" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                         Highlights
                       </div>
-                      <div className="text-[11px] text-slate-500">{(me.highlights||[]).length} animé{(me.highlights||[]).length!==1?"s":""} · Les 5 premiers dans tes favoris du profil</div>
+                      <div className="text-[11px] text-slate-500">{t.animeCount((me.highlights||[]).length)} · {t.highlightsSuffixModal}</div>
                     </div>
                     <button onClick={close} className="flex h-7 w-7 items-center justify-center rounded-full bg-white/8 text-sm text-slate-400">✕</button>
                   </div>
@@ -619,7 +1230,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                         </div>
                       ))}
                     </div>
-                  ):<EmptyState emoji="❤️" title="Aucun highlight" subtitle="Ajoute des animés via ❤️ sur leurs fiches"/>}
+                  ):<EmptyState emoji="❤️" title={t.highlightsEmptyTitle} subtitle={t.highlightsEmptySubtitle}/>}
                 </div>
               )}
             </Modal>
@@ -633,7 +1244,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                   <div className="mb-4 flex items-center justify-between">
                     <div>
                       <div className="text-sm font-black text-slate-100">🎯 Watchlist</div>
-                      <div className="text-[11px] text-slate-500">{watchlistIds.length} animé{watchlistIds.length!==1?"s":""}</div>
+                      <div className="text-[11px] text-slate-500">{t.animeCount(watchlistIds.length)}</div>
                     </div>
                     <button onClick={close} className="flex h-7 w-7 items-center justify-center rounded-full bg-white/8 text-sm text-slate-400">✕</button>
                   </div>
@@ -641,7 +1252,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                     <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-6">
                       {watchlistIds.map(id=><AnimePoster key={id} anime={animeCache[id]} onClick={a=>{close();onOpenDetail(a);}} loading/>)}
                     </div>
-                  ):<EmptyState emoji="🎯" title="Watchlist vide" subtitle="Ajoute des animés via 🎯 sur leur fiche"/>}
+                  ):<EmptyState emoji="🎯" title={t.watchlistEmptyTitle} subtitle={t.watchlistEmptySubtitle}/>}
                 </div>
               )}
             </Modal>
@@ -656,23 +1267,23 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                   <div className="mb-4 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className="text-sm font-black text-slate-100">{openListData.name}</div>
-                      <div className="text-[11px] text-slate-500">{openListData.animeIds.length} animé{openListData.animeIds.length!==1?"s":""}</div>
+                      <div className="text-[11px] text-slate-500">{t.animeCount(openListData.animeIds.length)}</div>
                     </div>
                     <div className="flex items-center gap-2">
                       {/* Pin toggle */}
                       <button onClick={()=>pinList(openListData.id)}
                         className={pinnedListId===openListData.id ? "rounded-lg border border-violet-400/40 bg-violet-400/10 px-2.5 py-1.5 text-[10px] font-bold text-violet-400 transition" : "rounded-lg border border-white/10 px-2.5 py-1.5 text-[10px] font-bold text-slate-500 transition hover:border-white/20"}>
-                        {pinnedListId===openListData.id ? "📌 Épinglée" : "📌 Épingler"}
+                        {pinnedListId===openListData.id ? t.pinBtnActive : t.pinBtnInactive}
                       </button>
                       {/* Edit toggle */}
                       <button onClick={()=>setEditingList(editingList===openListData.id?null:openListData.id)}
                         className={editingList===openListData.id ? "rounded-lg border border-indigo-400/40 bg-indigo-400/10 px-2.5 py-1.5 text-[10px] font-bold text-indigo-400 transition" : "rounded-lg border border-white/10 px-2.5 py-1.5 text-[10px] font-bold text-slate-500 transition hover:border-white/20"}>
-                        {editingList===openListData.id ? "Terminé" : "Modifier"}
+                        {editingList===openListData.id ? t.editDone : t.editBtn}
                       </button>
                       {/* Delete */}
                       <button onClick={()=>{deleteList(openListData.id);close();}}
                         className="rounded-lg border border-red-500/20 px-2.5 py-1.5 text-[10px] font-bold text-red-500 hover:bg-red-500/10 transition">
-                        Supprimer
+                        {t.deleteBtn}
                       </button>
                       <button onClick={close} className="flex h-7 w-7 items-center justify-center rounded-full bg-white/8 text-sm text-slate-400">✕</button>
                     </div>
@@ -692,16 +1303,16 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                       ))}
                     </div>
                   ) : (
-                    <EmptyState emoji="📋" title="Liste vide" subtitle="Recherche des animés à ajouter ci-dessous" className="mb-4"/>
+                    <EmptyState emoji="📋" title={t.listEmptyTitle} subtitle={t.listEmptySubtitle} className="mb-4"/>
                   )}
 
                   {/* Add anime search (edit mode) */}
                   {editingList===openListData.id && (
                     <div className="border-t border-white/6 pt-4">
-                      <div className="mb-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Ajouter un animé</div>
+                      <div className="mb-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">{t.addAnimeTitle}</div>
                       <input value={listSearchQuery}
                         onChange={e=>{setListSearchQuery(e.target.value);searchForList(e.target.value);}}
-                        placeholder="Rechercher…"
+                        placeholder={t.searchPlaceholder}
                         className="mb-3 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-[13px] text-slate-100 outline-none placeholder:text-slate-600 focus:border-violet-400/40"/>
                       {listSearchResults.length>0 && (
                         <div className="flex flex-col gap-2">
@@ -729,35 +1340,48 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
 
       {/* ── MES POSTS TAB ── */}
       {tab === "posts" && (
-        (me.posts||[]).length === 0
-          ? <EmptyState emoji="✍️" title="Aucun post pour l'instant" />
-          : <div className="flex max-w-2xl flex-col gap-2.5">
-              {(me.posts||[]).map((post,i) => (
-                <div key={i} className="rounded-xl border border-white/7 bg-white/4 p-3.5">
-                  <div className="mb-1.5 text-[10px] text-slate-600">{post.source} · {post.date}</div>
-                  <div className="text-[13px] text-slate-200">{post.content}</div>
-                </div>
-              ))}
-            </div>
+        postsLoading ? (
+          <div className="flex justify-center py-12"><Spinner label={t.loadingPosts}/></div>
+        ) : myPosts.length === 0 ? (
+          <EmptyState emoji="✍️" title={t.noPostsTitle} />
+        ) : (
+          <div className="flex max-w-2xl flex-col gap-3">
+            {myPosts.map((post, i) => (
+              <ProfilePostCard key={post.id||i} post={post} myUsername={myUsername}
+                onLikeUpdate={(id, newLikes) => setMyPosts(prev => prev.map(p => p.id===id ? {...p, likes:newLikes} : p))}
+                onDelete={(id) => setMyPosts(prev => prev.filter(p => p.id!==id))}/>
+            ))}
+          </div>
+        )
+      )}
+
+      {tab === "stats" && (
+        statsLoading ? (
+          <div className="flex justify-center py-12"><Spinner label={t.calculatingStats}/></div>
+        ) : !statsData ? (
+          <EmptyState emoji="📊" title={t.noStatsTitle} />
+        ) : (
+          <StatsTab statsData={statsData} ratings={me.ratings} watched={me.watched}/>
+        )
       )}
 
       {/* Frame picker */}
       {showFramePicker && (
         <Modal onClose={() => setShowFramePicker(false)} maxWidth="max-w-lg">
           <div className="p-6">
-            <div className="mb-1 text-center text-sm font-black text-slate-100">🖼 Cadres débloqués</div>
-            <div className="mb-4 text-center text-[11px] text-slate-500">{unlockedFrames.length} cadre{unlockedFrames.length!==1?"s":""} débloqué{unlockedFrames.length!==1?"s":""}</div>
+            <div className="mb-1 text-center text-sm font-black text-slate-100">{t.framesUnlockedTitle}</div>
+            <div className="mb-4 text-center text-[11px] text-slate-500">{t.frameCount(unlockedFrames.length)}</div>
             <button onClick={() => setFrame(null)}
               className="mb-2.5 flex w-full items-center gap-3 rounded-xl p-2.5 text-left"
               style={{ border: !activeFrame ? "2px solid #7c3aed" : "2px solid transparent", background: !activeFrame ? "rgba(124,58,237,0.1)" : "transparent" }}>
               <div className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-white/15 bg-white/5 text-lg">🚫</div>
-              <div><div className="text-xs font-bold text-slate-100">Aucun cadre</div><div className="text-[10px] text-slate-500">Avatar sans cadre</div></div>
+              <div><div className="text-xs font-bold text-slate-100">{t.noFrameTitle}</div><div className="text-[10px] text-slate-500">{t.noFrameDesc}</div></div>
             </button>
             <div className="flex flex-col gap-2">
               {["watched","contribution","followers","genre"].map(cat => {
                 const catFrames = unlockedFrames.filter(f=>f.category===cat);
                 if(!catFrames.length) return null;
-                const catLabels = {watched:"📺 Animés vus",contribution:"🗳️ Contribution",followers:"👥 Followers",genre:"🎌 Genre"};
+                const catLabels = {watched:t.frameCatWatched,contribution:t.frameCatContribution,followers:t.frameCatFollowers,genre:t.frameCatGenre};
                 return (
                   <div key={cat}>
                     <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{catLabels[cat]}</div>
@@ -767,12 +1391,12 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                         return (
                           <button key={frame.id} onClick={() => setFrame(frame)}
                             className="flex flex-col items-center gap-1 rounded-xl p-2"
-                            style={{ border: isActive?"2px solid #7c3aed":"2px solid transparent", background: isActive?"rgba(124,58,237,0.1)":"rgba(255,255,255,0.03)" }}>
+                            style={{ border: isActive?"2px solid #7c3aed":"2px solid transparent", background: isActive?"rgba(124,58,237,0.1)":"rgba(var(--fg-rgb),0.03)" }}>
                             <div className="relative h-11 w-11">
                               <div className="flex h-11 w-11 items-center justify-center rounded-full text-lg" style={{ background: GRADIENT_PRIMARY }}>👤</div>
                               <svg className="absolute inset-0" viewBox="0 0 44 44" dangerouslySetInnerHTML={{ __html: frame.svg(44) }} />
                             </div>
-                            <div className="max-w-13 text-center text-[9px] font-bold leading-tight" style={{ color:frame.color }}>{frame.label}</div>
+                            <div className="max-w-13 text-center text-[9px] font-bold leading-tight" style={{ color:frame.color }}>{getFrameLabel(frame, lang)}</div>
                           </button>
                         );
                       })}
@@ -789,12 +1413,12 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
       {showAvatarPicker && (
         <Modal onClose={() => setShowAvatarPicker(false)} maxWidth="max-w-md">
           <div className="p-6">
-            <div className="mb-4 text-center text-sm font-black text-slate-100">Choisir un avatar</div>
+            <div className="mb-4 text-center text-sm font-black text-slate-100">{t.chooseAvatarTitle}</div>
             <div className="flex flex-wrap justify-center gap-2.5">
               {AVATAR_EMOJIS.map(e => (
                 <button key={e} onClick={() => setAvatar(e)}
                   className="flex h-12.5 w-12.5 items-center justify-center rounded-xl text-2xl"
-                  style={{ background: me.avatar===e?"rgba(124,58,237,0.3)":"rgba(255,255,255,0.05)", border: me.avatar===e?"2px solid #7c3aed":"2px solid transparent" }}>
+                  style={{ background: me.avatar===e?"rgba(124,58,237,0.3)":"rgba(var(--fg-rgb),0.05)", border: me.avatar===e?"2px solid #7c3aed":"2px solid transparent" }}>
                   {e}
                 </button>
               ))}

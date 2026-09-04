@@ -7,9 +7,16 @@
 
 const SUPABASE_URL  = process.env.SUPABASE_URL;
 const SUPABASE_ANON = process.env.SUPABASE_ANON;
-const GROQ_KEY      = process.env.GROQ_API_KEY;
-const GROQ_URL      = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_MODEL    = "meta-llama/llama-4-scout-17b-16e-instruct";
+
+// Groq preferred; falls back to OpenRouter if only OPENROUTER_API_KEY is set
+const USE_OPENROUTER = !process.env.GROQ_API_KEY && !!process.env.OPENROUTER_API_KEY;
+const GROQ_KEY       = USE_OPENROUTER ? process.env.OPENROUTER_API_KEY : process.env.GROQ_API_KEY;
+const GROQ_URL       = USE_OPENROUTER
+  ? "https://openrouter.ai/api/v1/chat/completions"
+  : "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_MODEL     = USE_OPENROUTER
+  ? "meta-llama/llama-3.3-70b-instruct"
+  : "meta-llama/llama-4-scout-17b-16e-instruct";
 const DELAY_MS      = 400;
 const MAX_PER_RUN   = 200;
 

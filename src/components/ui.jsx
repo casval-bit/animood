@@ -3,6 +3,8 @@
 // every screen reads as one product.
 import { GRADIENT_PRIMARY, GLASS, GLASS_STYLE } from "../constants/theme.js";
 import { useApp } from "../context/useApp.js";
+import { useLang } from "../context/useLang.js";
+import { COMMON_I18N } from "../constants/commonI18n.js";
 
 export function GlassCard({ className = "", style = {}, children, as: Comp = "div", ...rest }) {
   return (
@@ -17,7 +19,7 @@ export function GradientButton({ className = "", disabled, children, as: Comp = 
     <Comp
       disabled={disabled}
       className={`rounded-full font-extrabold text-white transition-all duration-300 ${disabled ? "cursor-not-allowed opacity-40" : "hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-[0_20px_50px_rgba(139,92,246,.5)]"} ${className}`}
-      style={{ background: disabled ? "rgba(255,255,255,.06)" : GRADIENT_PRIMARY, boxShadow: disabled ? "none" : "0 12px 34px rgba(109,91,255,.35)" }}
+      style={{ background: disabled ? "rgba(var(--fg-rgb),.06)" : GRADIENT_PRIMARY, boxShadow: disabled ? "none" : "0 12px 34px rgba(109,91,255,.35)" }}
       {...rest}
     >
       {children}
@@ -34,8 +36,8 @@ export function Chip({ label, emoji, selected, onClick }) {
     <button onClick={onClick}
       className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-200 ${selected ? "text-white" : "text-slate-400 hover:text-slate-200"}`}
       style={{
-        background: selected ? GRADIENT_PRIMARY : "rgba(255,255,255,0.04)",
-        border: selected ? "1px solid transparent" : "1px solid rgba(255,255,255,0.08)",
+        background: selected ? GRADIENT_PRIMARY : "rgba(var(--fg-rgb),0.04)",
+        border: selected ? "1px solid transparent" : "1px solid rgba(var(--fg-rgb),0.08)",
         boxShadow: selected ? "0 6px 20px rgba(109,91,255,.35)" : "none",
       }}>
       {emoji && <span>{emoji}</span>}{label}
@@ -62,7 +64,7 @@ export function TabBar({ tabs, active, onChange, className = "" }) {
         return (
           <button key={t.id} onClick={() => onChange(t.id)}
             className="relative flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-bold transition"
-            style={{ color: isActive ? "#f8fafc" : "#4b5563" }}>
+            style={{ color: isActive ? "var(--text-1)" : "var(--text-4)" }}>
             {t.emoji && <span className={isActive ? "" : "opacity-50 grayscale"}>{t.emoji}</span>}
             {t.label}
             {isActive && <div className="absolute inset-x-1 bottom-0 h-0.5 rounded-full" style={{ background: GRADIENT_PRIMARY }} />}
@@ -81,9 +83,6 @@ export function StatPill({ label, emoji = "⭐" }) {
   );
 }
 
-// Quick-tap favorite/watched toggles overlaid on a poster — always visible (not
-// hover-only) so it works as well on mobile taps as on desktop clicks.
-// Favorites reuse the profile's 5-slot showcase array; no-ops silently once full.
 // Bookmark SVG icon (watchlist)
 function BookmarkIcon({ filled, color = "#22c55e" }) {
   return (
@@ -92,7 +91,6 @@ function BookmarkIcon({ filled, color = "#22c55e" }) {
     </svg>
   );
 }
-
 
 // Eye icon for watched
 function EyeIcon({ filled, color = "#818cf8" }) {
@@ -104,8 +102,13 @@ function EyeIcon({ filled, color = "#818cf8" }) {
   );
 }
 
+// Quick-tap watchlist/watched + highlight toggles overlaid on a poster — always
+// visible (not hover-only) so it works as well on mobile taps as on desktop clicks.
+// Highlights reuse the profile's 5-slot favorites showcase (first 5 auto-synced).
 export function QuickActionIcons({ anime, variant = "watched" }) {
   const { me, saveMe } = useApp();
+  const { lang } = useLang();
+  const t = COMMON_I18N[lang] || COMMON_I18N.fr;
   const malId = anime.mal_id;
   const isWatched = me.watched.includes(malId);
   const isOnWatchlist = (me.statuses||{})[malId] === "watchlist";
@@ -141,14 +144,14 @@ export function QuickActionIcons({ anime, variant = "watched" }) {
       {/* Left — watchlist bookmark OR watched eye */}
       {variant === "watchlist" ? (
         <button onClick={toggleWatchlist}
-          title={isOnWatchlist ? "Retirer de la watchlist" : "Ajouter à la watchlist"}
+          title={isOnWatchlist ? t.removeFromWatchlist : t.addToWatchlist}
           className="absolute left-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full backdrop-blur transition hover:scale-110"
           style={{ background: isOnWatchlist ? "rgba(34,197,94,.85)" : "rgba(15,23,42,.65)", boxShadow: isOnWatchlist ? "0 0 12px rgba(34,197,94,.5)" : "none" }}>
           <BookmarkIcon filled={isOnWatchlist}/>
         </button>
       ) : (
         <button onClick={toggleWatched}
-          title={isWatched ? "Marquer comme non-vu" : "Marquer comme vu"}
+          title={isWatched ? t.markUnwatched : t.markWatched}
           className="absolute left-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full backdrop-blur transition hover:scale-110"
           style={{ background: isWatched ? "rgba(129,140,248,.85)" : "rgba(15,23,42,.65)", boxShadow: isWatched ? "0 0 12px rgba(129,140,248,.5)" : "none" }}>
           <EyeIcon filled={isWatched}/>
@@ -157,7 +160,7 @@ export function QuickActionIcons({ anime, variant = "watched" }) {
 
       {/* Right — Highlight heart (emoji, original style) */}
       <button onClick={toggleHighlight}
-        title={isHighlighted ? "Retirer des Highlights" : "Ajouter aux Highlights"}
+        title={isHighlighted ? t.removeFromHighlights : t.addToHighlights}
         className="absolute right-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full text-xs backdrop-blur transition hover:scale-110"
         style={{ background: isHighlighted ? "rgba(236,72,153,.85)" : "rgba(15,23,42,.65)", boxShadow: isHighlighted ? "0 0 12px rgba(236,72,153,.5)" : "none" }}>
         {isHighlighted ? "❤️" : "🤍"}
