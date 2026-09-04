@@ -13,6 +13,12 @@ export const FORUM_THREAD_I18N = {
     errCreate: "Impossible de publier — le forum n'est peut-être pas encore configuré côté base de données (voir supabase/forum_schema.sql).",
     publishing: "Publication…",
     publish: "Publier",
+    pollAdd: "📊 Ajouter un sondage",
+    pollRemove: "📊 Retirer sondage",
+    pollLabel: "📊 Sondage",
+    pollMultiChoice: "Choix multiple",
+    pollOptionPlaceholder: (n) => `Option ${n}`,
+    pollAddOption: "+ Ajouter une option",
 
     // ThreadModal
     replyCount: (n) => `${n} réponse${n !== 1 ? "s" : ""}`,
@@ -21,6 +27,8 @@ export const FORUM_THREAD_I18N = {
     errReply: "Impossible d'envoyer la réponse — le forum n'est peut-être pas encore configuré côté base de données.",
     sending: "Envoi…",
     reply: "Répondre",
+    pollMultiHint: "📊 Choix multiple",
+    pollVoteCount: (n) => `${n} vote${n !== 1 ? "s" : ""}`,
   },
 
   en: {
@@ -37,6 +45,12 @@ export const FORUM_THREAD_I18N = {
     errCreate: "Couldn't publish — the forum may not be set up on the database side yet (see supabase/forum_schema.sql).",
     publishing: "Publishing…",
     publish: "Publish",
+    pollAdd: "📊 Add a poll",
+    pollRemove: "📊 Remove poll",
+    pollLabel: "📊 Poll",
+    pollMultiChoice: "Multiple choice",
+    pollOptionPlaceholder: (n) => `Option ${n}`,
+    pollAddOption: "+ Add an option",
 
     // ThreadModal
     replyCount: (n) => `${n} repl${n !== 1 ? "ies" : "y"}`,
@@ -45,5 +59,7 @@ export const FORUM_THREAD_I18N = {
     errReply: "Couldn't send the reply — the forum may not be set up on the database side yet.",
     sending: "Sending…",
     reply: "Reply",
+    pollMultiHint: "📊 Multiple choice",
+    pollVoteCount: (n) => `${n} vote${n !== 1 ? "s" : ""}`,
   },
 };

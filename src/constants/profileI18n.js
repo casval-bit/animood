@@ -95,6 +95,10 @@ export const PROFILE_I18N = {
     postTypeWritten: "✍️ Post",
     postTypeCommented: "💬 Commenté",
     dateLocale: "fr-FR",
+    confirmDeletePost: "Supprimer ce post ?",
+    commentsLabel: "💬 Commentaires",
+    loadingComments: "Chargement…",
+    noComments: "Aucun commentaire",
 
     // Stats tab
     calculatingStats: "Calcul des stats…",
@@ -210,6 +214,10 @@ export const PROFILE_I18N = {
     postTypeWritten: "✍️ Post",
     postTypeCommented: "💬 Commented",
     dateLocale: "en-US",
+    confirmDeletePost: "Delete this post?",
+    commentsLabel: "💬 Comments",
+    loadingComments: "Loading…",
+    noComments: "No comments yet",
 
     // Stats tab
     calculatingStats: "Calculating stats…",

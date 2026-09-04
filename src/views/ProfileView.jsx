@@ -352,7 +352,7 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
   const [postComments, setPostComments] = useState([]);
   const [commentsLoaded, setCommentsLoaded] = useState(false);
 
-  const handleLike = async () => {
+const handleLike = async () => {
     const newLiked = !liked;
     const newLikes = newLiked
       ? [...(post.likes||[]), myUsername]
@@ -385,7 +385,7 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
   };
 
   const handleDeletePost = async () => {
-    if(!window.confirm("Supprimer ce post ?")) return;
+if(!window.confirm(t.confirmDeletePost)) return;
     try {
       await sb.query(`posts?id=eq.${post.id}`, { method:"DELETE" });
       onDelete?.(post.id);
@@ -399,6 +399,23 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
       setPostComments(p => p.filter(c=>c.id!==commentId));
     } catch {}
   };
+
+
+  const toggleCommentLike = async (commentId) => {
+    const target = postComments.find(c => c.id === commentId);
+    const likes = target?.likes || [];
+    const newLikes = likes.includes(myUsername) ? likes.filter(u=>u!==myUsername) : [...likes, myUsername];
+    setPostComments(prev => prev.map(c => c.id===commentId ? {...c, likes:newLikes} : c));
+    await commentsApi.toggleLike(commentId, myUsername).catch(()=>{});
+    dispatchPostEvent("commentLike", { id: commentId, likes: newLikes });
+  };
+
+  // Sync comment likes with other views (e.g. liked from the Feed)
+  useEffect(() => {
+    return addPostEventListener(({ type, id, likes }) => {
+      if(type === "commentLike") setPostComments(prev => prev.map(c => c.id===id ? {...c, likes} : c));
+    });
+  }, []);
 
   return (
     <div style={{background:"rgba(var(--fg-rgb),0.03)",borderRadius:16,
@@ -441,32 +458,43 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
         <button onClick={toggleComments}
           style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:5,
             color:showComments?"#818cf8":"var(--text-3)",fontSize:12,fontWeight:700}}>
-          💬 Commentaires{postComments.length>0||post.comment_count>0?` (${commentsLoaded?postComments.length:post.comment_count||0})`:""} {showComments?"▲":"▼"}
+{t.commentsLabel}{postComments.length>0||post.comment_count>0?` (${commentsLoaded?postComments.length:post.comment_count||0})`:""} {showComments?"▲":"▼"}
         </button>
       </div>
-      {/* Comments — read only */}
+      {/* Comments — likeable, deletable if yours */}
       {showComments && (
         <div style={{marginTop:12,borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:10}}>
           {!commentsLoaded ? (
-            <div style={{fontSize:10,color:"var(--text-5)"}}>Chargement…</div>
+            <div style={{fontSize:10,color:"var(--text-5)"}}>{t.loadingComments}</div>
           ) : postComments.length===0 ? (
-            <div style={{fontSize:10,color:"var(--text-5)",fontStyle:"italic"}}>Aucun commentaire</div>
+            <div style={{fontSize:10,color:"var(--text-5)",fontStyle:"italic"}}>{t.noComments}</div>
           ) : (
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {postComments.map((c,i)=>(
-                <div key={c.id||i} style={{display:"flex",gap:8,alignItems:"flex-start"}}>
-                  <div style={{flex:1}}>
-                    <span style={{fontSize:10,fontWeight:800,color:"#c084fc",marginRight:6}}>@{c.username}</span>
-                    <span style={{fontSize:12,color:"var(--text-2)"}}>{c.content}</span>
+              {postComments.map((c,i)=>{
+                const cLikes = c.likes||[];
+                const cLiked = cLikes.includes(myUsername);
+                return (
+                  <div key={c.id||i} style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+                    <div style={{flex:1}}>
+                      <span style={{fontSize:10,fontWeight:800,color:"#c084fc",marginRight:6}}>@{c.username}</span>
+                      <span style={{fontSize:12,color:"var(--text-2)"}}>{c.content}</span>
+                      <div style={{marginTop:3}}>
+                        <button onClick={()=>toggleCommentLike(c.id)}
+                          style={{background:"none",border:"none",cursor:"pointer",fontSize:10,fontWeight:700,
+                            color:cLiked?"#ef4444":"var(--text-4)"}}>
+                          {cLiked?"❤️":"🤍"} {cLikes.length||""}
+                        </button>
+                      </div>
+                    </div>
+                    {c.username===myUsername && (
+                      <button onClick={()=>handleDeleteComment(c.id)}
+                        style={{background:"none",border:"none",color:"var(--text-5)",cursor:"pointer",fontSize:11,flexShrink:0}}
+                        onMouseEnter={e=>e.currentTarget.style.color="#ef4444"}
+                        onMouseLeave={e=>e.currentTarget.style.color="var(--text-5)"}>✕</button>
+                    )}
                   </div>
-                  {c.username===myUsername && (
-                    <button onClick={()=>handleDeleteComment(c.id)}
-                      style={{background:"none",border:"none",color:"var(--text-5)",cursor:"pointer",fontSize:11,flexShrink:0}}
-                      onMouseEnter={e=>e.currentTarget.style.color="#ef4444"}
-                      onMouseLeave={e=>e.currentTarget.style.color="var(--text-5)"}>✕</button>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -758,7 +786,6 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
 
   const getAnime = id => animeCache[id] || { mal_id:id, title:`MAL #${id}`, images:{jpg:{}} };
   const rated = Object.keys(me.ratings).map(Number);
-  const avgScore = rated.length ? (rated.reduce((a,id)=>a+me.ratings[id].score,0)/rated.length).toFixed(1) : "—";
   const hidden = me.hiddenCompleted || [];
   const completed = Object.entries(me.statuses||{}).filter(([,s])=>s==="completed").map(([id])=>Number(id)).filter(id=>!hidden.includes(id)).slice(-5).reverse();
 
@@ -869,7 +896,6 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
             </div>
             <button onClick={onOpenSettings} className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs font-bold text-slate-400">⚙️</button>
           </div>
-
 
           {editingBio ? (
             <div className="flex max-w-md gap-2">

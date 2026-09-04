@@ -512,3 +512,225 @@ export function PosterGame({ onClose }) {
     </div>
   );
 }
+
+// ─── GAME 3 — Quiz OP ──────────────────────────────────────────────────────
+function pickDailyOpenings() {
+  const day = getDayIndex();
+  const pools = {
+    easy:   ANIME_OPENINGS.filter(o => o.difficulty === "easy"),
+    medium: ANIME_OPENINGS.filter(o => o.difficulty === "medium"),
+    hard:   ANIME_OPENINGS.filter(o => o.difficulty === "hard"),
+  };
+  const taken = {};
+  return OPQUIZ_DIFFICULTY_PLAN.map((diff, i) => {
+    const pool = pools[diff];
+    const rand = seededRand(day * 2654435761 + i * 999331 + diff.length * 7919);
+    let idx = Math.floor(rand() * pool.length);
+    const set = taken[diff] || (taken[diff] = new Set());
+    while(set.has(idx)) idx = (idx + 1) % pool.length;
+    set.add(idx);
+    return pool[idx];
+  });
+}
+
+const DIFF_COLOR = { easy: GREEN, medium: ORANGE, hard: RED };
+
+export function OpQuizGame({ onClose }) {
+  const { lang } = useLang();
+  const t = (MINI_GAMES_I18N[lang] || MINI_GAMES_I18N.fr).opquiz;
+  const { myUsername } = useApp();
+  const TOTAL = OPQUIZ_DIFFICULTY_PLAN.length;
+
+  const [rounds]         = useState(pickDailyOpenings);
+  const [roundIdx, setRoundIdx] = useState(0);
+  const [results, setResults]   = useState([]);
+  const [revealed, setRevealed] = useState(null); // {correct, targetImage}
+  const [playing, setPlaying]   = useState(false);
+  const [query, setQuery]       = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [done, setDone]         = useState(false);
+  const [awardedPts, setAwardedPts] = useState(null);
+  const timer = useRef(null);
+  const awardedRef = useRef(false);
+
+  useEffect(() => {
+    const key = `animood_opquiz_${getDayIndex()}`;
+    const saved = JSON.parse(localStorage.getItem(key)||"null");
+    if(saved) {
+      setResults(saved.results||[]);
+      setRoundIdx(saved.roundIdx||0);
+      setDone(saved.done||false);
+      setAwardedPts(saved.awardedPts ?? null);
+      awardedRef.current = !!saved.done;
+    }
+  }, []);
+
+  const saveState = (r, idx, isDone, pts) => {
+    localStorage.setItem(`animood_opquiz_${getDayIndex()}`, JSON.stringify({
+      results: r, roundIdx: idx, done: isDone, awardedPts: pts,
+    }));
+  };
+
+  const current = rounds[roundIdx];
+
+  const search = (q) => {
+    setQuery(q);
+    clearTimeout(timer.current);
+    if(!q.trim()) { setSuggestions([]); return; }
+    timer.current = setTimeout(async () => {
+      try {
+        const enc = encodeURIComponent(q);
+        const rows = await sb.query(`anime_cache?or=(title.ilike.*${enc}*,title_en.ilike.*${enc}*)&order=score.desc.nullslast&limit=8&select=mal_id,title,title_en,year,image_url`);
+        setSuggestions(rows||[]);
+      } catch {}
+    }, 300);
+  };
+
+  const submitGuess = async (anime) => {
+    if(revealed) return;
+    const correct = anime.mal_id === current.mal_id;
+    let targetImage = null;
+    try {
+      const rows = await sb.query(`anime_cache?mal_id=eq.${current.mal_id}&select=image_url&limit=1`);
+      targetImage = rows?.[0]?.image_url || null;
+    } catch {}
+    setRevealed({ correct, targetImage });
+    setQuery(""); setSuggestions([]);
+    const newResults = [...results, { correct }];
+    setResults(newResults);
+    saveState(newResults, roundIdx, false, null);
+  };
+
+  const nextRound = () => {
+    const nextIdx = roundIdx + 1;
+    setRevealed(null);
+    setPlaying(false);
+    if(nextIdx >= TOTAL) {
+      setDone(true);
+      if(!awardedRef.current) {
+        awardedRef.current = true;
+        const score = results.filter(r=>r.correct).length;
+        awardOpQuizPoints(myUsername, score).then(pts => {
+          setAwardedPts(pts);
+          saveState(results, nextIdx, true, pts);
+        });
+      }
+    } else {
+      setRoundIdx(nextIdx);
+      saveState(results, nextIdx, false, null);
+    }
+  };
+
+  if(done) {
+    const score = results.filter(r=>r.correct).length;
+    return (
+      <div style={{padding:32,textAlign:"center",maxWidth:400,margin:"0 auto"}}>
+        <div style={{fontSize:28,marginBottom:8}}>{t.finishTitle}</div>
+        <div style={{fontSize:16,fontWeight:700,color:"var(--text-1)",marginBottom:6}}>{t.finishScore(score, TOTAL)}</div>
+        {awardedPts != null && <div style={{fontSize:13,color:GREEN,fontWeight:700,marginBottom:12}}>{t.finishPoints(awardedPts)}</div>}
+        <div style={{fontSize:11,color:"var(--text-4)"}}>{t.comeBackTomorrow}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{padding:20,maxWidth:520,margin:"0 auto"}}>
+      <div style={{textAlign:"center",marginBottom:12}}>
+        <div style={{fontSize:22,marginBottom:4}}>{t.title}</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,fontSize:11,color:"var(--text-4)"}}>
+          <span>{t.round(roundIdx+1, TOTAL)}</span>
+          <span style={{padding:"2px 8px",borderRadius:20,fontWeight:700,fontSize:10,
+            color:DIFF_COLOR[current.difficulty],
+            background:`${DIFF_COLOR[current.difficulty]}22`,
+            border:`1px solid ${DIFF_COLOR[current.difficulty]}55`}}>
+            {t.difficulty[current.difficulty]}
+          </span>
+        </div>
+      </div>
+
+      {/* Player — video stays hidden behind an opaque cover while guessing (audio only), and only reveals once the round is answered */}
+      <div style={{position:"relative",width:"100%",aspectRatio:"16/9",borderRadius:12,overflow:"hidden",
+        background:"#0a0a12",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"center"}}>
+        {playing ? (
+          <iframe
+            key={current.youtubeId}
+            src={`https://www.youtube.com/embed/${current.youtubeId}?autoplay=1&start=3&rel=0&modestbranding=1&controls=0&disablekb=1`}
+            title="opening"
+            allow="autoplay; encrypted-media"
+            style={{width:"100%",height:"100%",border:"none"}}
+          />
+        ) : (
+          <button onClick={()=>setPlaying(true)}
+            style={{background:"rgba(124,58,237,0.15)",border:"2px solid rgba(124,58,237,0.4)",
+              borderRadius:"50%",width:64,height:64,cursor:"pointer",fontSize:24,color:"#c084fc"}}>
+            ▶
+          </button>
+        )}
+        {playing && !revealed && (
+          <div style={{position:"absolute",inset:0,background:"#0a0a12",display:"flex",flexDirection:"column",
+            alignItems:"center",justifyContent:"center",gap:8,pointerEvents:"none"}}>
+            <span style={{fontSize:32}}>🎧</span>
+            <span style={{fontSize:12,color:"var(--text-4)",fontWeight:700}}>{t.listening}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Reveal */}
+      {revealed && (
+        <div style={{textAlign:"center",padding:12,marginBottom:12,borderRadius:12,
+          background:revealed.correct?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)",
+          border:`1px solid ${revealed.correct?"rgba(34,197,94,0.3)":"rgba(239,68,68,0.3)"}`,
+          display:"flex",alignItems:"center",gap:10}}>
+          {revealed.targetImage && (
+            <img src={revealed.targetImage} alt="" style={{width:36,height:52,objectFit:"cover",borderRadius:6}}
+              onError={e=>{e.target.style.display="none";}}/>
+          )}
+          <div style={{textAlign:"left"}}>
+            <div style={{fontSize:13,fontWeight:800,color:revealed.correct?GREEN:RED}}>
+              {revealed.correct ? t.correct : t.wrong(current.title)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Search / guess */}
+      {!revealed && (
+        <div style={{position:"relative",marginBottom:12}}>
+          <input value={query} onChange={e=>search(e.target.value)}
+            placeholder={t.searchPlaceholder}
+            style={{width:"100%",boxSizing:"border-box",padding:"10px 14px",borderRadius:12,
+              background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",
+              color:"var(--text-1)",fontSize:13,outline:"none"}}/>
+          {suggestions.length > 0 && (
+            <div style={{position:"absolute",top:"calc(100%+4px)",left:0,right:0,zIndex:50,
+              background:"#161226",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,
+              boxShadow:"0 8px 32px rgba(0,0,0,0.5)",maxHeight:240,overflowY:"auto"}}>
+              {suggestions.map(a=>(
+                <button key={a.mal_id} onClick={()=>submitGuess(a)}
+                  style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"8px 12px",
+                    background:"none",border:"none",cursor:"pointer",textAlign:"left"}}
+                  onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
+                  onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                  <img src={a.image_url} alt="" style={{width:28,height:40,objectFit:"cover",borderRadius:4,flexShrink:0}}
+                    onError={e=>{e.target.style.display="none";}}/>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:700,color:"var(--text-1)"}}>{a.title_en || a.title}</div>
+                    <div style={{fontSize:10,color:"var(--text-4)"}}>{a.year}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {revealed && (
+        <button onClick={nextRound}
+          style={{width:"100%",padding:"10px 0",borderRadius:12,border:"none",cursor:"pointer",
+            background:"linear-gradient(135deg,#7c3aed,#c026d3)",color:"#fff",fontWeight:800,fontSize:13}}>
+          {t.next}
+        </button>
+      )}
+    </div>
+  );
+}

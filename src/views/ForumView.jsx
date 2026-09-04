@@ -11,7 +11,7 @@ import { EmptyState } from "../components/EmptyState.jsx";
 import { NewThreadModal, ThreadModal, TagPill, timeAgo } from "../components/ForumThreadModal.jsx";
 import { Avatar } from "../components/Avatar.jsx";
 import { MoodOctagon } from "../components/MoodOctagon.jsx";
-import { WordleGame, PosterGame } from "../components/MiniGames.jsx";
+import { WordleGame, PosterGame, OpQuizGame } from "../components/MiniGames.jsx";
 import { Matchmaking, ChainGame, TimelineGame } from "../components/GameSystem.jsx";
 import { Modal } from "../components/Modal.jsx";
 import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
@@ -282,30 +282,8 @@ function GameEloDisplay({ myUsername }) {
       .catch(()=>{});
   }, [myUsername]);
   if(!elo) return null;
-  // Total = elo_chain + elo_timeline + pts_wordle + pts_poster
+// Total = elo_chain + elo_timeline + pts_wordle + pts_poster
   const total = (elo.elo_chain||400) + (elo.elo_timeline||400) + (elo.streak_wordle||0) + (elo.streak_poster||0);
-  return (
-    <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.06)",
-      display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-      <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(251,191,36,0.06)"}}>
-        <div style={{fontSize:13,fontWeight:900,color:"#fbbf24"}}>{elo.elo_chain||400}</div>
-        <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>⛓ Elo Chaîne</div>
-      </div>
-      <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(34,197,94,0.06)"}}>
-        <div style={{fontSize:13,fontWeight:900,color:"#22c55e"}}>{elo.elo_timeline||400}</div>
-        <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>📅 Elo Timeline</div>
-      </div>
-      <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(124,58,237,0.06)"}}>
-        <div style={{fontSize:13,fontWeight:900,color:"#c084fc"}}>{elo.streak_wordle||0}</div>
-        <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>🎯 Pts Wordle</div>
-      </div>
-      <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(236,72,153,0.06)"}}>
-        <div style={{fontSize:13,fontWeight:900,color:"#f9a8d4"}}>{elo.streak_poster||0}</div>
-        <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>🖼 Pts Poster</div>
-      </div>
-      <div style={{gridColumn:"1/-1",textAlign:"center",padding:"6px",borderRadius:8,background:"rgba(255,255,255,0.03)"}}>
-        <div style={{fontSize:13,fontWeight:900,color:"var(--text-1)"}}>{total}</div>
-        <div style={{fontSize:8,color:"rgba(148,163,184,0.5)"}}>🎮 Total · débloque des cadres profil</div>
       </div>
     </div>
   );
@@ -337,7 +315,7 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
   const [openThread, setOpenThread]       = useState(null);
   const [showWordle, setShowWordle]       = useState(false);
   const [showPoster, setShowPoster]       = useState(false);
-  const [matchmaking, setMatchmaking]     = useState(null);
+const [matchmaking, setMatchmaking]     = useState(null);
   const [activeRoom, setActiveRoom]       = useState(null);
   const [activeGame, setActiveGame]       = useState(null);
   const chainCloseRef    = useRef(null);
@@ -511,7 +489,7 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
 
             {/* Mini-jeux */}
             <div className="mt-4 rounded-2xl border border-white/8 bg-white/3 p-4">
-              <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.miniGamesTitle || "🎮 Mini-jeux du jour"}</div>
+<div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.miniGamesTitle || "🎮 Mini-jeux du jour"}</div>
               <div className="flex gap-3 justify-center flex-wrap">
                 <GameButton emoji="🎯" label={t.wordleLabel || "Wordle"} color="124,58,237" onClick={()=>setShowWordle(true)}/>
                 <GameButton emoji="🖼" label={t.posterLabel || "Poster"} color="236,72,153" onClick={()=>setShowPoster(true)}/>
@@ -532,7 +510,8 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
         />
       )}
       {openThread && (
-        <ThreadModal thread={openThread} username={myUsername} onClose={() => setOpenThread(null)} onOpenUser={onOpenUser} />
+        <ThreadModal thread={openThread} username={myUsername} onClose={() => setOpenThread(null)} onOpenUser={onOpenUser}
+          onLikeUpdate={(id, likes) => setThreads(list => list.map(th => th.id===id ? {...th, likes} : th))} />
       )}
       {showWordle && (
         <Modal onClose={()=>setShowWordle(false)} maxWidth="max-w-2xl">
@@ -542,6 +521,11 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
       {showPoster && (
         <Modal onClose={()=>setShowPoster(false)} maxWidth="max-w-lg">
           {() => <PosterGame onClose={()=>setShowPoster(false)}/>}
+        </Modal>
+      )}
+      {showOpQuiz && (
+        <Modal onClose={()=>setShowOpQuiz(false)} maxWidth="max-w-2xl">
+          {() => <OpQuizGame onClose={()=>setShowOpQuiz(false)}/>}
         </Modal>
       )}
       {matchmaking && !activeRoom && (
