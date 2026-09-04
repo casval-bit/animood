@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { fetchNewAnime, fetchUpcomingAnime, fetchLatestTrailers, supabaseRowToAnime } from "../api/jikan.js";
 import { fetchAiredDates } from "../api/anilist.js";
 import { sb } from "../api/supabase.js";
@@ -11,7 +11,7 @@ import { EmptyState } from "../components/EmptyState.jsx";
 import { NewThreadModal, ThreadModal, TagPill, timeAgo } from "../components/ForumThreadModal.jsx";
 import { Avatar } from "../components/Avatar.jsx";
 import { MoodOctagon } from "../components/MoodOctagon.jsx";
-import { WordleGame, PosterGame } from "../components/MiniGames.jsx";
+import { WordleGame, PosterGame, OpQuizGame } from "../components/MiniGames.jsx";
 import { Matchmaking, ChainGame, TimelineGame } from "../components/GameSystem.jsx";
 import { Modal } from "../components/Modal.jsx";
 import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
@@ -278,13 +278,19 @@ function GameEloDisplay({ myUsername }) {
         <div style={{fontSize:13,fontWeight:900,color:"#22c55e"}}>{elo.elo_timeline||400}</div>
         <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>{t.eloTimelineLabel}</div>
       </div>
-      <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(124,58,237,0.06)"}}>
-        <div style={{fontSize:13,fontWeight:900,color:"#c084fc"}}>{elo.streak_wordle||0}</div>
-        <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>{t.wordlePtsLabel}</div>
-      </div>
-      <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(236,72,153,0.06)"}}>
-        <div style={{fontSize:13,fontWeight:900,color:"#f9a8d4"}}>{elo.streak_poster||0}</div>
-        <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>{t.posterPtsLabel}</div>
+      <div style={{gridColumn:"1/-1",display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
+        <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(124,58,237,0.06)"}}>
+          <div style={{fontSize:13,fontWeight:900,color:"#c084fc"}}>{elo.streak_wordle||0}</div>
+          <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>{t.wordlePtsLabel}</div>
+        </div>
+        <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(236,72,153,0.06)"}}>
+          <div style={{fontSize:13,fontWeight:900,color:"#f9a8d4"}}>{elo.streak_poster||0}</div>
+          <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>{t.posterPtsLabel}</div>
+        </div>
+        <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(56,189,248,0.06)"}}>
+          <div style={{fontSize:13,fontWeight:900,color:"#7dd3fc"}}>{elo.streak_opquiz||0}</div>
+          <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>{t.opquizPtsLabel}</div>
+        </div>
       </div>
       <div style={{gridColumn:"1/-1",textAlign:"center",padding:"4px",borderRadius:8,background:"rgba(255,255,255,0.03)"}}>
         <div style={{fontSize:11,fontWeight:900,color:"var(--text-2)"}}>{t.totalPtsLabel(elo.points_total||0)}</div>
@@ -320,9 +326,22 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
   const [openThread, setOpenThread]       = useState(null);
   const [showWordle, setShowWordle]       = useState(false);
   const [showPoster, setShowPoster]       = useState(false);
+  const [showOpQuiz, setShowOpQuiz]       = useState(false);
   const [matchmaking, setMatchmaking]     = useState(null); // 'chain' | 'timeline' | null
   const [activeRoom, setActiveRoom]       = useState(null);
   const [activeGame, setActiveGame]       = useState(null); // 'chain' | 'timeline'
+  const chainCloseRef    = useRef(null);
+  const timelineCloseRef = useRef(null);
+
+  const handleGameClose = async (gameRef) => {
+    if(gameRef) {
+      const confirmed = window.confirm("Êtes-vous sûr de vouloir quitter ? Cela comptera comme un abandon.");
+      if(!confirmed) return;
+      await gameRef();
+    }
+    setActiveRoom(null);
+    setActiveGame(null);
+  };
 
   // Sourced from the same activityNotifications the header bell reads — so the
   // inline badge below and the bell always agree on what's actually unread.
@@ -504,6 +523,16 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
                   <span style={{fontSize:20}}>🖼</span>
                   <span style={{fontSize:8,color:"#f9a8d4",fontWeight:700}}>{t.posterLabel}</span>
                 </button>
+                <button onClick={()=>setShowOpQuiz(true)}
+                  title={t.opquizTitle}
+                  style={{width:56,height:56,borderRadius:"50%",border:"2px solid rgba(56,189,248,0.4)",
+                    background:"rgba(56,189,248,0.1)",cursor:"pointer",display:"flex",flexDirection:"column",
+                    alignItems:"center",justifyContent:"center",gap:2,transition:"all 0.2s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.background="rgba(56,189,248,0.22)";e.currentTarget.style.transform="scale(1.08)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.background="rgba(56,189,248,0.1)";e.currentTarget.style.transform="scale(1)";}}>
+                  <span style={{fontSize:20}}>🎵</span>
+                  <span style={{fontSize:8,color:"#7dd3fc",fontWeight:700}}>{t.opquizLabel}</span>
+                </button>
                 <button onClick={()=>setMatchmaking("chain")}
                   title={t.chainTitle}
                   style={{width:56,height:56,borderRadius:"50%",border:"2px solid rgba(251,191,36,0.4)",
@@ -552,6 +581,11 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
           {() => <PosterGame onClose={()=>setShowPoster(false)}/>}
         </Modal>
       )}
+      {showOpQuiz && (
+        <Modal onClose={()=>setShowOpQuiz(false)} maxWidth="max-w-2xl">
+          {() => <OpQuizGame onClose={()=>setShowOpQuiz(false)}/>}
+        </Modal>
+      )}
       {matchmaking && !activeRoom && (
         <Modal onClose={()=>setMatchmaking(null)} maxWidth="max-w-sm">
           {() => <Matchmaking gameType={matchmaking} onClose={()=>setMatchmaking(null)}
@@ -559,25 +593,21 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
         </Modal>
       )}
       {activeRoom && activeGame === "chain" && (
-        <Modal onClose={async()=>{
-          await sb.query(`game_rooms?id=eq.${activeRoom.id}`,{method:"PATCH",headers:{...sb.headers,"Prefer":"return=minimal"},body:JSON.stringify({status:"waiting",updated_at:new Date().toISOString()})}).catch(()=>{});
-          setActiveRoom(null);setActiveGame(null);
-        }} maxWidth="max-w-4xl">
-          {() => <ChainGame room={activeRoom} onClose={async()=>{
-            await sb.query(`game_rooms?id=eq.${activeRoom.id}`,{method:"PATCH",headers:{...sb.headers,"Prefer":"return=minimal"},body:JSON.stringify({status:"waiting",updated_at:new Date().toISOString()})}).catch(()=>{});
-            setActiveRoom(null);setActiveGame(null);
-          }}/>}
+        <Modal onClose={async()=>handleGameClose(chainCloseRef.current)} maxWidth="max-w-4xl">
+          {() => <ChainGame room={activeRoom}
+            onClose={async()=>{
+              await handleGameClose(chainCloseRef.current);
+            }}
+            onReady={(forfaitFn)=>{ chainCloseRef.current = forfaitFn; }}/>}
         </Modal>
       )}
       {activeRoom && activeGame === "timeline" && (
-        <Modal onClose={async()=>{
-          await sb.query(`game_rooms?id=eq.${activeRoom.id}`,{method:"PATCH",headers:{...sb.headers,"Prefer":"return=minimal"},body:JSON.stringify({status:"waiting",updated_at:new Date().toISOString()})}).catch(()=>{});
-          setActiveRoom(null);setActiveGame(null);
-        }} maxWidth="max-w-6xl">
-          {() => <TimelineGame room={activeRoom} onClose={async()=>{
-            await sb.query(`game_rooms?id=eq.${activeRoom.id}`,{method:"PATCH",headers:{...sb.headers,"Prefer":"return=minimal"},body:JSON.stringify({status:"waiting",updated_at:new Date().toISOString()})}).catch(()=>{});
-            setActiveRoom(null);setActiveGame(null);
-          }}/>}
+        <Modal onClose={async()=>handleGameClose(timelineCloseRef.current)} maxWidth="max-w-6xl">
+          {() => <TimelineGame room={activeRoom}
+            onClose={async()=>{
+              await handleGameClose(timelineCloseRef.current);
+            }}
+            onReady={(forfaitFn)=>{ timelineCloseRef.current = forfaitFn; }}/>}
         </Modal>
       )}
     </div>
