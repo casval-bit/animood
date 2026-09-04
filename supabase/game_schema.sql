@@ -22,6 +22,9 @@ create table if not exists game_elo (
   last_wordle_date text,
   streak_poster    integer not null default 0,
   last_poster_date text,
+  -- New in v.07.02 — solo OP Quiz points + daily streak tracking.
+  streak_opquiz    integer not null default 0,
+  last_opquiz_date text,
   updated_at       timestamptz not null default now()
 );
 
@@ -30,6 +33,8 @@ alter table game_elo add column if not exists streak_wordle    integer not null 
 alter table game_elo add column if not exists last_wordle_date text;
 alter table game_elo add column if not exists streak_poster    integer not null default 0;
 alter table game_elo add column if not exists last_poster_date text;
+alter table game_elo add column if not exists streak_opquiz    integer not null default 0;
+alter table game_elo add column if not exists last_opquiz_date text;
 
 create table if not exists game_rooms (
   id           bigint generated always as identity primary key,
