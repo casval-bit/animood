@@ -31,6 +31,12 @@ async function getOrCreateElo(username) {
   return { username, elo_chain:400, elo_timeline:400, points_total:0 };
 }
 
+function getEloBracket(elo, waitTime=0) {
+  // Brackets expand with wait time: starts at ±50, grows by 5 per 2s
+  const range = Math.min(50 + waitTime * 5, 400);
+  return Math.floor(elo / range);
+}
+
 function calcChainElo(eloA, eloB, resultA, score) {
   // resultA: 1=win, 0=loss, 0.5=draw
   // score: "2-0" or "2-1"
@@ -60,7 +66,7 @@ function calcTimelineElo(eloA, eloB, resultA) {
 async function updateElo(username, field, delta, pointsDelta=0) {
   const row = await getOrCreateElo(username);
   const current = row[field] || 400;
-  const newElo = Math.max(0, current + delta);
+  const newElo = Math.max(0, current + delta); // never below 0
   await sb.query(`game_elo?username=eq.${encodeURIComponent(username)}`, {
     method: "PATCH",
     headers: { ...sb.headers, "Prefer": "return=minimal" },
@@ -229,10 +235,9 @@ export function Matchmaking({ gameType, onMatch, onClose }) {
     if(!code) return;
     const rooms = await sb.query(`game_rooms?private_code=eq.${code}&status=eq.waiting&limit=1`).catch(()=>[]);
     const room = rooms?.[0];
-    if(!room){setJoinError(t.errInvalidCode);return;}
-    if(room.player1===myUsername){setJoinError(t.errOwnRoom);return;}
+if(!room){setJoinError(t.errInvalidCode||"Code invalide ou room introuvable.");return;}
+    if(room.player1===myUsername){setJoinError(t.errOwnRoom||"Tu ne peux pas rejoindre ta propre room.");return;}
 
-    // Subscribe to the room BEFORE patching so both players get the update
     const joinSub = supabase.channel(`room_join_${room.id}`)
       .on("postgres_changes",{event:"UPDATE",schema:"public",table:"game_rooms",filter:`id=eq.${room.id}`},
         p=>{const r=p.new;if(r.status==="active"&&r.player2){setStatus("found");setTimeout(()=>onMatch(r),500);}})
@@ -240,14 +245,12 @@ export function Matchmaking({ gameType, onMatch, onClose }) {
     subRef.current = joinSub;
     roomRef.current = room.id;
 
-    // Patch the room
     const patched = await sb.query(`game_rooms?id=eq.${room.id}`,{
       method:"PATCH",
       headers:{...sb.headers,"Prefer":"return=representation"},
       body:JSON.stringify({player2:myUsername,elo2:400,status:"active",updated_at:new Date().toISOString()})
     }).catch(()=>null);
 
-    // Trigger onMatch for the joiner directly (they won't receive their own UPDATE)
     if(patched?.[0]){
       setStatus("found");
       setTimeout(()=>onMatch({...room,player2:myUsername,elo2:400,status:"active"}),500);
@@ -331,7 +334,7 @@ function seededPick(arr, seed) {
   return arr[Math.abs(s) % arr.length];
 }
 
-export function ChainGame({ room, onClose }) {
+export function ChainGame({ room, onClose, onReady }) {
   const { myUsername } = useApp();
   const { lang } = useLang();
   const t = (GAME_SYSTEM_I18N[lang] || GAME_SYSTEM_I18N.fr).chain;
@@ -450,21 +453,27 @@ export function ChainGame({ room, onClose }) {
     }).catch(()=>{});
   };
 
-  const handleForfait = async () => {
-    if(state.phase !== "gameEnd" && room.ranked) {
-      const victim = myUsername === room.player1 ? room.player2 : room.player1;
-      await Promise.all([
-        updateElo(myUsername, "elo_chain", -40, 0),   // cheater/quitter -40
-        updateElo(victim, "elo_chain", 5, 5),          // victim +5 elo +5 pts
-      ]);
+  // Called by ForumView onClose after user confirms quit
+  const doForfait = async () => {
+    if(state.phase !== "gameEnd") {
+      if(room.ranked) {
+        const victim = myUsername === room.player1 ? room.player2 : room.player1;
+        await Promise.all([
+          updateElo(myUsername, "elo_chain", -40, 0),
+          updateElo(victim, "elo_chain", 5, 5),
+        ]);
+      }
+      await sb.query(`game_rooms?id=eq.${room.id}`, {
+        method: "PATCH",
+        headers: { ...sb.headers, "Prefer": "return=minimal" },
+        body: JSON.stringify({ status: "finished", winner: myUsername === room.player1 ? room.player2 : room.player1, updated_at: new Date().toISOString() }),
+      }).catch(()=>{});
     }
-    await sb.query(`game_rooms?id=eq.${room.id}`, {
-      method: "PATCH",
-      headers: { ...sb.headers, "Prefer": "return=minimal" },
-      body: JSON.stringify({ status: "waiting", updated_at: new Date().toISOString() }),
-    }).catch(()=>{});
-    onClose();
   };
+
+  // Expose forfait so ForumView can call it before closing
+  if(typeof onClose._chainRef === "undefined") onClose._chainRef = doForfait;
+  useEffect(() => { onReady?.(doForfait); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleChooseLinkType = async (type) => {
     if(!amChooser || state.phase !== "choose") return;
@@ -514,7 +523,7 @@ export function ChainGame({ room, onClose }) {
   const handleGuess = async (anime) => {
     if(!isMyTurn || state.phase !== "play") return;
     if(state.chain.some(a => a.mal_id === anime.mal_id)) {
-      setMsg(t.errAlreadyUsed);
+setMsg(t.errAlreadyUsed||"❌ Cet animé a déjà été utilisé !");
       setLastGuess(null);
       return;
     }
@@ -522,7 +531,7 @@ export function ChainGame({ room, onClose }) {
     setLastGuess({ anime, valid, linkUsed: currentLinkType });
     setQuery(""); setSugs([]);
     if(!valid) {
-      setMsg(t.errInvalidLink);
+      setMsg(t.errInvalidLink||"❌ Lien invalide — réessaie !");
       return;
     }
     setMsg("");
@@ -579,6 +588,7 @@ export function ChainGame({ room, onClose }) {
     const p1Won = winner === room.player1;
     const p2Won = winner === room.player2;
     // Determine score string (2-0 or 2-1)
+    const maxScore = Math.max(scores[0], scores[1]);
     const minScore = Math.min(scores[0], scores[1]);
     const scoreStr = minScore === 0 ? "2-0" : "2-1";
     const delta1 = calcChainElo(elo1, elo2, p1Won?1:p2Won?0:0.5, scoreStr);
@@ -604,7 +614,7 @@ export function ChainGame({ room, onClose }) {
     }, 300);
   };
 
-  const linkLabel = currentLinkType === "studio" ? t.linkLabelStudio : currentLinkType === "genre" ? t.linkLabelGenre : "";
+const linkLabel = currentLinkType === "studio" ? (t.linkLabelStudio||"🏢 Même studio, genre différent") : currentLinkType === "genre" ? (t.linkLabelGenre||"🎌 Même genre, studio différent") : "";
 
   return (
     <div style={{padding:16,maxWidth:640,margin:"0 auto"}}>
@@ -629,10 +639,10 @@ export function ChainGame({ room, onClose }) {
         <div style={{textAlign:"center",padding:24}}>
           {amChooser ? (
             <>
-              <div style={{fontSize:15,fontWeight:800,color:"var(--text-1)",marginBottom:8}}>{t.chooseLinkType}</div>
-              <div style={{fontSize:11,color:"var(--text-4)",marginBottom:20}}>{t.youStartRound}</div>
+<div style={{fontSize:15,fontWeight:800,color:"var(--text-1)",marginBottom:8}}>{t.chooseLinkType||"Choisis le type de lien"}</div>
+              <div style={{fontSize:11,color:"var(--text-4)",marginBottom:20}}>{t.youStartRound||"Tu commences la manche"}</div>
               {pool.length === 0 ? (
-                <Spinner/>
+                <div style={{color:"var(--text-4)",fontSize:12}}>⏳ Chargement des animés…</div>
               ) : (
               <div style={{display:"flex",gap:12,justifyContent:"center"}}>
                 {[{id:"studio",label:t.optSameStudio,sub:t.optSameStudioSub},{id:"genre",label:t.optSameGenre,sub:t.optSameGenreSub}].map(opt=>(
@@ -695,8 +705,8 @@ export function ChainGame({ room, onClose }) {
           {isMyTurn && (
             <div style={{position:"relative",marginBottom:8}}>
               <input value={query} onChange={e=>search(e.target.value)}
-                onKeyDown={e=>{if(e.key==="Enter"&&suggestions.length>0)handleGuess(suggestions[0]);}}
-                placeholder={t.searchPlaceholder}
+onKeyDown={e=>{if(e.key==="Enter"&&suggestions.length>0)handleGuess(suggestions[0]);}}
+                placeholder={t.searchPlaceholder||"Tape un animé TV et appuie sur Entrée…"}
                 autoFocus
                 style={{width:"100%",boxSizing:"border-box",padding:"10px 14px",borderRadius:12,
                   background:"rgba(255,255,255,0.05)",border:`1px solid ${msg.startsWith("❌")?"rgba(239,68,68,0.4)":"rgba(255,255,255,0.1)"}`,
@@ -711,7 +721,7 @@ export function ChainGame({ room, onClose }) {
                   <div style={{flex:1}}>
                     <div style={{fontSize:11,fontWeight:800,color:"var(--text-1)"}}>{lastGuess.anime.title}</div>
                     <div style={{fontSize:10,color:lastGuess.valid?"#22c55e":"#ef4444"}}>
-                      {lastGuess.valid?t.guessValid:t.guessInvalid} · {t.guessStudioLabel}: {(lastGuess.anime.studios||[]).map(s=>s.name||s).join(", ")||"?"} · {t.guessGenresLabel}: {(lastGuess.anime.genres||[]).map(g=>g.name||g).join(", ")||"?"}
+                      {lastGuess.valid?"✅ Valide":"❌ Invalide"} · Studio: {(lastGuess.anime.studios||[]).map(s=>s.name||s).join(", ")||"?"} · Genres: {(lastGuess.anime.genres||[]).map(g=>g.name||g).join(", ")||"?"}
                     </div>
                   </div>
                 </div>
@@ -762,9 +772,9 @@ export function ChainGame({ room, onClose }) {
             const draw = !state.winner && myScore === oppScore;
             return (
               <>
-                <div style={{fontSize:48,marginBottom:12}}>{state.opponentLeft?"🏃":won?"🏆":draw?"🤝":"😢"}</div>
-                <div style={{fontSize:20,fontWeight:900,color:state.opponentLeft||won?GREEN:draw?ORANGE:RED,marginBottom:8}}>
-                  {state.opponentLeft?tc.opponentLeftVictory:won?tc.victory:draw?tc.draw:tc.defeat}
+<div style={{fontSize:48,marginBottom:12}}>{state.opponentLeft?"🏃":won?"🏆":draw?"🤝":"😢"}</div>
+                <div style={{fontSize:20,fontWeight:900,color:state.opponentLeft||won?"#22c55e":draw?ORANGE:RED,marginBottom:8}}>
+                  {state.opponentLeft?"Adversaire déconnecté — Victoire !":(won?(tc?.victory||"Victoire !"):(draw?(tc?.draw||"Égalité"):(tc?.defeat||"Défaite")))}
                 </div>
                 <div style={{fontSize:14,color:"var(--text-3)",marginBottom:20}}>
                   {myScore} – {oppScore}
@@ -793,7 +803,7 @@ function seededRand(seed) {
   return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
 }
 
-export function TimelineGame({ room, onClose }) {
+export function TimelineGame({ room, onClose, onReady }) {
   const { myUsername } = useApp();
   const { lang } = useLang();
   const t = (GAME_SYSTEM_I18N[lang] || GAME_SYSTEM_I18N.fr).timeline;
@@ -892,8 +902,7 @@ export function TimelineGame({ room, onClose }) {
       i===0 || (a.year||0) >= (newTimeline[i-1].year||0)
     );
     if(!valid) {
-      setMsg(t.errWrongPosition);
-      // Pass turn
+setMsg(t.errWrongPosition||"❌ Mauvaise position !");
       const next = state.currentTurn === room.player1 ? room.player2 : room.player1;
       const newState = { ...state, currentTurn: next, skipped: myUsername };
       setState(newState);
@@ -971,21 +980,24 @@ export function TimelineGame({ room, onClose }) {
   };
 
 
-  const handleForfaitTL = async () => {
-    if(state.phase !== "gameEnd" && room.ranked) {
-      const victim = myUsername === room.player1 ? room.player2 : room.player1;
-      await Promise.all([
-        updateElo(myUsername, "elo_timeline", -40, 0),
-        updateElo(victim, "elo_timeline", 5, 5),
-      ]);
+  const doForfaitTL = async () => {
+    if(state.phase !== "gameEnd") {
+      if(room.ranked) {
+        const victim = myUsername === room.player1 ? room.player2 : room.player1;
+        await Promise.all([
+          updateElo(myUsername, "elo_timeline", -40, 0),
+          updateElo(victim, "elo_timeline", 5, 5),
+        ]);
+      }
+      await sb.query(`game_rooms?id=eq.${room.id}`, {
+        method: "PATCH",
+        headers: { ...sb.headers, "Prefer": "return=minimal" },
+        body: JSON.stringify({ status: "finished", winner: myUsername === room.player1 ? room.player2 : room.player1, updated_at: new Date().toISOString() }),
+      }).catch(()=>{});
     }
-    await sb.query(`game_rooms?id=eq.${room.id}`, {
-      method: "PATCH",
-      headers: { ...sb.headers, "Prefer": "return=minimal" },
-      body: JSON.stringify({ status: "waiting", updated_at: new Date().toISOString() }),
-    }).catch(()=>{});
-    onClose();
   };
+  if(typeof onClose._timelineRef === "undefined") onClose._timelineRef = doForfaitTL;
+  useEffect(() => { onReady?.(doForfaitTL); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentAnimeToPlace = myHandLeft[selectedCard] || myHandLeft[0];
 
@@ -996,15 +1008,11 @@ export function TimelineGame({ room, onClose }) {
         <div style={{fontSize:13,fontWeight:800,color:"var(--text-2)"}}>
           📅 {myUsername} <span style={{color:"var(--text-4)"}}>vs</span> {oppUsername}
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
+<div style={{display:"flex",alignItems:"center",gap:12}}>
           <div style={{fontSize:11,color:"var(--text-4)"}}>
-            {t.placed(isP1?state.placed1:state.placed2, isP1?state.placed2:state.placed1, oppUsername)}
+            {t.placed?t.placed(isP1?state.placed1:state.placed2, isP1?state.placed2:state.placed1, oppUsername):`Placés : toi ${isP1?state.placed1:state.placed2}/5 · ${oppUsername} ${isP1?state.placed2:state.placed1}/5`}
           </div>
-          <button onClick={handleForfaitTL}
-            style={{fontSize:9,padding:"3px 8px",borderRadius:8,border:"1px solid rgba(239,68,68,0.3)",
-              background:"rgba(239,68,68,0.08)",color:"#ef4444",cursor:"pointer"}}>
-            {t.forfeitBtn}
-          </button>
+
         </div>
       </div>
 
@@ -1014,8 +1022,8 @@ export function TimelineGame({ room, onClose }) {
           background:isMyTurn?"rgba(34,197,94,0.1)":"rgba(255,255,255,0.04)",
           border:`1px solid ${isMyTurn?"rgba(34,197,94,0.3)":"rgba(255,255,255,0.08)"}`,
           color:isMyTurn?GREEN:"var(--text-4)",fontSize:11,fontWeight:700}}>
-          {state.skipped ? t.skippedTurn(state.skipped) : ""}
-          {isMyTurn ? t.yourTurn : t.turnOf(oppUsername)}
+{state.skipped ? (t.skippedTurn?t.skippedTurn(state.skipped):`⏩ ${state.skipped} a raté — `) : ""}
+          {isMyTurn ? (t.yourTurn||"🎯 Ton tour — clique sur une carte puis sur une position") : (t.turnOf?t.turnOf(oppUsername):`⏳ Tour de ${oppUsername}`)}
         </div>
       )}
 
@@ -1025,7 +1033,7 @@ export function TimelineGame({ room, onClose }) {
       {myHandLeft.length > 0 && state.phase==="play" && (
         <div style={{marginBottom:16}}>
           <div style={{fontSize:10,color:"var(--text-4)",marginBottom:8}}>
-            {isMyTurn ? t.selectCardPrompt : t.remainingAnimeLabel}
+            {isMyTurn ? "Sélectionne une carte à placer :" : "Tes animés restants :"}
           </div>
           <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
             {myHandLeft.map((a,i)=>{
@@ -1048,7 +1056,7 @@ export function TimelineGame({ room, onClose }) {
                     {a.title}
                   </div>
                   {selected && isMyTurn && (
-                    <div style={{fontSize:8,color:"#c084fc",fontWeight:800}}>▼ {t.selectedLabel}</div>
+                    <div style={{fontSize:8,color:"#c084fc",fontWeight:800}}>▼ Sélectionné</div>
                   )}
                 </div>
               );
@@ -1061,14 +1069,12 @@ export function TimelineGame({ room, onClose }) {
       {isMyTurn && currentAnimeToPlace && state.phase==="play" && (
         <div style={{marginBottom:12,padding:"8px 14px",borderRadius:12,display:"flex",alignItems:"center",gap:10,
           background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)"}}>
-          <div style={{fontSize:10,color:"var(--text-4)",marginBottom:6}}>{t.placeThisAnime}</div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <img src={currentAnimeToPlace.image_url} alt="" style={{width:32,height:46,objectFit:"cover",borderRadius:6}}
-              onError={e=>{e.target.style.display="none";}}/>
-            <div>
-              <div style={{fontSize:13,fontWeight:800,color:"var(--text-1)"}}>{currentAnimeToPlace.title}</div>
-              <div style={{fontSize:10,color:"var(--text-4)"}}>{t.placeHint}</div>
-            </div>
+<img src={currentAnimeToPlace.image_url} alt="" style={{width:28,height:40,objectFit:"cover",borderRadius:5}}
+            onError={e=>{e.target.style.display="none";}}/>
+          <div>
+            <div style={{fontSize:11,fontWeight:800,color:"var(--text-1)"}}>{currentAnimeToPlace.title}</div>
+            <div style={{fontSize:9,color:"var(--text-4)"}}>{t.placeThisAnime||"Clique sur une position ↓ pour placer"}</div>
+          
           </div>
         </div>
       )}
@@ -1096,19 +1102,20 @@ export function TimelineGame({ room, onClose }) {
         </div>
       </div>
 
+
       {/* Game End */}
       {state.phase === "gameEnd" && (
         <div style={{textAlign:"center",padding:24,marginTop:16,background:"rgba(255,255,255,0.03)",
           borderRadius:16,border:"1px solid rgba(255,255,255,0.07)"}}>
-          <div style={{fontSize:40,marginBottom:8}}>
+<div style={{fontSize:40,marginBottom:8}}>
             {state.opponentLeft?"🏃":state.isDraw?"🤝":state.winner===myUsername?"🏆":"😢"}
           </div>
           <div style={{fontSize:18,fontWeight:900,marginBottom:16,
-            color:state.opponentLeft||state.winner===myUsername?GREEN:state.isDraw?ORANGE:RED}}>
-            {state.opponentLeft?tc.opponentLeftVictory:state.isDraw?tc.draw:state.winner===myUsername?tc.victory:tc.defeat}
+            color:state.opponentLeft||state.winner===myUsername?"#22c55e":state.isDraw?ORANGE:"#ef4444"}}>
+            {state.opponentLeft?"Adversaire déconnecté — Victoire !":state.isDraw?"Égalité !":(state.winner===myUsername?(tc?.victory||"Victoire !"):(tc?.defeat||"Défaite"))}
           </div>
           <div style={{fontSize:12,color:"var(--text-4)",marginBottom:20}}>
-            {state.opponentLeft||state.isDraw?"":t.wonFirst(state.winner)}
+            {state.opponentLeft?"":t.wonFirst?t.wonFirst(state.winner):(state.winner+" a placé tous ses animés en premier")}
           </div>
           <button onClick={async()=>{
               if(state.phase!=="gameEnd"){
