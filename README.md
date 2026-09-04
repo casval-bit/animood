@@ -7,7 +7,7 @@ A mood-driven anime app — moodboard, feed, search, forum, profiles, and messag
 No setup needed — the Supabase key already in the code is the `anon`/publishable key (safe to ship client-side by design; access control lives in RLS policies, not in keeping it secret), and the DB schema is already migrated on the shared Supabase project.
 
 ```bash
-git clone -b animood-v.07.01 https://github.com/casval-bit/animood.git
+git clone -b animood-v.07.02 https://github.com/casval-bit/animood.git
 cd animood
 npm install
 npm run dev
@@ -28,7 +28,7 @@ npm run lint      # eslint across the project
 - **Forum** — "Community mood" card is now an octagon radar (instead of bars), moved into a sticky right sidebar instead of sitting full-width at the top; threads can be tagged (Discussion / Question / Theory / Recommendation / Spoiler / Rant) and can include an image. Unread-reply badge per thread. Thread rows, thread detail, and replies now show the poster's real profile photo and display name next to `@username`. Threads and replies can be liked (❤️/🤍 + count), same as Feed posts.
 - **Sondages** — attach a poll (2 to 6 options, single or multiple choice) to a Feed post or a Forum thread when creating it; live vote with percentage bars once you've voted.
 - **Messages** — 1:1 chat between members ("Messages" tab + "💬 Message" button on any profile), plus a floating chat bubble available from any page, and a "✏️ Nouveau" button to start a conversation without going through a profile first. Conversation list, chat header, and the new-message search all show the other person's real profile photo and display name, not just their `@handle`.
-- **Mini-jeux** (Forum → 🎮 Mini-jeux du jour) — two solo daily games (Wordle Animé, Poster Mystère, both now awarding points on a win) plus two 1v1 multiplayer games (Chaîne Animé, Timeline) with matchmaking (Elo range widens the longer you wait) or a private room code, and a per-player ELO/points ranking (`game_elo`) that also feeds the profile frames below.
+- **Mini-jeux** (Forum → 🎮 Mini-jeux du jour) — three solo daily games (Wordle Animé, Poster Mystère, OP Quiz — guess the anime from its opening theme, all three awarding points on a win) plus two 1v1 multiplayer games (Chaîne Animé, Timeline) with matchmaking (Elo range widens the longer you wait) or a private room code, and a per-player ELO/points ranking (`game_elo`) that also feeds the profile frames below.
 - **Cadres de profil** — unlockable decorative avatar borders across 5 tracks (abonnés, contribution aux moods, animés vus, genre préféré, jeux). Settings → Profil shows every frame, locked ones greyed out with a 🔒 and the unlock condition, and lets you pick your active one.
 - **Profils enrichis** — your own profile and any member's profile modal now share the same depth: watch/rating stats, mood average, pinned list, favorites and highlights, with Journal / Listes tabs on both. "Mes Posts" is fully interactive (like, comment, delete inline — not just a read-only recap) and stays live-synced with the Feed: liking or deleting a post in one place updates it instantly in the other.
 - **Réglages** — reorganized into tabs (Préférences / Profil / Données / Compte); light/dark theme toggle, FR/EN language switch, an editable display name, and a delete-account placeholder.
@@ -38,6 +38,11 @@ npm run lint      # eslint across the project
 - **Notifications** — unread-message badge (with count) on the ✉️ icon; a 🔔 bell for activity (new comments on Feed posts and new replies on Forum threads you wrote or took part in, *plus* any post/comment/thread/reply where someone `@mentions` you). The bell and Forum's per-thread unread badge read from the same feed, so they never disagree. Both update automatically in the background — no page refresh needed.
 - **Theme** — selectable light/dark appearance (Settings → 🎨 Apparence). Dark (glass/gradient) stays the default; the light theme is a softer, violet-tinted "social feed" look, not a flat white dashboard.
 - **AniList import** — also pulls a public AniList account's custom (sub-)lists, filterable from Profile → Journal. Re-run the same import anytime (same username, now with a clearly labeled field and a "🔄 Réimporter" button) to resync after updating your list on AniList.
+
+## v.07.02 — en comparaison avec v.07.01
+
+- **OP Quiz** — troisième mini-jeu solo (Forum → 🎮 Mini-jeux du jour) : deviner l'animé à partir de son opening. Suit sa propre streak/points (`streak_opquiz`, `last_opquiz_date` dans `game_elo`), en attente d'exécution avec le reste de `game_schema.sql` — voir Database plus bas.
+- **Mini-jeux 1v1 (Chaîne, Timeline)** — implémentation remplacée par celle développée en parallèle sur `animood-v.07` (branche divergente, jamais fusionnée) : l'abandon en pleine partie demande maintenant une confirmation et fait passer la room à `"finished"` (au lieu de la remettre silencieusement à `"waiting"`), et la fenêtre de jeu expose sa fonction de forfait au parent (`onReady`) plutôt que de la dupliquer dans `ForumView`.
 
 ## v.07.01 — en comparaison avec v.07
 
@@ -83,7 +88,7 @@ Ce qui a été fait, en plusieurs passes :
 1. ✅ `supabase/forum_schema.sql` — exécuté. Les likes Forum (sujets + réponses) sont fonctionnels.
 2. ✅ `supabase/polls_schema.sql` — exécuté. La table `polls` existe, les sondages Feed/Forum sont fonctionnels.
 3. ✅ `supabase/posts_schema.sql` — exécuté. Les likes sur les posts et les commentaires du Feed/Profil persistent maintenant après un rechargement.
-4. ⚠️ `supabase/game_schema.sql` — **pas encore exécuté** (laissé à quelqu'un d'autre de l'équipe). Documente `game_elo`/`game_rooms` et ajoute les 4 colonnes `streak_wordle` / `last_wordle_date` / `streak_poster` / `last_poster_date`. Tant que ce n'est pas fait, gagner à Wordle/Poster ne persiste aucun point (le reste des mini-jeux — Elo, matchmaking — fonctionne déjà).
+4. ⚠️ `supabase/game_schema.sql` — **pas encore exécuté** (laissé à quelqu'un d'autre de l'équipe). Documente `game_elo`/`game_rooms` et ajoute les colonnes `streak_wordle` / `last_wordle_date` / `streak_poster` / `last_poster_date` et, depuis `v.07.02`, `streak_opquiz` / `last_opquiz_date`. Tant que ce n'est pas fait, gagner à Wordle/Poster/OP Quiz ne persiste aucun point (le reste des mini-jeux — Elo, matchmaking — fonctionne déjà).
 
 **Fichiers touchés**
 
@@ -119,7 +124,7 @@ Schema is already applied on the shared project **except for `game_schema.sql`, 
 | `supabase/blocks_schema.sql` | `user_blocks` (one-directional user blocking) |
 | ✅ `supabase/polls_schema.sql` | **New file in v.07, already applied.** `polls` (belongs to either a Feed post or a Forum thread — `options` jsonb `{id, text, votes[]}[]`, `multi` boolean). Neither branch ever tracked this table before. |
 | ✅ `supabase/posts_schema.sql` | **New file in v.07, already applied — this was the actual bug.** `posts`, `comments` existed already but had no tracked schema and, it turns out, no `UPDATE` RLS policy at all: liking a Feed post or comment PATCHes the `likes` column, which was silently rejected the whole time. The optimistic client-side update made it *look* like it worked until the next page reload reverted it. This file added the missing `UPDATE`/`DELETE` policies — confirmed fixed. |
-| ⚠️ `supabase/game_schema.sql` | **New file in v.07 — not yet run.** `game_elo`, `game_rooms` — existed already but had no tracked schema until now; adds the 4 new columns used to award/track solo Wordle/Poster points (`streak_wordle`, `last_wordle_date`, `streak_poster`, `last_poster_date`). Only those 4 `alter table` lines actually do anything on the shared project. Until this runs, winning Wordle/Poster silently awards no points. |
+| ⚠️ `supabase/game_schema.sql` | **New file in v.07 — not yet run.** `game_elo`, `game_rooms` — existed already but had no tracked schema until now; adds the columns used to award/track solo game points (`streak_wordle`, `last_wordle_date`, `streak_poster`, `last_poster_date`, and — new in v.07.02 — `streak_opquiz`, `last_opquiz_date`). Only those `alter table` lines actually do anything on the shared project. Until this runs, winning Wordle/Poster/OP Quiz silently awards no points. |
 
 Access model: like the rest of the app, these tables use the shared `anon` key with open RLS policies ("anyone can read/insert/update/delete") — not per-user privacy, consistent with `profiles`/`follows`/`user_votes`.
 
