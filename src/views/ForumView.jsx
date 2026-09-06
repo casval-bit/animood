@@ -11,8 +11,8 @@ import { EmptyState } from "../components/EmptyState.jsx";
 import { NewThreadModal, ThreadModal, TagPill, timeAgo } from "../components/ForumThreadModal.jsx";
 import { Avatar } from "../components/Avatar.jsx";
 import { MoodOctagon } from "../components/MoodOctagon.jsx";
-import { WordleGame, PosterGame, OpQuizGame } from "../components/MiniGames.jsx";
-import { Matchmaking, ChainGame, TimelineGame } from "../components/GameSystem.jsx";
+import { WordleGame, PosterGame } from "../components/MiniGames.jsx";
+import { Matchmaking, ChainGame, TimelineGame, CluescaleMatchmaking, CluescaleGame } from "../components/GameSystem.jsx";
 import { Modal } from "../components/Modal.jsx";
 import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
 import { FORUM_I18N } from "../constants/forumI18n.js";
@@ -282,8 +282,30 @@ function GameEloDisplay({ myUsername }) {
       .catch(()=>{});
   }, [myUsername]);
   if(!elo) return null;
-// Total = elo_chain + elo_timeline + pts_wordle + pts_poster
+  // Total = elo_chain + elo_timeline + pts_wordle + pts_poster
   const total = (elo.elo_chain||400) + (elo.elo_timeline||400) + (elo.streak_wordle||0) + (elo.streak_poster||0);
+  return (
+    <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.06)",
+      display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+      <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(251,191,36,0.06)"}}>
+        <div style={{fontSize:13,fontWeight:900,color:"#fbbf24"}}>{elo.elo_chain||400}</div>
+        <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>"⛓ Elo Chaîne"</div>
+      </div>
+      <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(34,197,94,0.06)"}}>
+        <div style={{fontSize:13,fontWeight:900,color:"#22c55e"}}>{elo.elo_timeline||400}</div>
+        <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>"📅 Elo Timeline"</div>
+      </div>
+      <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(124,58,237,0.06)"}}>
+        <div style={{fontSize:13,fontWeight:900,color:"#c084fc"}}>{elo.streak_wordle||0}</div>
+        <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>"🎯 Pts Wordle"</div>
+      </div>
+      <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(236,72,153,0.06)"}}>
+        <div style={{fontSize:13,fontWeight:900,color:"#f9a8d4"}}>{elo.streak_poster||0}</div>
+        <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>"🖼 Pts Poster"</div>
+      </div>
+      <div style={{gridColumn:"1/-1",textAlign:"center",padding:"6px",borderRadius:8,background:"rgba(255,255,255,0.03)"}}>
+        <div style={{fontSize:13,fontWeight:900,color:"var(--text-1)"}}>{total}</div>
+        <div style={{fontSize:8,color:"rgba(148,163,184,0.5)"}}>"🎮 Total · débloque des cadres profil"</div>
       </div>
     </div>
   );
@@ -315,6 +337,8 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
   const [openThread, setOpenThread]       = useState(null);
   const [showWordle, setShowWordle]       = useState(false);
   const [showPoster, setShowPoster]       = useState(false);
+  const [showCluescale, setShowCluescale] = useState(false);
+  const [cluescaleRoom, setCluescaleRoom] = useState(null);
 const [matchmaking, setMatchmaking]     = useState(null);
   const [activeRoom, setActiveRoom]       = useState(null);
   const [activeGame, setActiveGame]       = useState(null);
@@ -495,6 +519,7 @@ const [matchmaking, setMatchmaking]     = useState(null);
                 <GameButton emoji="🖼" label={t.posterLabel || "Poster"} color="236,72,153" onClick={()=>setShowPoster(true)}/>
                 <GameButton emoji="⛓" label={t.chainLabel || "Chaîne"} color="251,191,36" onClick={()=>setMatchmaking("chain")}/>
                 <GameButton emoji="📅" label={t.timelineLabel || "Timeline"} color="34,197,94" onClick={()=>setMatchmaking("timeline")}/>
+                <GameButton emoji="🎭" label="Cluescale" color="251,113,133" onClick={()=>setShowCluescale(true)}/>
               </div>
               <GameEloDisplay myUsername={myUsername}/>
             </div>
@@ -523,11 +548,7 @@ const [matchmaking, setMatchmaking]     = useState(null);
           {() => <PosterGame onClose={()=>setShowPoster(false)}/>}
         </Modal>
       )}
-      {showOpQuiz && (
-        <Modal onClose={()=>setShowOpQuiz(false)} maxWidth="max-w-2xl">
-          {() => <OpQuizGame onClose={()=>setShowOpQuiz(false)}/>}
-        </Modal>
-      )}
+
       {matchmaking && !activeRoom && (
         <Modal onClose={()=>setMatchmaking(null)} maxWidth="max-w-sm">
           {() => <Matchmaking gameType={matchmaking} onClose={()=>setMatchmaking(null)}
@@ -550,6 +571,18 @@ const [matchmaking, setMatchmaking]     = useState(null);
               await handleGameClose(timelineCloseRef.current);
             }}
             onReady={(forfaitFn)=>{ timelineCloseRef.current = forfaitFn; }}/>}
+        </Modal>
+      )}
+      {showCluescale && !cluescaleRoom && (
+        <Modal onClose={()=>setShowCluescale(false)} maxWidth="max-w-sm">
+          {() => <CluescaleMatchmaking
+            onClose={()=>setShowCluescale(false)}
+            onMatch={room=>{setCluescaleRoom(room);setShowCluescale(false);}}/>}
+        </Modal>
+      )}
+      {cluescaleRoom && (
+        <Modal onClose={()=>setCluescaleRoom(null)} maxWidth="max-w-lg">
+          {() => <CluescaleGame room={cluescaleRoom} onClose={()=>setCluescaleRoom(null)}/>}
         </Modal>
       )}
     </div>

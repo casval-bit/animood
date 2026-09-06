@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useApp } from "../context/useApp.js";
 import { useLang } from "../context/useLang.js";
 import { MOODS } from "../constants/moods.js";
@@ -14,8 +14,109 @@ import { Modal } from "./Modal.jsx";
 import { PersonModal } from "./PersonModal.jsx";
 import { StudioModal } from "./StudioModal.jsx";
 import { GradientButton } from "./ui.jsx";
+import { NewThreadModal, ThreadModal, timeAgo } from "./ForumThreadModal.jsx";
 
 const FALLBACK = "https://placehold.co/700x300/1a1a2e/818cf8?text=?";
+
+// ─── Anime Discussions ────────────────────────────────────────────────────────
+function AnimeDiscussions({ malId, animeTitle, animeImage, username, onOpenUser }) {
+  const [threads, setThreads]         = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [showAll, setShowAll]         = useState(false);
+  const [showNew, setShowNew]         = useState(false);
+  const [openThread, setOpenThread]   = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const rows = await sb.query(
+        `forum_threads?anime_id=eq.${malId}&order=last_reply_at.desc.nullslast,created_at.desc&limit=20`
+      ).catch(()=>[]);
+      setThreads(rows || []);
+    } catch {}
+    setLoading(false);
+  }, [malId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const preview = showAll ? threads : threads.slice(0, 2);
+
+  return (
+    <div className="mb-4">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          💬 Discussions ({threads.length})
+        </div>
+        <button onClick={()=>setShowNew(true)}
+          className="rounded-lg px-3 py-1 text-[10px] font-bold transition"
+          style={{background:"rgba(124,58,237,0.15)",color:"#c084fc",border:"1px solid rgba(124,58,237,0.25)"}}>
+          + Nouvelle discussion
+        </button>
+      </div>
+
+      {/* Thread list */}
+      {loading ? (
+        <div className="py-4 text-center text-[11px] text-slate-500">Chargement…</div>
+      ) : threads.length === 0 ? (
+        <div className="rounded-xl border border-white/6 bg-white/2 px-4 py-5 text-center">
+          <div style={{fontSize:28,marginBottom:6}}>🎌</div>
+          <div className="text-[11px] text-slate-500">Aucune discussion pour cet animé.</div>
+          <div className="text-[10px] text-slate-600 mt-1">Sois le premier à en ouvrir une !</div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {preview.map(thread => (
+            <button key={thread.id} onClick={()=>setOpenThread(thread)}
+              className="w-full text-left rounded-xl border border-white/6 bg-white/3 p-3 transition hover:bg-white/5 hover:border-violet-400/20"
+              style={{cursor:"pointer"}}>
+              <div className="flex items-start gap-3">
+                {/* Activity dot */}
+                <div style={{width:8,height:8,borderRadius:"50%",background:"#c084fc",marginTop:4,flexShrink:0,
+                  boxShadow:"0 0 6px rgba(192,132,252,0.6)"}}/>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[12px] font-bold text-slate-100 truncate mb-0.5">{thread.title}</div>
+                  <div className="text-[10px] text-slate-500 flex items-center gap-2 flex-wrap">
+                    <span>@{thread.username}</span>
+                    <span>·</span>
+                    <span>{timeAgo(thread.last_reply_at || thread.created_at)}</span>
+                    <span>·</span>
+                    <span>{thread.reply_count || 0} réponse{(thread.reply_count||0)!==1?"s":""}</span>
+                  </div>
+                </div>
+                <div className="text-[9px] text-slate-600 shrink-0 self-center">→</div>
+              </div>
+            </button>
+          ))}
+          {threads.length > 2 && !showAll && (
+            <button onClick={()=>setShowAll(true)}
+              className="text-[10px] text-violet-400 font-bold py-1 hover:text-violet-300 transition">
+              Voir toutes les discussions ({threads.length}) ↓
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* New thread modal */}
+      {showNew && (
+        <NewThreadModal username={username} onClose={()=>setShowNew(false)}
+          animeId={malId} animeTitle={animeTitle} animeImage={animeImage}
+          onCreated={thread=>{
+            setThreads(prev=>[thread,...prev]);
+            setShowNew(false);
+            setOpenThread(thread);
+          }}/>
+      )}
+
+      {/* Thread detail modal */}
+      {openThread && (
+        <ThreadModal thread={openThread} username={username}
+          onClose={()=>setOpenThread(null)} onOpenUser={onOpenUser}
+          onReply={()=>load()}/>
+      )}
+    </div>
+  );
+}
 
 // ─── Weighted score ───────────────────────────────────────────────────────────
 function calcWeight(scoredBy) {
@@ -331,6 +432,16 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
                     </div>
                   </div>
                 )}
+
+                {/* ── DISCUSSIONS ── */}
+                <AnimeDiscussions
+                  malId={malId}
+                  animeTitle={anime?.title || ""}
+                  animeImage={anime?.images?.jpg?.large_image_url || anime?.images?.jpg?.image_url || ""}
+                  username={myUsername}
+                  onOpenUser={null}
+                />
+
                 {error && <div className="py-3 text-center text-xs text-red-400">{t.errorPrefix(error)}</div>}
               </div>
 

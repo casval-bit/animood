@@ -37,32 +37,6 @@ function getEloBracket(elo, waitTime=0) {
   return Math.floor(elo / range);
 }
 
-function calcChainElo(eloA, eloB, resultA, score) {
-  // resultA: 1=win, 0=loss, 0.5=draw
-  // score: "2-0" or "2-1"
-  const bracketA = Math.floor(eloA / 100);
-  const bracketB = Math.floor(eloB / 100);
-  const sameBracket = bracketA === bracketB;
-
-  if(resultA === 1) {
-    if(sameBracket) return score === "2-0" ? 23 : 20;
-    return eloA > eloB ? 10 : 30;
-  } else if(resultA === 0) {
-    if(sameBracket) return score === "2-0" ? -22 : -18;
-    return eloA > eloB ? -30 : -10;
-  }
-  return 0;
-}
-
-function calcTimelineElo(eloA, eloB, resultA) {
-  const bracketA = Math.floor(eloA / 100);
-  const bracketB = Math.floor(eloB / 100);
-  const sameBracket = bracketA === bracketB;
-  if(resultA === 1) return sameBracket ? 20 : (eloA > eloB ? 15 : 25);
-  if(resultA === 0) return sameBracket ? -20 : (eloA > eloB ? -25 : -15);
-  return 0; // draw
-}
-
 async function updateElo(username, field, delta, pointsDelta=0) {
   const row = await getOrCreateElo(username);
   const current = row[field] || 400;
@@ -235,9 +209,10 @@ export function Matchmaking({ gameType, onMatch, onClose }) {
     if(!code) return;
     const rooms = await sb.query(`game_rooms?private_code=eq.${code}&status=eq.waiting&limit=1`).catch(()=>[]);
     const room = rooms?.[0];
-if(!room){setJoinError(t.errInvalidCode||"Code invalide ou room introuvable.");return;}
-    if(room.player1===myUsername){setJoinError(t.errOwnRoom||"Tu ne peux pas rejoindre ta propre room.");return;}
+if(!room){setJoinError(t.errInvalidCode);return;}
+    if(room.player1===myUsername){setJoinError(t.errOwnRoom);return;}
 
+    // Subscribe to the room BEFORE patching so both players get the update
     const joinSub = supabase.channel(`room_join_${room.id}`)
       .on("postgres_changes",{event:"UPDATE",schema:"public",table:"game_rooms",filter:`id=eq.${room.id}`},
         p=>{const r=p.new;if(r.status==="active"&&r.player2){setStatus("found");setTimeout(()=>onMatch(r),500);}})
@@ -245,6 +220,7 @@ if(!room){setJoinError(t.errInvalidCode||"Code invalide ou room introuvable.");r
     subRef.current = joinSub;
     roomRef.current = room.id;
 
+    // Patch the room
     const patched = await sb.query(`game_rooms?id=eq.${room.id}`,{
       method:"PATCH",
       headers:{...sb.headers,"Prefer":"return=representation"},
@@ -267,6 +243,9 @@ if(!room){setJoinError(t.errInvalidCode||"Code invalide ou room introuvable.");r
         <button onClick={()=>setMode("ranked")} style={{padding:"12px 20px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>
           {t.rankedBtn}
         </button>
+        <button onClick={()=>setMode("vs-ai")} style={{padding:"12px 20px",borderRadius:12,border:"2px solid rgba(251,191,36,0.4)",background:"rgba(251,191,36,0.08)",color:"#fbbf24",fontWeight:800,fontSize:13,cursor:"pointer"}}>
+          🤖 vs IA
+        </button>
         <button onClick={createPrivateRoom} style={{padding:"12px 20px",borderRadius:12,border:"2px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"var(--text-2)",fontWeight:700,fontSize:13,cursor:"pointer"}}>
           {t.createPrivateBtn}
         </button>
@@ -275,6 +254,43 @@ if(!room){setJoinError(t.errInvalidCode||"Code invalide ou room introuvable.");r
         </button>
         <button onClick={onClose} style={{padding:"8px",background:"none",border:"none",color:"var(--text-4)",cursor:"pointer",fontSize:12}}>{tc.cancel}</button>
       </div>
+    </div>
+  );
+
+  if(mode==="vs-ai") return (
+    <div style={{padding:32,textAlign:"center"}}>
+      <div style={{fontSize:24,fontWeight:900,color:"var(--text-1)",marginBottom:8}}>🤖 vs IA</div>
+      <div style={{fontSize:12,color:"var(--text-4)",marginBottom:20}}>Choisis la difficulté</div>
+      <div style={{display:"flex",flexDirection:"column",gap:10,maxWidth:240,margin:"0 auto"}}>
+        {[
+          {label:"🟢 Facile",diff:"easy",desc:"L'IA rate 30% du temps"},
+          {label:"🟡 Moyen",diff:"medium",desc:"L'IA rate 15% du temps"},
+          {label:"🔴 Difficile",diff:"hard",desc:"L'IA rate 5% du temps"},
+        ].map(({label,diff,desc})=>(
+          <button key={diff} onClick={()=>{
+            const aiRoom = {
+              id:"ai-"+Date.now(),
+              game_type:gameType,
+              player1:myUsername,
+              player2:`🤖 IA (${label.split(" ")[1]})`,
+              elo1:400, elo2:400,
+              status:"active",
+              ranked:false,
+              _isAI:true,
+              _aiDiff:diff,
+            };
+            setStatus("found");
+            setTimeout(()=>onMatch(aiRoom),600);
+          }}
+          style={{padding:"12px 20px",borderRadius:12,border:"2px solid rgba(255,255,255,0.1)",
+            background:"rgba(255,255,255,0.04)",color:"var(--text-1)",fontWeight:700,fontSize:13,cursor:"pointer",textAlign:"left"}}>
+            <div style={{fontWeight:800}}>{label}</div>
+            <div style={{fontSize:10,color:"var(--text-4)",marginTop:2}}>{desc}</div>
+          </button>
+        ))}
+        <button onClick={()=>setMode(null)} style={{padding:"8px",background:"none",border:"none",color:"var(--text-4)",cursor:"pointer",fontSize:12}}>{tc.cancel}</button>
+      </div>
+      {status==="found" && <div style={{marginTop:20,fontSize:16,fontWeight:900,color:GREEN}}>Lancement… ⚔️</div>}
     </div>
   );
 
@@ -339,6 +355,10 @@ export function ChainGame({ room, onClose, onReady }) {
   const { lang } = useLang();
   const t = (GAME_SYSTEM_I18N[lang] || GAME_SYSTEM_I18N.fr).chain;
   const tc = (GAME_SYSTEM_I18N[lang] || GAME_SYSTEM_I18N.fr).common;
+  const isAI = !!room._isAI;
+  const aiDiff = room._aiDiff || "medium";
+  const aiFailRate = aiDiff === "easy" ? 0.30 : aiDiff === "medium" ? 0.15 : 0.05;
+  const aiDelay   = aiDiff === "easy" ? 3500 : aiDiff === "medium" ? 2000 : 1000;
   const isP1 = room.player1 === myUsername;
   const oppUsername = isP1 ? room.player2 : room.player1;
   const myElo  = isP1 ? (room.elo1||400) : (room.elo2||400);
@@ -404,11 +424,13 @@ export function ChainGame({ room, onClose, onReady }) {
   useEffect(() => {
     const poll = setInterval(async () => {
       try {
-        const rows = await sb.query(`game_rooms?id=eq.${room.id}&select=state,status&limit=1`);
+        const rows = await sb.query(`game_rooms?id=eq.${room.id}&select=state,status,winner&limit=1`);
         const r = rows?.[0];
         if(!r) return;
         // Check if opponent left
-        if(r.status === "waiting") {
+        const opponentForfait = r.status === "finished" && r.winner === myUsername;
+        const opponentLeft = r.status === "waiting" || opponentForfait;
+        if(opponentLeft) {
           clearInterval(poll);
           setState(s => ({...s, phase:"gameEnd", winner: myUsername, opponentLeft: true}));
           return;
@@ -446,6 +468,7 @@ export function ChainGame({ room, onClose, onReady }) {
   }, [state.phase, state.turn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pushState = async (newState) => {
+    if(isAI) return; // AI mode: no DB sync needed
     await sb.query(`game_rooms?id=eq.${room.id}`, {
       method: "PATCH",
       headers: { ...sb.headers, "Prefer": "return=minimal" },
@@ -453,7 +476,53 @@ export function ChainGame({ room, onClose, onReady }) {
     }).catch(()=>{});
   };
 
-  // Called by ForumView onClose after user confirms quit
+  // AI turn logic
+  const aiTurnRef = useRef(false);
+  useEffect(() => {
+    if(!isAI || state.phase !== "play" || state.turn === myUsername || aiTurnRef.current) return;
+    aiTurnRef.current = true;
+    const doAITurn = async () => {
+      await sleep(aiDelay + Math.random() * 800);
+      if(pool.length === 0) { aiTurnRef.current = false; return; }
+      // Fail check — IA loses the round (no "pass" mechanic)
+      if(Math.random() < aiFailRate) {
+        // AI times out = loses current round
+        const newScores = isP1 ? [state.scores[0]+1, state.scores[1]] : [state.scores[0], state.scores[1]+1];
+        const over = newScores[0]>=2 || newScores[1]>=2;
+        setState(s => ({...s, scores:newScores, phase:over?"gameEnd":"choose",
+          turn:null, chooser:myUsername, linkType:null, currentAnime:null, chain:[]}));
+        aiTurnRef.current = false;
+        return;
+      }
+      // Pick valid anime
+      const cur = state.currentAnime;
+      const curStudios = (cur.studios||[]).map(s=>s.name||s);
+      const curGenres  = (cur.genres||[]).map(g=>g.name||g);
+      const usedIds    = new Set(state.chain.map(a=>a.mal_id));
+      const linkType   = currentLinkType === "studio" ? "studio" : "genre";
+      const candidates = pool.filter(a => {
+        if(usedIds.has(a.mal_id)) return false;
+        const s = (a.studios||[]).map(x=>x.name||x);
+        const g = (a.genres||[]).map(x=>x.name||x);
+        return linkType === "studio"
+          ? s.some(x=>curStudios.includes(x)) && !g.every(x=>curGenres.includes(x))
+          : g.some(x=>curGenres.includes(x)) && !s.every(x=>curStudios.includes(x));
+      });
+      if(candidates.length === 0) {
+        // No valid move — AI loses the round
+        const newScores = isP1 ? [state.scores[0]+1, state.scores[1]] : [state.scores[0], state.scores[1]+1];
+        const over = newScores[0]>=2 || newScores[1]>=2;
+        setState(s => ({...s, scores:newScores, phase:over?"gameEnd":"choose",
+          turn:null, chooser:myUsername, linkType:null, currentAnime:null, chain:[]}));
+        aiTurnRef.current = false;
+        return;
+      }
+      const pick = candidates[Math.floor(Math.random() * Math.min(candidates.length, 20))];
+      setState(s => ({...s, currentAnime:pick, chain:[...s.chain, pick], turn:myUsername, timer:40}));
+      aiTurnRef.current = false;
+    };
+    doAITurn();
+  }, [state.turn, state.phase, isAI]); // eslint-disable-line react-hooks/exhaustive-deps
   const doForfait = async () => {
     if(state.phase !== "gameEnd") {
       if(room.ranked) {
@@ -474,7 +543,6 @@ export function ChainGame({ room, onClose, onReady }) {
   // Expose forfait so ForumView can call it before closing
   if(typeof onClose._chainRef === "undefined") onClose._chainRef = doForfait;
   useEffect(() => { onReady?.(doForfait); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   const handleChooseLinkType = async (type) => {
     if(!amChooser || state.phase !== "choose") return;
     const seed = Date.now();
@@ -523,7 +591,7 @@ export function ChainGame({ room, onClose, onReady }) {
   const handleGuess = async (anime) => {
     if(!isMyTurn || state.phase !== "play") return;
     if(state.chain.some(a => a.mal_id === anime.mal_id)) {
-setMsg(t.errAlreadyUsed||"❌ Cet animé a déjà été utilisé !");
+setMsg(t.errAlreadyUsed);
       setLastGuess(null);
       return;
     }
@@ -531,7 +599,7 @@ setMsg(t.errAlreadyUsed||"❌ Cet animé a déjà été utilisé !");
     setLastGuess({ anime, valid, linkUsed: currentLinkType });
     setQuery(""); setSugs([]);
     if(!valid) {
-      setMsg(t.errInvalidLink||"❌ Lien invalide — réessaie !");
+setMsg(t.errInvalidLink);
       return;
     }
     setMsg("");
@@ -588,7 +656,6 @@ setMsg(t.errAlreadyUsed||"❌ Cet animé a déjà été utilisé !");
     const p1Won = winner === room.player1;
     const p2Won = winner === room.player2;
     // Determine score string (2-0 or 2-1)
-    const maxScore = Math.max(scores[0], scores[1]);
     const minScore = Math.min(scores[0], scores[1]);
     const scoreStr = minScore === 0 ? "2-0" : "2-1";
     const delta1 = calcChainElo(elo1, elo2, p1Won?1:p2Won?0:0.5, scoreStr);
@@ -614,7 +681,7 @@ setMsg(t.errAlreadyUsed||"❌ Cet animé a déjà été utilisé !");
     }, 300);
   };
 
-const linkLabel = currentLinkType === "studio" ? (t.linkLabelStudio||"🏢 Même studio, genre différent") : currentLinkType === "genre" ? (t.linkLabelGenre||"🎌 Même genre, studio différent") : "";
+  const linkLabel = currentLinkType === "studio" ? (t.linkLabelStudio||"🏢 Même studio, genre différent") : currentLinkType === "genre" ? (t.linkLabelGenre||"🎌 Même genre, studio différent") : "";
 
   return (
     <div style={{padding:16,maxWidth:640,margin:"0 auto"}}>
@@ -639,10 +706,10 @@ const linkLabel = currentLinkType === "studio" ? (t.linkLabelStudio||"🏢 Même
         <div style={{textAlign:"center",padding:24}}>
           {amChooser ? (
             <>
-<div style={{fontSize:15,fontWeight:800,color:"var(--text-1)",marginBottom:8}}>{t.chooseLinkType||"Choisis le type de lien"}</div>
-              <div style={{fontSize:11,color:"var(--text-4)",marginBottom:20}}>{t.youStartRound||"Tu commences la manche"}</div>
+<div style={{fontSize:15,fontWeight:800,color:"var(--text-1)",marginBottom:8}}>{t.chooseLinkType}</div>
+              <div style={{fontSize:11,color:"var(--text-4)",marginBottom:20}}>{t.youStartRound}</div>
               {pool.length === 0 ? (
-                <div style={{color:"var(--text-4)",fontSize:12}}>⏳ Chargement des animés…</div>
+                <Spinner/>
               ) : (
               <div style={{display:"flex",gap:12,justifyContent:"center"}}>
                 {[{id:"studio",label:t.optSameStudio,sub:t.optSameStudioSub},{id:"genre",label:t.optSameGenre,sub:t.optSameGenreSub}].map(opt=>(
@@ -706,7 +773,7 @@ const linkLabel = currentLinkType === "studio" ? (t.linkLabelStudio||"🏢 Même
             <div style={{position:"relative",marginBottom:8}}>
               <input value={query} onChange={e=>search(e.target.value)}
 onKeyDown={e=>{if(e.key==="Enter"&&suggestions.length>0)handleGuess(suggestions[0]);}}
-                placeholder={t.searchPlaceholder||"Tape un animé TV et appuie sur Entrée…"}
+                placeholder={t.searchPlaceholder}
                 autoFocus
                 style={{width:"100%",boxSizing:"border-box",padding:"10px 14px",borderRadius:12,
                   background:"rgba(255,255,255,0.05)",border:`1px solid ${msg.startsWith("❌")?"rgba(239,68,68,0.4)":"rgba(255,255,255,0.1)"}`,
@@ -721,7 +788,7 @@ onKeyDown={e=>{if(e.key==="Enter"&&suggestions.length>0)handleGuess(suggestions[
                   <div style={{flex:1}}>
                     <div style={{fontSize:11,fontWeight:800,color:"var(--text-1)"}}>{lastGuess.anime.title}</div>
                     <div style={{fontSize:10,color:lastGuess.valid?"#22c55e":"#ef4444"}}>
-                      {lastGuess.valid?"✅ Valide":"❌ Invalide"} · Studio: {(lastGuess.anime.studios||[]).map(s=>s.name||s).join(", ")||"?"} · Genres: {(lastGuess.anime.genres||[]).map(g=>g.name||g).join(", ")||"?"}
+{lastGuess.valid?"✅ Valide":"❌ Invalide"} · Studio: {(lastGuess.anime.studios||[]).map(s=>s.name||s).join(", ")||"?"} · Genres: {(lastGuess.anime.genres||[]).map(g=>g.name||g).join(", ")||"?"}
                     </div>
                   </div>
                 </div>
@@ -808,6 +875,10 @@ export function TimelineGame({ room, onClose, onReady }) {
   const { lang } = useLang();
   const t = (GAME_SYSTEM_I18N[lang] || GAME_SYSTEM_I18N.fr).timeline;
   const tc = (GAME_SYSTEM_I18N[lang] || GAME_SYSTEM_I18N.fr).common;
+  const isAI = !!room._isAI;
+  const aiDiff = room._aiDiff || "medium";
+  const aiFailRate = aiDiff === "easy" ? 0.30 : aiDiff === "medium" ? 0.15 : 0.05;
+  const aiDelay   = aiDiff === "easy" ? 3000 : aiDiff === "medium" ? 1800 : 900;
   const isP1 = room.player1 === myUsername;
   const oppUsername = isP1 ? room.player2 : room.player1;
 
@@ -862,10 +933,11 @@ export function TimelineGame({ room, onClose, onReady }) {
   useEffect(() => {
     const poll = setInterval(async () => {
       try {
-        const rows = await sb.query(`game_rooms?id=eq.${room.id}&select=state,status&limit=1`);
+        const rows = await sb.query(`game_rooms?id=eq.${room.id}&select=state,status,winner&limit=1`);
         const r = rows?.[0];
         if(!r) return;
-        if(r.status === "waiting") {
+        const opponentForfaitTL = r.status === "finished" && r.winner === myUsername;
+        if(r.status === "waiting" || opponentForfaitTL) {
           clearInterval(poll);
           setState(s => ({...s, phase:"gameEnd", winner: myUsername, opponentLeft: true}));
           return;
@@ -883,6 +955,7 @@ export function TimelineGame({ room, onClose, onReady }) {
   }, [room.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pushState = async (newState) => {
+    if(isAI) return;
     await sb.query(`game_rooms?id=eq.${room.id}`, {
       method: "PATCH",
       headers: { ...sb.headers, "Prefer": "return=minimal" },
@@ -890,8 +963,71 @@ export function TimelineGame({ room, onClose, onReady }) {
     }).catch(()=>{});
   };
 
+  // AI turn for Timeline
+  const aiTLRef = useRef(false);
+  useEffect(() => {
+    if(!isAI || state.phase !== "play" || state.currentTurn === myUsername || aiTLRef.current) return;
+    aiTLRef.current = true;
+    const doAITurn = async () => {
+      await sleep(aiDelay + Math.random() * 800);
+      // AI hand = opponent hand
+      const aiHandAll  = isP1 ? state.hand2 : state.hand1;
+      const aiPlaced   = isP1 ? state.placed2 : state.placed1;
+      const aiHandLeft = aiHandAll.slice(aiPlaced);
+      if(aiHandLeft.length === 0) { aiTLRef.current = false; return; }
+
+      const cardIdx = 0; // AI always plays first card in hand
+      const anime   = aiHandLeft[cardIdx];
+      const fails   = Math.random() < aiFailRate;
+
+      if(fails) {
+        // AI places wrong (pass turn)
+        const next = isP1 ? myUsername : room.player1;
+        setState(s => ({...s, currentTurn:myUsername, skipped:oppUsername}));
+        aiTLRef.current = false;
+        return;
+      }
+
+      // Find correct position
+      const tl = state.timeline;
+      let bestPos = tl.length;
+      for(let i = 0; i <= tl.length; i++) {
+        const test = [...tl]; test.splice(i, 0, anime);
+        if(test.every((a,j) => j===0 || (a.year||0) >= (test[j-1].year||0))) {
+          bestPos = i; break;
+        }
+      }
+
+      const newTimeline = [...tl]; newTimeline.splice(bestPos, 0, anime);
+      const newPlaced1 = isP1 ? state.placed1 : state.placed1;
+      const newPlaced2 = isP1 ? state.placed2+1 : state.placed2;
+      // Actually fix: AI is always opponent
+      const aiNewPlaced = (isP1 ? state.placed2 : state.placed1) + 1;
+      const myNewPlaced = isP1 ? state.placed1 : state.placed2;
+
+      const np1 = isP1 ? state.placed1 : aiNewPlaced;
+      const np2 = isP1 ? aiNewPlaced : state.placed2;
+      const newHand1 = isP1 ? state.hand1 : state.hand1.filter(a=>a.mal_id!==anime.mal_id);
+      const newHand2 = isP1 ? state.hand2.filter(a=>a.mal_id!==anime.mal_id) : state.hand2;
+
+      const gameOver = aiNewPlaced >= 5;
+      const newState = {
+        ...state,
+        timeline: newTimeline,
+        hand1: newHand1, hand2: newHand2,
+        placed1: np1, placed2: np2,
+        currentTurn: myUsername,
+        skipped: null,
+        phase: gameOver ? "gameEnd" : "play",
+        winner: gameOver ? oppUsername : null,
+      };
+      setState(newState);
+      aiTLRef.current = false;
+    };
+    doAITurn();
+  }, [state.currentTurn, state.phase, isAI]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const placeAnime = async (handIdx, timelinePos) => {
-    if(!isMyTurn || state.phase !== "play") return;
     const anime = myHandLeft[handIdx];
     if(!anime) return;
     // Check if position is correct
@@ -979,7 +1115,6 @@ setMsg(t.errWrongPosition||"❌ Mauvaise position !");
     setDragging(null);
   };
 
-
   const doForfaitTL = async () => {
     if(state.phase !== "gameEnd") {
       if(room.ranked) {
@@ -1010,9 +1145,13 @@ setMsg(t.errWrongPosition||"❌ Mauvaise position !");
         </div>
 <div style={{display:"flex",alignItems:"center",gap:12}}>
           <div style={{fontSize:11,color:"var(--text-4)"}}>
-            {t.placed?t.placed(isP1?state.placed1:state.placed2, isP1?state.placed2:state.placed1, oppUsername):`Placés : toi ${isP1?state.placed1:state.placed2}/5 · ${oppUsername} ${isP1?state.placed2:state.placed1}/5`}
+            {t.placed(isP1?state.placed1:state.placed2, isP1?state.placed2:state.placed1, oppUsername)}
           </div>
-
+          <button onClick={doForfaitTL}
+            style={{fontSize:9,padding:"3px 8px",borderRadius:8,border:"1px solid rgba(239,68,68,0.3)",
+              background:"rgba(239,68,68,0.08)",color:"#ef4444",cursor:"pointer"}}>
+            {t.forfeitBtn}
+          </button>
         </div>
       </div>
 
@@ -1033,7 +1172,7 @@ setMsg(t.errWrongPosition||"❌ Mauvaise position !");
       {myHandLeft.length > 0 && state.phase==="play" && (
         <div style={{marginBottom:16}}>
           <div style={{fontSize:10,color:"var(--text-4)",marginBottom:8}}>
-            {isMyTurn ? "Sélectionne une carte à placer :" : "Tes animés restants :"}
+{isMyTurn ? t.selectCardPrompt : t.remainingAnimeLabel}
           </div>
           <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
             {myHandLeft.map((a,i)=>{
@@ -1056,7 +1195,7 @@ setMsg(t.errWrongPosition||"❌ Mauvaise position !");
                     {a.title}
                   </div>
                   {selected && isMyTurn && (
-                    <div style={{fontSize:8,color:"#c084fc",fontWeight:800}}>▼ Sélectionné</div>
+<div style={{fontSize:8,color:"#c084fc",fontWeight:800}}>▼ {t.selectedLabel}</div>
                   )}
                 </div>
               );
@@ -1069,12 +1208,14 @@ setMsg(t.errWrongPosition||"❌ Mauvaise position !");
       {isMyTurn && currentAnimeToPlace && state.phase==="play" && (
         <div style={{marginBottom:12,padding:"8px 14px",borderRadius:12,display:"flex",alignItems:"center",gap:10,
           background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)"}}>
-<img src={currentAnimeToPlace.image_url} alt="" style={{width:28,height:40,objectFit:"cover",borderRadius:5}}
-            onError={e=>{e.target.style.display="none";}}/>
-          <div>
-            <div style={{fontSize:11,fontWeight:800,color:"var(--text-1)"}}>{currentAnimeToPlace.title}</div>
-            <div style={{fontSize:9,color:"var(--text-4)"}}>{t.placeThisAnime||"Clique sur une position ↓ pour placer"}</div>
-          
+<div style={{fontSize:10,color:"var(--text-4)",marginBottom:6}}>{t.placeThisAnime}</div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <img src={currentAnimeToPlace.image_url} alt="" style={{width:32,height:46,objectFit:"cover",borderRadius:6}}
+              onError={e=>{e.target.style.display="none";}}/>
+            <div>
+              <div style={{fontSize:13,fontWeight:800,color:"var(--text-1)"}}>{currentAnimeToPlace.title}</div>
+              <div style={{fontSize:10,color:"var(--text-4)"}}>{t.placeHint}</div>
+            </div>
           </div>
         </div>
       )}
@@ -1102,24 +1243,23 @@ setMsg(t.errWrongPosition||"❌ Mauvaise position !");
         </div>
       </div>
 
-
       {/* Game End */}
       {state.phase === "gameEnd" && (
         <div style={{textAlign:"center",padding:24,marginTop:16,background:"rgba(255,255,255,0.03)",
           borderRadius:16,border:"1px solid rgba(255,255,255,0.07)"}}>
-<div style={{fontSize:40,marginBottom:8}}>
+          <div style={{fontSize:40,marginBottom:8}}>
             {state.opponentLeft?"🏃":state.isDraw?"🤝":state.winner===myUsername?"🏆":"😢"}
           </div>
           <div style={{fontSize:18,fontWeight:900,marginBottom:16,
-            color:state.opponentLeft||state.winner===myUsername?"#22c55e":state.isDraw?ORANGE:"#ef4444"}}>
-            {state.opponentLeft?"Adversaire déconnecté — Victoire !":state.isDraw?"Égalité !":(state.winner===myUsername?(tc?.victory||"Victoire !"):(tc?.defeat||"Défaite"))}
+            color:state.opponentLeft||state.winner===myUsername?GREEN:state.isDraw?ORANGE:RED}}>
+            {state.opponentLeft?(tc?.opponentLeftVictory||"Adversaire déconnecté — Victoire !"):state.isDraw?(tc?.draw||"Égalité !"):(state.winner===myUsername?(tc?.victory||"Victoire !"):(tc?.defeat||"Défaite"))}
           </div>
           <div style={{fontSize:12,color:"var(--text-4)",marginBottom:20}}>
-            {state.opponentLeft?"":t.wonFirst?t.wonFirst(state.winner):(state.winner+" a placé tous ses animés en premier")}
+            {state.opponentLeft||state.isDraw?"":t.wonFirst?t.wonFirst(state.winner):(state.winner+" a placé tous ses animés en premier")}
           </div>
           <button onClick={async()=>{
               if(state.phase!=="gameEnd"){
-                await sb.query(`game_rooms?id=eq.${room.id}`,{method:"PATCH",headers:{...sb.headers,"Prefer":"return=minimal"},body:JSON.stringify({status:"waiting",updated_at:new Date().toISOString()})}).catch(()=>{});
+                // game already finished — no need to patch
               }
               onClose();
             }}
@@ -1147,6 +1287,516 @@ function DropZone({ onDrop }) {
         border:hover?"2px dashed rgba(124,58,237,0.5)":"2px dashed transparent",
         borderRadius:6}}>
       {hover&&<span style={{fontSize:14,color:"#c084fc"}}>+</span>}
+    </div>
+  );
+}
+
+// ─── CLUESCALE ────────────────────────────────────────────────────────────────
+// 2-4 players. Each player is judge twice. Judge gets a theme + random 1-20 score,
+// gives a clue. Jury guesses the score. Points: exact=+3, ±1=+1, else=+0. Judge: +2 if someone guesses exact, else 0.
+
+const CLUESCALE_THEMES = [
+  "Art manga 🎨", "Combat mythique ⚔️", "OST iconique 🎵", "Premier arc 📖",
+  "Transformation de perso ✨", "Entrée d'un perso 🚪", "Studio d'animation 🏢",
+  "Webtoon 📱", "Opening mémorable 🎤", "Antagoniste charismatique 😈",
+  "Scène de fin d'arc 🌅", "Pouvoir unique 💫", "Duo de persos 👥",
+  "Arme signature 🗡️", "Monde/univers 🌍", "Histoire d'amour 💕",
+  "Révélation choc 😱", "Sacrifice héroïque 💀", "Humour décalé 😂",
+  "Dessin de couverture 📚",
+];
+
+function pickRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+export function CluescaleGame({ room, onClose }) {
+  const { myUsername } = useApp();
+  const players = room.players || [room.player1, room.player2, room.player3, room.player4].filter(Boolean);
+  const isHost  = myUsername === players[0];
+
+  const [state, setState] = useState(room.state || null);
+  const [clue, setClue]   = useState("");
+  const [guess, setGuess] = useState(10);
+  const [hasGuessed, setHasGuessed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const lastStateRef = useRef("");
+
+  // Initialize game (host only)
+  useEffect(() => {
+    if(!isHost || state) return;
+    const initState = buildNextTurn({ scores: Object.fromEntries(players.map(p=>[p,0])), judgeRound: 0, history: [] }, players);
+    pushState(initState);
+    setState(initState);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Poll for state updates
+  useEffect(() => {
+    const poll = setInterval(async () => {
+      try {
+        const rows = await sb.query(`game_rooms?id=eq.${room.id}&select=state&limit=1`);
+        const r = rows?.[0];
+        if(!r?.state) return;
+        const str = JSON.stringify(r.state);
+        if(str !== lastStateRef.current) {
+          lastStateRef.current = str;
+          setState(r.state);
+          setHasGuessed(false);
+          setClue("");
+          setGuess(10);
+        }
+      } catch {}
+    }, 1500);
+    return () => clearInterval(poll);
+  }, [room.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const pushState = async (newState) => {
+    await sb.query(`game_rooms?id=eq.${room.id}`, {
+      method: "PATCH",
+      headers: { ...sb.headers, "Prefer": "return=minimal" },
+      body: JSON.stringify({ state: newState, updated_at: new Date().toISOString() }),
+    }).catch(()=>{});
+  };
+
+  function buildNextTurn(prev, players) {
+    const totalTurns = players.length * 2;
+    const judgeRound = (prev.judgeRound || 0);
+    if(judgeRound >= totalTurns) {
+      return { ...prev, phase: "gameEnd" };
+    }
+    const judgeIdx = judgeRound % players.length;
+    return {
+      ...prev,
+      phase: "clue",
+      judgeRound: judgeRound + 1,
+      judge: players[judgeIdx],
+      theme: pickRandom(CLUESCALE_THEMES),
+      score: Math.floor(Math.random() * 20) + 1,
+      clue: null,
+      guesses: {},
+    };
+  }
+
+  const submitClue = async () => {
+    if(!clue.trim() || submitting) return;
+    setSubmitting(true);
+    const newState = { ...state, phase: "vote", clue: clue.trim() };
+    await pushState(newState);
+    setState(newState);
+    setSubmitting(false);
+  };
+
+  const submitGuess = async () => {
+    if(hasGuessed || submitting) return;
+    setSubmitting(true);
+    setHasGuessed(true);
+    const newGuesses = { ...state.guesses, [myUsername]: Number(guess) };
+    const allVoted = players.filter(p => p !== state.judge).every(p => newGuesses[p] !== undefined);
+
+    let newState;
+    if(allVoted) {
+      // Calculate points
+      const newScores = { ...state.scores };
+      let judgeGetsPoints = false;
+      players.filter(p => p !== state.judge).forEach(p => {
+        const g = newGuesses[p];
+        const diff = Math.abs(g - state.score);
+        if(diff === 0) { newScores[p] = (newScores[p]||0) + 3; judgeGetsPoints = true; }
+        else if(diff === 1) { newScores[p] = (newScores[p]||0) + 1; }
+      });
+      if(judgeGetsPoints) newScores[state.judge] = (newScores[state.judge]||0) + 2;
+
+      // Check if game over
+      const totalTurns = players.length * 2;
+      if((state.judgeRound || 0) >= totalTurns) {
+        newState = { ...state, guesses: newGuesses, scores: newScores, phase: "reveal", nextPhase: "gameEnd" };
+      } else {
+        newState = { ...state, guesses: newGuesses, scores: newScores, phase: "reveal", nextPhase: "next" };
+      }
+    } else {
+      newState = { ...state, guesses: newGuesses };
+    }
+    await pushState(newState);
+    setState(newState);
+    setSubmitting(false);
+  };
+
+  const nextTurn = async () => {
+    if(!isHost) return;
+    if(state.nextPhase === "gameEnd") {
+      await pushState({ ...state, phase: "gameEnd" });
+      setState(s => ({...s, phase:"gameEnd"}));
+    } else {
+      const next = buildNextTurn(state, players);
+      await pushState(next);
+      setState(next);
+    }
+  };
+
+  if(!state) return <div style={{padding:32,textAlign:"center"}}><div style={{fontSize:32}}>⏳</div><div style={{color:"var(--text-4)",fontSize:13,marginTop:8}}>Initialisation…</div></div>;
+
+  const isJudge = state.judge === myUsername;
+  const otherPlayers = players.filter(p => p !== state.judge);
+
+  // ── GAME END ──
+  if(state.phase === "gameEnd") {
+    const sorted = Object.entries(state.scores||{}).sort((a,b)=>b[1]-a[1]);
+    const winner = sorted[0]?.[0];
+    return (
+      <div style={{padding:32,textAlign:"center"}}>
+        <div style={{fontSize:48,marginBottom:8}}>🏆</div>
+        <div style={{fontSize:20,fontWeight:900,color:"#22c55e",marginBottom:20}}>Fin de partie !</div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,maxWidth:280,margin:"0 auto 24px"}}>
+          {sorted.map(([p,s],i)=>(
+            <div key={p} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+              padding:"10px 16px",borderRadius:10,
+              background: i===0?"rgba(34,197,94,0.1)":"rgba(255,255,255,0.03)",
+              border:`1px solid ${i===0?"rgba(34,197,94,0.3)":"rgba(255,255,255,0.06)"}`}}>
+              <span style={{fontWeight:800,color:i===0?"#22c55e":"var(--text-1)"}}>
+                {i===0?"🥇":i===1?"🥈":"🥉"} {p}
+              </span>
+              <span style={{fontWeight:900,color:i===0?"#22c55e":"var(--text-2)"}}>{s} pts</span>
+            </div>
+          ))}
+        </div>
+        <button onClick={onClose} style={{padding:"10px 28px",borderRadius:20,border:"none",
+          background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",fontWeight:800,cursor:"pointer"}}>
+          Retour
+        </button>
+      </div>
+    );
+  }
+
+  // ── REVEAL ──
+  if(state.phase === "reveal") {
+    return (
+      <div style={{padding:24,maxWidth:500,margin:"0 auto"}}>
+        <div style={{textAlign:"center",marginBottom:20}}>
+          <div style={{fontSize:11,color:"var(--text-4)",marginBottom:4}}>Thème : {state.theme}</div>
+          <div style={{fontSize:32,fontWeight:900,color:"#c084fc",marginBottom:4}}>La note était… {state.score}/20</div>
+          <div style={{fontSize:13,color:"var(--text-2)"}}>Indice donné par {state.judge} : <strong>"{state.clue}"</strong></div>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+          {otherPlayers.map(p=>{
+            const g = state.guesses?.[p];
+            const diff = g !== undefined ? Math.abs(g - state.score) : null;
+            const pts = diff === 0 ? "+3" : diff === 1 ? "+1" : "+0";
+            const color = diff === 0 ? "#22c55e" : diff === 1 ? "#fbbf24" : "var(--text-4)";
+            return (
+              <div key={p} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                padding:"10px 14px",borderRadius:10,background:"rgba(255,255,255,0.04)",
+                border:"1px solid rgba(255,255,255,0.07)"}}>
+                <span style={{fontWeight:700,color:"var(--text-1)"}}>{p}</span>
+                <span style={{fontSize:13}}>
+                  <span style={{color:"var(--text-4)",marginRight:8}}>a dit {g ?? "—"}/20</span>
+                  <span style={{fontWeight:900,color}}>{pts}</span>
+                </span>
+              </div>
+            );
+          })}
+          {/* Judge points */}
+          {Object.values(state.guesses||{}).some(g=>g===state.score) && (
+            <div style={{padding:"8px 14px",borderRadius:10,background:"rgba(34,197,94,0.08)",
+              border:"1px solid rgba(34,197,94,0.2)",fontSize:12,color:"#22c55e",textAlign:"center"}}>
+              🎯 {state.judge} (juge) +2 pts — quelqu'un a trouvé exactement !
+            </div>
+          )}
+        </div>
+        {isHost && (
+          <button onClick={nextTurn} style={{width:"100%",padding:"12px",borderRadius:12,border:"none",
+            background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",fontWeight:800,cursor:"pointer"}}>
+            {state.nextPhase==="gameEnd"?"Voir les résultats 🏆":"Tour suivant →"}
+          </button>
+        )}
+        {!isHost && <div style={{textAlign:"center",fontSize:11,color:"var(--text-4)"}}>En attente de {players[0]} pour continuer…</div>}
+      </div>
+    );
+  }
+
+  // ── VOTE phase ──
+  if(state.phase === "vote") {
+    const myGuess = state.guesses?.[myUsername];
+    const votedCount = Object.keys(state.guesses||{}).length;
+    return (
+      <div style={{padding:24,maxWidth:500,margin:"0 auto"}}>
+        <div style={{textAlign:"center",marginBottom:20}}>
+          <div style={{fontSize:11,color:"#c084fc",fontWeight:700,marginBottom:4}}>THÈME</div>
+          <div style={{fontSize:18,fontWeight:900,color:"var(--text-1)",marginBottom:12}}>{state.theme}</div>
+          <div style={{padding:"12px 20px",borderRadius:12,background:"rgba(124,58,237,0.08)",
+            border:"1px solid rgba(124,58,237,0.2)",fontSize:15,color:"var(--text-1)",marginBottom:4}}>
+            💬 "{state.clue}"
+          </div>
+          <div style={{fontSize:10,color:"var(--text-4)"}}>Indice de {state.judge}</div>
+        </div>
+
+        {isJudge ? (
+          <div style={{textAlign:"center",padding:24,background:"rgba(255,255,255,0.03)",borderRadius:12}}>
+            <div style={{fontSize:32,marginBottom:8}}>⏳</div>
+            <div style={{fontSize:13,color:"var(--text-4)"}}>Le jury vote… {votedCount}/{otherPlayers.length}</div>
+            <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:12,flexWrap:"wrap"}}>
+              {otherPlayers.map(p=>(
+                <div key={p} style={{padding:"4px 10px",borderRadius:8,fontSize:10,fontWeight:700,
+                  background:state.guesses?.[p]!==undefined?"rgba(34,197,94,0.15)":"rgba(255,255,255,0.05)",
+                  color:state.guesses?.[p]!==undefined?"#22c55e":"var(--text-4)"}}>
+                  {p} {state.guesses?.[p]!==undefined?"✓":"⏳"}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : myGuess !== undefined ? (
+          <div style={{textAlign:"center",padding:24}}>
+            <div style={{fontSize:32,marginBottom:8}}>✅</div>
+            <div style={{fontSize:13,color:"var(--text-4)"}}>Ta réponse : <strong style={{color:"#c084fc"}}>{myGuess}/20</strong></div>
+            <div style={{fontSize:11,color:"var(--text-5)",marginTop:8}}>{votedCount}/{otherPlayers.length} ont voté</div>
+          </div>
+        ) : (
+          <div>
+            <div style={{fontSize:12,color:"var(--text-3)",textAlign:"center",marginBottom:12}}>
+              Quelle note avait {state.judge} pour ce thème ?
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+              <span style={{fontSize:11,color:"var(--text-4)"}}>1</span>
+              <input type="range" min={1} max={20} value={guess}
+                onChange={e=>setGuess(Number(e.target.value))}
+                style={{flex:1,accentColor:"#c084fc"}}/>
+              <span style={{fontSize:11,color:"var(--text-4)"}}>20</span>
+              <div style={{minWidth:36,textAlign:"center",fontSize:20,fontWeight:900,color:"#c084fc"}}>{guess}</div>
+            </div>
+            <button onClick={submitGuess} disabled={submitting}
+              style={{width:"100%",padding:"12px",borderRadius:12,border:"none",
+                background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",
+                fontWeight:800,fontSize:13,cursor:"pointer",opacity:submitting?0.6:1}}>
+              Voter {guess}/20
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── CLUE phase ──
+  return (
+    <div style={{padding:24,maxWidth:500,margin:"0 auto"}}>
+      {/* Scores */}
+      <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap",marginBottom:16}}>
+        {players.map(p=>(
+          <div key={p} style={{padding:"4px 10px",borderRadius:8,fontSize:10,fontWeight:700,
+            background:p===state.judge?"rgba(124,58,237,0.2)":"rgba(255,255,255,0.05)",
+            color:p===state.judge?"#c084fc":"var(--text-2)"}}>
+            {p}{p===state.judge?" 👨‍⚖️":""} · {state.scores?.[p]||0} pts
+          </div>
+        ))}
+      </div>
+
+      <div style={{textAlign:"center",marginBottom:20}}>
+        <div style={{fontSize:11,color:"var(--text-4)",marginBottom:4}}>
+          Tour {state.judgeRound}/{players.length*2} · Juge : <strong style={{color:"#c084fc"}}>{state.judge}</strong>
+        </div>
+        <div style={{fontSize:18,fontWeight:900,color:"var(--text-1)",marginBottom:8}}>{state.theme}</div>
+      </div>
+
+      {isJudge ? (
+        <div>
+          <div style={{textAlign:"center",marginBottom:16,padding:"16px 20px",borderRadius:14,
+            background:"rgba(124,58,237,0.1)",border:"1px solid rgba(124,58,237,0.2)"}}>
+            <div style={{fontSize:11,color:"var(--text-4)",marginBottom:4}}>Ta note secrète</div>
+            <div style={{fontSize:48,fontWeight:900,color:"#c084fc"}}>{state.score}<span style={{fontSize:20}}>/20</span></div>
+          </div>
+          <div style={{fontSize:12,color:"var(--text-3)",marginBottom:10,textAlign:"center"}}>
+            Donne un indice qui correspond à cette note pour ce thème
+          </div>
+          <input value={clue} onChange={e=>setClue(e.target.value)}
+            placeholder={`Ex: pour ${state.score}/20 sur "${state.theme}"…`}
+            maxLength={80}
+            style={{width:"100%",boxSizing:"border-box",padding:"12px 14px",borderRadius:12,
+              background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",
+              color:"var(--text-1)",fontSize:13,outline:"none",marginBottom:10}}/>
+          <button onClick={submitClue} disabled={!clue.trim()||submitting}
+            style={{width:"100%",padding:"12px",borderRadius:12,border:"none",
+              background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",
+              fontWeight:800,fontSize:13,cursor:"pointer",opacity:!clue.trim()||submitting?0.5:1}}>
+            Donner l'indice
+          </button>
+        </div>
+      ) : (
+        <div style={{textAlign:"center",padding:32,background:"rgba(255,255,255,0.03)",borderRadius:12}}>
+          <div style={{fontSize:32,marginBottom:8}}>⏳</div>
+          <div style={{fontSize:13,color:"var(--text-4)"}}>
+            En attente de l'indice de {state.judge}…
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── CLUESCALE MATCHMAKING ────────────────────────────────────────────────────
+export function CluescaleMatchmaking({ onMatch, onClose }) {
+  const { myUsername } = useApp();
+  const [mode, setMode]       = useState(null); // null | create | join
+  const [code, setCode]       = useState("");
+  const [joinCode, setJoinCode] = useState("");
+  const [joinError, setJoinError] = useState("");
+  const [room, setRoom]       = useState(null);
+  const [players, setPlayers] = useState([]);
+  const roomRef = useRef(null);
+
+  const createRoom = async () => {
+    const c = generateCode();
+    setCode(c);
+    const created = await sb.query("game_rooms", {
+      method:"POST",
+      headers:{...sb.headers,"Prefer":"return=representation"},
+      body:JSON.stringify({
+        game_type:"cluescale",
+        player1:myUsername,
+        status:"waiting",
+        ranked:false,
+        private_code:c,
+        state:{players:[myUsername]},
+      }),
+    }).catch(()=>null);
+    if(created?.[0]) {
+      roomRef.current = created[0].id;
+      setRoom(created[0]);
+      setPlayers([myUsername]);
+      setMode("create");
+    }
+  };
+
+  const joinRoom = async () => {
+    const rooms = await sb.query(`game_rooms?private_code=eq.${joinCode}&status=eq.waiting&game_type=eq.cluescale&limit=1`).catch(()=>[]);
+    const r = rooms?.[0];
+    if(!r) { setJoinError("Code invalide."); return; }
+    const currentPlayers = r.state?.players || [r.player1];
+    if(currentPlayers.includes(myUsername)) { setJoinError("Tu es déjà dans cette room."); return; }
+    if(currentPlayers.length >= 4) { setJoinError("Room complète (4 joueurs max)."); return; }
+    const newPlayers = [...currentPlayers, myUsername];
+    const playerField = `player${newPlayers.length}`;
+    await sb.query(`game_rooms?id=eq.${r.id}`, {
+      method:"PATCH",
+      headers:{...sb.headers,"Prefer":"return=minimal"},
+      body:JSON.stringify({[playerField]:myUsername, state:{...r.state, players:newPlayers}}),
+    }).catch(()=>{});
+    roomRef.current = r.id;
+    setRoom({...r, state:{...r.state,players:newPlayers}});
+    setPlayers(newPlayers);
+    setMode("create"); // reuse lobby UI
+    setCode(joinCode);
+  };
+
+  // Poll for players joining / host starting
+  useEffect(() => {
+    if(!roomRef.current) return;
+    const poll = setInterval(async () => {
+      const rows = await sb.query(`game_rooms?id=eq.${roomRef.current}&limit=1`).catch(()=>[]);
+      const r = rows?.[0];
+      if(!r) return;
+      const pl = r.state?.players || [];
+      setPlayers(pl);
+      if(r.status === "active") {
+        clearInterval(poll);
+        onMatch({...r, players:pl});
+      }
+    }, 1500);
+    return () => clearInterval(poll);
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const startGame = async () => {
+    if(players.length < 2) return;
+    await sb.query(`game_rooms?id=eq.${roomRef.current}`, {
+      method:"PATCH",
+      headers:{...sb.headers,"Prefer":"return=minimal"},
+      body:JSON.stringify({
+        status:"active",
+        player1:players[0], player2:players[1],
+        player3:players[2]||null, player4:players[3]||null,
+        state:{players},
+      }),
+    }).catch(()=>{});
+  };
+
+  if(!mode) return (
+    <div style={{padding:32,textAlign:"center"}}>
+      <div style={{fontSize:24,fontWeight:900,color:"var(--text-1)",marginBottom:8}}>🎭 Cluescale</div>
+      <div style={{fontSize:12,color:"var(--text-4)",marginBottom:20}}>2 à 4 joueurs · Juge & Jury</div>
+      <div style={{display:"flex",flexDirection:"column",gap:10,maxWidth:240,margin:"0 auto"}}>
+        <button onClick={createRoom}
+          style={{padding:"12px 20px",borderRadius:12,border:"none",
+            background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>
+          Créer une room
+        </button>
+        <button onClick={()=>setMode("join")}
+          style={{padding:"12px 20px",borderRadius:12,border:"2px solid rgba(255,255,255,0.1)",
+            background:"rgba(255,255,255,0.04)",color:"var(--text-2)",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+          Rejoindre avec un code
+        </button>
+        <button onClick={onClose}
+          style={{padding:"8px",background:"none",border:"none",color:"var(--text-4)",cursor:"pointer",fontSize:12}}>
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
+
+  if(mode === "join") return (
+    <div style={{padding:32,textAlign:"center"}}>
+      <div style={{fontSize:20,fontWeight:900,color:"var(--text-1)",marginBottom:16}}>Rejoindre une room</div>
+      <input value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())}
+        placeholder="CODE" maxLength={6}
+        style={{width:"100%",boxSizing:"border-box",padding:"12px 16px",borderRadius:12,
+          background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",
+          color:"var(--text-1)",fontSize:22,fontWeight:900,textAlign:"center",letterSpacing:6,
+          outline:"none",marginBottom:8}}/>
+      {joinError && <div style={{fontSize:11,color:"#ef4444",marginBottom:8}}>{joinError}</div>}
+      <button onClick={joinRoom}
+        style={{width:"100%",padding:"12px",borderRadius:12,border:"none",
+          background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer",marginBottom:8}}>
+        Rejoindre
+      </button>
+      <button onClick={()=>setMode(null)}
+        style={{padding:"8px",background:"none",border:"none",color:"var(--text-4)",cursor:"pointer",fontSize:12}}>
+        Retour
+      </button>
+    </div>
+  );
+
+  // Lobby
+  const isHost = myUsername === players[0];
+  return (
+    <div style={{padding:32,textAlign:"center"}}>
+      <div style={{fontSize:18,fontWeight:900,color:"var(--text-1)",marginBottom:4}}>🎭 Salle d'attente</div>
+      <div style={{fontSize:12,color:"var(--text-4)",marginBottom:16}}>Partage ce code :</div>
+      <div style={{fontSize:36,fontWeight:900,color:"#c084fc",letterSpacing:8,marginBottom:20,
+        padding:"12px 24px",background:"rgba(124,58,237,0.1)",borderRadius:12,display:"inline-block"}}>
+        {code}
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+        {players.map((p,i)=>(
+          <div key={p} style={{padding:"8px 14px",borderRadius:10,background:"rgba(255,255,255,0.04)",
+            border:"1px solid rgba(255,255,255,0.07)",display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:14}}>{["👑","🎭","🎪","🎨"][i]}</span>
+            <span style={{fontWeight:700,color:"var(--text-1)"}}>{p}</span>
+            {i===0&&<span style={{fontSize:9,color:"#fbbf24",marginLeft:"auto"}}>Hôte</span>}
+          </div>
+        ))}
+        {players.length < 4 && (
+          <div style={{padding:"8px 14px",borderRadius:10,border:"1px dashed rgba(255,255,255,0.08)",
+            fontSize:11,color:"var(--text-5)"}}>
+            En attente… ({players.length}/4)
+          </div>
+        )}
+      </div>
+      {isHost ? (
+        <button onClick={startGame} disabled={players.length < 2}
+          style={{width:"100%",padding:"12px",borderRadius:12,border:"none",
+            background:players.length<2?"rgba(255,255,255,0.06)":"linear-gradient(135deg,#7c3aed,#4f46e5)",
+            color:players.length<2?"var(--text-4)":"#fff",fontWeight:800,fontSize:13,
+            cursor:players.length<2?"not-allowed":"pointer"}}>
+          {players.length<2?"Attends encore un joueur…":"Lancer la partie 🚀"}
+        </button>
+      ) : (
+        <div style={{fontSize:11,color:"var(--text-4)"}}>En attente que {players[0]} lance la partie…</div>
+      )}
     </div>
   );
 }
