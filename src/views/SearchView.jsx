@@ -142,6 +142,8 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
 
   const [popularAnime, setPopularAnime]     = useState([]);
   const [loadingPopular, setLoadingPopular] = useState(true);
+  const [airingAnime, setAiringAnime]       = useState([]);
+  const [loadingAiring, setLoadingAiring]   = useState(true);
   const [popularStudios, setPopularStudios] = useState([]);
   const [loadingStudios, setLoadingStudios] = useState(true);
 
@@ -198,6 +200,33 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
       .finally(() => { if(!cancelled) setLoadingPopular(false); });
     return () => { cancelled = true; };
   }, [typeFilter]);
+
+  // Fetch airing TV anime (currently airing + recurring like One Piece)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        // TV only, currently airing or recurring, sort by popularity
+        const rows = await sb.query(
+          "anime_cache?type=eq.TV&status=in.(Currently%20Airing,Airing)&score=gte.6&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,fetched_at&order=scored_by.desc.nullslast&limit=24"
+        ).catch(()=>[]);
+        if(!cancelled && rows?.length) {
+          setAiringAnime(rows);
+        } else if(!cancelled) {
+          // Fallback: fetch from Jikan seasonal
+          const res = await fetch("https://api.jikan.moe/v4/seasons/now?limit=24&filter=tv").catch(()=>null);
+          const data = res?.ok ? await res.json() : null;
+          if(!cancelled && data?.data) {
+            setAiringAnime(data.data
+              .filter(a => a.type === "TV" && !["TV Short","CM","PV"].includes(a.type))
+              .slice(0, 24));
+          }
+        }
+      } catch {}
+      if(!cancelled) setLoadingAiring(false);
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -398,6 +427,21 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
       {/* ── ANIME TAB ── */}
       {tab === "anime" && !submitted && (
         <>
+          {/* Airing this season — only shown on "all" tab */}
+          {typeFilter === "all" && (
+            <div className="mb-8">
+              <SectionLabel className="mb-3">📡 En cours de diffusion</SectionLabel>
+              {loadingAiring ? <Spinner label={t.loading} /> : airingAnime.length > 0 ? (
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                  {airingAnime.map(a => {
+                    const status = (me.statuses||{})[a.mal_id];
+                    const statusColors = { completed:"#3b82f6", watching:"#22c55e", dropped:"#ef4444", onhold:"#f59e0b", watchlist:"#9ca3af" };
+                    return <AnimeCard key={a.mal_id} anime={a} onClick={onOpenDetail} statusDot={statusColors[status]} moodPts={ptsStore[a.mal_id]} quickAction="watchlist" />;
+                  })}
+                </div>
+              ) : null}
+            </div>
+          )}
           <SectionLabel className="mb-3">{POPULAR_LABELS[typeFilter] || POPULAR_LABELS.all}</SectionLabel>
           {loadingPopular ? <Spinner label={t.loading} /> : (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">

@@ -44,7 +44,7 @@ export function TagPill({ id }) {
 }
 
 // ─── Create a new discussion — title + body + optional tags ───────────────────
-export function NewThreadModal({ username, onClose, onCreated }) {
+export function NewThreadModal({ username, onClose, onCreated, animeId, animeTitle, animeImage }) {
   const { lang } = useLang();
   const t = FORUM_THREAD_I18N[lang] || FORUM_THREAD_I18N.fr;
   const [title, setTitle]     = useState("");
@@ -83,7 +83,7 @@ export function NewThreadModal({ username, onClose, onCreated }) {
     if(!ttl || !b) { setError(t.errRequired); return; }
     setSubmitting(true); setError(null);
     try {
-      const rows = await sb.createThread(username, ttl, b, tags, imageUrl);
+      const rows = await sb.createThread(username, ttl, b, tags, imageUrl, animeId||null, animeTitle||null, animeImage||null);
       if(!rows?.[0]) throw new Error("empty response");
       const thread = rows[0];
       // Create poll if set
@@ -293,7 +293,7 @@ function ForumPollDisplay({ threadId, username }) {
 }
 
 // ─── Thread detail — body + replies + reply box, no reactions/pagination ──────
-export function ThreadModal({ thread, username, onClose, onOpenUser }) {
+export function ThreadModal({ thread, username, onClose, onOpenUser, onReply }) {
   const { blockedUsers } = useApp();
   const { lang } = useLang();
   const t = FORUM_THREAD_I18N[lang] || FORUM_THREAD_I18N.fr;
@@ -332,7 +332,7 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
     setSubmitting(true); setError(null);
     try {
       const rows = await sb.createReply(thread.id, username, b);
-      if(rows?.[0]) setReplies(r => [...r, rows[0]]);
+      if(rows?.[0]) { setReplies(r => [...r, rows[0]]); onReply?.(); }
       setReply("");
     } catch {
       setError(t.errReply);

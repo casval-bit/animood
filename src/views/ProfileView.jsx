@@ -504,14 +504,16 @@ if(!window.confirm(t.confirmDeletePost)) return;
 }
 
 function GamePtsDisplay({ myUsername, compact }) {
-  const [pts, setPts] = useState(null);
+  const [elo, setElo] = useState(null);
   useEffect(() => {
     if(!myUsername) return;
-    sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&select=points_total&limit=1`)
-      .then(r => { if(r?.[0]) setPts(r[0].points_total||0); })
+    sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&limit=1`)
+      .then(r => { if(r?.[0]) setElo(r[0]); })
       .catch(()=>{});
   }, [myUsername]);
-  if(pts === null) return compact ? <div/> : null;
+  if(elo === null) return compact ? <div/> : null;
+  // Total = elo_chain + elo_timeline + streak_wordle + streak_poster
+  const pts = (elo.elo_chain||400) + (elo.elo_timeline||400) + (elo.streak_wordle||0) + (elo.streak_poster||0);
   if(compact) return (
     <div className="rounded-xl border border-white/6 bg-white/3 p-3 text-center">
       <div className="text-xl font-black text-violet-400">{pts}</div>

@@ -1,4 +1,4 @@
-// ─── SUPABASE CLIENT (SDK officiel) ──────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ SUPABASE CLIENT (SDK officiel) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || "https://pjkvhhxwjzpmxmhdhwcp.supabase.co";
@@ -6,7 +6,7 @@ const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON || "eyJhbGciOiJIUzI1NiI
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
 
-// ─── GOOGLE AUTH ──────────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ GOOGLE AUTH ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 export async function signInWithGoogle() {
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "google",
@@ -23,7 +23,7 @@ export function onAuthChange(callback) {
   return supabase.auth.onAuthStateChange((_event, session) => callback(session));
 }
 
-// ─── REST HELPERS ─────────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ REST HELPERS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 export const sb = {
   headers: {
     "Content-Type": "application/json",
@@ -91,7 +91,7 @@ export const sb = {
     catch { return []; }
   },
 
-  // ─── Forum threads/replies — skeleton, no reactions, no pagination ──────────
+  // ÔöÇÔöÇÔöÇ Forum threads/replies ÔÇö skeleton, no reactions, no pagination ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
   async listThreads(limit = 20) {
     try { return await this.query(`forum_threads?select=*&order=created_at.desc&limit=${limit}`) || []; }
     catch { return []; }
@@ -110,7 +110,7 @@ export const sb = {
   // Same idea as posts.getActivityNotifications below, for forum threads: every
   // reply (from someone else) on a thread `username` started or has replied to.
   // Unlike getReplyCounts this isn't limited to whatever's on the current threads
-  // list — it looks at every thread you're actually involved in.
+  // list ÔÇö it looks at every thread you're actually involved in.
   async getThreadActivityNotifications(username) {
     const u = encodeURIComponent(username);
     try {
@@ -138,7 +138,7 @@ export const sb = {
       }));
     } catch { return []; }
   },
-  // Threads/replies where someone else typed "@username" — independent of
+  // Threads/replies where someone else typed "@username" ÔÇö independent of
   // getThreadActivityNotifications above, since a mention can pull you into a
   // thread you've never started or replied to. ilike casts a wide net (plain
   // substring), then isMention re-checks the exact token so "@bob" doesn't
@@ -187,11 +187,26 @@ export const sb = {
     });
   },
   async createReply(threadId, username, body) {
-    return this.query("forum_replies", {
+    const rows = await this.query("forum_replies", {
       method: "POST",
       headers: { ...this.headers, "Prefer": "return=representation" },
       body: JSON.stringify([{ thread_id: threadId, username, body }]),
     });
+    // Update last_reply_at and reply_count
+    this.query("forum_threads?id=eq." + threadId, {
+      method: "PATCH",
+      headers: { ...this.headers, "Prefer": "return=minimal" },
+      body: JSON.stringify({ last_reply_at: new Date().toISOString() }),
+    }).catch(()=>{});
+    this.query("forum_threads?id=eq." + threadId + "&select=reply_count").then(r => {
+      const count = (r?.[0]?.reply_count || 0) + 1;
+      this.query("forum_threads?id=eq." + threadId, {
+        method: "PATCH",
+        headers: { ...this.headers, "Prefer": "return=minimal" },
+        body: JSON.stringify({ reply_count: count }),
+      }).catch(()=>{});
+    }).catch(()=>{});
+    return rows;
   },
   async toggleThreadLike(id, username) {
     const rows = await this.query(`forum_threads?id=eq.${id}&select=likes&limit=1`);
@@ -272,7 +287,7 @@ export const sb = {
   },
 };
 
-// ─── PROFILE HELPERS ──────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ PROFILE HELPERS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 export async function loadProfile(username) {
   try {
     const remote = await sb.getProfile(username);
@@ -301,7 +316,7 @@ export async function saveProfile(username, data) {
   } catch(e) { console.warn("Profile sync failed:", e); }
 }
 
-// ─── FOLLOWS ──────────────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ FOLLOWS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 export const follows = {
   async getFollowers(username) {
     const rows = await sb.query(`follows?following=eq.${encodeURIComponent(username)}&select=follower`);
@@ -329,7 +344,7 @@ export const follows = {
   },
 };
 
-// ─── BLOCKS — one-directional "I don't want to see this person" ───────────────
+// ÔöÇÔöÇÔöÇ BLOCKS ÔÇö one-directional "I don't want to see this person" ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 export const blocks = {
   async getBlockedByMe(username) {
     const rows = await sb.query(`user_blocks?blocker=eq.${encodeURIComponent(username)}&select=blocked`);
@@ -353,9 +368,9 @@ export const blocks = {
   },
 };
 
-// ─── DIRECT MESSAGES — 1:1 chat, no group threads/attachments ─────────────────
+// ÔöÇÔöÇÔöÇ DIRECT MESSAGES ÔÇö 1:1 chat, no group threads/attachments ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 export const dm = {
-  // Distinct conversations involving `username`, each with its last message —
+  // Distinct conversations involving `username`, each with its last message ÔÇö
   // most recently active first.
   async listConversations(username) {
     const u = encodeURIComponent(username);
@@ -384,7 +399,7 @@ export const dm = {
   },
 };
 
-// ─── POSTS ────────────────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ POSTS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 export const posts = {
   async getFeed({ limit=20, offset=0, username=null, animeId=null, genre=null, season=null, following=[] }) {
     let url = `posts?select=*&order=created_at.desc&limit=${limit}&offset=${offset}`;
@@ -414,7 +429,7 @@ export const posts = {
     });
   },
   // Every comment (from someone else) on a post `username` either wrote or has
-  // commented on — the raw material for the "activity on your posts" bell.
+  // commented on ÔÇö the raw material for the "activity on your posts" bell.
   // Returns the full comment list per post (desc order) so the caller can work
   // out both "how many are unread" and "what's the latest one" against its own
   // last-read timestamp. Read-state itself is tracked client-side (AppProvider).
@@ -445,7 +460,7 @@ export const posts = {
       }));
     } catch { return []; }
   },
-  // Posts/comments where someone else typed "@username" — independent of
+  // Posts/comments where someone else typed "@username" ÔÇö independent of
   // getActivityNotifications above, since a mention can pull you into a post
   // you've never written or commented on. ilike casts a wide net (plain
   // substring), then isMention re-checks the exact token so "@bob" doesn't
@@ -484,7 +499,7 @@ export const posts = {
   },
 };
 
-// ─── COMMENTS ─────────────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ COMMENTS ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 export const comments = {
   async getForPost(postId) {
     return sb.query(`comments?post_id=eq.${postId}&order=created_at.asc&limit=50`);
