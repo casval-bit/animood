@@ -140,7 +140,60 @@ export const FRAMES = {
       </circle>`,
   },
 
-  // ── TOTAL ANIME VUS ────────────────────────────────────────────────────────
+  // ── JEUX ───────────────────────────────────────────────────────────────────
+  games_rookie: {
+    id:"games_rookie", category:"games",
+    label:"Rookie", desc:"100 pts de jeu",
+    color:"#86EFAC",
+    svg: (size) => `
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-3}" fill="none" stroke="#86EFAC" stroke-width="3" stroke-dasharray="6 3"/>`,
+  },
+  games_challenger: {
+    id:"games_challenger", category:"games",
+    label:"Master", desc:"500 pts de jeu",
+    color:"#60A5FA",
+    svg: (size) => `
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-3}" fill="none" stroke="#60A5FA" stroke-width="3"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-7}" fill="none" stroke="#60A5FA" stroke-width="1" opacity="0.4" stroke-dasharray="4 6">
+        <animateTransform attributeName="transform" type="rotate" from="0 ${size/2} ${size/2}" to="360 ${size/2} ${size/2}" dur="12s" repeatCount="indefinite"/>
+      </circle>`,
+  },
+  games_master: {
+    id:"games_master", category:"games",
+    label:"GrandMaster", desc:"2000 pts de jeu",
+    color:"#F97316",
+    svg: (size) => `
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-3}" fill="none" stroke="#F97316" stroke-width="3.5"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-7}" fill="none" stroke="#FED7AA" stroke-width="1.5" stroke-dasharray="5 3"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-11}" fill="none" stroke="#F97316" stroke-width="1" opacity="0.4" stroke-dasharray="2 4">
+        <animateTransform attributeName="transform" type="rotate" from="360 ${size/2} ${size/2}" to="0 ${size/2} ${size/2}" dur="8s" repeatCount="indefinite"/>
+      </circle>`,
+  },
+  games_grandmaster: {
+    id:"games_grandmaster", category:"games",
+    label:"Radiant", desc:"5000 pts de jeu",
+    color:"#F0ABFC", animated:true,
+    svg: (size) => `
+      <defs>
+        <linearGradient id="gmGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#F0ABFC"><animate attributeName="stop-color" values="#F0ABFC;#FBBF24;#F97316;#F0ABFC" dur="2s" repeatCount="indefinite"/></stop>
+          <stop offset="100%" stop-color="#FBBF24"><animate attributeName="stop-color" values="#FBBF24;#F0ABFC;#60A5FA;#FBBF24" dur="2s" repeatCount="indefinite"/></stop>
+        </linearGradient>
+        <filter id="gmGlow">
+          <feGaussianBlur stdDeviation="2.5" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-3}" fill="none" stroke="url(#gmGrad)" stroke-width="4" filter="url(#gmGlow)"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-8}" fill="none" stroke="#F0ABFC" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.7">
+        <animateTransform attributeName="transform" type="rotate" from="0 ${size/2} ${size/2}" to="360 ${size/2} ${size/2}" dur="6s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-13}" fill="none" stroke="#FBBF24" stroke-width="1" stroke-dasharray="2 5" opacity="0.5">
+        <animateTransform attributeName="transform" type="rotate" from="360 ${size/2} ${size/2}" to="0 ${size/2} ${size/2}" dur="9s" repeatCount="indefinite"/>
+      </circle>`,
+  },
+
+
   watched_50: {
     id:"watched_50", category:"watched",
     label:"Débutant", desc:"50 animés vus",
@@ -196,7 +249,7 @@ function sumPtsAdded(ptsAdded) {
 }
 
 // ── Get all unlocked frames for a user ────────────────────────────────────────
-export function getUnlockedFrames({ watchedCount, genreCounts, followerCount, userVotes }) {
+export function getUnlockedFrames({ watchedCount, genreCounts, followerCount, userVotes, gamePoints=0 }) {
   const unlocked = [];
 
   // Followers
@@ -227,6 +280,12 @@ export function getUnlockedFrames({ watchedCount, genreCounts, followerCount, us
   if(watchedCount >= 1000) unlocked.push(FRAMES.watched_1000);
   if(watchedCount >= 5000) unlocked.push(FRAMES.watched_5000);
 
+  // Jeux — basé sur points_total dans game_elo
+  if(gamePoints >= 100)  unlocked.push(FRAMES.games_rookie);
+  if(gamePoints >= 500)  unlocked.push(FRAMES.games_challenger);
+  if(gamePoints >= 2000) unlocked.push(FRAMES.games_master);
+  if(gamePoints >= 5000) unlocked.push(FRAMES.games_grandmaster);
+
   return unlocked;
 }
 
@@ -249,4 +308,40 @@ export function getBestFrame(unlocked) {
 export function getFrameSVGHtml(frame, size=80) {
   if(!frame) return null;
   return frame.svg(size);
+}
+
+// ── i18n for frame label/desc — `frame.label`/`frame.desc` stay French (default)
+// for any code still reading them directly; use these getters for lang-aware text.
+const FRAME_LABELS_EN = {
+  followers_10:"Recognized", followers_50:"Popular", followers_250:"Crystal",
+  genre_romance:"Romantic", genre_scifi:"Explorer", genre_horror:"Survivor",
+  genre_action:"Fighter", genre_comedy:"Comic", genre_drama:"Dramatist",
+  genre_fantasy:"Mage", genre_sports:"Athlete", genre_mystery:"Detective",
+  genre_sliceoflife:"Everyday", genre_mecha:"Pilot", genre_supernatural:"Medium",
+  contrib_10:"Contributor", contrib_100:"Expert", contrib_1000:"Oracle",
+  games_rookie:"Rookie", games_challenger:"Master", games_master:"GrandMaster", games_grandmaster:"Radiant",
+  watched_50:"Beginner", watched_500:"Serious", watched_1000:"Veteran", watched_5000:"Legend",
+};
+
+const FRAME_DESCS_EN = {
+  followers_10:"10 followers", followers_50:"50 followers", followers_250:"250 followers",
+  genre_romance:"100 Romance anime", genre_scifi:"100 Sci-Fi anime", genre_horror:"100 Horror anime",
+  genre_action:"100 Action anime", genre_comedy:"100 Comedy anime", genre_drama:"100 Drama anime",
+  genre_fantasy:"100 Fantasy anime", genre_sports:"100 Sports anime", genre_mystery:"100 Mystery anime",
+  genre_sliceoflife:"100 Slice of Life anime", genre_mecha:"100 Mecha anime", genre_supernatural:"100 Supernatural anime",
+  contrib_10:"10 mood pts assigned", contrib_100:"100 mood pts assigned", contrib_1000:"1000 mood pts assigned",
+  games_rookie:"100 game pts", games_challenger:"500 game pts", games_master:"2000 game pts", games_grandmaster:"5000 game pts",
+  watched_50:"50 anime watched", watched_500:"500 anime watched", watched_1000:"1000 anime watched", watched_5000:"5000 anime watched",
+};
+
+export function getFrameLabel(frameOrId, lang = "fr") {
+  const frame = typeof frameOrId === "string" ? FRAMES[frameOrId] : frameOrId;
+  if(!frame) return "";
+  return lang === "en" ? (FRAME_LABELS_EN[frame.id] || frame.label) : frame.label;
+}
+
+export function getFrameDesc(frameOrId, lang = "fr") {
+  const frame = typeof frameOrId === "string" ? FRAMES[frameOrId] : frameOrId;
+  if(!frame) return "";
+  return lang === "en" ? (FRAME_DESCS_EN[frame.id] || frame.desc) : frame.desc;
 }

@@ -7,11 +7,14 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sync:anime": "node scripts/sync_new_anime.mjs",
+    "sync:moods": "node scripts/sync_new_moods.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
     "@tailwindcss/vite": "^4.2.4",
+    "node-fetch": "^3.3.2",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "tailwindcss": "^4.2.4"
