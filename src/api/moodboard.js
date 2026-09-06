@@ -4,34 +4,25 @@ import { jikan, supabaseRowToAnime } from "./jikan.js";
 import { getPtsForAnime, ptsToPct } from "./moods.js";
 
 const BATCH_SIZE   = 100;
-const MAX_ATTEMPTS = 5;   // 5 × 100 = 500 anime ceiling per call
+const MAX_ATTEMPTS = 5;
 const SCORE_POOL   = 60;
 
 const WEIGHTS = [
-  { mal: 3,   mood: 2   }, // 1er affichage
-  { mal: 2,   mood: 2.5 }, // 1er reroll
-  { mal: 1,   mood: 3   }, // 2e+ reroll
+  { mal: 3, mood: 2   },
+  { mal: 2, mood: 2.5 },
+  { mal: 1, mood: 3   },
 ];
 
-// ─── FRANCHISE DEDUP ──────────────────────────────────────────────────────────
-// Strips season markers to find the franchise root title.
-// "Shingeki no Kyojin Season 3 Part 2" → "shingeki no kyojin"
-// "Gintama°" → "gintama"
-// "JoJo no Kimyou na Bouken: Diamond wa Kudakenai" → "jojo no kimyou na bouken"
-// We keep one representative per franchise (best scored), UNLESS the series is
-// clearly anthology-style (different subtitles separated by ":") where each arc
-// is largely independent — we allow those through.
 const SEASON_PATTERNS = [
   /\s+(season|part|cour|hen|haku|sou|kai|final|movie|film|gekijouban|ova|oad|special|sp)\b.*/i,
   /\s+\d+(st|nd|rd|th)\s*(season|cour|part)?/i,
   /\s+(第\d+期|第\d+シーズン)/,
-  /[：:]\s*.+$/,          // subtitle after colon — strip for dedup
-  /\s+[IVX]+$/,           // roman numerals at end
-  /\s+\d+$/,              // trailing number
-  /[°'"！!★☆♪♫♬♩✿◆◇▲△▼▽■□●○\-–—~～.。]+\s*$/,  // trailing symbols incl dots
+  /[：:]\s*.+$/,
+  /\s+[IVX]+$/,
+  /\s+\d+$/,
+  /[°'"！!★☆♪♫♬♩✿◆◇▲△▼▽■□●○\-–—~～.。]+\s*$/,
 ];
 
-// Titles where each entry is largely independent — don't dedup within franchise
 const ANTHOLOGY_ROOTS = new Set([
   "jojo no kimyou na bouken",
   "monogatari",
@@ -39,30 +30,24 @@ const ANTHOLOGY_ROOTS = new Set([
   "dragon ball",
   "precure",
   "gundam",
-  "fullmetal alchemist", // FMA vs FMA Brotherhood are different adaptations
+  "fullmetal alchemist",
 ]);
 
 function franchiseRoot(title) {
   let t = (title || "").toLowerCase().trim();
-  // Strip common Japanese sequel prefixes
   t = t.replace(/^(zoku|shin |new |gekijouban |the |dai \d+ ki |dai \d+ki )/i, "");
   for(const pat of SEASON_PATTERNS) t = t.replace(pat, "");
-  // Remove trailing punctuation/symbols
   t = t.replace(/[°.。!！?？～~\-–—]+$/, "").trim();
   return t.slice(0, 24);
 }
 
-// Returns true if two titles are the same franchise that should be deduped
 function isSameFranchise(a, b) {
   const ra = franchiseRoot(a), rb = franchiseRoot(b);
   if(!ra || !rb) return false;
   if(ra === rb) {
-    // If it's an anthology franchise, allow different subtitles through
     if(ANTHOLOGY_ROOTS.has(ra)) return false;
     return true;
   }
-  // One starts with the other (e.g. "one piece" vs "one piece film")
-  // but only if the longer one is clearly a continuation (not a different show)
   const shorter = ra.length < rb.length ? ra : rb;
   const longer  = ra.length < rb.length ? rb : ra;
   if(longer.startsWith(shorter) && longer.length - shorter.length <= 8) return true;
@@ -75,10 +60,8 @@ function dedupeByFranchise(list) {
     const conflict = kept.find(k => isSameFranchise(k.title, a.title));
     if(!conflict) { kept.push(a); }
     else if((a.score||0) > (conflict.score||0)) {
-      // Replace with better-scored entry of same franchise
       kept.splice(kept.indexOf(conflict), 1, a);
     }
-    // else skip — existing entry is better
   }
   return kept;
 }
@@ -95,25 +78,15 @@ function filterByDuration(list, duration) {
   return filtered.length >= 3 ? filtered : list;
 }
 
-/**
- * cursor: { offset, pool, shownIds } — carried across a session.
- * Pass null for a fresh search. rerollCount drives MAL/mood weights.
- * Returns { results, cursor }.
- */
-export async function fetchMoodboardCandidates(
-  selectedMoods, duration, mediaTypes, countries, me, cursor, rerollCount = 0
-) {
+export async function fetchMoodboardCandidates(selectedMoods, duration, mediaTypes, countries, me, cursor, rerollCount = 0) {
   const countryFilter = countries.includes("all") ? null : countries;
-  const countryParam  = countryFilter
-    ? (countryFilter.includes("JP") ? "&country=eq.JP" : "&country=eq.other")
-    : "";
+  const countryParam  = countryFilter ? (countryFilter.includes("JP") ? `&country=eq.JP` : `&country=eq.other`) : "";
+  const baseUrl = `anime_cache?select=mal_id,title,title_en,synopsis,score,rank,year,episodes,type,source,image_url,large_image,genres,studios,producers`;
 
-  // Media type filter
+  // Type filter
   const typeFilter = (!mediaTypes || mediaTypes.includes("all")) ? "" :
     mediaTypes.length === 1 ? `&type=eq.${mediaTypes[0]}` :
     `&type=in.(${mediaTypes.join(",")})`;
-
-  const baseUrl = "anime_cache?select=mal_id,title,title_en,synopsis,score,rank,year,episodes,type,source,image_url,large_image,genres,studios,producers";
 
   const EXCLUDED_STATUSES = new Set(["completed","watching","dropped"]);
   const excluded = new Set(me.watched);
@@ -121,18 +94,20 @@ export async function fetchMoodboardCandidates(
     if(EXCLUDED_STATUSES.has(status)) excluded.add(parseInt(id));
   });
 
-  // Restore state from cursor — keys are strings in JSON, convert back to int
   let offset   = cursor?.offset ?? 0;
+  // ── FIX: properly rebuild Map from JSON object (keys are strings) ──
   const poolObj = cursor?.pool || {};
   const pool    = new Map(Object.entries(poolObj).map(([k,v]) => [parseInt(k), v]));
   let shownSet  = new Set((cursor?.shownIds || []).map(Number));
+  // Track non-TV shown globally across all 3 rerolls — max 1 Film, max 1 OAV total
+  let shownMovies = cursor?.shownMovies ?? 0;
+  let shownOVA    = cursor?.shownOVA    ?? 0;
 
   const buildUsable = (respectShown) => {
     let list = [...pool.values()].filter(a => {
       if(excluded.has(a.mal_id)) return false;
       if(["Special","Music","CM","PV"].includes(a.type)) return false;
       if(respectShown && shownSet.has(a.mal_id)) return false;
-      // Also exclude if any franchise member is already shown
       if(respectShown) {
         const franchiseShown = [...shownSet].some(shownId => {
           const shownAnime = pool.get(shownId);
@@ -147,21 +122,16 @@ export async function fetchMoodboardCandidates(
     return list;
   };
 
-  // Always fetch at least one new batch so rerolls introduce fresh anime
   let usable   = [];
   let attempts = 0;
   do {
     try {
-      const rows = await sb.query(
-        `${baseUrl}${countryParam}${typeFilter}&order=score.desc.nullslast&limit=${BATCH_SIZE}&offset=${offset}`
-      );
-      if(rows?.length) rows.forEach(row => {
-        if(!pool.has(row.mal_id)) pool.set(row.mal_id, supabaseRowToAnime(row));
-      });
+      const rows = await sb.query(`${baseUrl}${countryParam}${typeFilter}&order=score.desc.nullslast&limit=${BATCH_SIZE}&offset=${offset}`);
+      if(rows?.length) rows.forEach(row => { if(!pool.has(row.mal_id)) pool.set(row.mal_id, supabaseRowToAnime(row)); });
     } catch(e) {
       console.error("Supabase failed, fallback Jikan:", e);
-      const jikanPage = Math.floor(offset / 25) + 1;
-      for(let p = jikanPage; p < jikanPage + 4; p++) {
+      const jikanPage = Math.floor(offset/25) + 1;
+      for(let p = jikanPage; p < jikanPage+4; p++) {
         try {
           const data = await jikan.searchAnime({order_by:"score",sort:"desc",limit:25,min_score:6.5,sfw:false,page:p});
           (data.data||[]).forEach(a => { if(!pool.has(a.mal_id)) pool.set(a.mal_id, a); });
@@ -173,13 +143,11 @@ export async function fetchMoodboardCandidates(
     usable = buildUsable(true);
   } while(usable.length < 3 && attempts < MAX_ATTEMPTS);
 
-  // Last resort — ignore shownIds exclusion
   if(usable.length < 3) {
     shownSet = new Set();
     usable = buildUsable(false);
   }
 
-  // Score top SCORE_POOL candidates by MAL score then pick best mood match
   const toScore = [...usable].sort((a,b) => (b.score||0)-(a.score||0)).slice(0, SCORE_POOL);
   const withPts = [];
   for(let i = 0; i < toScore.length; i += 3) {
@@ -199,7 +167,7 @@ export async function fetchMoodboardCandidates(
     .sort((a,b) => b._score - a._score)
     .slice(0, 3);
 
-  // For each result, redirect to first unwatched season
+  // Redirect to first unwatched season
   const results = scored.map(a => {
     const franchise = [...pool.values()]
       .filter(x => isSameFranchise(x.title, a.title) && !excluded.has(x.mal_id))
@@ -209,23 +177,51 @@ export async function fetchMoodboardCandidates(
     return { ...first, _pts: a._pts, _score: a._score };
   });
 
-  // Mark entire franchise as shown — not just the displayed entry
-  // This prevents Kingdom 2/3/4 from appearing in future rerolls
+  // Mark entire franchises as shown
   const newShownIds = new Set([...shownSet]);
-  results.forEach(a => {
+  const markShown = (batch) => batch.forEach(a => {
     newShownIds.add(a.mal_id);
-    // Also mark all franchise members in pool as shown
-    [...pool.values()]
-      .filter(x => isSameFranchise(x.title, a.title))
-      .forEach(x => newShownIds.add(x.mal_id));
+    [...pool.values()].filter(x => isSameFranchise(x.title, a.title)).forEach(x => newShownIds.add(x.mal_id));
   });
 
+  // When format = "all": max 1 Film + 1 OAV total across all 9 results (3 rerolls)
+  const isAll = !mediaTypes || mediaTypes.includes("all");
+  if(isAll && results.length >= 2) {
+    const filtered = [];
+    const sorted = [...results].sort((a,b) => ((b.type||"TV")==="TV"?1:0) - ((a.type||"TV")==="TV"?1:0));
+    for(const a of sorted) {
+      const t = a.type || "TV";
+      if(t === "TV") {
+        filtered.push(a);
+      } else if(t === "Movie" && shownMovies < 1) {
+        filtered.push(a); shownMovies++;
+      } else if(["OVA","OAD","Special"].includes(t) && shownOVA < 1) {
+        filtered.push(a); shownOVA++;
+      }
+      // else skip — already showed a movie or OVA this session
+    }
+    // Fill to 3 with TV if needed
+    if(filtered.length < 3) {
+      const inBatch = new Set(filtered.map(a => a.mal_id));
+      const extras = withPts
+        .filter(a => !inBatch.has(a.mal_id) && !shownSet.has(a.mal_id) && (a.type||"TV") === "TV")
+        .sort((a,b) => b._score - a._score);
+      for(const e of extras) {
+        if(filtered.length >= 3) break;
+        filtered.push(e);
+      }
+    }
+    const finalResults = filtered.slice(0,3);
+    markShown(finalResults);
+    return {
+      results: finalResults,
+      cursor: { offset, pool: Object.fromEntries(pool), shownIds: [...newShownIds], shownMovies, shownOVA },
+    };
+  }
+
+  markShown(results.slice(0,3));
   return {
-    results,
-    cursor: {
-      offset,
-      pool: Object.fromEntries(pool),
-      shownIds: [...newShownIds],
-    },
+    results: results.slice(0,3),
+    cursor: { offset, pool: Object.fromEntries(pool), shownIds: [...newShownIds], shownMovies, shownOVA },
   };
 }
