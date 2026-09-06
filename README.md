@@ -43,6 +43,11 @@ npm run lint      # eslint across the project
 
 - **OP Quiz** — troisième mini-jeu solo (Forum → 🎮 Mini-jeux du jour) : deviner l'animé à partir de son opening. Suit sa propre streak/points (`streak_opquiz`, `last_opquiz_date` dans `game_elo`), en attente d'exécution avec le reste de `game_schema.sql` — voir Database plus bas.
 - **Mini-jeux 1v1 (Chaîne, Timeline)** — implémentation remplacée par celle développée en parallèle sur `animood-v.07` (branche divergente, jamais fusionnée) : l'abandon en pleine partie demande maintenant une confirmation et fait passer la room à `"finished"` (au lieu de la remettre silencieusement à `"waiting"`), et la fenêtre de jeu expose sa fonction de forfait au parent (`onReady`) plutôt que de la dupliquer dans `ForumView`.
+- **Repassage sur `animood-v.07` (GitHub)** — cette même branche parallèle a continué à évoluer séparément sur GitHub après sa divergence, avec un merge non documenté ("thread likes, comment likes, i18n"). Comparée en détail à celle-ci : pas de fonctionnalité réellement nouvelle dedans (aucun fichier en plus, OP Quiz y a même été supprimé), et `ForumView.jsx` n'y compile plus (JSX cassé dans `GameEloDisplay`, retour JSX supprimé sans retirer les balises de fermeture). Seuls trois changements valables en ont été repris ici, réimplémentés proprement :
+  - `ThreadModal` perd sa prop `onLikeUpdate` (et l'appel associé) — n'était utile que pour resynchroniser la liste des sujets du Forum sans recharger, jugé pas assez utile pour le coût.
+  - `ProfilePostCard` perd le `useEffect` qui resynchronisait `liked`/`likeCount` depuis `post.likes` — redondant avec la mise à jour optimiste déjà faite dans `handleLike`.
+  - `GameEloDisplay` (Forum → carte mini-jeux) simplifié : un seul total de points (`elo.points_total`) au lieu de la grille détaillée par jeu (Elo Chaîne/Timeline + points Wordle/Poster/OP Quiz séparés) ; les 5 boutons de mini-jeux factorisés dans un composant `GameButton` au lieu d'être dupliqués. OP Quiz conservé (contrairement à `animood-v.07`).
+  - Au passage, date et type de post dans "Mes Posts" (`ProfileView.jsx`) passés en français en dur plutôt que via l'i18n FR/EN — repris tel quel de la branche GitHub.
 
 ## v.07.01 — en comparaison avec v.07
 

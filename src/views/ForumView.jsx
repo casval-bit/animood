@@ -256,9 +256,24 @@ function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, profileC
   );
 }
 
+function GameButton({ emoji, label, color, onClick }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button onClick={onClick} title={label}
+      style={{width:52,height:52,borderRadius:"50%",
+        border:`2px solid rgba(${color},0.4)`,
+        background:hover?`rgba(${color},0.22)`:`rgba(${color},0.1)`,
+        cursor:"pointer",display:"flex",flexDirection:"column",
+        alignItems:"center",justifyContent:"center",gap:2,transition:"all 0.2s",
+        transform:hover?"scale(1.08)":"scale(1)"}}
+      onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)}>
+      <span style={{fontSize:18}}>{emoji}</span>
+      <span style={{fontSize:7,color:`rgb(${color})`,fontWeight:700}}>{label}</span>
+    </button>
+  );
+}
+
 function GameEloDisplay({ myUsername }) {
-  const { lang } = useLang();
-  const t = FORUM_I18N[lang] || FORUM_I18N.fr;
   const [elo, setElo] = useState(null);
   useEffect(() => {
     if(!myUsername) return;
@@ -269,33 +284,9 @@ function GameEloDisplay({ myUsername }) {
   if(!elo) return null;
   return (
     <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.06)",
-      display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-      <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(251,191,36,0.06)"}}>
-        <div style={{fontSize:13,fontWeight:900,color:"#fbbf24"}}>{elo.elo_chain||400}</div>
-        <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>{t.eloChainLabel}</div>
-      </div>
-      <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(34,197,94,0.06)"}}>
-        <div style={{fontSize:13,fontWeight:900,color:"#22c55e"}}>{elo.elo_timeline||400}</div>
-        <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>{t.eloTimelineLabel}</div>
-      </div>
-      <div style={{gridColumn:"1/-1",display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
-        <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(124,58,237,0.06)"}}>
-          <div style={{fontSize:13,fontWeight:900,color:"#c084fc"}}>{elo.streak_wordle||0}</div>
-          <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>{t.wordlePtsLabel}</div>
-        </div>
-        <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(236,72,153,0.06)"}}>
-          <div style={{fontSize:13,fontWeight:900,color:"#f9a8d4"}}>{elo.streak_poster||0}</div>
-          <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>{t.posterPtsLabel}</div>
-        </div>
-        <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(56,189,248,0.06)"}}>
-          <div style={{fontSize:13,fontWeight:900,color:"#7dd3fc"}}>{elo.streak_opquiz||0}</div>
-          <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>{t.opquizPtsLabel}</div>
-        </div>
-      </div>
-      <div style={{gridColumn:"1/-1",textAlign:"center",padding:"4px",borderRadius:8,background:"rgba(255,255,255,0.03)"}}>
-        <div style={{fontSize:11,fontWeight:900,color:"var(--text-2)"}}>{t.totalPtsLabel(elo.points_total||0)}</div>
-        <div style={{fontSize:8,color:"rgba(148,163,184,0.5)"}}>{t.unlocksFramesLabel}</div>
-      </div>
+      textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(255,255,255,0.03)"}}>
+      <div style={{fontSize:11,fontWeight:900,color:"var(--text-2)"}}>{elo.points_total||0} pts total</div>
+      <div style={{fontSize:8,color:"rgba(148,163,184,0.5)"}}>🎮 Débloque des cadres profil</div>
     </div>
   );
 }
@@ -502,57 +493,12 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
             {/* Mini-jeux */}
             <div className="mt-4 rounded-2xl border border-white/8 bg-white/3 p-4">
               <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.miniGamesTitle}</div>
-              <div className="flex gap-3 justify-center">
-                <button onClick={()=>setShowWordle(true)}
-                  title={t.wordleTitle}
-                  style={{width:56,height:56,borderRadius:"50%",border:"2px solid rgba(124,58,237,0.4)",
-                    background:"rgba(124,58,237,0.12)",cursor:"pointer",display:"flex",flexDirection:"column",
-                    alignItems:"center",justifyContent:"center",gap:2,transition:"all 0.2s"}}
-                  onMouseEnter={e=>{e.currentTarget.style.background="rgba(124,58,237,0.25)";e.currentTarget.style.transform="scale(1.08)";}}
-                  onMouseLeave={e=>{e.currentTarget.style.background="rgba(124,58,237,0.12)";e.currentTarget.style.transform="scale(1)";}}>
-                  <span style={{fontSize:20}}>🎯</span>
-                  <span style={{fontSize:8,color:"#c084fc",fontWeight:700}}>{t.wordleLabel}</span>
-                </button>
-                <button onClick={()=>setShowPoster(true)}
-                  title={t.posterTitle}
-                  style={{width:56,height:56,borderRadius:"50%",border:"2px solid rgba(236,72,153,0.4)",
-                    background:"rgba(236,72,153,0.1)",cursor:"pointer",display:"flex",flexDirection:"column",
-                    alignItems:"center",justifyContent:"center",gap:2,transition:"all 0.2s"}}
-                  onMouseEnter={e=>{e.currentTarget.style.background="rgba(236,72,153,0.22)";e.currentTarget.style.transform="scale(1.08)";}}
-                  onMouseLeave={e=>{e.currentTarget.style.background="rgba(236,72,153,0.1)";e.currentTarget.style.transform="scale(1)";}}>
-                  <span style={{fontSize:20}}>🖼</span>
-                  <span style={{fontSize:8,color:"#f9a8d4",fontWeight:700}}>{t.posterLabel}</span>
-                </button>
-                <button onClick={()=>setShowOpQuiz(true)}
-                  title={t.opquizTitle}
-                  style={{width:56,height:56,borderRadius:"50%",border:"2px solid rgba(56,189,248,0.4)",
-                    background:"rgba(56,189,248,0.1)",cursor:"pointer",display:"flex",flexDirection:"column",
-                    alignItems:"center",justifyContent:"center",gap:2,transition:"all 0.2s"}}
-                  onMouseEnter={e=>{e.currentTarget.style.background="rgba(56,189,248,0.22)";e.currentTarget.style.transform="scale(1.08)";}}
-                  onMouseLeave={e=>{e.currentTarget.style.background="rgba(56,189,248,0.1)";e.currentTarget.style.transform="scale(1)";}}>
-                  <span style={{fontSize:20}}>🎵</span>
-                  <span style={{fontSize:8,color:"#7dd3fc",fontWeight:700}}>{t.opquizLabel}</span>
-                </button>
-                <button onClick={()=>setMatchmaking("chain")}
-                  title={t.chainTitle}
-                  style={{width:56,height:56,borderRadius:"50%",border:"2px solid rgba(251,191,36,0.4)",
-                    background:"rgba(251,191,36,0.08)",cursor:"pointer",display:"flex",flexDirection:"column",
-                    alignItems:"center",justifyContent:"center",gap:2,transition:"all 0.2s"}}
-                  onMouseEnter={e=>{e.currentTarget.style.background="rgba(251,191,36,0.2)";e.currentTarget.style.transform="scale(1.08)";}}
-                  onMouseLeave={e=>{e.currentTarget.style.background="rgba(251,191,36,0.08)";e.currentTarget.style.transform="scale(1)";}}>
-                  <span style={{fontSize:20}}>⛓</span>
-                  <span style={{fontSize:8,color:"#fbbf24",fontWeight:700}}>{t.chainLabel}</span>
-                </button>
-                <button onClick={()=>setMatchmaking("timeline")}
-                  title={t.timelineTitle}
-                  style={{width:56,height:56,borderRadius:"50%",border:"2px solid rgba(34,197,94,0.4)",
-                    background:"rgba(34,197,94,0.08)",cursor:"pointer",display:"flex",flexDirection:"column",
-                    alignItems:"center",justifyContent:"center",gap:2,transition:"all 0.2s"}}
-                  onMouseEnter={e=>{e.currentTarget.style.background="rgba(34,197,94,0.2)";e.currentTarget.style.transform="scale(1.08)";}}
-                  onMouseLeave={e=>{e.currentTarget.style.background="rgba(34,197,94,0.08)";e.currentTarget.style.transform="scale(1)";}}>
-                  <span style={{fontSize:20}}>📅</span>
-                  <span style={{fontSize:8,color:"#22c55e",fontWeight:700}}>{t.timelineLabel}</span>
-                </button>
+              <div className="flex gap-3 justify-center flex-wrap">
+                <GameButton emoji="🎯" label={t.wordleLabel} color="124,58,237" onClick={()=>setShowWordle(true)}/>
+                <GameButton emoji="🖼" label={t.posterLabel} color="236,72,153" onClick={()=>setShowPoster(true)}/>
+                <GameButton emoji="🎵" label={t.opquizLabel} color="56,189,248" onClick={()=>setShowOpQuiz(true)}/>
+                <GameButton emoji="⛓" label={t.chainLabel} color="251,191,36" onClick={()=>setMatchmaking("chain")}/>
+                <GameButton emoji="📅" label={t.timelineLabel} color="34,197,94" onClick={()=>setMatchmaking("timeline")}/>
               </div>
               <GameEloDisplay myUsername={myUsername}/>
             </div>
@@ -568,8 +514,7 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
         />
       )}
       {openThread && (
-        <ThreadModal thread={openThread} username={myUsername} onClose={() => setOpenThread(null)} onOpenUser={onOpenUser}
-          onLikeUpdate={(id, likes) => setThreads(list => list.map(th => th.id===id ? {...th, likes} : th))} />
+        <ThreadModal thread={openThread} username={myUsername} onClose={() => setOpenThread(null)} onOpenUser={onOpenUser} />
       )}
       {showWordle && (
         <Modal onClose={()=>setShowWordle(false)} maxWidth="max-w-2xl">
