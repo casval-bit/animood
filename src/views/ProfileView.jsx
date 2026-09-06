@@ -356,12 +356,6 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
   const [postComments, setPostComments] = useState([]);
   const [commentsLoaded, setCommentsLoaded] = useState(false);
 
-  // Re-sync when likes change from elsewhere (e.g. liked from the Feed)
-  useEffect(() => {
-    setLiked((post.likes||[]).includes(myUsername));
-    setLikeCount((post.likes||[]).length);
-  }, [post.likes, myUsername]);
-
   const handleLike = async () => {
     const newLiked = !liked;
     setLiked(newLiked); setLikeCount(c => c + (newLiked?1:-1));
@@ -424,11 +418,11 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
       <div style={{display:"flex",gap:10,marginBottom:10,alignItems:"flex-start"}}>
         <div style={{flex:1}}>
           <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:2}}>
-            <span style={{fontSize:10,color:"var(--text-4)"}}>{new Date(post.created_at).toLocaleDateString(t.dateLocale,{day:"numeric",month:"short",year:"numeric"})}</span>
+            <span style={{fontSize:10,color:"var(--text-4)"}}>{new Date(post.created_at).toLocaleDateString("fr-FR",{day:"numeric",month:"short",year:"numeric"})}</span>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
               style={{background:post._type==="written"?"rgba(124,58,237,0.2)":"rgba(99,102,241,0.15)",
                       color:post._type==="written"?"#c084fc":"#818cf8"}}>
-              {post._type==="written"?t.postTypeWritten:t.postTypeCommented}
+              {post._type==="written"?"✍️ Post":"💬 Commenté"}
             </span>
             {post.anime_title && <span style={{fontSize:10,color:"#818cf8",fontWeight:600}}>📺 {post.anime_title}</span>}
           </div>
