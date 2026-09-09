@@ -2,10 +2,14 @@ import { useState } from "react";
 import { signInWithGoogle } from "../api/supabase.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { GLASS, GLASS_STYLE, GRADIENT_TEXT } from "../constants/theme.js";
+import { useLang } from "../context/useLang.js";
+import { LOGIN_I18N } from "../constants/loginI18n.js";
 
 export function LoginView() {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
+  const { lang } = useLang();
+  const t = LOGIN_I18N[lang] || LOGIN_I18N.fr;
 
   const handleGoogle = async () => {
     setLoading(true); setError(null);
@@ -20,7 +24,7 @@ export function LoginView() {
         <h1 className={`mb-2 text-4xl font-black tracking-tight ${GRADIENT_TEXT}`}>
           AniMood
         </h1>
-        <p className="mb-10 text-sm text-slate-400">Découvre des animés selon ton mood</p>
+        <p className="mb-10 text-sm text-slate-400">{t.tagline}</p>
 
         <button
           onClick={handleGoogle}
@@ -35,7 +39,7 @@ export function LoginView() {
                 <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
                 <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
               </svg>
-              Se connecter avec Google
+              {t.googleBtn}
             </>
           )}
         </button>
@@ -43,8 +47,8 @@ export function LoginView() {
         {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
 
         <p className="mt-6 text-[11px] leading-relaxed text-slate-600">
-          En te connectant tu acceptes que tes données soient stockées dans AniMood.
-          <br />Aucune donnée n'est partagée avec des tiers.
+          {t.disclaimer}
+          <br />{t.disclaimer2}
         </p>
       </div>
     </div>

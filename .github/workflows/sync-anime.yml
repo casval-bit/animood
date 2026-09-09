@@ -1,4 +1,4 @@
-name: Sync Anime Database
+﻿name: Sync Anime Database
 
 on:
   schedule:

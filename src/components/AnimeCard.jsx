@@ -2,6 +2,8 @@ import { getMoodObj } from "../constants/moods.js";
 import { getMoodTags, ptsToPct } from "../api/moods.js";
 import { GLASS, GLASS_STYLE } from "../constants/theme.js";
 import { StarRatingDisplay, QuickActionIcons } from "./ui.jsx";
+import { useLang } from "../context/useLang.js";
+import { ANIME_CARD_I18N } from "../constants/animeCardI18n.js";
 
 const FALLBACK_IMG = "https://placehold.co/300x450/1a1a2e/818cf8?text=?";
 
@@ -11,6 +13,8 @@ function posterUrl(anime) {
 
 // ─── Full card — poster + title + meta + genres (+ optional mood tags) ────────
 export function AnimeCard({ anime, onClick, statusDot, moodPts, className = "", quickAction = "watched" }) {
+  const { lang } = useLang();
+  const t = ANIME_CARD_I18N[lang] || ANIME_CARD_I18N.fr;
   const img = posterUrl(anime);
   const genres = (anime.genres || []).map(g => g.name || g).slice(0, 2);
   const tags = moodPts ? getMoodTags(moodPts) : [];
@@ -45,7 +49,7 @@ export function AnimeCard({ anime, onClick, statusDot, moodPts, className = "", 
       <div className="flex flex-1 flex-col gap-1 p-2.5">
         <div className="line-clamp-2 text-[12.5px] font-extrabold leading-tight text-slate-100">{anime.title}</div>
         <div className="text-[10px] text-slate-500">
-          {anime.year || anime.aired?.prop?.from?.year || "?"} · {anime.type || "?"}{eps ? ` · ${eps} eps` : ""}
+          {anime.year || anime.aired?.prop?.from?.year || "?"} · {anime.type || "?"}{eps ? ` · ${eps} ${t.epsSuffix}` : ""}
         </div>
         {genres.length > 0 && (
           <div className="mt-0.5 flex flex-wrap gap-1">

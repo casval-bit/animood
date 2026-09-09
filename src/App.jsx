@@ -1,31 +1,37 @@
 import { useState } from "react";
+import { ThemeProvider } from "./context/ThemeProvider.jsx";
+import { LangProvider } from "./context/LangProvider.jsx";
 import { AppProvider } from "./context/AppProvider.jsx";
 import { useApp } from "./context/useApp.js";
+import { useLang } from "./context/useLang.js";
 import { Header } from "./components/Header.jsx";
 import { Spinner } from "./components/Spinner.jsx";
 import { AnimeDetailModal } from "./components/AnimeDetailModal.jsx";
+import { ChatBubble } from "./components/ChatBubble.jsx";
 import { LoginView } from "./views/LoginView.jsx";
 import { FeedView } from "./views/FeedView.jsx";
 import { MoodboardView } from "./views/MoodboardView.jsx";
 import { SearchView } from "./views/SearchView.jsx";
 import { ForumView } from "./views/ForumView.jsx";
+import { MessagesView } from "./views/MessagesView.jsx";
 import { ProfileView } from "./views/ProfileView.jsx";
 import { UserProfileModal } from "./views/UserProfileModal.jsx";
 import { SettingsView } from "./views/SettingsView.jsx";
 
 function Shell() {
   const { session, profileReady } = useApp();
+  const { lang } = useLang();
   const [activeTab, setActiveTab]   = useState("moodboard");
   const [showSettings, setShowSettings] = useState(false);
   const [detailAnime, setDetailAnime]   = useState(null);
   const [openUser, setOpenUser]         = useState(null);
 
-  if(!session) return <LoginView />;
-  if(!profileReady) {
+  if(!session && !window.__SKIP_AUTH__) return <LoginView />;
+  if(!profileReady && !window.__SKIP_AUTH__) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4">
         <span className="text-3xl">🌀</span>
-        <Spinner label="Chargement du profil…" />
+        <Spinner label={lang === "en" ? "Loading profile…" : "Chargement du profil…"} />
       </div>
     );
   }
@@ -34,17 +40,27 @@ function Shell() {
   const closeDetail = () => setDetailAnime(null);
 
   const pages = {
-    feed:      <FeedView />,
     moodboard: <MoodboardView onOpenDetail={openDetail} />,
     search:    <SearchView onOpenDetail={openDetail} onOpenUser={setOpenUser} />,
-    forum:     <ForumView />,
-    profile:   <ProfileView onOpenDetail={openDetail} onOpenSettings={() => setShowSettings(true)} />,
+    forum:     <ForumView onOpenDetail={openDetail} onOpenUser={setOpenUser} />,
+    messages:  <MessagesView />,
   };
 
   return (
     <div className="min-h-screen">
       <Header activeTab={activeTab} onChangeTab={setActiveTab} />
-      <main>{pages[activeTab]}</main>
+      <main>
+        {/* Feed and Profile stay mounted for cross-sync */}
+        <div style={{display: activeTab==="feed" ? "block" : "none"}}>
+          <FeedView onOpenUser={setOpenUser} onOpenDetail={openDetail}/>
+        </div>
+        <div style={{display: activeTab==="profile" ? "block" : "none"}}>
+          <ProfileView onOpenDetail={openDetail} onOpenSettings={() => setShowSettings(true)} />
+        </div>
+        {/* Other pages unmount when hidden — no sync needed */}
+        {pages[activeTab]}
+      </main>
+      <ChatBubble hidden={activeTab === "messages"} />
 
       {showSettings && <SettingsView onClose={() => setShowSettings(false)} />}
 
@@ -66,8 +82,12 @@ function Shell() {
 
 export default function App() {
   return (
-    <AppProvider>
-      <Shell />
-    </AppProvider>
+    <ThemeProvider>
+      <LangProvider>
+        <AppProvider>
+          <Shell />
+        </AppProvider>
+      </LangProvider>
+    </ThemeProvider>
   );
 }
