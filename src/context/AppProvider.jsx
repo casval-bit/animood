@@ -16,6 +16,7 @@ const activityReadKeyFns = {
   post: postReadKey, thread: threadReadKey,
   "post-mention": postMentionReadKey, "thread-mention": threadMentionReadKey,
 };
+const notificationsEnabledKey = (username) => `animood_notifications_enabled_${username}`;
 
 export function AppProvider({ children }) {
   const [session, setSession]         = useState(null);
@@ -125,8 +126,28 @@ export function AppProvider({ children }) {
   // last-read-timestamp approach as DMs above.
   const [activityNotifications, setActivityNotifications] = useState([]);
 
+  // Whether the user wants to receive activity notifications at all — a
+  // simple on/off toggle (Settings), kept client-side in localStorage like
+  // the read-state above since there's no per-user prefs column server-side.
+  const [notificationsEnabled, setNotificationsEnabledState] = useState(true);
+
   useEffect(() => {
+    (async () => {
+      if(!myUsername) { setNotificationsEnabledState(true); return; }
+      const stored = localStorage.getItem(notificationsEnabledKey(myUsername));
+      setNotificationsEnabledState(stored !== "0");
+    })();
+  }, [myUsername]);
+
+  const setNotificationsEnabled = useCallback((enabled) => {
     if(!myUsername) return;
+    localStorage.setItem(notificationsEnabledKey(myUsername), enabled ? "1" : "0");
+    setNotificationsEnabledState(enabled);
+    if(!enabled) setActivityNotifications([]);
+  }, [myUsername]);
+
+  useEffect(() => {
+    if(!myUsername || !notificationsEnabled) return;
     let cancelled = false;
     const check = async () => {
       const [postNotifs, threadNotifs, postMentions, threadMentions] = await Promise.all([
@@ -169,13 +190,25 @@ export function AppProvider({ children }) {
     check();
     const interval = setInterval(check, 20000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [myUsername, blockedUsers]);
+  }, [myUsername, blockedUsers, notificationsEnabled]);
 
   const markActivityRead = useCallback((type, id) => {
     if(!myUsername) return;
     const key = (activityReadKeyFns[type] || postReadKey)(myUsername, id);
     localStorage.setItem(key, new Date().toISOString());
     setActivityNotifications(prev => prev.filter(n => !(n.type === type && n.id === id)));
+  }, [myUsername]);
+
+  const markAllActivityRead = useCallback(() => {
+    if(!myUsername) return;
+    const now = new Date().toISOString();
+    setActivityNotifications(prev => {
+      prev.forEach(n => {
+        const key = (activityReadKeyFns[n.type] || postReadKey)(myUsername, n.id);
+        localStorage.setItem(key, now);
+      });
+      return [];
+    });
   }, [myUsername]);
 
   // Update + persist in one call — every write path goes through here so nothing
@@ -189,7 +222,8 @@ export function AppProvider({ children }) {
 
   const ctx = {
     session, me, setMe, saveMe, myUsername, profileReady, logout,
-    unreadPeers, markRead, activityNotifications, markActivityRead,
+    unreadPeers, markRead, activityNotifications, markActivityRead, markAllActivityRead,
+    notificationsEnabled, setNotificationsEnabled,
     blockedUsers, blockUser, unblockUser,
   };
 
