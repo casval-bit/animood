@@ -3,12 +3,14 @@ import { useApp } from "../context/useApp.js";
 import { useLang } from "../context/useLang.js";
 import { jikan, supabaseRowToAnime, fetchPopularAnime, fetchTitleSuggestions } from "../api/jikan.js";
 import { fetchPopularStudios, studioBlurb, getStudioCountries } from "../api/studios.js";
+import { searchArtists, fetchPopularArtists } from "../api/animethemes.js";
 import { sb, follows } from "../api/supabase.js";
 import { ptsStore } from "../api/moods.js";
 import { AnimeCard } from "../components/AnimeCard.jsx";
 import { Spinner } from "../components/Spinner.jsx";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { StudioModal } from "../components/StudioModal.jsx";
+import { ArtistModal } from "../components/ArtistModal.jsx";
 import { GLASS, GLASS_STYLE, GRADIENT_TEXT } from "../constants/theme.js";
 import { Chip, ChipGroup, SectionLabel } from "../components/ui.jsx";
 import { SEARCH_I18N } from "../constants/searchI18n.js";
@@ -19,6 +21,7 @@ function getTabs(t) {
   return [
     { id:"anime",   label:t.tabAnime,   emoji:"📺" },
     { id:"studio",  label:t.tabStudio,  emoji:"🎬" },
+    { id:"artist",  label:t.tabArtist,  emoji:"🎤" },
     { id:"members", label:t.tabMembers, emoji:"👥" },
   ];
 }
@@ -124,6 +127,22 @@ function StudioCard({ studio, onClick, t }) {
   );
 }
 
+function ArtistCard({ artist, onClick, t }) {
+  return (
+    <button onClick={onClick} className={`group flex items-center gap-3 p-4 text-left transition-all duration-300 hover:-translate-y-1 hover:border-white/15 ${GLASS}`} style={GLASS_STYLE}>
+      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 text-base font-black tracking-tight text-white"
+        style={{ background: `linear-gradient(135deg, ${studioColor(artist.name)}, rgba(0,0,0,.35))` }}>
+        {studioInitials(artist.name)}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[15px] font-black text-slate-100">{artist.name}</div>
+        <div className="text-[10px] text-slate-500">{t.artistThemeCount(artist.themes.length)}</div>
+      </div>
+      <span className="shrink-0 text-slate-600 transition group-hover:translate-x-0.5">›</span>
+    </button>
+  );
+}
+
 export function SearchView({ onOpenDetail, onOpenUser }) {
   const { me, myUsername, blockedUsers } = useApp();
   const { lang } = useLang();
@@ -139,11 +158,14 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
   const [error, setError]       = useState(null);
   const [typeFilter, setTypeFilter] = useState("all");
   const [studioModal, setStudioModal] = useState(null);
+  const [artistModal, setArtistModal] = useState(null);
 
   const [popularAnime, setPopularAnime]     = useState([]);
   const [loadingPopular, setLoadingPopular] = useState(true);
   const [popularStudios, setPopularStudios] = useState([]);
   const [loadingStudios, setLoadingStudios] = useState(true);
+  const [popularArtists, setPopularArtists] = useState([]);
+  const [loadingArtists, setLoadingArtists] = useState(false);
 
   const [suggestions, setSuggestions]         = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -178,6 +200,14 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
       } catch {}
       setLoadingMembers(false);
     })();
+  }, [tab]);
+  // Artist tab is backed by a third-party API — fetched lazily on first visit
+  // (like the members tab) rather than eagerly on mount (unlike studios,
+  // which is a single cheap Supabase query).
+  useEffect(() => {
+    if(tab !== "artist" || popularArtists.length) return;
+    setLoadingArtists(true);
+    fetchPopularArtists(16).then(setPopularArtists).catch(() => {}).finally(() => setLoadingArtists(false));
   }, [tab]);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
 
@@ -289,13 +319,17 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
           if(!Object.keys(countries).length) return;
           setResults(prev => prev.map(s => countries[s.mal_id] ? { ...s, country: countries[s.mal_id] } : s));
         }).catch(() => {});
+      } else if(tab === "artist") {
+        setResults(await searchArtists(trimmed, 24));
       } else if(tab === "members") {
         const enc = encodeURIComponent(trimmed);
         const rows = await sb.query(`profiles?or=(name.ilike.*${enc}*,username.ilike.*${enc}*)&select=username,name,avatar,bio,watched&limit=20`);
         setResults((rows||[]).filter(r => !blockedUsers?.has(r.username)));
       }
     } catch(e) {
-      if(e.message?.includes("504") || e.message?.includes("Gateway") || e.message?.includes("fetch")) {
+      if(e.message?.includes("AnimeThemes")) {
+        setError(t.animeThemesDown);
+      } else if(e.message?.includes("504") || e.message?.includes("Gateway") || e.message?.includes("fetch")) {
         setError(t.jikanDown);
       } else setError(e.message);
     } finally { setLoading(false); }
@@ -360,7 +394,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
             onChange={e => onQueryChange(e.target.value)}
             onFocus={() => { if(suggestions.length) setShowSuggestions(true); }}
             onKeyDown={onInputKeyDown}
-            placeholder={tab==="anime"?t.placeholderAnime:tab==="studio"?t.placeholderStudio:t.placeholderMembers}
+            placeholder={tab==="anime"?t.placeholderAnime:tab==="studio"?t.placeholderStudio:tab==="artist"?t.placeholderArtist:t.placeholderMembers}
             className="w-full rounded-2xl border border-white/10 bg-white/6 py-3 pl-10 pr-9 text-sm text-slate-100 outline-none transition focus:border-violet-400/50 focus:bg-white/8" />
           {query && (
             <button onClick={clearSearch} className="absolute right-3 top-1/2 flex h-5.5 w-5.5 -translate-y-1/2 items-center justify-center rounded-full bg-white/8 text-[11px] text-slate-400">✕</button>
@@ -425,6 +459,18 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
         </>
       )}
 
+      {/* ── ARTIST TAB ── */}
+      {tab === "artist" && !submitted && (
+        <>
+          <SectionLabel className="mb-3">{t.artistsPopular}</SectionLabel>
+          {loadingArtists ? <Spinner label={t.loading} /> : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {popularArtists.map(a => <ArtistCard key={a.slug} artist={a} onClick={() => setArtistModal(a)} t={t} />)}
+            </div>
+          )}
+        </>
+      )}
+
       {/* ── MEMBERS TAB (search-only) ── */}
       {tab === "members" && !submitted && (() => {
         // Filtered at render (not just at fetch time) so blocking someone who
@@ -475,6 +521,12 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
             </div>
           )}
 
+          {!loading && tab === "artist" && results.length > 0 && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {results.map(a => <ArtistCard key={a.slug} artist={a} onClick={() => setArtistModal(a)} t={t} />)}
+            </div>
+          )}
+
           {!loading && tab === "members" && results.length > 0 && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {results.map(u => <MemberCard key={u.username} u={u} onOpenUser={onOpenUser} t={t}/>)}
@@ -484,6 +536,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
       )}
 
       {studioModal && <StudioModal studioId={studioModal.id} studioName={studioModal.name} onClose={() => setStudioModal(null)} onOpenDetail={a => { setStudioModal(null); onOpenDetail(a); }} />}
+      {artistModal && <ArtistModal artist={artistModal} onClose={() => setArtistModal(null)} onOpenDetail={a => { setArtistModal(null); onOpenDetail(a); }} />}
     </div>
   );
 }

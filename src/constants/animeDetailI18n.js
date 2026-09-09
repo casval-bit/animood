@@ -5,6 +5,7 @@ export const ANIME_DETAIL_I18N = {
 
     synopsis: "Synopsis",
     availableOn: "Disponible sur",
+    openings: "Openings & Endings",
     staff: "Staff",
     charactersVoice: "Personnages & Seiyuu",
     errorPrefix: (msg) => `Erreur : ${msg}`,
@@ -34,6 +35,7 @@ export const ANIME_DETAIL_I18N = {
 
     synopsis: "Synopsis",
     availableOn: "Available on",
+    openings: "Openings & Endings",
     staff: "Staff",
     charactersVoice: "Characters & Voice Actors",
     errorPrefix: (msg) => `Error: ${msg}`,

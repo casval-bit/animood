@@ -7,12 +7,14 @@ import { ANIME_DETAIL_I18N } from "../constants/animeDetailI18n.js";
 import { jikan } from "../api/jikan.js";
 import { ptsStore, getPtsForAnime, addUserVote, genreFallbackV2 } from "../api/moods.js";
 import { sb, follows } from "../api/supabase.js";
+import { fetchThemesForAnime, searchArtists } from "../api/animethemes.js";
 import { Spinner } from "./Spinner.jsx";
 import { StarRating } from "./StarRating.jsx";
 import { MoodOctagon } from "./MoodOctagon.jsx";
 import { Modal } from "./Modal.jsx";
 import { PersonModal } from "./PersonModal.jsx";
 import { StudioModal } from "./StudioModal.jsx";
+import { ArtistModal } from "./ArtistModal.jsx";
 import { GradientButton } from "./ui.jsx";
 
 const FALLBACK = "https://placehold.co/700x300/1a1a2e/818cf8?text=?";
@@ -62,6 +64,9 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
   });
   const [personModal, setPersonModal] = useState(null);
   const [studioModal, setStudioModal] = useState(null);
+  const [themes, setThemes]           = useState([]);
+  const [artistModal, setArtistModal] = useState(null);
+  const [artistLoading, setArtistLoading] = useState(null);
 
   // AniMood score state
   const [animoodScore, setAnimoodScore]     = useState(null);
@@ -120,6 +125,24 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
       } catch(e) { setError(e.message); setLoading(false); }
     })();
   }, [malId]);
+
+  useEffect(() => {
+    if(!malId || !a?.title) return;
+    let cancelled = false;
+    fetchThemesForAnime(a.title, malId).then(rows => { if(!cancelled) setThemes(rows); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [malId, a?.title]);
+
+  const openArtist = async (name) => {
+    if(!name || artistLoading) return;
+    setArtistLoading(name);
+    try {
+      const results = await searchArtists(name, 5);
+      const exact = results.find(r => r.name.toLowerCase() === name.toLowerCase()) || results[0];
+      if(exact) setArtistModal(exact);
+    } catch { /* silently ignore — badge just stays clickable */ }
+    setArtistLoading(null);
+  };
 
   const save = async () => {
     if(!rating) return;
@@ -271,6 +294,23 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
                         🎬 {s.name}
                       </button>
                     ))}
+                  </div>
+                )}
+                {themes.length > 0 && (
+                  <div className="mb-3">
+                    <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{t.openings}</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {themes.map(th => {
+                        const artistNames = th.artists.map(ar => ar.name).join(" × ");
+                        return (
+                          <button key={th.slug} disabled={artistLoading === th.artists[0]?.name}
+                            onClick={() => openArtist(th.artists[0]?.name)}
+                            className="rounded-lg border border-fuchsia-400/25 bg-fuchsia-400/10 px-2.5 py-1 text-[11px] font-bold text-fuchsia-300 transition hover:bg-fuchsia-400/20 disabled:opacity-50">
+                            {th.type === "ED" ? "🔚" : "🎵"} {th.slug} — {artistNames}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
                 <div className="mb-4 flex flex-wrap gap-1.5">
@@ -465,6 +505,10 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
       {studioModal && (
         <StudioModal studioId={studioModal.id} studioName={studioModal.name} onClose={() => setStudioModal(null)}
           onOpenDetail={a => { setStudioModal(null); onOpenDetail?.(a); }} />
+      )}
+      {artistModal && (
+        <ArtistModal artist={artistModal} onClose={() => setArtistModal(null)}
+          onOpenDetail={a => { setArtistModal(null); onOpenDetail?.(a); }} />
       )}
     </>
   );
