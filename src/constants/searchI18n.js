@@ -5,6 +5,7 @@ export const SEARCH_I18N = {
 
     tabAnime: "Animé",
     tabStudio: "Studio",
+    tabArtist: "Artiste",
     tabMembers: "Membres",
 
     filterAll: "Tout",
@@ -19,6 +20,7 @@ export const SEARCH_I18N = {
 
     placeholderAnime: "Titre d'animé…",
     placeholderStudio: "Nom de studio…",
+    placeholderArtist: "Nom de chanteur ou de groupe…",
     placeholderMembers: "Nom d'utilisateur…",
 
     loading: "Chargement…",
@@ -30,11 +32,15 @@ export const SEARCH_I18N = {
     noMembersTitle: "Aucun membre pour l'instant",
     noMembersSubtitle: "Cherche un pseudo pour trouver des membres",
 
+    artistsPopular: "🎤 Artistes populaires",
+    artistThemeCount: (n) => `🎵 ${n} opening${n !== 1 ? "s" : ""}/ending${n !== 1 ? "s" : ""}`,
+
     noResultsTitle: "Aucun résultat",
     noResultsSubtitle: "Essaie un autre terme",
 
     errorPrefix: (msg) => `Erreur : ${msg}`,
     jikanDown: "Jikan est temporairement indisponible — réessaie dans quelques secondes",
+    animeThemesDown: "La base des openings est temporairement indisponible — réessaie dans quelques secondes",
 
     studioAnimationDefault: "Studio d'animation",
     studioPopularCount: (n) => `${n} animés populaires`,
@@ -52,6 +58,7 @@ export const SEARCH_I18N = {
 
     tabAnime: "Anime",
     tabStudio: "Studio",
+    tabArtist: "Artist",
     tabMembers: "Members",
 
     filterAll: "All",
@@ -66,6 +73,7 @@ export const SEARCH_I18N = {
 
     placeholderAnime: "Anime title…",
     placeholderStudio: "Studio name…",
+    placeholderArtist: "Singer or band name…",
     placeholderMembers: "Username…",
 
     loading: "Loading…",
@@ -77,11 +85,15 @@ export const SEARCH_I18N = {
     noMembersTitle: "No members yet",
     noMembersSubtitle: "Search a username to find members",
 
+    artistsPopular: "🎤 Popular artists",
+    artistThemeCount: (n) => `🎵 ${n} opening${n !== 1 ? "s" : ""}/ending${n !== 1 ? "s" : ""}`,
+
     noResultsTitle: "No results",
     noResultsSubtitle: "Try another term",
 
     errorPrefix: (msg) => `Error: ${msg}`,
     jikanDown: "Jikan is temporarily unavailable — try again in a few seconds",
+    animeThemesDown: "The opening database is temporarily unavailable — try again in a few seconds",
 
     studioAnimationDefault: "Animation studio",
     studioPopularCount: (n) => `${n} popular anime`,
