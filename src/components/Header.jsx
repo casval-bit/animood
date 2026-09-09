@@ -16,7 +16,7 @@ function getTabs(t) {
 }
 
 function NotificationBell({ onChangeTab }) {
-  const { activityNotifications, markActivityRead } = useApp();
+  const { activityNotifications, markActivityRead, markAllActivityRead } = useApp();
   const { lang } = useLang();
   const t = HEADER_I18N[lang] || HEADER_I18N.fr;
   const [open, setOpen] = useState(false);
@@ -57,8 +57,16 @@ function NotificationBell({ onChangeTab }) {
             className="absolute right-0 top-[calc(100%+10px)] z-50 w-80 overflow-hidden rounded-2xl border border-white/8 backdrop-blur-xl"
             style={{ background: "var(--surface-1-strong)", boxShadow: "var(--shadow-modal)" }}
           >
-            <div className="px-4 py-3 text-[13px] font-black uppercase tracking-wide text-white" style={{ background: GRADIENT_PRIMARY }}>
-              {t.activity}
+            <div className="flex items-center justify-between gap-2 px-4 py-3 text-[13px] font-black uppercase tracking-wide text-white" style={{ background: GRADIENT_PRIMARY }}>
+              <span>{t.activity}</span>
+              {count > 0 && (
+                <button
+                  onClick={() => markAllActivityRead()}
+                  className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold normal-case tracking-normal text-white transition hover:bg-white/25"
+                >
+                  {t.markAllRead}
+                </button>
+              )}
             </div>
             {count === 0 ? (
               <div className="px-4 py-6 text-center text-xs text-slate-500">{t.nothingNew}</div>

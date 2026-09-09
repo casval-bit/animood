@@ -10,6 +10,7 @@ export const HEADER_I18N = {
     messages: "Messages",
     activity: "🔔 Activité",
     nothingNew: "Rien de nouveau pour l'instant.",
+    markAllRead: "Tout marquer comme lu",
 
     verb: (isMention, isThread) => isMention ? "t'a mentionné dans" : isThread ? "a répondu à" : "a commenté",
     place: (isMention, isThread, isMine) => isMention
@@ -30,6 +31,7 @@ export const HEADER_I18N = {
     messages: "Messages",
     activity: "🔔 Activity",
     nothingNew: "Nothing new for now.",
+    markAllRead: "Mark all as read",
 
     verb: (isMention, isThread) => isMention ? "mentioned you in" : isThread ? "replied to" : "commented on",
     place: (isMention, isThread, isMine) => isMention

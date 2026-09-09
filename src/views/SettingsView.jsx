@@ -45,7 +45,7 @@ function Section({ title, children }) {
 }
 
 export function SettingsView({ onClose }) {
-  const { me, saveMe, logout, myUsername, blockedUsers, unblockUser } = useApp();
+  const { me, saveMe, logout, myUsername, blockedUsers, unblockUser, notificationsEnabled, setNotificationsEnabled } = useApp();
   const { theme, setTheme } = useTheme();
   const { lang, setLang } = useLang();
   const t = SETTINGS_I18N[lang] || SETTINGS_I18N.fr;
@@ -58,6 +58,7 @@ export function SettingsView({ onClose }) {
     { id: "profile",     label: t.catProfile },
     { id: "data",        label: t.catData },
     { id: "account",     label: t.catAccount },
+    { id: "notifications", label: t.catNotifications },
   ];
 
   const [usernameInput, setUsernameInput] = useState(me.name || "");
@@ -434,6 +435,29 @@ export function SettingsView({ onClose }) {
               {t.deleteAccountNotReady}
             </div>
           )}
+        </Section>
+        </>}
+
+        {/* ─── NOTIFICATIONS ─── */}
+        {category === "notifications" && <>
+        <Section title={t.notificationsTitle}>
+          <p className="mb-3 text-xs leading-relaxed text-slate-500">{t.notificationsDesc}</p>
+          <button onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+            className="flex w-full items-center justify-between rounded-xl border border-white/7 bg-white/4 px-4 py-3.5 text-left transition hover:bg-white/6">
+            <div>
+              <div className="text-xs font-bold text-slate-100">
+                {notificationsEnabled ? t.notificationsEnabledLabel : t.notificationsDisabledLabel}
+              </div>
+              <div className="text-[10px] text-slate-500">
+                {notificationsEnabled ? t.notificationsEnabledDesc : t.notificationsDisabledDesc}
+              </div>
+            </div>
+            <div className="relative h-6 w-11 shrink-0 rounded-full transition"
+              style={{ background: notificationsEnabled ? GRADIENT_PRIMARY : "rgba(255,255,255,0.12)" }}>
+              <div className="absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all"
+                style={{ left: notificationsEnabled ? "22px" : "2px" }} />
+            </div>
+          </button>
         </Section>
         </>}
 

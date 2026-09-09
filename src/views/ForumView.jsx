@@ -77,7 +77,9 @@ function ThreadRow({ anime, onClick, metaLabel, trailerLink, statOverride, domin
             {TYPE_EMOJI[anime.type] || "🎬"}
           </span>
           <div className="min-w-0">
-            <div className="truncate text-[11px] font-semibold text-slate-300">{metaLabel(anime)}</div>
+            {!(trailerLink && anime.trailer?.url) && (
+              <div className="truncate text-[11px] font-semibold text-slate-300">{metaLabel(anime)}</div>
+            )}
             <div className="truncate text-[10px] text-slate-600">{anime.year || "?"} · {anime.type || "?"}</div>
           </div>
         </div>
@@ -140,20 +142,35 @@ function AnticipatedCard({ anime, airedDates, onOpenDetail, t }) {
   if(!anime) return null;
   const img = posterUrl(anime);
   const genres = (anime.genres || []).map(g => g.name || g).slice(0, 3).join(" · ");
+  const hasTrailer = !!anime.trailer?.url;
   return (
-    <button
-      onClick={() => onOpenDetail?.(anime)}
+    <div
       className={`mb-6 flex w-full items-center gap-5 overflow-hidden p-5 text-left ${GLASS}`}
       style={{ background: `linear-gradient(135deg, rgba(139,92,246,.22), rgba(236,72,153,.14)), ${GLASS_STYLE.background}`, boxShadow: GLASS_STYLE.boxShadow }}
     >
-      <img src={img || FALLBACK_IMG} alt="" onError={e => { e.target.src = FALLBACK_IMG; }} className="h-32 w-24 shrink-0 rounded-xl object-cover shadow-lg sm:h-36 sm:w-26" />
-      <div className="min-w-0 flex-1">
-        <div className="mb-1 text-[11px] font-black uppercase tracking-wide text-fuchsia-300">{t.mostAnticipated}</div>
-        <div className="mb-1 truncate text-[19px] font-black text-slate-50 sm:text-[22px]">{anime.title}</div>
-        <div className="mb-3 truncate text-[11.5px] text-slate-400">{genres || anime.type}</div>
-        <div className="inline-block rounded-full bg-white/10 px-3 py-1.5 text-[12px] font-bold text-white">{countdownLabel(anime, airedDates, t)}</div>
-      </div>
-    </button>
+      <button onClick={() => onOpenDetail?.(anime)} className="flex min-w-0 flex-1 items-center gap-5 text-left">
+        <img src={img || FALLBACK_IMG} alt="" onError={e => { e.target.src = FALLBACK_IMG; }} className="h-32 w-24 shrink-0 rounded-xl object-cover shadow-lg sm:h-36 sm:w-26" />
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 text-[11px] font-black uppercase tracking-wide text-fuchsia-300">{t.mostAnticipated}</div>
+          <div className="mb-1 truncate text-[19px] font-black text-slate-50 sm:text-[22px]">{anime.title}</div>
+          <div className="mb-3 truncate text-[11.5px] text-slate-400">{genres || anime.type}</div>
+          <div className="flex items-center gap-2">
+            <div className={`inline-block rounded-full bg-white/10 px-3 py-1.5 font-bold text-white ${hasTrailer ? "text-[10.5px] text-white/70" : "text-[12px]"}`}>
+              {countdownLabel(anime, airedDates, t)}
+            </div>
+          </div>
+        </div>
+      </button>
+      {hasTrailer && (
+        <a
+          href={anime.trailer.url} target="_blank" rel="noopener noreferrer"
+          onClick={e => e.stopPropagation()}
+          className="shrink-0 rounded-full bg-white px-4 py-2 text-[12px] font-black text-violet-700 shadow-md transition hover:scale-105 hover:shadow-lg"
+        >
+          {t.trailerBtn}
+        </a>
+      )}
+    </div>
   );
 }
 
@@ -462,7 +479,7 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
             <ForumCategory
               emoji="📅" title={t.upcomingTitle} subtitle={t.upcomingSubtitle}
               items={upcoming} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
-              metaLabel={a => countdownLabel(a, airedDates, t)} t={t}
+              metaLabel={a => countdownLabel(a, airedDates, t)} trailerLink t={t}
             />
             <ForumCategory
               emoji="🎬" title={t.trailersTitle} subtitle={t.trailersSubtitle}

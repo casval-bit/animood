@@ -25,6 +25,32 @@ function pickAnimeOfDay(pool, dayOffset = 0) {
   return pool[idx];
 }
 
+// Silent looping WAV used to steal OS "now playing" media-session focus away from the
+// YouTube iframe during the blind phase, so the OS volume overlay can't leak the anime title.
+let _silentAudioUrl = null;
+function getSilentAudioUrl() {
+  if (_silentAudioUrl) return _silentAudioUrl;
+  const sampleRate = 8000, numSamples = sampleRate;
+  const buffer = new ArrayBuffer(44 + numSamples * 2);
+  const view = new DataView(buffer);
+  const writeStr = (off, str) => { for (let i = 0; i < str.length; i++) view.setUint8(off + i, str.charCodeAt(i)); };
+  writeStr(0, "RIFF");
+  view.setUint32(4, 36 + numSamples * 2, true);
+  writeStr(8, "WAVE");
+  writeStr(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, "data");
+  view.setUint32(40, numSamples * 2, true);
+  _silentAudioUrl = URL.createObjectURL(new Blob([buffer], { type: "audio/wav" }));
+  return _silentAudioUrl;
+}
+
 const MOOD_META = {
   emotional:{emoji:"💔",label:"Emotional"},
   happy:    {emoji:"✨",label:"Happy"},
@@ -553,6 +579,30 @@ export function OpQuizGame({ onClose }) {
   const [awardedPts, setAwardedPts] = useState(null);
   const timer = useRef(null);
   const awardedRef = useRef(false);
+  const guardAudioRef = useRef(null);
+
+  // Claim the OS media-session focus with fake metadata while the blind phase is active,
+  // so pressing volume keys / the speaker icon shows "???" instead of the real anime title.
+  useEffect(() => {
+    const audio = guardAudioRef.current;
+    const hasMediaSession = typeof navigator !== "undefined" && "mediaSession" in navigator;
+    if (playing && !revealed) {
+      if (audio) { audio.volume = 0.01; audio.play().catch(() => {}); }
+      if (hasMediaSession) {
+        navigator.mediaSession.metadata = new MediaMetadata({ title: "???", artist: t.title || "AniMood" });
+        navigator.mediaSession.setActionHandler("play", () => {});
+        navigator.mediaSession.setActionHandler("pause", () => {});
+      }
+    } else {
+      audio?.pause();
+      if (hasMediaSession) navigator.mediaSession.metadata = null;
+    }
+  }, [playing, revealed]);
+
+  useEffect(() => () => {
+    guardAudioRef.current?.pause();
+    if (typeof navigator !== "undefined" && "mediaSession" in navigator) navigator.mediaSession.metadata = null;
+  }, []);
 
   useEffect(() => {
     const key = `animood_opquiz_${getDayIndex()}`;
@@ -636,6 +686,7 @@ export function OpQuizGame({ onClose }) {
 
   return (
     <div style={{padding:20,maxWidth:520,margin:"0 auto"}}>
+      <audio ref={guardAudioRef} src={getSilentAudioUrl()} loop style={{display:"none"}} />
       <div style={{textAlign:"center",marginBottom:12}}>
         <div style={{fontSize:22,marginBottom:4}}>{t.title}</div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,fontSize:11,color:"var(--text-4)"}}>
@@ -658,7 +709,9 @@ export function OpQuizGame({ onClose }) {
             src={`https://www.youtube.com/embed/${current.youtubeId}?autoplay=1&start=3&rel=0&modestbranding=1&controls=0&disablekb=1`}
             title="opening"
             allow="autoplay; encrypted-media"
-            style={{width:"100%",height:"100%",border:"none"}}
+            tabIndex={revealed ? 0 : -1}
+            style={{width:"100%",height:"100%",border:"none",
+              pointerEvents:revealed?"auto":"none"}}
           />
         ) : (
           <button onClick={()=>setPlaying(true)}
@@ -668,7 +721,7 @@ export function OpQuizGame({ onClose }) {
           </button>
         )}
         {playing && !revealed && (
-          <div style={{position:"absolute",inset:0,background:"#0a0a12",display:"flex",flexDirection:"column",
+          <div style={{position:"absolute",inset:0,zIndex:2,background:"#0a0a12",display:"flex",flexDirection:"column",
             alignItems:"center",justifyContent:"center",gap:8,pointerEvents:"none"}}>
             <span style={{fontSize:32}}>🎧</span>
             <span style={{fontSize:12,color:"var(--text-4)",fontWeight:700}}>{t.listening}</span>

@@ -6,6 +6,7 @@ export const SETTINGS_I18N = {
     catProfile: "Profil",
     catData: "Données",
     catAccount: "Compte",
+    catNotifications: "Notifications",
 
     appearance: "🎨 Apparence",
     themeDark: "Sombre",
@@ -64,6 +65,13 @@ export const SETTINGS_I18N = {
     deleteAccountDesc: "Cette action supprimera définitivement ton compte et toutes tes données. Irréversible.",
     deleteAccountBtn: "Supprimer mon compte",
     deleteAccountNotReady: "Fonctionnalité bientôt disponible.",
+
+    notificationsTitle: "🔔 Activité",
+    notificationsDesc: "Commentaires, réponses et mentions te concernant, affichés dans la cloche en haut de l'écran.",
+    notificationsEnabledLabel: "Notifications activées",
+    notificationsEnabledDesc: "Tu reçois les alertes en temps réel.",
+    notificationsDisabledLabel: "Notifications désactivées",
+    notificationsDisabledDesc: "Plus aucune alerte ne s'affichera.",
   },
 
   en: {
@@ -73,6 +81,7 @@ export const SETTINGS_I18N = {
     catProfile: "Profile",
     catData: "Data",
     catAccount: "Account",
+    catNotifications: "Notifications",
 
     appearance: "🎨 Appearance",
     themeDark: "Dark",
@@ -131,5 +140,12 @@ export const SETTINGS_I18N = {
     deleteAccountDesc: "This will permanently delete your account and all your data. Irreversible.",
     deleteAccountBtn: "Delete my account",
     deleteAccountNotReady: "Feature coming soon.",
+
+    notificationsTitle: "🔔 Activity",
+    notificationsDesc: "Comments, replies and mentions concerning you, shown in the bell at the top of the screen.",
+    notificationsEnabledLabel: "Notifications enabled",
+    notificationsEnabledDesc: "You'll receive alerts in real time.",
+    notificationsDisabledLabel: "Notifications disabled",
+    notificationsDisabledDesc: "No more alerts will be shown.",
   },
 };
