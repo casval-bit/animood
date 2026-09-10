@@ -292,7 +292,7 @@ function ForumPollDisplay({ threadId, username }) {
   );
 }
 
-// ─── Thread detail — body + replies + reply box, no reactions/pagination ──────
+// ─── Thread detail ────────────────────────────────────────────────────────────
 export function ThreadModal({ thread, username, onClose, onOpenUser, onReply }) {
   const { blockedUsers } = useApp();
   const { lang } = useLang();
@@ -345,7 +345,6 @@ export function ThreadModal({ thread, username, onClose, onOpenUser, onReply }) 
     const result = await sb.toggleThreadLike(thread.id, username).catch(()=>null);
     const newLikes = result?.[0]?.likes || (newLiked ? [...threadLikes, username] : threadLikes.filter(u=>u!==username));
     setThreadLikes(newLikes);
-    onLikeUpdate?.(thread.id, newLikes);
   };
 
   const toggleReplyLike = async (replyId) => {
