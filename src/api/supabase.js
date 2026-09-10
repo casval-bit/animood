@@ -93,7 +93,7 @@ export const sb = {
 
   // ÔöÇÔöÇÔöÇ Forum threads/replies ÔÇö skeleton, no reactions, no pagination ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
   async listThreads(limit = 20) {
-    try { return await this.query(`forum_threads?select=*&order=created_at.desc&limit=${limit}`) || []; }
+    try { return await this.query(`forum_threads?anime_id=is.null&select=*&order=created_at.desc&limit=${limit}`) || []; }
     catch { return []; }
   },
   async getReplyCounts(threadIds, excludeUsernames = []) {
@@ -179,11 +179,11 @@ export const sb = {
     try { return await this.query(`forum_replies?thread_id=eq.${threadId}&order=created_at.asc`) || []; }
     catch { return []; }
   },
-  async createThread(username, title, body, tags = [], imageUrl = null) {
+  async createThread(username, title, body, tags = [], imageUrl = null, animeId = null, animeTitle = null, animeImage = null) {
     return this.query("forum_threads", {
       method: "POST",
       headers: { ...this.headers, "Prefer": "return=representation" },
-      body: JSON.stringify([{ username, title, body, tags, image_url: imageUrl }]),
+      body: JSON.stringify([{ username, title, body, tags, image_url: imageUrl, anime_id: animeId || null, anime_title: animeTitle || null, anime_image: animeImage || null, reply_count: 0, last_reply_at: null }]),
     });
   },
   async createReply(threadId, username, body) {

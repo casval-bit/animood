@@ -22,7 +22,7 @@ const TYPE_EMOJI = { TV:"📺", Movie:"🎬", OVA:"💿", ONA:"🌐", Special:"�
 const NEW_ANIME_PREVIEW = 5;
 
 function posterUrl(anime) {
-  return anime.images?.jpg?.large_image_url || anime.images?.jpg?.image_url;
+  return anime.large_image || anime.image_url || anime.images?.jpg?.large_image_url || anime.images?.jpg?.image_url;
 }
 
 // Real countdown once AniList gives us a day-level date; falls back to the year
@@ -44,10 +44,21 @@ function defaultStat(anime) {
 }
 
 // ─── One row = one "sujet" — thumbnail, title, blurb, stats, type/year ─────────
-function ThreadRow({ anime, onClick, metaLabel, trailerLink, statOverride, dominantMood, t }) {
+function ThreadRow({ anime, onClick, metaLabel, trailerLink, convLink, statOverride, dominantMood, t }) {
   const img = posterUrl(anime);
   const genres = (anime.genres || []).map(g => g.name || g).slice(0, 3).join(" · ");
   const stat = (statOverride || defaultStat)(anime);
+  const [convThreads, setConvThreads] = useState([]);
+  const [showConvMenu, setShowConvMenu] = useState(false);
+  const [openThread, setOpenThread] = useState(null);
+  const { myUsername } = useApp();
+
+  useEffect(() => {
+    if(!convLink || !anime.mal_id) return;
+    sb.query(`forum_threads?anime_id=eq.${anime.mal_id}&order=created_at.desc&limit=2`)
+      .then(rows => { if(rows?.length) setConvThreads(rows); })
+      .catch(()=>{});
+  }, [convLink, anime.mal_id]);
 
   return (
     <div className="flex w-full items-center gap-3.5 border-b border-white/6 px-4 py-3 transition last:border-b-0 hover:bg-white/5 sm:gap-4 sm:px-5">
@@ -82,14 +93,60 @@ function ThreadRow({ anime, onClick, metaLabel, trailerLink, statOverride, domin
           </div>
         </div>
       </button>
-      {trailerLink && anime.trailer?.url && (
-        <a
-          href={anime.trailer.url} target="_blank" rel="noopener noreferrer"
-          onClick={e => e.stopPropagation()}
-          className="shrink-0 rounded-full bg-white/8 px-3 py-1.5 text-[11px] font-bold text-slate-100 transition hover:bg-white/15"
-        >
-          {t.trailerBtn}
-        </a>
+      <div className="flex shrink-0 items-center gap-2">
+        {trailerLink && anime.trailer?.url && (
+          <a
+            href={anime.trailer.url} target="_blank" rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="shrink-0 rounded-full bg-white/8 px-3 py-1.5 text-[11px] font-bold text-slate-100 transition hover:bg-white/15"
+          >
+            {t.trailerBtn}
+          </a>
+        )}
+        {convLink && (
+          <div className="relative">
+            <button
+              onClick={e=>{e.stopPropagation();setShowConvMenu(p=>!p);}}
+              className="shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold transition"
+              style={{background:"rgba(124,58,237,0.15)",color:"#c084fc",border:"1px solid rgba(124,58,237,0.2)"}}>
+              💬
+            </button>
+            {showConvMenu && (
+              <div onClick={e=>e.stopPropagation()}
+                style={{position:"absolute",right:0,top:"calc(100% + 6px)",zIndex:50,
+                  background:"#161226",border:"1px solid rgba(255,255,255,0.1)",
+                  borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",
+                  minWidth:220,padding:8}}>
+                {convThreads.length > 0 ? convThreads.map(th => (
+                  <button key={th.id} onClick={()=>{setOpenThread(th);setShowConvMenu(false);}}
+                    style={{display:"block",width:"100%",textAlign:"left",padding:"8px 10px",
+                      borderRadius:8,background:"none",border:"none",cursor:"pointer",
+                      color:"var(--text-1)",fontSize:11,fontWeight:600}}
+                    onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
+                    onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                    💬 {th.title}
+                  </button>
+                )) : (
+                  <div style={{fontSize:10,color:"var(--text-4)",padding:"6px 10px"}}>Aucune conversation</div>
+                )}
+                <div style={{borderTop:"1px solid rgba(255,255,255,0.06)",marginTop:4,paddingTop:4}}>
+                  <button onClick={()=>{onClick?.(anime);setShowConvMenu(false);}}
+                    style={{display:"block",width:"100%",textAlign:"left",padding:"6px 10px",
+                      borderRadius:8,background:"none",border:"none",cursor:"pointer",
+                      color:"#c084fc",fontSize:11,fontWeight:700}}
+                    onMouseEnter={e=>e.currentTarget.style.background="rgba(124,58,237,0.08)"}
+                    onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                    + Nouvelle discussion
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      {openThread && (
+        <ThreadModal thread={openThread} username={myUsername}
+          onClose={()=>setOpenThread(null)} onOpenUser={null}/>
       )}
     </div>
   );
@@ -98,7 +155,7 @@ function ThreadRow({ anime, onClick, metaLabel, trailerLink, statOverride, domin
 // ─── One category = banner header + list of rows, à la forum sub-section ──────
 // `maxVisible` trims long lists (e.g. "Nouveaux animes") behind a "Voir plus" toggle
 // so obscure/low-interest entries don't dominate the page by default.
-function ForumCategory({ emoji, title, subtitle, items, onOpenDetail, metaLabel, trailerLink, statOverride, dominantMoods, maxVisible, t }) {
+function ForumCategory({ emoji, title, subtitle, items, onOpenDetail, metaLabel, trailerLink, convLink, statOverride, dominantMoods, maxVisible, t }) {
   const [expanded, setExpanded] = useState(false);
   if(!items.length) return null;
   const visible = maxVisible && !expanded ? items.slice(0, maxVisible) : items;
@@ -118,7 +175,7 @@ function ForumCategory({ emoji, title, subtitle, items, onOpenDetail, metaLabel,
         {visible.map(a => (
           <ThreadRow
             key={a.mal_id} anime={a} onClick={onOpenDetail} metaLabel={metaLabel}
-            trailerLink={trailerLink} statOverride={statOverride}
+            trailerLink={trailerLink} convLink={convLink} statOverride={statOverride}
             dominantMood={dominantMoods?.[a.mal_id]} t={t}
           />
         ))}
@@ -286,7 +343,7 @@ function GameEloDisplay({ myUsername }) {
   const total = (elo.elo_chain||400) + (elo.elo_timeline||400) + (elo.streak_wordle||0) + (elo.streak_poster||0);
   return (
     <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.06)",
-      display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
       <div style={{textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(251,191,36,0.06)"}}>
         <div style={{fontSize:13,fontWeight:900,color:"#fbbf24"}}>{elo.elo_chain||400}</div>
         <div style={{fontSize:8,color:"rgba(148,163,184,0.6)"}}>"⛓ Elo Chaîne"</div>
@@ -318,6 +375,7 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
   const [newAnime, setNewAnime] = useState([]);
   const [upcoming, setUpcoming] = useState([]);
   const [trailers, setTrailers] = useState([]);
+  const [airingAnime, setAiringAnime] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [airedDates, setAiredDates] = useState({});
   const [dominantMoods, setDominantMoods] = useState({});
@@ -369,6 +427,10 @@ const [matchmaking, setMatchmaking]     = useState(null);
     Promise.all([fetchUpcomingAnime(15), fetchNewAnime(15), fetchLatestTrailers(15)])
       .then(([u, n, t]) => { if(!cancelled) { setUpcoming(u); setNewAnime(n); setTrailers(t); } })
       .finally(() => { if(!cancelled) setLoading(false); });
+    // Airing TV anime for seasonal section
+    sb.query("anime_cache?type=eq.TV&status=eq.Currently%20Airing&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,trailer_url&order=score.desc.nullslast&limit=24")
+      .then(rows => { if(!cancelled && rows?.length) setAiringAnime(rows); })
+      .catch(()=>{});
     return () => { cancelled = true; };
   }, []);
 
@@ -480,16 +542,30 @@ const [matchmaking, setMatchmaking]     = useState(null);
             />
             <AnticipatedCard anime={mostAnticipated} airedDates={airedDates} onOpenDetail={onOpenDetail} t={t} />
 
+            {/* 1. Animés saisonniers en cours — avec bouton 💬 discussion */}
+            {airingAnime.length > 0 && (
+              <ForumCategory
+                emoji="📡" title="Animés de la saison" subtitle="En cours de diffusion"
+                items={airingAnime} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
+                metaLabel={a => a.score ? `★ ${a.score}` : "En cours"} convLink t={t}
+              />
+            )}
+
+            {/* 2. Prochaines sorties — avec bouton trailer si dispo */}
             <ForumCategory
               emoji="📅" title={t.upcomingTitle} subtitle={t.upcomingSubtitle}
               items={upcoming} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
-              metaLabel={a => countdownLabel(a, airedDates, t)} t={t}
+              metaLabel={a => countdownLabel(a, airedDates, t)} trailerLink t={t}
             />
+
+            {/* 3. Nouveaux animés ajoutés — sans trailer ni convo, plus compact */}
             <ForumCategory
-              emoji="🎬" title={t.trailersTitle} subtitle={t.trailersSubtitle}
-              items={trailers} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
-              metaLabel={() => t.metaTrailer} trailerLink t={t}
+              emoji="🆕" title={t.newAnimeTitle} subtitle={t.newAnimeSubtitle}
+              items={newAnime} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
+              metaLabel={() => t.metaNew} maxVisible={NEW_ANIME_PREVIEW} t={t}
             />
+
+            {/* 4. Les + favoris — sans trailer ni convo */}
             {favoritesLoaded && favorites.length > 0 && (
               <ForumCategory
                 emoji="❤️" title={t.favoritesTitle} subtitle={t.favoritesSubtitle}
@@ -501,11 +577,6 @@ const [matchmaking, setMatchmaking]     = useState(null);
                 }}
               />
             )}
-            <ForumCategory
-              emoji="🆕" title={t.newAnimeTitle} subtitle={t.newAnimeSubtitle}
-              items={newAnime} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
-              metaLabel={() => t.metaNew} maxVisible={NEW_ANIME_PREVIEW} t={t}
-            />
           </div>
 
           <aside className="w-full shrink-0 lg:sticky lg:top-6 lg:w-[280px]">
@@ -535,8 +606,7 @@ const [matchmaking, setMatchmaking]     = useState(null);
         />
       )}
       {openThread && (
-        <ThreadModal thread={openThread} username={myUsername} onClose={() => setOpenThread(null)} onOpenUser={onOpenUser}
-          onLikeUpdate={(id, likes) => setThreads(list => list.map(th => th.id===id ? {...th, likes} : th))} />
+        <ThreadModal thread={openThread} username={myUsername} onClose={() => setOpenThread(null)} onOpenUser={onOpenUser} />
       )}
       {showWordle && (
         <Modal onClose={()=>setShowWordle(false)} maxWidth="max-w-2xl">

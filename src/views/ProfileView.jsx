@@ -225,6 +225,8 @@ function YearCurve({ data }) {
 }
 
 function StatsTab({ statsData, ratings, watched }) {
+  const { lang } = useLang();
+  const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
   const [genreSort,    setGenreSort]    = useState("count");
   const [studioSort,   setStudioSort]   = useState("count");
   const [vaSort,       setVaSort]       = useState("count");
@@ -346,13 +348,15 @@ function StatsTab({ statsData, ratings, watched }) {
 
 // ─── PROFILE POST CARD ────────────────────────────────────────────────────────
 function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
+  const { lang } = useLang();
+  const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
   const [liked, setLiked]             = useState((post.likes||[]).includes(myUsername));
   const [likeCount, setLikeCount]     = useState((post.likes||[]).length);
   const [showComments, setShowComments] = useState(false);
   const [postComments, setPostComments] = useState([]);
   const [commentsLoaded, setCommentsLoaded] = useState(false);
 
-const handleLike = async () => {
+  const handleLike = async () => {
     const newLiked = !liked;
     const newLikes = newLiked
       ? [...(post.likes||[]), myUsername]
@@ -385,7 +389,7 @@ const handleLike = async () => {
   };
 
   const handleDeletePost = async () => {
-if(!window.confirm(t.confirmDeletePost)) return;
+if(!window.confirm("Supprimer ce post ?")) return;
     try {
       await sb.query(`posts?id=eq.${post.id}`, { method:"DELETE" });
       onDelete?.(post.id);
@@ -458,16 +462,16 @@ if(!window.confirm(t.confirmDeletePost)) return;
         <button onClick={toggleComments}
           style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:5,
             color:showComments?"#818cf8":"var(--text-3)",fontSize:12,fontWeight:700}}>
-{t.commentsLabel}{postComments.length>0||post.comment_count>0?` (${commentsLoaded?postComments.length:post.comment_count||0})`:""} {showComments?"▲":"▼"}
+{"💬 Commentaires"}{postComments.length>0||post.comment_count>0?` (${commentsLoaded?postComments.length:post.comment_count||0})`:""} {showComments?"▲":"▼"}
         </button>
       </div>
       {/* Comments — likeable, deletable if yours */}
       {showComments && (
         <div style={{marginTop:12,borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:10}}>
           {!commentsLoaded ? (
-            <div style={{fontSize:10,color:"var(--text-5)"}}>{t.loadingComments}</div>
+            <div style={{fontSize:10,color:"var(--text-5)"}}>{"Chargement…"}</div>
           ) : postComments.length===0 ? (
-            <div style={{fontSize:10,color:"var(--text-5)",fontStyle:"italic"}}>{t.noComments}</div>
+            <div style={{fontSize:10,color:"var(--text-5)",fontStyle:"italic"}}>{"Aucun commentaire"}</div>
           ) : (
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {postComments.map((c,i)=>{

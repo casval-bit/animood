@@ -124,6 +124,135 @@ function StudioCard({ studio, onClick, t }) {
   );
 }
 
+// ─── Weekly Airing Calendar ────────────────────────────────────────────────────
+const DAYS_FR = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
+const DAYS_EN = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday","Unknown"];
+
+function getBroadcastDay(anime) {
+  const b = anime.broadcast;
+  if(!b) return null;
+  if(typeof b === "object" && b.day) return b.day;
+  if(typeof b === "string") {
+    const match = b.match(/^(\w+)s?\s+at/i);
+    if(match) return match[1];
+  }
+  return null;
+}
+
+function AiringCalendar({ anime, onOpenDetail, me, ptsStore }) {
+  const todayIdx = (new Date().getDay() + 6) % 7; // 0=Mon...6=Sun
+  const statusColors = { completed:"#3b82f6", watching:"#22c55e", dropped:"#ef4444", onhold:"#f59e0b", watchlist:"#9ca3af" };
+
+  // Group by day — only if broadcast day is available
+  const byDay = {};
+  DAYS_EN.slice(0,7).forEach(d => { byDay[d] = []; });
+  const unknownDay = [];
+  
+  anime.forEach(a => {
+    const day = getBroadcastDay(a);
+    const key = day ? DAYS_EN.find(d => d.toLowerCase() === day.toLowerCase()) : null;
+    if(key) byDay[key].push(a);
+    else unknownDay.push(a);
+  });
+
+  const hasDayData = Object.values(byDay).some(arr => arr.length > 0);
+
+  // If no day data at all, just show a grid
+  if(!hasDayData) {
+    return (
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+        {anime.map(a => (
+          <button key={a.mal_id} onClick={()=>onOpenDetail(a)}
+            className="flex flex-col items-center gap-1.5 rounded-xl border border-white/6 bg-white/3 p-2 text-center transition hover:bg-white/6 hover:border-violet-400/20"
+            style={{cursor:"pointer"}}>
+            <img src={a.image_url||a.large_image} alt=""
+              style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",borderRadius:8,
+                border:`2px solid ${statusColors[(me.statuses||{})[a.mal_id]]||"transparent"}`}}
+              onError={e=>{e.target.style.display="none";}}/>
+            <div style={{fontSize:10,fontWeight:700,color:"var(--text-1)",
+              overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",width:"100%"}}>
+              {a.title_en||a.title}
+            </div>
+            {a.score && <div style={{fontSize:9,color:"#fbbf24"}}>★ {a.score}</div>}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{overflowX:"auto",paddingBottom:8}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(120px,1fr))",gap:8,minWidth:840}}>
+        {DAYS_EN.slice(0,7).map((day, idx) => {
+          const isToday = idx === todayIdx;
+          const labelFr = DAYS_FR[idx];
+          const animes = byDay[day] || [];
+          return (
+            <div key={day} style={{
+              borderRadius:12,
+              border:`1px solid ${isToday?"rgba(124,58,237,0.4)":"rgba(255,255,255,0.06)"}`,
+              background:isToday?"rgba(124,58,237,0.06)":"rgba(255,255,255,0.02)",
+              overflow:"hidden",
+            }}>
+              <div style={{
+                padding:"6px 10px",
+                borderBottom:`1px solid ${isToday?"rgba(124,58,237,0.2)":"rgba(255,255,255,0.05)"}`,
+                textAlign:"center",
+                fontSize:isToday?12:11,
+                fontWeight:isToday?900:700,
+                color:isToday?"#c084fc":"var(--text-3)",
+              }}>
+                {labelFr}
+                {isToday && <div style={{fontSize:8,color:"#c084fc",marginTop:1}}>Aujourd'hui</div>}
+              </div>
+              <div style={{padding:6,display:"flex",flexDirection:"column",gap:5}}>
+                {animes.length === 0 ? (
+                  <div style={{padding:"8px 4px",textAlign:"center",fontSize:9,color:"var(--text-5)"}}>—</div>
+                ) : animes.map(a => (
+                  <button key={a.mal_id} onClick={()=>onOpenDetail(a)}
+                    style={{display:"flex",gap:6,alignItems:"center",background:"none",border:"none",
+                      cursor:"pointer",textAlign:"left",padding:"3px 2px",borderRadius:6,
+                      transition:"background 0.15s"}}
+                    onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
+                    onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                    <img src={a.image_url} alt="" style={{
+                      width:26,height:36,objectFit:"cover",borderRadius:4,flexShrink:0,
+                      border:`1px solid ${statusColors[(me.statuses||{})[a.mal_id]]||"rgba(255,255,255,0.08)"}`,
+                    }} onError={e=>{e.target.style.display="none";}}/>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontSize:9,fontWeight:700,color:"var(--text-1)",
+                        overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:80}}>
+                        {a.title_en || a.title}
+                      </div>
+                      {a.score && <div style={{fontSize:8,color:"#fbbf24"}}>★ {a.score}</div>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {unknownDay.length > 0 && (
+        <div style={{marginTop:10}}>
+          <div style={{fontSize:9,color:"var(--text-5)",marginBottom:5}}>📺 Jour non précisé ({unknownDay.length})</div>
+          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+            {unknownDay.map(a => (
+              <button key={a.mal_id} onClick={()=>onOpenDetail(a)}
+                style={{display:"flex",gap:4,alignItems:"center",background:"rgba(255,255,255,0.03)",
+                  border:"1px solid rgba(255,255,255,0.06)",borderRadius:8,padding:"3px 7px",cursor:"pointer"}}>
+                <img src={a.image_url} alt="" style={{width:14,height:20,objectFit:"cover",borderRadius:2}}
+                  onError={e=>{e.target.style.display="none";}}/>
+                <span style={{fontSize:9,color:"var(--text-2)"}}>{a.title_en||a.title}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SearchView({ onOpenDetail, onOpenUser }) {
   const { me, myUsername, blockedUsers } = useApp();
   const { lang } = useLang();
@@ -201,25 +330,22 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
     return () => { cancelled = true; };
   }, [typeFilter]);
 
-  // Fetch airing TV anime (currently airing + recurring like One Piece)
+  // Fetch airing TV anime with broadcast day for calendar
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        // TV only, currently airing or recurring, sort by popularity
         const rows = await sb.query(
-          "anime_cache?type=eq.TV&status=in.(Currently%20Airing,Airing)&score=gte.6&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,fetched_at&order=scored_by.desc.nullslast&limit=24"
+          "anime_cache?type=eq.TV&status=eq.Currently%20Airing&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,fetched_at&order=score.desc.nullslast&limit=50"
         ).catch(()=>[]);
         if(!cancelled && rows?.length) {
           setAiringAnime(rows);
         } else if(!cancelled) {
-          // Fallback: fetch from Jikan seasonal
-          const res = await fetch("https://api.jikan.moe/v4/seasons/now?limit=24&filter=tv").catch(()=>null);
+          const res = await fetch("https://api.jikan.moe/v4/seasons/now?limit=50").catch(()=>null);
           const data = res?.ok ? await res.json() : null;
           if(!cancelled && data?.data) {
             setAiringAnime(data.data
-              .filter(a => a.type === "TV" && !["TV Short","CM","PV"].includes(a.type))
-              .slice(0, 24));
+              .filter(a => a.type === "TV" && !["TV Short","CM","PV","Music"].includes(a.type)));
           }
         }
       } catch {}
@@ -427,24 +553,16 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
       {/* ── ANIME TAB ── */}
       {tab === "anime" && !submitted && (
         <>
-          {/* Airing this season — only shown on "all" tab */}
+          {/* ── WEEKLY AIRING CALENDAR ── */}
           {typeFilter === "all" && (
             <div className="mb-8">
-              <SectionLabel className="mb-3">📡 En cours de diffusion</SectionLabel>
-              {loadingAiring ? <Spinner label={t.loading} /> : airingAnime.length > 0 ? (
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                  {airingAnime.map(a => {
-                    const status = (me.statuses||{})[a.mal_id];
-                    const statusColors = { completed:"#3b82f6", watching:"#22c55e", dropped:"#ef4444", onhold:"#f59e0b", watchlist:"#9ca3af" };
-                    return <AnimeCard key={a.mal_id} anime={a} onClick={onOpenDetail} statusDot={statusColors[status]} moodPts={ptsStore[a.mal_id]} quickAction="watchlist" />;
-                  })}
-                </div>
-              ) : null}
+              <SectionLabel className="mb-3">📅 Calendrier de la saison</SectionLabel>
+              {loadingAiring ? <Spinner label={t.loading} /> : <AiringCalendar anime={airingAnime} onOpenDetail={onOpenDetail} me={me} ptsStore={ptsStore}/>}
             </div>
           )}
           <SectionLabel className="mb-3">{POPULAR_LABELS[typeFilter] || POPULAR_LABELS.all}</SectionLabel>
           {loadingPopular ? <Spinner label={t.loading} /> : (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {popularAnime.map(a => {
                 const status = (me.statuses||{})[a.mal_id];
                 const statusColors = { completed:"#3b82f6", watching:"#22c55e", dropped:"#ef4444", onhold:"#f59e0b", watchlist:"#9ca3af" };

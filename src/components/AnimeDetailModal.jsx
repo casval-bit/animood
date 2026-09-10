@@ -30,7 +30,7 @@ function AnimeDiscussions({ malId, animeTitle, animeImage, username, onOpenUser 
     setLoading(true);
     try {
       const rows = await sb.query(
-        `forum_threads?anime_id=eq.${malId}&order=last_reply_at.desc.nullslast,created_at.desc&limit=20`
+        `forum_threads?anime_id=eq.${malId}&order=created_at.desc&limit=20`
       ).catch(()=>[]);
       setThreads(rows || []);
     } catch {}

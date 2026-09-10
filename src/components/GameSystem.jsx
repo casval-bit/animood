@@ -95,7 +95,8 @@ export function Matchmaking({ gameType, onMatch, onClose }) {
 
       // First check if there's already a room to join
       const findRoom = async (range) => {
-        const rooms = await sb.query(`game_rooms?game_type=eq.${gameType}&status=eq.waiting&player1=neq.${encodeURIComponent(myUsername)}&private_code=is.null&limit=10`).catch(()=>[]);
+        const twoMinAgo = new Date(Date.now() - 120000).toISOString();
+        const rooms = await sb.query(`game_rooms?game_type=eq.${gameType}&status=eq.waiting&player1=neq.${encodeURIComponent(myUsername)}&private_code=is.null&player2=is.null&updated_at=gte.${encodeURIComponent(twoMinAgo)}&limit=10`).catch(()=>[]);
         return (rooms||[]).filter(r=>Math.abs((r.elo1||400)-eloVal)<=range).sort((a,b)=>Math.abs((a.elo1||400)-eloVal)-Math.abs((b.elo1||400)-eloVal))[0]||null;
       };
 
@@ -120,7 +121,11 @@ export function Matchmaking({ gameType, onMatch, onClose }) {
         }
         return;
       }
-      const created = await sb.query("game_rooms",{method:"POST",headers:{...sb.headers,"Prefer":"return=representation"},body:JSON.stringify({game_type:gameType,player1:myUsername,elo1:eloVal,status:"waiting",state:{},ranked:true})}).catch(()=>null);
+      // Clean up old phantom waiting rooms from this user
+      sb.query(`game_rooms?player1=eq.${encodeURIComponent(myUsername)}&status=eq.waiting&game_type=eq.${gameType}`,
+        {method:"DELETE"}).catch(()=>{});
+
+      const created = await sb.query("game_rooms",{method:"POST",headers:{...sb.headers,"Prefer":"return=representation"},body:JSON.stringify({game_type:gameType,player1:myUsername,elo1:eloVal,status:"waiting",state:{},ranked:true,updated_at:new Date().toISOString()})}).catch(()=>null);
       const myRoom = created?.[0];
       if(!myRoom||cancelled) return;
       roomRef.current = myRoom.id;
@@ -141,6 +146,9 @@ export function Matchmaking({ gameType, onMatch, onClose }) {
           clearInterval(interval);
           setStatus("found");
           setTimeout(()=>onMatch(r), 500);
+        } else if(r?.status === "waiting") {
+          // Heartbeat — keep room fresh so other players can find it
+          sb.query(`game_rooms?id=eq.${myRoom.id}`,{method:"PATCH",headers:{...sb.headers,"Prefer":"return=minimal"},body:JSON.stringify({updated_at:new Date().toISOString()})}).catch(()=>{});
         }
       }, 2000);
 
@@ -1321,19 +1329,11 @@ export function CluescaleGame({ room, onClose }) {
   const [submitting, setSubmitting] = useState(false);
   const lastStateRef = useRef("");
 
-  // Initialize game (host only)
-  useEffect(() => {
-    if(!isHost || state) return;
-    const initState = buildNextTurn({ scores: Object.fromEntries(players.map(p=>[p,0])), judgeRound: 0, history: [] }, players);
-    pushState(initState);
-    setState(initState);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Poll for state updates
   useEffect(() => {
     const poll = setInterval(async () => {
       try {
-        const rows = await sb.query(`game_rooms?id=eq.${room.id}&select=state&limit=1`);
+        const rows = await sb.query(`game_rooms?id=eq.${room.id}&select=state,status&limit=1`);
         const r = rows?.[0];
         if(!r?.state) return;
         const str = JSON.stringify(r.state);
@@ -1401,7 +1401,7 @@ export function CluescaleGame({ room, onClose }) {
         const g = newGuesses[p];
         const diff = Math.abs(g - state.score);
         if(diff === 0) { newScores[p] = (newScores[p]||0) + 3; judgeGetsPoints = true; }
-        else if(diff === 1) { newScores[p] = (newScores[p]||0) + 1; }
+        else if(diff === 1) { newScores[p] = (newScores[p]||0) + 1; judgeGetsPoints = true; }
       });
       if(judgeGetsPoints) newScores[state.judge] = (newScores[state.judge]||0) + 2;
 
@@ -1703,6 +1703,19 @@ export function CluescaleMatchmaking({ onMatch, onClose }) {
 
   const startGame = async () => {
     if(players.length < 2) return;
+    // Build initial game state here so it's written to DB atomically with status:active
+    const initState = {
+      phase: "clue",
+      judgeRound: 1,
+      judge: players[0],
+      theme: CLUESCALE_THEMES[Math.floor(Math.random() * CLUESCALE_THEMES.length)],
+      score: Math.floor(Math.random() * 20) + 1,
+      clue: null,
+      guesses: {},
+      scores: Object.fromEntries(players.map(p=>[p,0])),
+      history: [],
+      players,
+    };
     await sb.query(`game_rooms?id=eq.${roomRef.current}`, {
       method:"PATCH",
       headers:{...sb.headers,"Prefer":"return=minimal"},
@@ -1710,7 +1723,7 @@ export function CluescaleMatchmaking({ onMatch, onClose }) {
         status:"active",
         player1:players[0], player2:players[1],
         player3:players[2]||null, player4:players[3]||null,
-        state:{players},
+        state: initState,
       }),
     }).catch(()=>{});
   };
