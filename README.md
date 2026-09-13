@@ -7,7 +7,7 @@ A mood-driven anime app — moodboard, feed, search, forum, profiles, and messag
 No setup needed — the Supabase key already in the code is the `anon`/publishable key (safe to ship client-side by design; access control lives in RLS policies, not in keeping it secret), and the DB schema is already migrated on the shared Supabase project.
 
 ```bash
-git clone -b animood-v.07.02 https://github.com/casval-bit/animood.git
+git clone -b animood-v.08.02 https://github.com/casval-bit/animood.git
 cd animood
 npm install
 npm run dev
@@ -40,6 +40,26 @@ npm run lint      # eslint across the project
 - **Notifications** — unread-message badge (with count) on the ✉️ icon; a 🔔 bell for activity (new comments on Feed posts and new replies on Forum threads you wrote or took part in, *plus* any post/comment/thread/reply where someone `@mentions` you). The bell and Forum's per-thread unread badge read from the same feed, so they never disagree. Both update automatically in the background — no page refresh needed.
 - **Theme** — selectable light/dark appearance (Settings → 🎨 Apparence). Dark (glass/gradient) stays the default; the light theme is a softer, violet-tinted "social feed" look, not a flat white dashboard.
 - **AniList import** — also pulls a public AniList account's custom (sub-)lists, filterable from Profile → Journal. Re-run the same import anytime (same username, now with a clearly labeled field and a "🔄 Réimporter" button) to resync after updating your list on AniList.
+
+## v.08.02 — en comparaison avec v.08
+
+Fusion de `animood-v.08.01` (GitHub) — cette branche parallèle a fini par ajouter de vraies nouveautés, récupérées ici en plus de `v.08` :
+
+- **Cluescale** — nouveau mini-jeu 2 à 4 joueurs (Forum → 🎮 Mini-jeux du jour) : le juge reçoit un thème et un score 1-20 tirés au sort, donne un indice, les autres devinent le score (exact = +3, ±1 = +1 ; le juge gagne +2 si quelqu'un tombe juste).
+- **vs IA** — Chaîne et Timeline se jouent désormais aussi contre une IA (facile/moyen/difficile), sans passer par le matchmaking.
+- **Discussions par animé** — chaque fiche animé a sa propre section "💬 Discussions" (sujets de forum liés à cet animé) ; les animés de la saison en cours dans le Forum pointent vers la même liste.
+- **Calendrier de la saison** — grille par jour de diffusion des animés TV en cours (Recherche → onglet Animé), jour courant mis en avant.
+- **Fix "parties fantômes"** — le matchmaking nettoie désormais les rooms `waiting` abandonnées avant d'en recréer une, et rafraîchit la sienne en arrière-plan tant qu'elle attend un adversaire.
+- La fusion a aussi corrigé plusieurs régressions présentes sur cette branche GitHub à l'endroit où elle avait rejoint `animood-v.07` : l'import cassé d'OP Quiz (`MiniGames.jsx`/`ForumView.jsx`), la disparition des fonctions `calcChainElo`/`calcTimelineElo` (`GameSystem.jsx`, aurait fait planter la fin de toute partie classée), un retour en arrière sur les likes RLS-safe et l'i18n dans `ProfileView.jsx`, la disparition de la catégorie "🎬 Trailers" et du design simplifié de `GameEloDisplay` dans `ForumView.jsx`, une réécriture buguée d'`awardSoloPoints.js` (perte de `points_total`/`awardOpQuizPoints`), et un bug d'encodage (mojibake) dans les commentaires de `supabase.js`.
+- **Nouvelles colonnes SQL** — `forum_threads.anime_id/anime_title/anime_image/reply_count/last_reply_at` (discussions par animé) et `game_rooms.player3/player4` (Cluescale) : voir Database plus bas, `game_schema.sql` reste ⚠️ non exécuté sur le projet partagé.
+
+## v.08 — en comparaison avec v.07.02
+
+- **Recherche d'artiste** — nouvel onglet "Artiste" dans Recherche, propulsé par l'API gratuite AnimeThemes.moe (aucun jeu de données local à maintenir) : cherche un chanteur/groupe et retrouve tous les OP/ED qu'il a interprétés, avec une grille d'artistes connus préchargée (LiSA, YOASOBI, Aimer, ClariS, Linked Horizon, FLOW...) dès le premier passage. Lien réciproque sur la fiche animé : chaque animé affiche désormais ses OP/ED avec l'artiste, cliquable directement vers son catalogue complet.
+- **Notifications** — réglage pour activer/désactiver les notifications d'activité, action "tout marquer comme lu" dans le menu 🔔.
+- **OP Quiz** — protection anti-triche pendant la phase à l'aveugle : le lecteur revendique le focus média de l'OS avec des métadonnées factices ("???") pour empêcher les overlays de touches de volume de révéler le titre de l'animé.
+- **Forum** — lien trailer direct sur les lignes d'animés anticipés/sujets, au lieu de toujours retomber sur le libellé générique.
+- **Repassage sur `animood-v.07` (GitHub)** — cette branche parallèle continue de diverger et ne compile plus (JSX cassé dans `GameEloDisplay`). Aucune fonctionnalité neuve utilisable dedans, mais trois nettoyages ont été repris proprement : `ThreadModal` perd sa prop `onLikeUpdate` inutilisée, `ProfilePostCard` perd son `useEffect` de resynchro des likes (redondant), et `GameEloDisplay` est simplifié à un total de points unique (`elo.points_total`) avec les boutons mini-jeux factorisés dans `GameButton`. OP Quiz est conservé (contrairement à cette branche GitHub qui l'avait supprimé).
 
 ## v.07.02 — en comparaison avec v.07.01
 
@@ -121,17 +141,17 @@ Tout ce qui suit est nouveau depuis la dernière version documentée (`animood-v
 
 ## Database (Supabase)
 
-Schema is already applied on the shared project **except for `game_schema.sql`, flagged ⚠️ below** — every other `v.07` addition (`forum_schema.sql`'s `likes` columns, `polls_schema.sql`, `posts_schema.sql`) has already been run. For a fresh Supabase project (or after a reset), run everything in this table in order in the SQL Editor:
+Schema is already applied on the shared project **except for `game_schema.sql` and the `v.08` columns on `forum_threads`, flagged ⚠️ below** — every other addition (`polls_schema.sql`, `posts_schema.sql`, the original `forum_schema.sql` columns) has already been run. For a fresh Supabase project (or after a reset), run everything in this table in order in the SQL Editor:
 
 | File | Adds |
 |---|---|
-| ✅ `supabase/forum_schema.sql` | `forum_threads`, `forum_replies` (+ `tags`, `image_url`, and — new in v.07, already applied — `likes` columns and `UPDATE` policies). Safe to re-run even if you already ran an older version: every statement is `add column if not exists` / `drop policy if exists` then `create policy`. |
+| ⚠️ `supabase/forum_schema.sql` | `forum_threads`, `forum_replies` (+ `tags`, `image_url`, `likes` — already applied). **New in v.08, not yet run on the shared project:** `anime_id`/`anime_title`/`anime_image`/`reply_count`/`last_reply_at` on `forum_threads`, needed for the per-anime "💬 Discussions" section and the reply-count/last-activity shown on each thread. Until this runs, creating a thread from an anime's detail page (or replying to one) will fail silently (`.catch(()=>{})`) since those columns don't exist yet. Safe to re-run even if you already ran an older version: every statement is `add column if not exists` / `drop policy if exists` then `create policy`. |
 | `supabase/messages_schema.sql` | `direct_messages` |
 | `supabase/anilist_sub_lists.sql` | `anilist_sub_lists` column on `profiles` |
 | `supabase/blocks_schema.sql` | `user_blocks` (one-directional user blocking) |
 | ✅ `supabase/polls_schema.sql` | **New file in v.07, already applied.** `polls` (belongs to either a Feed post or a Forum thread — `options` jsonb `{id, text, votes[]}[]`, `multi` boolean). Neither branch ever tracked this table before. |
 | ✅ `supabase/posts_schema.sql` | **New file in v.07, already applied — this was the actual bug.** `posts`, `comments` existed already but had no tracked schema and, it turns out, no `UPDATE` RLS policy at all: liking a Feed post or comment PATCHes the `likes` column, which was silently rejected the whole time. The optimistic client-side update made it *look* like it worked until the next page reload reverted it. This file added the missing `UPDATE`/`DELETE` policies — confirmed fixed. |
-| ⚠️ `supabase/game_schema.sql` | **New file in v.07 — not yet run.** `game_elo`, `game_rooms` — existed already but had no tracked schema until now; adds the columns used to award/track solo game points (`streak_wordle`, `last_wordle_date`, `streak_poster`, `last_poster_date`, and — new in v.07.02 — `streak_opquiz`, `last_opquiz_date`). Only those `alter table` lines actually do anything on the shared project. Until this runs, winning Wordle/Poster/OP Quiz silently awards no points. |
+| ⚠️ `supabase/game_schema.sql` | **New file in v.07 — not yet run.** `game_elo`, `game_rooms` — existed already but had no tracked schema until now; adds the columns used to award/track solo game points (`streak_wordle`, `last_wordle_date`, `streak_poster`, `last_poster_date`, `streak_opquiz`/`last_opquiz_date` since v.07.02), and — **new in v.08** — `player3`/`player4` on `game_rooms` for Cluescale's 2-4 player rooms. Only those `alter table` lines actually do anything on the shared project. Until this runs, winning Wordle/Poster/OP Quiz silently awards no points, and Cluescale can't seat a 3rd/4th player. |
 
 Access model: like the rest of the app, these tables use the shared `anon` key with open RLS policies ("anyone can read/insert/update/delete") — not per-user privacy, consistent with `profiles`/`follows`/`user_votes`.
 
