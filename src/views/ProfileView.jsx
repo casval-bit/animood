@@ -9,6 +9,7 @@ import { jikan } from "../api/jikan.js";
 import { follows, sb, posts as postsApi, comments as commentsApi } from "../api/supabase.js";
 import { dispatchPostEvent, addPostEventListener } from "../utils/postEvents.js";
 import { FRAMES, getUnlockedFrames, getBestFrame, getFrameLabel } from "../frames/frames.js";
+import { BADGES, getUnlockedBadges, getBestBadge, getBadgeLabel, BadgeDisplay } from "../badges/badges.jsx";
 import { FrameSVG } from "../frames/FrameSVG.jsx";
 import { Spinner } from "../components/Spinner.jsx";
 import { ScoreChart } from "../components/ScoreChart.jsx";
@@ -536,8 +537,11 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
   const [favPopup, setFavPopup] = useState(null);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showFramePicker, setShowFramePicker] = useState(false);
+  const [showBadgePicker, setShowBadgePicker] = useState(false);
   const [unlockedFrames, setUnlockedFrames] = useState([]);
   const [activeFrame, setActiveFrame] = useState(null);
+  const [unlockedBadges, setUnlockedBadges] = useState([]);
+  const [activeBadge, setActiveBadge] = useState(null);
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [editingBio, setEditingBio] = useState(false);
@@ -752,10 +756,11 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
   useEffect(() => {
     (async () => {
       try {
-        const [followerRows, followingRows, voteRows] = await Promise.all([
+        const [followerRows, followingRows, voteRows, gameEloRows] = await Promise.all([
           follows.getFollowers(myUsername),
           follows.getFollowing(myUsername).catch(()=>[]),
           sb.query(`user_votes?username=eq.${myUsername}&select=pts_added&limit=1000`),
+          sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&select=points_total&limit=1`).catch(()=>[]),
         ]);
         setFollowerCount((followerRows||[]).length);
         setFollowingCount((followingRows||[]).length);
@@ -768,12 +773,27 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
             (rows||[]).forEach(row => { (row.genres||[]).forEach(g => { const name=g.name||g; genreCounts[name]=(genreCounts[name]||0)+1; }); });
           } catch {}
         }
-        const unlocked = getUnlockedFrames({ watchedCount: me.watched.length, genreCounts, followerCount: (followerRows||[]).length, userVotes: voteRows||[] });
-        setUnlockedFrames(unlocked);
+        const gamePoints = gameEloRows?.[0]?.points_total || 0;
+        const unlockedF = getUnlockedFrames({ watchedCount: me.watched.length, genreCounts, followerCount: (followerRows||[]).length, userVotes: voteRows||[], gamePoints });
+        setUnlockedFrames(unlockedF);
         const savedFrameId = me.activeFrame;
         const saved = savedFrameId ? FRAMES[savedFrameId] : null;
-        const best = getBestFrame(unlocked);
-        setActiveFrame(saved && unlocked.find(f=>f.id===savedFrameId) ? saved : best);
+        const best = getBestFrame(unlockedF);
+        setActiveFrame(saved && unlockedF.find(f=>f.id===savedFrameId) ? saved : best);
+
+        // Badges
+        const unlockedB = getUnlockedBadges({
+          watchedCount: me.watched.length,
+          genreCounts,
+          followerCount: (followerRows||[]).length,
+          userVotes: voteRows||[],
+          gamePoints,
+          ratedCount: Object.keys(me.ratings||{}).length,
+        });
+        setUnlockedBadges(unlockedB);
+        const savedBadgeId = me.activeBadge;
+        const savedBadge = savedBadgeId ? BADGES[savedBadgeId] : null;
+        setActiveBadge(savedBadge && unlockedB.find(b=>b.id===savedBadgeId) ? savedBadge : getBestBadge(unlockedB));
       } catch(e) { console.error("Frame load error:", e); }
     })();
   }, [me.watched.length, myUsername]);
@@ -865,6 +885,16 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8">
+      {/* Banner */}
+      {me.banner && (
+        <div className="mb-6 -mx-6 -mt-8 relative h-36 sm:h-48 overflow-hidden">
+          <img src={me.banner} alt="" className="w-full h-full object-cover" />
+          <div className="absolute inset-0" style={{
+            background: "linear-gradient(to bottom, transparent 50%, rgba(2,6,23,0.85) 100%)",
+          }}/>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6 flex flex-col gap-6 sm:flex-row sm:items-start">
         <div className="relative shrink-0">
@@ -880,12 +910,22 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
           {unlockedFrames.length > 0 && (
             <div onClick={() => setShowFramePicker(true)} className="absolute right-0 top-0 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-2 border-slate-950 bg-indigo-600 text-[10px]">🖼</div>
           )}
+          {unlockedBadges.length > 0 && (
+            <div onClick={() => setShowBadgePicker(true)} className="absolute -right-1 bottom-0 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-2 border-slate-950 bg-amber-600 text-[10px]">🏆</div>
+          )}
         </div>
 
         <div className="flex-1">
           <div className="mb-1 flex items-center justify-between">
             <div>
-              <div className={`text-2xl font-black tracking-tight ${GRADIENT_TEXT}`}>{me.name}</div>
+              <div className={`text-2xl font-black tracking-tight ${GRADIENT_TEXT}`}>
+                {me.name}
+                {activeBadge && (
+                  <span className="inline-flex ml-1.5 align-middle" title={`${activeBadge.label} — ${activeBadge.desc}`}>
+                    <BadgeDisplay badge={activeBadge} size={22} />
+                  </span>
+                )}
+              </div>
               <div className="text-xs text-slate-500">@{myUsername} · AniMood</div>
             </div>
             <button onClick={onOpenSettings} className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs font-bold text-slate-400">⚙️</button>
@@ -1416,6 +1456,47 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
                   {e}
                 </button>
               ))}
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Badge picker */}
+      {showBadgePicker && (
+        <Modal onClose={() => setShowBadgePicker(false)} maxWidth="max-w-lg">
+          <div className="p-6">
+            <div className="mb-1 text-center text-sm font-black text-slate-100">{t.badgeSectionTitle}</div>
+            <div className="mb-4 text-center text-[11px] text-slate-500">{unlockedBadges.length} débloqué{unlockedBadges.length!==1?"s":""}</div>
+            <button onClick={() => { setActiveBadge(null); saveMe({...me, activeBadge: null}); setShowBadgePicker(false); }}
+              className="mb-2.5 flex w-full items-center gap-3 rounded-xl p-2.5 text-left"
+              style={{ border: !activeBadge ? "2px solid #7c3aed" : "2px solid transparent", background: !activeBadge ? "rgba(124,58,237,0.1)" : "transparent" }}>
+              <div className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-white/15 bg-white/5 text-lg">🚫</div>
+              <div><div className="text-xs font-bold text-slate-100">{t.badgeNone}</div><div className="text-[10px] text-slate-500">{t.badgeNoneDesc}</div></div>
+            </button>
+            <div className="flex flex-col gap-2">
+              {["watched","contribution","followers","genre","games","rated"].map(cat => {
+                const catBadges = unlockedBadges.filter(b=>b.category===cat);
+                if(!catBadges.length) return null;
+                const catLabels = {watched:t.badgeCatWatched,contribution:t.badgeCatContribution,followers:t.badgeCatFollowers,genre:t.badgeCatGenre,games:t.badgeCatGames,rated:t.badgeCatRated};
+                return (
+                  <div key={cat}>
+                    <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{catLabels[cat]}</div>
+                    <div className="flex flex-wrap gap-2">
+                      {catBadges.map(badge => {
+                        const isActive = activeBadge?.id===badge.id;
+                        return (
+                          <button key={badge.id} onClick={() => { setActiveBadge(badge); saveMe({...me, activeBadge: badge.id}); setShowBadgePicker(false); }}
+                            className="flex flex-col items-center gap-1 rounded-xl p-2"
+                            style={{ border: isActive?"2px solid #7c3aed":"2px solid transparent", background: isActive?"rgba(124,58,237,0.1)":"rgba(var(--fg-rgb),0.03)" }}>
+                            <span style={{fontSize:28,filter:`drop-shadow(0 0 6px ${badge.color}60)`}}>{badge.emoji}</span>
+                            <div className="max-w-13 text-center text-[9px] font-bold leading-tight" style={{ color:badge.color }}>{getBadgeLabel(badge, lang)}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </Modal>

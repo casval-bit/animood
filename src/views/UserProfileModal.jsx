@@ -6,6 +6,7 @@ import { MOOD_KEYS } from "../constants/moods.js";
 import { sb, follows, loadProfile } from "../api/supabase.js";
 import { jikan } from "../api/jikan.js";
 import { FRAMES } from "../frames/frames.js";
+import { BADGES, BadgeDisplay } from "../badges/badges.jsx";
 import { FrameSVG } from "../frames/FrameSVG.jsx";
 import { Spinner } from "../components/Spinner.jsx";
 import { AnimePoster } from "../components/AnimeCard.jsx";
@@ -56,6 +57,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
   const [animeCache, setAnimeCache]   = useState({});
   const [showChat, setShowChat]       = useState(false);
   const [moodAvg, setMoodAvg]         = useState(null);
+  const [activeBadge, setActiveBadge] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,6 +106,12 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
             const avg={}; MOOD_KEYS.forEach(k=>{avg[k]=Math.round(totals[k]/cnt);});
             if(!cancelled) setMoodAvg(avg);
           }
+        }
+
+        // Badge actif
+        const badgeId = prof?.activeBadge || prof?.active_badge || null;
+        if(badgeId && BADGES[badgeId]) {
+          setActiveBadge(BADGES[badgeId]);
         }
       } catch(e) { console.error(e); }
       finally { if(!cancelled) setLoading(false); }
@@ -167,6 +175,16 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
         <EmptyState emoji="😶" title={t.notFound} />
       ) : (
         <div className="p-6">
+          {/* Banner */}
+          {profile.banner && (
+            <div className="-mx-6 -mt-6 mb-4 relative h-24 sm:h-32 overflow-hidden">
+              <img src={profile.banner} alt="" className="w-full h-full object-cover" />
+              <div className="absolute inset-0" style={{
+                background: "linear-gradient(to bottom, transparent 50%, rgba(2,6,23,0.85) 100%)",
+              }}/>
+            </div>
+          )}
+
           {/* Header */}
           <div className="mb-5 flex items-start gap-4">
             <FrameSVG frame={profile.activeFrame ? FRAMES[profile.activeFrame] : null} size={72}>
@@ -178,7 +196,14 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
               </div>
             </FrameSVG>
             <div className="flex-1 min-w-0">
-              <div className={`text-xl font-black ${GRADIENT_TEXT}`}>{profile.name||username}</div>
+              <div className={`text-xl font-black ${GRADIENT_TEXT}`}>
+                {profile.name||username}
+                {activeBadge && (
+                  <span className="inline-flex ml-1 align-middle" title={`${activeBadge.label} — ${activeBadge.desc}`}>
+                    <BadgeDisplay badge={activeBadge} size={20} />
+                  </span>
+                )}
+              </div>
               <div className="text-xs text-slate-500 mb-1">@{username}</div>
               {profile.bio && <div className="text-xs italic text-slate-400 mb-2">{profile.bio}</div>}
               <div className="flex items-center gap-4 text-[11px]">

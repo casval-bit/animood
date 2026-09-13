@@ -27,6 +27,7 @@ export const USER_PROFILE_MODAL_I18N = {
     emptyList: "Liste vide",
     moodRadar: "🎭 Profil émotionnel",
     scoreDistribution: "📊 Distribution des notes",
+    badgeSectionTitle: "🏆 Badges",
 
     journalEmpty: "Aucun animé dans le journal",
     listsEmpty: "Aucune liste",
@@ -63,6 +64,7 @@ export const USER_PROFILE_MODAL_I18N = {
     emptyList: "Empty list",
     moodRadar: "🎭 Emotional profile",
     scoreDistribution: "📊 Rating distribution",
+    badgeSectionTitle: "🏆 Badges",
 
     journalEmpty: "No anime in the journal",
     listsEmpty: "No lists",
