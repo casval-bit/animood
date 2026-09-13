@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { useLang } from "../context/useLang.js";
+import { PERSON_MODAL_I18N } from "../constants/personModalI18n.js";
 import { jikan } from "../api/jikan.js";
 import { Spinner } from "./Spinner.jsx";
 import { Modal } from "./Modal.jsx";
@@ -6,6 +8,8 @@ import { Modal } from "./Modal.jsx";
 const FALLBACK = "https://placehold.co/120x120/1a1a2e/818cf8?text=?";
 
 export function PersonModal({ personId, onClose, onOpenDetail }) {
+  const { lang } = useLang();
+  const t = PERSON_MODAL_I18N[lang] || PERSON_MODAL_I18N.fr;
   const [data, setData]     = useState(null);
   const [animes, setAnimes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,7 +33,7 @@ export function PersonModal({ personId, onClose, onOpenDetail }) {
 
   return (
     <Modal onClose={onClose} maxWidth="max-w-2xl">
-      {loading && <Spinner label="Chargement…" />}
+      {loading && <Spinner label={t.loading} />}
       {data && (
         <div className="p-6">
           <div className="mb-5 flex items-center gap-4">
@@ -38,11 +42,11 @@ export function PersonModal({ personId, onClose, onOpenDetail }) {
             <div>
               <div className="text-lg font-black text-slate-100">{data.name}</div>
               {data.name_kanji && <div className="text-xs text-slate-500">{data.name_kanji}</div>}
-              {data.favorites != null && <div className="mt-0.5 text-[11px] text-slate-600">❤️ {data.favorites.toLocaleString()} favoris</div>}
+              {data.favorites != null && <div className="mt-0.5 text-[11px] text-slate-600">{t.favoritesCount(data.favorites)}</div>}
             </div>
           </div>
           {data.about && <p className="mb-5 text-[13px] leading-relaxed text-slate-400">{data.about.slice(0,320)}…</p>}
-          <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Animés ({animes.length})</div>
+          <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.animesCount(animes.length)}</div>
           <div className="grid grid-cols-4 gap-3 sm:grid-cols-6">
             {animes.map(a => (
               <button key={a.mal_id} onClick={() => onOpenDetail(a)} className="group text-left">
