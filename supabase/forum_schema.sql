@@ -4,20 +4,36 @@
 -- one interaction on top, kept in sync with how posts/comments likes work.
 
 create table if not exists forum_threads (
-  id         bigint generated always as identity primary key,
-  username   text not null,
-  title      text not null,
-  body       text not null,
-  tags       text[] not null default '{}',
-  image_url  text,
-  likes      text[] not null default '{}',
-  created_at timestamptz not null default now()
+  id            bigint generated always as identity primary key,
+  username      text not null,
+  title         text not null,
+  body          text not null,
+  tags          text[] not null default '{}',
+  image_url     text,
+  likes         text[] not null default '{}',
+  -- New in v.08.01 — a thread can be attached to a specific anime (its own
+  -- "💬 Discussions" section on the anime detail modal) instead of only
+  -- showing up in the general Forum feed.
+  anime_id      bigint,
+  anime_title   text,
+  anime_image   text,
+  reply_count   integer not null default 0,
+  last_reply_at timestamptz,
+  created_at    timestamptz not null default now()
 );
 
 -- Existing installs: add the column if the table predates tag/image/like support.
 alter table forum_threads add column if not exists tags text[] not null default '{}';
 alter table forum_threads add column if not exists image_url text;
 alter table forum_threads add column if not exists likes text[] not null default '{}';
+-- Existing installs: add the columns if the table predates anime-linked threads.
+alter table forum_threads add column if not exists anime_id bigint;
+alter table forum_threads add column if not exists anime_title text;
+alter table forum_threads add column if not exists anime_image text;
+alter table forum_threads add column if not exists reply_count integer not null default 0;
+alter table forum_threads add column if not exists last_reply_at timestamptz;
+
+create index if not exists forum_threads_anime_id_idx on forum_threads(anime_id) where anime_id is not null;
 
 create table if not exists forum_replies (
   id         bigint generated always as identity primary key,
