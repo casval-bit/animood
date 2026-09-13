@@ -44,7 +44,7 @@ export function TagPill({ id }) {
 }
 
 // ─── Create a new discussion — title + body + optional tags ───────────────────
-export function NewThreadModal({ username, onClose, onCreated }) {
+export function NewThreadModal({ username, onClose, onCreated, animeId, animeTitle, animeImage }) {
   const { lang } = useLang();
   const t = FORUM_THREAD_I18N[lang] || FORUM_THREAD_I18N.fr;
   const [title, setTitle]     = useState("");
@@ -83,7 +83,7 @@ export function NewThreadModal({ username, onClose, onCreated }) {
     if(!ttl || !b) { setError(t.errRequired); return; }
     setSubmitting(true); setError(null);
     try {
-      const rows = await sb.createThread(username, ttl, b, tags, imageUrl);
+      const rows = await sb.createThread(username, ttl, b, tags, imageUrl, animeId||null, animeTitle||null, animeImage||null);
       if(!rows?.[0]) throw new Error("empty response");
       const thread = rows[0];
       // Create poll if set
@@ -148,7 +148,7 @@ export function NewThreadModal({ username, onClose, onCreated }) {
             style={poll
               ? { borderColor: "rgba(124,58,237,.3)", background: "rgba(124,58,237,.15)", color: "#c084fc" }
               : { borderColor: "rgba(var(--fg-rgb),.1)", background: "rgba(var(--fg-rgb),.05)", color: "var(--text-2)" }}>
-            {poll ? t.pollRemove : t.pollAdd}
+{poll ? t.pollRemove : t.pollAdd}
           </button>
         </div>
 
@@ -156,7 +156,7 @@ export function NewThreadModal({ username, onClose, onCreated }) {
         {poll && (
           <div className="mb-3 rounded-xl border border-violet-500/20 bg-violet-500/5 p-3">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-[11px] font-bold text-violet-400">{t.pollLabel}</span>
+<span className="text-[11px] font-bold text-violet-400">{t.pollLabel}</span>
               <label className="flex items-center gap-1.5 text-[10px] text-slate-400 cursor-pointer">
                 <input type="checkbox" checked={poll.multi} onChange={e=>setPoll(p=>({...p,multi:e.target.checked}))}/>
                 {t.pollMultiChoice}
@@ -168,7 +168,7 @@ export function NewThreadModal({ username, onClose, onCreated }) {
                   const opts=[...poll.options]; opts[i]=e.target.value;
                   setPoll(p=>({...p,options:opts}));
                 }}
-                  placeholder={t.pollOptionPlaceholder(i+1)} maxLength={80}
+placeholder={t.pollOptionPlaceholder(i+1)} maxLength={80}
                   className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-violet-400/40"/>
                 {poll.options.length > 2 && (
                   <button onClick={()=>setPoll(p=>({...p,options:p.options.filter((_,j)=>j!==i)}))}
@@ -179,7 +179,7 @@ export function NewThreadModal({ username, onClose, onCreated }) {
             {poll.options.length < 6 && (
               <button onClick={()=>setPoll(p=>({...p,options:[...p.options,""]}))} type="button"
                 className="text-[11px] font-bold text-violet-400 hover:text-violet-300">
-                {t.pollAddOption}
+{t.pollAddOption}
               </button>
             )}
           </div>
@@ -259,7 +259,7 @@ function ForumPollDisplay({ threadId, username }) {
     <div className="mb-5 overflow-hidden rounded-xl border border-violet-500/20 bg-violet-500/4">
       {poll.multi && !voted && (
         <div className="border-b border-violet-500/10 px-3 py-1.5 text-[10px] text-violet-400">
-          {t.pollMultiHint}
+          {t.multipleChoice||"📊 Choix multiple"}
         </div>
       )}
       {poll.options.map(opt => {
@@ -286,14 +286,14 @@ function ForumPollDisplay({ threadId, username }) {
         );
       })}
       <div className="px-3 py-1.5 text-right text-[10px] text-slate-500">
-        {t.pollVoteCount(total)}
+{t.pollVoteCount(total)}
       </div>
     </div>
   );
 }
 
 // ─── Thread detail — body + replies + reply box ────────────────────────────────
-export function ThreadModal({ thread, username, onClose, onOpenUser }) {
+export function ThreadModal({ thread, username, onClose, onOpenUser, onReply }) {
   const { blockedUsers } = useApp();
   const { lang } = useLang();
   const t = FORUM_THREAD_I18N[lang] || FORUM_THREAD_I18N.fr;
@@ -332,7 +332,7 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
     setSubmitting(true); setError(null);
     try {
       const rows = await sb.createReply(thread.id, username, b);
-      if(rows?.[0]) setReplies(r => [...r, rows[0]]);
+      if(rows?.[0]) { setReplies(r => [...r, rows[0]]); onReply?.(); }
       setReply("");
     } catch {
       setError(t.errReply);
@@ -381,7 +381,7 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
           <img src={thread.image_url} alt="" className="mb-3 max-h-100 w-full rounded-xl object-cover" />
         )}
         <button onClick={toggleThreadLike}
-          className="mb-5 flex items-center gap-1 text-xs font-bold transition"
+          className="mb-3 flex items-center gap-1 text-xs font-bold transition"
           style={{color: threadLiked ? "#ef4444" : "var(--text-3)"}}>
           {threadLiked ? "❤️" : "🤍"} {threadLikes.length || ""}
         </button>
