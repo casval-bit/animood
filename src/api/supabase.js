@@ -1,8 +1,8 @@
 // ─── SUPABASE CLIENT (SDK officiel) ──────────────────────────────────────────
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL  = "https://pjkvhhxwjzpmxmhdhwcp.supabase.co";
-const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBqa3ZoaHh3anpwbXhtaGRod2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NDA5ODgsImV4cCI6MjA5NjAxNjk4OH0.fj3pEDLYZqHmugfWfJvVX008He7lwUDx6-avmqJl8kI";
+const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || "https://pjkvhhxwjzpmxmhdhwcp.supabase.co";
+const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBqa3ZoaHh3anpwbXhtaGRod2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NDA5ODgsImV4cCI6MjA5NjAxNjk4OH0.fj3pEDLYZqHmugfWfJvVX008He7lwUDx6-avmqJl8kI";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
 
@@ -56,7 +56,9 @@ export const sb = {
       favorites:        data.favorites,
       hidden_completed: data.hiddenCompleted || data.hidden_completed || [],
       posts:            data.posts,
+      anilist_sub_lists: data.anilistSubLists || data.anilist_sub_lists || {},
       active_frame:     data.activeFrame || null,
+      avatar_base64:    data.avatar_base64 || null,
       highlights:        data.highlights || [],
       custom_lists:     data.customLists || [],
       pinned_list:      data.pinnedList || null,
@@ -69,9 +71,152 @@ export const sb = {
     });
   },
 
+  async getRecentMoodVotes(sinceISO) {
+    try { return await this.query(`user_votes?select=moods,voted_at&voted_at=gte.${encodeURIComponent(sinceISO)}&limit=1000`) || []; }
+    catch { return []; }
+  },
+
+  async getMoodPtsBatch(ids) {
+    if(!ids.length) return {};
+    try {
+      const rows = await this.query(`mood_pts_v4?mal_id=in.(${ids.join(",")})&limit=${ids.length}`);
+      const out = {};
+      (rows||[]).forEach(r => { out[r.mal_id] = r; });
+      return out;
+    } catch { return {}; }
+  },
+
+  async getAllFavorites() {
+    try { return await this.query(`profiles?select=favorites&limit=1000`) || []; }
+    catch { return []; }
+  },
+
+  // ─── Forum threads/replies — skeleton, no reactions, no pagination ──────────
+  async listThreads(limit = 20) {
+    try { return await this.query(`forum_threads?select=*&order=created_at.desc&limit=${limit}`) || []; }
+    catch { return []; }
+  },
+  async getReplyCounts(threadIds, excludeUsernames = []) {
+    if(!threadIds.length) return {};
+    try {
+      let url = `forum_replies?select=thread_id&thread_id=in.(${threadIds.join(",")})`;
+      if(excludeUsernames.length) url += `&username=not.in.(${excludeUsernames.map(u=>encodeURIComponent(u)).join(",")})`;
+      const rows = await this.query(url) || [];
+      const out = {};
+      rows.forEach(r => { out[r.thread_id] = (out[r.thread_id] || 0) + 1; });
+      return out;
+    } catch { return {}; }
+  },
+  // Same idea as posts.getActivityNotifications below, for forum threads: every
+  // reply (from someone else) on a thread `username` started or has replied to.
+  // Unlike getReplyCounts this isn't limited to whatever's on the current threads
+  // list — it looks at every thread you're actually involved in.
+  async getThreadActivityNotifications(username) {
+    const u = encodeURIComponent(username);
+    try {
+      const [myThreads, myReplied] = await Promise.all([
+        this.query(`forum_threads?username=eq.${u}&select=id`),
+        this.query(`forum_replies?username=eq.${u}&select=thread_id`),
+      ]);
+      const watchedIds = [...new Set([...(myThreads||[]).map(t=>t.id), ...(myReplied||[]).map(r=>r.thread_id)])];
+      if(!watchedIds.length) return [];
+
+      const [threadRows, replyRows] = await Promise.all([
+        this.query(`forum_threads?id=in.(${watchedIds.join(",")})&select=id,title,username`),
+        this.query(`forum_replies?thread_id=in.(${watchedIds.join(",")})&username=neq.${u}&order=created_at.desc&select=thread_id,username,body,created_at&limit=300`),
+      ]);
+      const threadById = {};
+      (threadRows||[]).forEach(t => { threadById[t.id] = t; });
+      const repliesByThread = {};
+      (replyRows||[]).forEach(r => { (repliesByThread[r.thread_id] ||= []).push(r); }); // already desc order
+
+      return watchedIds.filter(id => repliesByThread[id]?.length).map(id => ({
+        threadId: id,
+        threadTitle: threadById[id]?.title || "",
+        isMine: threadById[id]?.username === username,
+        items: repliesByThread[id],
+      }));
+    } catch { return []; }
+  },
+  // Threads/replies where someone else typed "@username" — independent of
+  // getThreadActivityNotifications above, since a mention can pull you into a
+  // thread you've never started or replied to. ilike casts a wide net (plain
+  // substring), then isMention re-checks the exact token so "@bob" doesn't
+  // also fire for a post mentioning "@bobby".
+  async getThreadMentionNotifications(username) {
+    const u = encodeURIComponent(username);
+    const tag = encodeURIComponent(`@${username}`);
+    const isMention = txt => new RegExp(`(?:^|\\s)@${username}(?![a-zA-Z0-9_])`, "i").test(txt || "");
+    try {
+      const [threadRows, replyRows] = await Promise.all([
+        this.query(`forum_threads?body=ilike.*${tag}*&username=neq.${u}&order=created_at.desc&select=id,title,body,username,created_at&limit=100`),
+        this.query(`forum_replies?body=ilike.*${tag}*&username=neq.${u}&order=created_at.desc&select=thread_id,username,body,created_at&limit=100`),
+      ]);
+      const byThread = {};
+      (threadRows||[]).filter(t => isMention(t.body)).forEach(t => {
+        const g = (byThread[t.id] ||= { threadId: t.id, threadTitle: t.title, items: [] });
+        g.items.push({ username: t.username, body: t.body, created_at: t.created_at });
+      });
+      (replyRows||[]).filter(r => isMention(r.body)).forEach(r => {
+        const g = (byThread[r.thread_id] ||= { threadId: r.thread_id, threadTitle: null, items: [] });
+        g.items.push({ username: r.username, body: r.body, created_at: r.created_at });
+      });
+      const missing = Object.values(byThread).filter(g => g.threadTitle === null).map(g => g.threadId);
+      if(missing.length) {
+        const rows = await this.query(`forum_threads?id=in.(${missing.join(",")})&select=id,title`);
+        const titleById = {}; (rows||[]).forEach(r => { titleById[r.id] = r.title; });
+        missing.forEach(id => { byThread[id].threadTitle = titleById[id] || ""; });
+      }
+      return Object.values(byThread).map(g => ({
+        threadId: g.threadId,
+        threadTitle: g.threadTitle || "",
+        isMine: false,
+        items: g.items.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)),
+      }));
+    } catch { return []; }
+  },
+  async getThreadReplies(threadId) {
+    try { return await this.query(`forum_replies?thread_id=eq.${threadId}&order=created_at.asc`) || []; }
+    catch { return []; }
+  },
+  async createThread(username, title, body, tags = [], imageUrl = null) {
+    return this.query("forum_threads", {
+      method: "POST",
+      headers: { ...this.headers, "Prefer": "return=representation" },
+      body: JSON.stringify([{ username, title, body, tags, image_url: imageUrl }]),
+    });
+  },
+  async createReply(threadId, username, body) {
+    return this.query("forum_replies", {
+      method: "POST",
+      headers: { ...this.headers, "Prefer": "return=representation" },
+      body: JSON.stringify([{ thread_id: threadId, username, body }]),
+    });
+  },
+  async toggleThreadLike(id, username) {
+    const rows = await this.query(`forum_threads?id=eq.${id}&select=likes&limit=1`);
+    const likes = rows?.[0]?.likes || [];
+    const newLikes = likes.includes(username) ? likes.filter(u=>u!==username) : [...likes, username];
+    return this.query(`forum_threads?id=eq.${id}`, {
+      method: "PATCH",
+      headers: { ...this.headers, "Prefer": "return=representation" },
+      body: JSON.stringify({ likes: newLikes }),
+    });
+  },
+  async toggleReplyLike(id, username) {
+    const rows = await this.query(`forum_replies?id=eq.${id}&select=likes&limit=1`);
+    const likes = rows?.[0]?.likes || [];
+    const newLikes = likes.includes(username) ? likes.filter(u=>u!==username) : [...likes, username];
+    return this.query(`forum_replies?id=eq.${id}`, {
+      method: "PATCH",
+      headers: { ...this.headers, "Prefer": "return=representation" },
+      body: JSON.stringify({ likes: newLikes }),
+    });
+  },
+
   async getMoodPts(mal_id) {
     try {
-      const rows = await this.query(`mood_pts_v2?mal_id=eq.${mal_id}&limit=1`);
+      const rows = await this.query(`mood_pts_v4?mal_id=eq.${mal_id}&limit=1`);
       if(rows?.[0]) return rows[0];
     } catch {}
     return null;
@@ -135,7 +280,9 @@ export async function loadProfile(username) {
       const profile = {
         ...remote,
         hiddenCompleted: remote.hidden_completed || remote.hiddenCompleted || [],
+        anilistSubLists: remote.anilist_sub_lists || remote.anilistSubLists || {},
         activeFrame: remote.active_frame || remote.activeFrame || null,
+        avatar_base64: remote.avatar_base64 || null,
         highlights: remote.highlights || [],
         customLists: remote.custom_lists || remote.customLists || [],
         pinnedList: remote.pinned_list || remote.pinnedList || null,
@@ -178,6 +325,188 @@ export const follows = {
   async unfollow(follower, following) {
     await sb.query(`follows?follower=eq.${encodeURIComponent(follower)}&following=eq.${encodeURIComponent(following)}`, {
       method:"DELETE",
+    });
+  },
+};
+
+// ─── BLOCKS — one-directional "I don't want to see this person" ───────────────
+export const blocks = {
+  async getBlockedByMe(username) {
+    const rows = await sb.query(`user_blocks?blocker=eq.${encodeURIComponent(username)}&select=blocked`);
+    return (rows||[]).map(r=>r.blocked);
+  },
+  async isBlocked(blocker, blocked) {
+    const rows = await sb.query(`user_blocks?blocker=eq.${encodeURIComponent(blocker)}&blocked=eq.${encodeURIComponent(blocked)}&limit=1`);
+    return (rows||[]).length > 0;
+  },
+  async block(blocker, blocked) {
+    await sb.query("user_blocks", {
+      method:"POST",
+      headers:{...sb.headers,"Prefer":"resolution=ignore-duplicates"},
+      body: JSON.stringify({ blocker, blocked }),
+    });
+  },
+  async unblock(blocker, blocked) {
+    await sb.query(`user_blocks?blocker=eq.${encodeURIComponent(blocker)}&blocked=eq.${encodeURIComponent(blocked)}`, {
+      method:"DELETE",
+    });
+  },
+};
+
+// ─── DIRECT MESSAGES — 1:1 chat, no group threads/attachments ─────────────────
+export const dm = {
+  // Distinct conversations involving `username`, each with its last message —
+  // most recently active first.
+  async listConversations(username) {
+    const u = encodeURIComponent(username);
+    let rows;
+    try { rows = await sb.query(`direct_messages?or=(sender.eq.${u},recipient.eq.${u})&order=created_at.desc&limit=200`); }
+    catch { return []; }
+    const byPeer = new Map();
+    (rows||[]).forEach(m => {
+      const peer = m.sender === username ? m.recipient : m.sender;
+      if(!byPeer.has(peer)) byPeer.set(peer, m); // first hit per peer = most recent (desc order)
+    });
+    return [...byPeer.entries()].map(([peer, lastMessage]) => ({ peer, lastMessage }));
+  },
+  async getThread(username, peer) {
+    const u = encodeURIComponent(username), p = encodeURIComponent(peer);
+    try {
+      return await sb.query(`direct_messages?or=(and(sender.eq.${u},recipient.eq.${p}),and(sender.eq.${p},recipient.eq.${u}))&order=created_at.asc&limit=500`) || [];
+    } catch { return []; }
+  },
+  async sendMessage(sender, recipient, body) {
+    return sb.query("direct_messages", {
+      method: "POST",
+      headers: { ...sb.headers, "Prefer": "return=representation" },
+      body: JSON.stringify([{ sender, recipient, body }]),
+    });
+  },
+};
+
+// ─── POSTS ────────────────────────────────────────────────────────────────────
+export const posts = {
+  async getFeed({ limit=20, offset=0, username=null, animeId=null, genre=null, season=null, following=[] }) {
+    let url = `posts?select=*&order=created_at.desc&limit=${limit}&offset=${offset}`;
+    if(username) url = `posts?select=*&username=eq.${encodeURIComponent(username)}&order=created_at.desc&limit=${limit}&offset=${offset}`;
+    else if(animeId) url += `&anime_id=eq.${animeId}`;
+    else if(following.length) url += `&username=in.(${following.map(u=>encodeURIComponent(u)).join(",")})`;
+    return sb.query(url);
+  },
+  async create(post) {
+    return sb.query("posts", {
+      method:"POST",
+      headers:{...sb.headers,"Prefer":"return=representation"},
+      body: JSON.stringify(post),
+    });
+  },
+  async delete(id) {
+    return sb.query(`posts?id=eq.${id}`, { method:"DELETE" });
+  },
+  async toggleLike(id, username) {
+    const rows = await sb.query(`posts?id=eq.${id}&select=likes&limit=1`);
+    const likes = rows?.[0]?.likes || [];
+    const newLikes = likes.includes(username) ? likes.filter(u=>u!==username) : [...likes, username];
+    return sb.query(`posts?id=eq.${id}`, {
+      method:"PATCH",
+      headers:{...sb.headers,"Prefer":"return=representation"},
+      body: JSON.stringify({ likes: newLikes }),
+    });
+  },
+  // Every comment (from someone else) on a post `username` either wrote or has
+  // commented on — the raw material for the "activity on your posts" bell.
+  // Returns the full comment list per post (desc order) so the caller can work
+  // out both "how many are unread" and "what's the latest one" against its own
+  // last-read timestamp. Read-state itself is tracked client-side (AppProvider).
+  async getActivityNotifications(username) {
+    const u = encodeURIComponent(username);
+    try {
+      const [myPosts, myCommented] = await Promise.all([
+        sb.query(`posts?username=eq.${u}&select=id`),
+        sb.query(`comments?username=eq.${u}&select=post_id`),
+      ]);
+      const watchedIds = [...new Set([...(myPosts||[]).map(p=>p.id), ...(myCommented||[]).map(c=>c.post_id)])];
+      if(!watchedIds.length) return [];
+
+      const [postRows, commentRows] = await Promise.all([
+        sb.query(`posts?id=in.(${watchedIds.join(",")})&select=id,content,username`),
+        sb.query(`comments?post_id=in.(${watchedIds.join(",")})&username=neq.${u}&order=created_at.desc&select=post_id,username,content,created_at&limit=300`),
+      ]);
+      const postById = {};
+      (postRows||[]).forEach(p => { postById[p.id] = p; });
+      const commentsByPost = {};
+      (commentRows||[]).forEach(c => { (commentsByPost[c.post_id] ||= []).push(c); }); // already desc order
+
+      return watchedIds.filter(id => commentsByPost[id]?.length).map(id => ({
+        postId: id,
+        postContent: postById[id]?.content || "",
+        isMine: postById[id]?.username === username,
+        items: commentsByPost[id],
+      }));
+    } catch { return []; }
+  },
+  // Posts/comments where someone else typed "@username" — independent of
+  // getActivityNotifications above, since a mention can pull you into a post
+  // you've never written or commented on. ilike casts a wide net (plain
+  // substring), then isMention re-checks the exact token so "@bob" doesn't
+  // also fire for a post mentioning "@bobby".
+  async getMentionNotifications(username) {
+    const u = encodeURIComponent(username);
+    const tag = encodeURIComponent(`@${username}`);
+    const isMention = txt => new RegExp(`(?:^|\\s)@${username}(?![a-zA-Z0-9_])`, "i").test(txt || "");
+    try {
+      const [postRows, commentRows] = await Promise.all([
+        sb.query(`posts?content=ilike.*${tag}*&username=neq.${u}&order=created_at.desc&select=id,content,username,created_at&limit=100`),
+        sb.query(`comments?content=ilike.*${tag}*&username=neq.${u}&order=created_at.desc&select=post_id,username,content,created_at&limit=100`),
+      ]);
+      const byPost = {};
+      (postRows||[]).filter(p => isMention(p.content)).forEach(p => {
+        const g = (byPost[p.id] ||= { postId: p.id, postContent: p.content, items: [] });
+        g.items.push({ username: p.username, content: p.content, created_at: p.created_at });
+      });
+      (commentRows||[]).filter(c => isMention(c.content)).forEach(c => {
+        const g = (byPost[c.post_id] ||= { postId: c.post_id, postContent: null, items: [] });
+        g.items.push({ username: c.username, content: c.content, created_at: c.created_at });
+      });
+      const missing = Object.values(byPost).filter(g => g.postContent === null).map(g => g.postId);
+      if(missing.length) {
+        const rows = await sb.query(`posts?id=in.(${missing.join(",")})&select=id,content`);
+        const byId = {}; (rows||[]).forEach(r => { byId[r.id] = r.content; });
+        missing.forEach(id => { byPost[id].postContent = byId[id] || ""; });
+      }
+      return Object.values(byPost).map(g => ({
+        postId: g.postId,
+        postContent: g.postContent,
+        isMine: false,
+        items: g.items.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)),
+      }));
+    } catch { return []; }
+  },
+};
+
+// ─── COMMENTS ─────────────────────────────────────────────────────────────────
+export const comments = {
+  async getForPost(postId) {
+    return sb.query(`comments?post_id=eq.${postId}&order=created_at.asc&limit=50`);
+  },
+  async create(comment) {
+    return sb.query("comments", {
+      method:"POST",
+      headers:{...sb.headers,"Prefer":"return=representation"},
+      body: JSON.stringify(comment),
+    });
+  },
+  async delete(id) {
+    return sb.query(`comments?id=eq.${id}`, { method:"DELETE" });
+  },
+  async toggleLike(id, username) {
+    const rows = await sb.query(`comments?id=eq.${id}&select=likes&limit=1`);
+    const likes = rows?.[0]?.likes || [];
+    const newLikes = likes.includes(username) ? likes.filter(u=>u!==username) : [...likes, username];
+    return sb.query(`comments?id=eq.${id}`, {
+      method:"PATCH",
+      headers:{...sb.headers,"Prefer":"return=representation"},
+      body: JSON.stringify({ likes: newLikes }),
     });
   },
 };

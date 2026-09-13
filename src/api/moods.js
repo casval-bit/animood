@@ -2,7 +2,7 @@
 import { sb } from "./supabase.js";
 import { MOOD_KEYS } from "../constants/moods.js";
 
-const PTS_CACHE_KEY       = "animood_mood_pts_v2";
+const PTS_CACHE_KEY       = "animood_mood_pts_v4"; // bump cache key to force refresh
 const COMMUNITY_CACHE_KEY = "animood_community_votes";
 
 function loadPtsCache()        { try { return JSON.parse(localStorage.getItem(PTS_CACHE_KEY)||"{}"); } catch { return {}; } }
@@ -21,7 +21,6 @@ export function getCombinedPts(mal_id) {
   return out;
 }
 
-// All 8 moods on same scale: each as % of total pts (no special thrills treatment)
 export function ptsToPct(pts) {
   if(!pts) return {};
   const total = MOOD_KEYS.reduce((a,k) => a + (pts[k]||0), 0) || 1;
@@ -73,60 +72,51 @@ export function genreFallbackV2(anime) {
 }
 
 export async function addUserVote(username, mal_id, newMoods) {
-  // Read previous vote from Supabase (authoritative — localStorage can be wiped)
   let prevPts = {};
   try {
     const rows = await sb.query(`user_votes?username=eq.${encodeURIComponent(username)}&mal_id=eq.${mal_id}&select=pts_added&limit=1`);
     if(rows?.[0]?.pts_added) prevPts = rows[0].pts_added;
   } catch {}
-
-  // Get current community votes fresh from Supabase
   let commBase = {};
   try {
     const row = await sb.getCommunityVotes(mal_id);
     if(row) MOOD_KEYS.forEach(k => { commBase[k] = row[k]||0; });
   } catch {}
-
-  // Reverse previous contribution
   Object.entries(prevPts).forEach(([k,v]) => { commBase[k] = Math.max(0, (commBase[k]||0) - v); });
-
-  // Apply new vote — 1 mood=+4, 2 moods=+2 each, 3 moods=+1 each
   const pointsPerMood = newMoods.length === 1 ? 4 : newMoods.length === 2 ? 2 : 1;
   const addedPts = {};
   newMoods.forEach(m => { addedPts[m] = pointsPerMood; commBase[m] = (commBase[m]||0) + pointsPerMood; });
-
   communityStore[mal_id] = commBase;
   saveCommunityCache(communityStore);
-
   try {
     await Promise.all([
       sb.upsertCommunityVotes(mal_id, commBase),
       sb.upsertUserVote(username, mal_id, newMoods, addedPts),
     ]);
   } catch(e) { console.warn("Vote sync failed:", e); }
-
   return getCombinedPts(mal_id);
 }
 
 export async function getPtsForAnime(anime) {
   const id = anime.mal_id;
-
-  // v2 base — cache locally (stable, only changes via scripts)
   if(ptsStore[id] === undefined) {
     try {
-      const row = await sb.getMoodPts(id);
-      if(row) { const pts = {}; MOOD_KEYS.forEach(k => { pts[k] = row[k]||0; }); ptsStore[id] = pts; savePtsCache(ptsStore); }
+      // ── Use mood_pts_v4 ──
+      const rows = await sb.query(`mood_pts_v4?mal_id=eq.${id}&limit=1`);
+      if(rows?.[0]) {
+        const pts = {};
+        MOOD_KEYS.forEach(k => { pts[k] = rows[0][k]||0; });
+        ptsStore[id] = pts;
+        savePtsCache(ptsStore);
+      }
     } catch {}
   }
-
-  // Community votes — always fetch fresh so all users see each other's votes
   try {
     const row = await sb.getCommunityVotes(id);
     if(row) { const comm = {}; MOOD_KEYS.forEach(k => { comm[k] = row[k]||0; }); communityStore[id] = comm; }
     else communityStore[id] = {};
     saveCommunityCache(communityStore);
   } catch { if(communityStore[id] === undefined) communityStore[id] = {}; }
-
   if(!ptsStore[id]) { ptsStore[id] = genreFallbackV2(anime); savePtsCache(ptsStore); }
   return getCombinedPts(id);
 }
