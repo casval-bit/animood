@@ -93,17 +93,17 @@ export const sb = {
 
   // ─── Forum threads/replies — skeleton, no reactions, no pagination ──────────
   async listThreads(limit = 20) {
-    try { return await this.query(`forum_threads?select=*&order=created_at.desc&limit=${limit}`) || []; }
+    try { return await this.query(`forum_threads?anime_id=is.null&select=*&order=created_at.desc&limit=${limit}`) || []; }
     catch { return []; }
   },
+  // getReplyCounts: reads denormalized reply_count from thread rows
+  // (O(1) instead of O(n) forum_replies scan — reply_count kept in sync by createReply)
   async getReplyCounts(threadIds, excludeUsernames = []) {
     if(!threadIds.length) return {};
     try {
-      let url = `forum_replies?select=thread_id&thread_id=in.(${threadIds.join(",")})`;
-      if(excludeUsernames.length) url += `&username=not.in.(${excludeUsernames.map(u=>encodeURIComponent(u)).join(",")})`;
-      const rows = await this.query(url) || [];
+      const rows = await this.query(`forum_threads?id=in.(${threadIds.join(",")})&select=id,reply_count`) || [];
       const out = {};
-      rows.forEach(r => { out[r.thread_id] = (out[r.thread_id] || 0) + 1; });
+      rows.forEach(r => { out[r.id] = r.reply_count || 0; });
       return out;
     } catch { return {}; }
   },
@@ -179,19 +179,34 @@ export const sb = {
     try { return await this.query(`forum_replies?thread_id=eq.${threadId}&order=created_at.asc`) || []; }
     catch { return []; }
   },
-  async createThread(username, title, body, tags = [], imageUrl = null) {
+  async createThread(username, title, body, tags = [], imageUrl = null, animeId = null, animeTitle = null, animeImage = null) {
     return this.query("forum_threads", {
       method: "POST",
       headers: { ...this.headers, "Prefer": "return=representation" },
-      body: JSON.stringify([{ username, title, body, tags, image_url: imageUrl }]),
+      body: JSON.stringify([{ username, title, body, tags, image_url: imageUrl, anime_id: animeId || null, anime_title: animeTitle || null, anime_image: animeImage || null, reply_count: 0, last_reply_at: null }]),
     });
   },
   async createReply(threadId, username, body) {
-    return this.query("forum_replies", {
+    const rows = await this.query("forum_replies", {
       method: "POST",
       headers: { ...this.headers, "Prefer": "return=representation" },
       body: JSON.stringify([{ thread_id: threadId, username, body }]),
     });
+    // Update last_reply_at and reply_count
+    this.query("forum_threads?id=eq." + threadId, {
+      method: "PATCH",
+      headers: { ...this.headers, "Prefer": "return=minimal" },
+      body: JSON.stringify({ last_reply_at: new Date().toISOString() }),
+    }).catch(()=>{});
+    this.query("forum_threads?id=eq." + threadId + "&select=reply_count").then(r => {
+      const count = (r?.[0]?.reply_count || 0) + 1;
+      this.query("forum_threads?id=eq." + threadId, {
+        method: "PATCH",
+        headers: { ...this.headers, "Prefer": "return=minimal" },
+        body: JSON.stringify({ reply_count: count }),
+      }).catch(()=>{});
+    }).catch(()=>{});
+    return rows;
   },
   async toggleThreadLike(id, username) {
     const rows = await this.query(`forum_threads?id=eq.${id}&select=likes&limit=1`);

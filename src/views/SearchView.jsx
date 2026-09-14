@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/useApp.js";
 import { useLang } from "../context/useLang.js";
 import { jikan, supabaseRowToAnime, fetchPopularAnime, fetchTitleSuggestions } from "../api/jikan.js";
-import { fetchPopularStudios, studioBlurb, getStudioCountries } from "../api/studios.js";
 import { searchArtists, fetchPopularArtists } from "../api/animethemes.js";
 import { sb, follows } from "../api/supabase.js";
 import { ptsStore } from "../api/moods.js";
@@ -143,6 +142,311 @@ function ArtistCard({ artist, onClick, t }) {
   );
 }
 
+// ─── Weekly Airing Calendar ────────────────────────────────────────────────────
+const DAYS_FR  = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
+const DAYS_EN  = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+const DAY_ABBR = ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
+
+function getBroadcastDay(anime) {
+  const b = anime.broadcast;
+  if(!b) return null;
+  if(typeof b === "object" && b.day) return b.day;
+  if(typeof b === "string") {
+    const m = b.match(/^(\w+)s?\s+at/i);
+    if(m) return m[1];
+  }
+  return null;
+}
+
+function AiringCalendar({ anime, onOpenDetail, me }) {
+  const [myOnly, setMyOnly] = useState(false);
+  const todayIdx = (new Date().getDay() + 6) % 7; // 0=Mon … 6=Sun
+
+  // Build "my anime" set:
+  // 1. Anime currently in watching/onhold/watchlist
+  // 2. Airing anime whose base title matches a completed/watching series
+  const myStatuses = me?.statuses || {};
+  const myWatched  = me?.watched  || {};
+
+  // Extract base titles from watched anime (remove season suffixes for matching)
+  function baseTitle(title) {
+    return (title || "")
+      .toLowerCase()
+      .replace(/\s*(season|saison|cours|part|cour|2nd|3rd|4th|5th|\d+(?:st|nd|rd|th)|\bii\b|\biii\b|\biv\b|\bv\b)\b.*/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  // All mal_ids the user has interacted with
+  const myIds = new Set(Object.keys(myStatuses).map(Number));
+
+  // Base titles the user has watched/is watching
+  const myBaseTitles = new Set();
+  Object.entries(myWatched).forEach(([id, a]) => {
+    if(a?.title) myBaseTitles.add(baseTitle(a.title));
+    if(a?.title_en) myBaseTitles.add(baseTitle(a.title_en));
+  });
+  // Also from statuses (may have more entries)
+  Object.keys(myStatuses).forEach(id => {
+    const a = myWatched[id];
+    if(a?.title) myBaseTitles.add(baseTitle(a.title));
+  });
+
+  // Filter: show anime if:
+  // - user has it in watching/onhold/watchlist, OR
+  // - user has completed/watched a series with the same base title
+  function isMyAnime(a) {
+    const status = myStatuses[a.mal_id];
+    if(["watching","onhold","watchlist"].includes(status)) return true;
+    if(myIds.has(a.mal_id)) return false; // already seen, same anime — skip
+    // Check if it's a sequel of something they watched
+    const bt = baseTitle(a.title);
+    const bte = baseTitle(a.title_en || "");
+    return myBaseTitles.has(bt) || (bte && myBaseTitles.has(bte));
+  }
+
+  const displayed = myOnly ? anime.filter(isMyAnime) : anime;
+  const myCount   = anime.filter(isMyAnime).length;
+
+  // Group by day
+  const byDay = {};
+  DAYS_EN.forEach(d => { byDay[d] = []; });
+  const unknownDay = [];
+  displayed.forEach(a => {
+    const raw = getBroadcastDay(a);
+    const key = raw ? DAYS_EN.find(d => d.toLowerCase() === raw.toLowerCase()) : null;
+    if(key) byDay[key].push(a);
+    else    unknownDay.push(a);
+  });
+
+  const hasDayData = Object.values(byDay).some(arr => arr.length > 0);
+  const totalWithDay = Object.values(byDay).reduce((s, arr) => s + arr.length, 0);
+  const statusColors = {
+    completed:"#3b82f6", watching:"#22c55e",
+    dropped:"#ef4444", onhold:"#f59e0b", watchlist:"#9ca3af",
+  };
+
+  // Fallback grid when no broadcast data
+  if(!hasDayData) {
+    return (
+      <div>
+        <div style={{marginBottom:12,fontSize:11,color:"var(--text-5)",textAlign:"center"}}>
+          Données de diffusion non disponibles — affichage par popularité
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(110px, 1fr))",gap:10}}>
+          {displayed.map(a => (
+            <button key={a.mal_id} onClick={()=>onOpenDetail(a)} style={{
+              background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",
+              borderRadius:12,padding:8,cursor:"pointer",textAlign:"left",transition:"all 0.15s",
+            }}
+            onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.07)";}}
+            onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,0.03)";}}>
+              <img src={a.image_url||a.large_image} alt="" style={{
+                width:"100%",aspectRatio:"2/3",objectFit:"cover",borderRadius:8,marginBottom:6,
+                border:`2px solid ${statusColors[(me?.statuses||{})[a.mal_id]]||"transparent"}`,
+              }} onError={e=>{e.target.style.display="none";}}/>
+              <div style={{fontSize:9,fontWeight:700,color:"var(--text-1)",
+                overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                {a.title_en||a.title}
+              </div>
+              {a.score && <div style={{fontSize:8,color:"#fbbf24",marginTop:2}}>★ {a.score}</div>}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Stats bar + toggle */}
+      <div style={{
+        display:"flex",alignItems:"center",justifyContent:"space-between",
+        marginBottom:16,padding:"8px 16px",borderRadius:12,
+        background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",
+        flexWrap:"wrap",gap:8,
+      }}>
+        <div style={{fontSize:11,color:"var(--text-4)"}}>
+          <span style={{fontWeight:700,color:"var(--text-2)"}}>{totalWithDay}</span> animés planifiés
+          {unknownDay.length > 0 && <span style={{marginLeft:8,opacity:0.6}}>+ {unknownDay.length} sans horaire</span>}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{fontSize:10,color:"var(--text-5)"}}>
+            Saison en cours · {new Date().getFullYear()}
+          </div>
+          {/* Mon calendrier toggle */}
+          <button onClick={()=>setMyOnly(p=>!p)} style={{
+            display:"flex",alignItems:"center",gap:6,
+            padding:"5px 12px",borderRadius:20,fontSize:10,fontWeight:800,
+            cursor:"pointer",transition:"all 0.15s",
+            background: myOnly ? "rgba(124,58,237,0.25)" : "rgba(255,255,255,0.05)",
+            color: myOnly ? "#c084fc" : "var(--text-4)",
+            border: myOnly ? "1px solid rgba(124,58,237,0.4)" : "1px solid rgba(255,255,255,0.08)",
+          }}>
+            <div style={{
+              width:14,height:14,borderRadius:4,flexShrink:0,
+              background: myOnly ? "#7c3aed" : "rgba(255,255,255,0.08)",
+              border: myOnly ? "none" : "1px solid rgba(255,255,255,0.15)",
+              display:"flex",alignItems:"center",justifyContent:"center",
+            }}>
+              {myOnly && <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+                <path d="M1.5 4.5L3.5 6.5L7.5 2.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>}
+            </div>
+            Mon calendrier
+            {myCount > 0 && (
+              <span style={{
+                background:"rgba(124,58,237,0.3)",color:"#c084fc",
+                fontSize:9,padding:"1px 5px",borderRadius:10,
+              }}>{myCount}</span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* 7-day grid */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7, 1fr)",gap:6}}>
+        {DAYS_EN.map((day, idx) => {
+          const isToday = idx === todayIdx;
+          const animes  = byDay[day] || [];
+          return (
+            <div key={day} style={{
+              borderRadius:14,overflow:"hidden",
+              border:`1px solid ${isToday ? "rgba(124,58,237,0.5)" : "rgba(255,255,255,0.06)"}`,
+              background: isToday ? "rgba(124,58,237,0.07)" : "rgba(255,255,255,0.015)",
+              boxShadow: isToday ? "0 0 0 1px rgba(124,58,237,0.15), 0 4px 20px rgba(124,58,237,0.08)" : "none",
+            }}>
+              {/* Day header */}
+              <div style={{
+                padding:"10px 10px 8px",
+                borderBottom:`1px solid ${isToday ? "rgba(124,58,237,0.2)" : "rgba(255,255,255,0.05)"}`,
+                background: isToday ? "rgba(124,58,237,0.12)" : "rgba(255,255,255,0.02)",
+              }}>
+                <div style={{
+                  fontSize:13,fontWeight:900,
+                  color: isToday ? "#c084fc" : "var(--text-2)",
+                  letterSpacing: isToday ? 0.3 : 0,
+                }}>
+                  {DAYS_FR[idx]}
+                </div>
+                <div style={{
+                  display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:2,
+                }}>
+                  {isToday && (
+                    <span style={{
+                      fontSize:8,fontWeight:800,
+                      background:"rgba(124,58,237,0.3)",color:"#c084fc",
+                      padding:"1px 6px",borderRadius:4,letterSpacing:0.5,
+                    }}>AUJOURD'HUI</span>
+                  )}
+                  <span style={{
+                    fontSize:9,color: animes.length > 0 ? "var(--text-4)" : "var(--text-6)",
+                    marginLeft:"auto",
+                  }}>
+                    {animes.length > 0 ? `${animes.length} anime${animes.length > 1 ? "s" : ""}` : "—"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Anime list */}
+              <div style={{padding:6,display:"flex",flexDirection:"column",gap:4,minHeight:40}}>
+                {animes.length === 0 ? (
+                  <div style={{
+                    padding:"12px 4px",textAlign:"center",
+                    fontSize:18,opacity:0.08,
+                  }}>·</div>
+                ) : animes.map(a => {
+                  const watchStatus = (me?.statuses||{})[a.mal_id];
+                  const dotColor = statusColors[watchStatus];
+                  return (
+                    <button key={a.mal_id} onClick={()=>onOpenDetail(a)} style={{
+                      display:"flex",gap:7,alignItems:"center",
+                      background:"none",border:"none",cursor:"pointer",
+                      textAlign:"left",padding:"4px 4px",borderRadius:8,
+                      transition:"background 0.12s",width:"100%",
+                    }}
+                    onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.06)";}}
+                    onMouseLeave={e=>{e.currentTarget.style.background="none";}}>
+                      {/* Poster */}
+                      <div style={{position:"relative",flexShrink:0}}>
+                        <img src={a.image_url||a.large_image} alt="" style={{
+                          width:32,height:44,objectFit:"cover",borderRadius:5,display:"block",
+                          border: dotColor ? `2px solid ${dotColor}` : "1px solid rgba(255,255,255,0.1)",
+                        }} onError={e=>{e.target.style.display="none";}}/>
+                        {dotColor && (
+                          <div style={{
+                            position:"absolute",bottom:-2,right:-2,
+                            width:8,height:8,borderRadius:"50%",
+                            background:dotColor,border:"1px solid rgba(0,0,0,0.5)",
+                          }}/>
+                        )}
+                      </div>
+                      {/* Info */}
+                      <div style={{minWidth:0,flex:1}}>
+                        <div style={{
+                          fontSize:10,fontWeight:700,color:"var(--text-1)",
+                          overflow:"hidden",textOverflow:"ellipsis",
+                          display:"-webkit-box",WebkitLineClamp:2,
+                          WebkitBoxOrient:"vertical",lineHeight:1.3,
+                          marginBottom:2,
+                        }}>
+                          {a.title_en || a.title}
+                        </div>
+                        <div style={{display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}>
+                          {a.score && (
+                            <span style={{fontSize:8,color:"#fbbf24",fontWeight:700}}>
+                              ★ {a.score}
+                            </span>
+                          )}
+                          {a.year && a.year < 2025 && (
+                            <span style={{fontSize:8,color:"var(--text-6)",
+                              background:"rgba(255,255,255,0.06)",
+                              padding:"1px 4px",borderRadius:3}}>
+                              récurrent
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Unknown day section */}
+      {unknownDay.length > 0 && (
+        <div style={{marginTop:16,padding:"12px 16px",borderRadius:12,
+          background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.05)"}}>
+          <div style={{fontSize:10,fontWeight:700,color:"var(--text-5)",marginBottom:8}}>
+            📺 Jour de diffusion non précisé ({unknownDay.length})
+          </div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {unknownDay.map(a => (
+              <button key={a.mal_id} onClick={()=>onOpenDetail(a)} style={{
+                display:"flex",gap:6,alignItems:"center",
+                background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",
+                borderRadius:8,padding:"5px 8px",cursor:"pointer",transition:"background 0.12s",
+              }}
+              onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.07)";}}
+              onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,0.03)";}}>
+                <img src={a.image_url||a.large_image} alt="" style={{
+                  width:18,height:24,objectFit:"cover",borderRadius:3,flexShrink:0,
+                }} onError={e=>{e.target.style.display="none";}}/>
+                <span style={{fontSize:9,fontWeight:600,color:"var(--text-3)"}}>
+                  {a.title_en||a.title}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SearchView({ onOpenDetail, onOpenUser }) {
   const { me, myUsername, blockedUsers } = useApp();
   const { lang } = useLang();
@@ -162,6 +466,8 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
 
   const [popularAnime, setPopularAnime]     = useState([]);
   const [loadingPopular, setLoadingPopular] = useState(true);
+  const [airingAnime, setAiringAnime]       = useState([]);
+  const [loadingAiring, setLoadingAiring]   = useState(true);
   const [popularStudios, setPopularStudios] = useState([]);
   const [loadingStudios, setLoadingStudios] = useState(true);
   const [popularArtists, setPopularArtists] = useState([]);
@@ -229,9 +535,48 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
     return () => { cancelled = true; };
   }, [typeFilter]);
 
+  // Fetch airing TV anime with broadcast day for calendar
   useEffect(() => {
     let cancelled = false;
-    fetchPopularStudios(12, lang).then(rows => { if(!cancelled) setPopularStudios(rows); }).catch(() => {}).finally(() => { if(!cancelled) setLoadingStudios(false); });
+    (async () => {
+      try {
+        const rows = await sb.query(
+          "anime_cache?type=eq.TV&status=eq.Currently%20Airing&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,broadcast&order=score.desc.nullslast&limit=200"
+        ).catch(()=>[]);
+        if(!cancelled && rows?.length) {
+          // Filter out TV Shorts and non-TV (extra safety)
+          setAiringAnime(rows.filter(a => a.type === "TV"));
+        }
+      } catch {}
+      if(!cancelled) setLoadingAiring(false);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    // Fetch popular studios from anime_cache (no Jikan needed)
+    sb.query("anime_cache?select=studios&score=gte.7&order=score.desc.nullslast&limit=200")
+      .then(rows => {
+        if(cancelled) return;
+        const counts = {};
+        (rows||[]).forEach(a => {
+          (a.studios||[]).forEach(s => {
+            const name = s.name || s;
+            const id = s.mal_id || s.id || name;
+            if(!counts[id]) counts[id] = { mal_id: id, name, count: 0 };
+            counts[id].count++;
+          });
+        });
+        const sorted = Object.values(counts)
+          .filter(s => s.name && s.count >= 2)
+          .sort((a,b) => b.count - a.count)
+          .slice(0, 12)
+          .map(s => ({ ...s, blurb: `${s.count} animés populaires` }));
+        setPopularStudios(sorted);
+      })
+      .catch(()=>{})
+      .finally(() => { if(!cancelled) setLoadingStudios(false); });
     return () => { cancelled = true; };
   }, [lang]);
 
@@ -290,7 +635,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
             (row.studios||[]).forEach(s => {
               if(!s?.name || !s.name.toLowerCase().includes(trimmed.toLowerCase())) return;
               if(!studioMap.has(s.mal_id)) {
-                studioMap.set(s.mal_id, { mal_id: s.mal_id, name: s.name, count: 0, blurb: studioBlurb(s.name, lang), titles: [], country: null });
+                studioMap.set(s.mal_id, { mal_id: s.mal_id, name: s.name, count: 0, blurb: `${s.count || '?'} animés populaires`, titles: [], country: null });
               }
               studioMap.get(s.mal_id).count++;
             });
@@ -305,7 +650,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
           const jikanStudios = (d.data||[]).map(s => ({
             mal_id: s.mal_id, name: s.titles?.[0]?.title || "Studio", count: s.count,
             established: s.established, logo: s.images?.jpg?.image_url || null,
-            blurb: studioBlurb(s.titles?.[0]?.title, lang), titles: [],
+            blurb: '?? animés', titles: [],
           }));
           // Merge — prefer Jikan entries (more complete) but keep Supabase-only ones
           const merged = new Map(studios.map(s => [s.mal_id, s]));
@@ -315,10 +660,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
 
         setResults(studios);
         // Fetch country badges in background
-        getStudioCountries(studios.map(s => s.mal_id), lang).then(countries => {
-          if(!Object.keys(countries).length) return;
-          setResults(prev => prev.map(s => countries[s.mal_id] ? { ...s, country: countries[s.mal_id] } : s));
-        }).catch(() => {});
+        // getStudioCountries skipped (Jikan down)
       } else if(tab === "artist") {
         setResults(await searchArtists(trimmed, 24));
       } else if(tab === "members") {
@@ -432,16 +774,38 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
       {/* ── ANIME TAB ── */}
       {tab === "anime" && !submitted && (
         <>
-          <SectionLabel className="mb-3">{POPULAR_LABELS[typeFilter] || POPULAR_LABELS.all}</SectionLabel>
-          {loadingPopular ? <Spinner label={t.loading} /> : (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {popularAnime.map(a => {
-                const status = (me.statuses||{})[a.mal_id];
-                const statusColors = { completed:"#3b82f6", watching:"#22c55e", dropped:"#ef4444", onhold:"#f59e0b", watchlist:"#9ca3af" };
-                return <AnimeCard key={a.mal_id} anime={a} onClick={onOpenDetail} statusDot={statusColors[status]} moodPts={ptsStore[a.mal_id]} quickAction="watchlist" />;
-              })}
+          {/* ── CALENDRIER SAISONNIER — vue par défaut, pleine page ── */}
+          {typeFilter === "all" && (
+            <div className="mb-10">
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+                <div>
+                  <div style={{fontSize:15,fontWeight:900,color:"var(--text-1)"}}>Saison en cours</div>
+                  <div style={{fontSize:10,color:"var(--text-5)",marginTop:2}}>Animés TV · classés par jour de diffusion</div>
+                </div>
+              </div>
+              {loadingAiring
+                ? <Spinner label={t.loading}/>
+                : <AiringCalendar anime={airingAnime} onOpenDetail={onOpenDetail} me={me}/>
+              }
             </div>
           )}
+
+          {/* ── POPULAIRES — en dessous du calendrier ── */}
+          <div style={{
+            borderTop: typeFilter === "all" ? "1px solid rgba(255,255,255,0.06)" : "none",
+            paddingTop: typeFilter === "all" ? 24 : 0,
+          }}>
+            <SectionLabel className="mb-3">{POPULAR_LABELS[typeFilter] || POPULAR_LABELS.all}</SectionLabel>
+            {loadingPopular ? <Spinner label={t.loading} /> : (
+              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                {popularAnime.map(a => {
+                  const status = (me.statuses||{})[a.mal_id];
+                  const statusColors = { completed:"#3b82f6", watching:"#22c55e", dropped:"#ef4444", onhold:"#f59e0b", watchlist:"#9ca3af" };
+                  return <AnimeCard key={a.mal_id} anime={a} onClick={onOpenDetail} statusDot={statusColors[status]} moodPts={ptsStore[a.mal_id]} quickAction="watchlist" />;
+                })}
+              </div>
+            )}
+          </div>
         </>
       )}
 

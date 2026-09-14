@@ -65,7 +65,6 @@ export const SETTINGS_I18N = {
     deleteAccountDesc: "Cette action supprimera définitivement ton compte et toutes tes données. Irréversible.",
     deleteAccountBtn: "Supprimer mon compte",
     deleteAccountNotReady: "Fonctionnalité bientôt disponible.",
-
     notificationsTitle: "🔔 Activité",
     notificationsDesc: "Commentaires, réponses et mentions te concernant, affichés dans la cloche en haut de l'écran.",
     notificationsEnabledLabel: "Notifications activées",
@@ -140,7 +139,6 @@ export const SETTINGS_I18N = {
     deleteAccountDesc: "This will permanently delete your account and all your data. Irreversible.",
     deleteAccountBtn: "Delete my account",
     deleteAccountNotReady: "Feature coming soon.",
-
     notificationsTitle: "🔔 Activity",
     notificationsDesc: "Comments, replies and mentions concerning you, shown in the bell at the top of the screen.",
     notificationsEnabledLabel: "Notifications enabled",

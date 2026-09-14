@@ -12,8 +12,8 @@ import { NewThreadModal, ThreadModal, TagPill, timeAgo } from "../components/For
 import { Avatar } from "../components/Avatar.jsx";
 import { MoodOctagon } from "../components/MoodOctagon.jsx";
 import { WordleGame, PosterGame, OpQuizGame } from "../components/MiniGames.jsx";
-import { Matchmaking, ChainGame, TimelineGame } from "../components/GameSystem.jsx";
-import { Modal } from "../components/Modal.jsx";
+import { Matchmaking, ChainGame, TimelineGame, CluescaleMatchmaking, CluescaleGame } from "../components/GameSystem.jsx";
+import { Modal, GameModal } from "../components/Modal.jsx";
 import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
 import { FORUM_I18N } from "../constants/forumI18n.js";
 
@@ -22,7 +22,7 @@ const TYPE_EMOJI = { TV:"📺", Movie:"🎬", OVA:"💿", ONA:"🌐", Special:"�
 const NEW_ANIME_PREVIEW = 5;
 
 function posterUrl(anime) {
-  return anime.images?.jpg?.large_image_url || anime.images?.jpg?.image_url;
+  return anime.large_image || anime.image_url || anime.images?.jpg?.large_image_url || anime.images?.jpg?.image_url;
 }
 
 // Real countdown once AniList gives us a day-level date; falls back to the year
@@ -44,54 +44,125 @@ function defaultStat(anime) {
 }
 
 // ─── One row = one "sujet" — thumbnail, title, blurb, stats, type/year ─────────
-function ThreadRow({ anime, onClick, metaLabel, trailerLink, statOverride, dominantMood, t }) {
+function ThreadRow({ anime, onClick, metaLabel, trailerLink, convLink, statOverride, dominantMood, t }) {
   const img = posterUrl(anime);
-  const genres = (anime.genres || []).map(g => g.name || g).slice(0, 3).join(" · ");
+  const genres = (anime.genres || []).map(g => g.name || g).slice(0, 2).join(" · ");
   const stat = (statOverride || defaultStat)(anime);
+  const [convThreads, setConvThreads] = useState([]);
+  const [showConvMenu, setShowConvMenu] = useState(false);
+  const [openThread, setOpenThread] = useState(null);
+  const { myUsername } = useApp();
+
+  useEffect(() => {
+    if(!convLink || !anime.mal_id) return;
+    sb.query(`forum_threads?anime_id=eq.${anime.mal_id}&order=created_at.desc&limit=2`)
+      .then(rows => { if(rows?.length) setConvThreads(rows); })
+      .catch(()=>{});
+  }, [convLink, anime.mal_id]);
 
   return (
-    <div className="flex w-full items-center gap-3.5 border-b border-white/6 px-4 py-3 transition last:border-b-0 hover:bg-white/5 sm:gap-4 sm:px-5">
-      <button onClick={() => onClick?.(anime)} className="flex min-w-0 flex-1 items-center gap-3.5 text-left sm:gap-4">
-        <img
-          src={img || FALLBACK_IMG} alt=""
+    <div style={{display:"flex",alignItems:"center",gap:10,
+      padding:"10px 16px",borderBottom:"1px solid rgba(255,255,255,0.04)",
+      transition:"background 0.15s"}}
+      onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.025)"}
+      onMouseLeave={e=>e.currentTarget.style.background="none"}>
+
+      {/* Poster */}
+      <button onClick={() => onClick?.(anime)} style={{background:"none",border:"none",padding:0,cursor:"pointer",flexShrink:0}}>
+        <img src={img || FALLBACK_IMG} alt=""
           onError={e => { e.target.src = FALLBACK_IMG; }}
-          className="h-14 w-10 shrink-0 rounded-md object-cover shadow-md"
-        />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[13.5px] font-bold text-slate-100">{anime.title}</div>
-          <div className="flex min-w-0 items-center gap-1.5">
-            <span className="truncate text-[11px] text-slate-500">{genres || anime.type || t.animeFallback}</span>
-            {dominantMood && (
-              <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold" style={{ background: `${dominantMood.color}20`, color: dominantMood.color }}>
-                {dominantMood.emoji} {dominantMood.label}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="hidden shrink-0 flex-col items-end gap-0.5 text-right sm:flex">
-          <div className="text-[12px] font-black text-amber-400">{stat.primary}</div>
-          <div className="text-[10px] text-slate-600">{stat.secondary}</div>
-        </div>
-        <div className="hidden w-40 shrink-0 items-center gap-2 border-l border-white/6 pl-3 md:flex">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/6 text-xs">
-            {TYPE_EMOJI[anime.type] || "🎬"}
-          </span>
-          <div className="min-w-0">
-            {!(trailerLink && anime.trailer?.url) && (
-              <div className="truncate text-[11px] font-semibold text-slate-300">{metaLabel(anime)}</div>
-            )}
-            <div className="truncate text-[10px] text-slate-600">{anime.year || "?"} · {anime.type || "?"}</div>
-          </div>
-        </div>
+          style={{width:32,height:46,borderRadius:6,objectFit:"cover",display:"block"}}/>
       </button>
-      {trailerLink && anime.trailer?.url && (
-        <a
-          href={anime.trailer.url} target="_blank" rel="noopener noreferrer"
-          onClick={e => e.stopPropagation()}
-          className="shrink-0 rounded-full bg-white/8 px-3 py-1.5 text-[11px] font-bold text-slate-100 transition hover:bg-white/15"
-        >
-          {t.trailerBtn}
-        </a>
+
+      {/* Info */}
+      <button onClick={() => onClick?.(anime)}
+        style={{flex:1,minWidth:0,background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left"}}>
+        <div style={{fontSize:12,fontWeight:700,color:"var(--text-1)",
+          overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:2}}>
+          {anime.title}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
+          {genres && <span style={{fontSize:9,color:"var(--text-5)"}}>{genres}</span>}
+          {dominantMood && (
+            <span style={{fontSize:8,fontWeight:700,padding:"1px 5px",borderRadius:4,
+              background:`${dominantMood.color}18`,color:dominantMood.color}}>
+              {dominantMood.emoji} {dominantMood.label}
+            </span>
+          )}
+        </div>
+        <div style={{fontSize:9,color:"var(--text-5)",marginTop:2}}>{metaLabel(anime)}</div>
+      </button>
+
+      {/* Score */}
+      {stat.primary && (
+        <div style={{textAlign:"right",flexShrink:0,marginLeft:4}}>
+          <div style={{fontSize:11,fontWeight:900,color:"#fbbf24"}}>{stat.primary}</div>
+          <div style={{fontSize:8,color:"var(--text-5)"}}>{stat.secondary}</div>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+        {trailerLink && anime.trailer?.url && (
+          <a href={anime.trailer.url} target="_blank" rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            style={{padding:"4px 10px",borderRadius:20,fontSize:9,fontWeight:700,
+              background:"rgba(255,255,255,0.06)",color:"var(--text-2)",
+              border:"1px solid rgba(255,255,255,0.08)",textDecoration:"none",
+              transition:"background 0.15s"}}
+            onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.12)"}
+            onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.06)"}>
+            ▶ Trailer
+          </a>
+        )}
+        {convLink && (
+          <div style={{position:"relative"}}>
+            <button onClick={e=>{e.stopPropagation();setShowConvMenu(p=>!p);}}
+              style={{padding:"4px 10px",borderRadius:20,fontSize:9,fontWeight:700,
+                background:"rgba(124,58,237,0.12)",color:"#c084fc",
+                border:"1px solid rgba(124,58,237,0.2)",cursor:"pointer",
+                transition:"background 0.15s"}}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(124,58,237,0.22)"}
+              onMouseLeave={e=>e.currentTarget.style.background="rgba(124,58,237,0.12)"}>
+              💬 Convo
+            </button>
+            {showConvMenu && (
+              <div onClick={e=>e.stopPropagation()}
+                style={{position:"absolute",right:0,top:"calc(100% + 6px)",zIndex:50,
+                  background:"#161226",border:"1px solid rgba(255,255,255,0.1)",
+                  borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",
+                  minWidth:200,padding:6}}>
+                {convThreads.length > 0 ? convThreads.map(th => (
+                  <button key={th.id} onClick={()=>{setOpenThread(th);setShowConvMenu(false);}}
+                    style={{display:"block",width:"100%",textAlign:"left",padding:"7px 10px",
+                      borderRadius:8,background:"none",border:"none",cursor:"pointer",
+                      color:"var(--text-1)",fontSize:10,fontWeight:600}}
+                    onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
+                    onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                    {th.title}
+                  </button>
+                )) : (
+                  <div style={{fontSize:9,color:"var(--text-4)",padding:"6px 10px"}}>Aucune conversation</div>
+                )}
+                <div style={{borderTop:"1px solid rgba(255,255,255,0.05)",marginTop:4,paddingTop:4}}>
+                  <button onClick={()=>{onClick?.(anime);setShowConvMenu(false);}}
+                    style={{display:"block",width:"100%",textAlign:"left",padding:"6px 10px",
+                      borderRadius:8,background:"none",border:"none",cursor:"pointer",
+                      color:"#c084fc",fontSize:10,fontWeight:700}}
+                    onMouseEnter={e=>e.currentTarget.style.background="rgba(124,58,237,0.08)"}
+                    onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                    + Nouvelle discussion
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {openThread && (
+        <ThreadModal thread={openThread} username={myUsername}
+          onClose={()=>setOpenThread(null)} onOpenUser={null}/>
       )}
     </div>
   );
@@ -100,37 +171,49 @@ function ThreadRow({ anime, onClick, metaLabel, trailerLink, statOverride, domin
 // ─── One category = banner header + list of rows, à la forum sub-section ──────
 // `maxVisible` trims long lists (e.g. "Nouveaux animes") behind a "Voir plus" toggle
 // so obscure/low-interest entries don't dominate the page by default.
-function ForumCategory({ emoji, title, subtitle, items, onOpenDetail, metaLabel, trailerLink, statOverride, dominantMoods, maxVisible, t }) {
+function ForumCategory({ emoji, title, subtitle, items, onOpenDetail, metaLabel, trailerLink, convLink, statOverride, dominantMoods, maxVisible, t }) {
   const [expanded, setExpanded] = useState(false);
   if(!items.length) return null;
   const visible = maxVisible && !expanded ? items.slice(0, maxVisible) : items;
 
   return (
-    <div className={`mb-6 overflow-hidden ${GLASS}`} style={GLASS_STYLE}>
-      <div className="flex items-center justify-between px-5 py-3.5" style={{ background: GRADIENT_PRIMARY }}>
-        <div>
-          <div className="text-[13px] font-black uppercase tracking-wide text-white">{emoji} {title}</div>
-          {subtitle && <div className="text-[10.5px] text-white/70">{subtitle}</div>}
+    <div style={{marginBottom:20,borderRadius:16,overflow:"hidden",
+      background:"rgba(15,12,30,0.6)",border:"1px solid rgba(255,255,255,0.06)"}}>
+      {/* Category header — minimal, no gradient */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+        padding:"12px 18px",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:15,opacity:0.7}}>{emoji}</span>
+          <div>
+            <div style={{fontSize:12,fontWeight:800,color:"var(--text-1)"}}>{title}</div>
+            {subtitle && <div style={{fontSize:9,color:"var(--text-5)",marginTop:1}}>{subtitle}</div>}
+          </div>
         </div>
-        <div className="shrink-0 rounded-full bg-black/20 px-2.5 py-1 text-[10px] font-bold text-white/90">
-          {t.topicCount(items.length)}
+        <div style={{fontSize:9,fontWeight:700,color:"var(--text-5)",
+          background:"rgba(255,255,255,0.05)",borderRadius:6,padding:"3px 7px"}}>
+          {items.length}
         </div>
       </div>
+
+      {/* Rows */}
       <div>
         {visible.map(a => (
           <ThreadRow
             key={a.mal_id} anime={a} onClick={onOpenDetail} metaLabel={metaLabel}
-            trailerLink={trailerLink} statOverride={statOverride}
+            trailerLink={trailerLink} convLink={convLink} statOverride={statOverride}
             dominantMood={dominantMoods?.[a.mal_id]} t={t}
           />
         ))}
       </div>
+
       {maxVisible && items.length > maxVisible && (
-        <button
-          onClick={() => setExpanded(e => !e)}
-          className="w-full border-t border-white/6 px-5 py-2.5 text-center text-[11px] font-bold text-violet-300 transition hover:bg-white/5"
-        >
-          {expanded ? t.seeLess : t.seeMore(items.length - maxVisible)}
+        <button onClick={() => setExpanded(e => !e)}
+          style={{width:"100%",padding:"10px",textAlign:"center",fontSize:10,fontWeight:700,
+            color:"#c084fc",background:"none",border:"none",borderTop:"1px solid rgba(255,255,255,0.04)",
+            cursor:"pointer",transition:"background 0.15s"}}
+          onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"}
+          onMouseLeave={e=>e.currentTarget.style.background="none"}>
+          {expanded ? "Voir moins ↑" : `Voir ${items.length - maxVisible} de plus ↓`}
         </button>
       )}
     </div>
@@ -142,35 +225,20 @@ function AnticipatedCard({ anime, airedDates, onOpenDetail, t }) {
   if(!anime) return null;
   const img = posterUrl(anime);
   const genres = (anime.genres || []).map(g => g.name || g).slice(0, 3).join(" · ");
-  const hasTrailer = !!anime.trailer?.url;
   return (
-    <div
+    <button
+      onClick={() => onOpenDetail?.(anime)}
       className={`mb-6 flex w-full items-center gap-5 overflow-hidden p-5 text-left ${GLASS}`}
       style={{ background: `linear-gradient(135deg, rgba(139,92,246,.22), rgba(236,72,153,.14)), ${GLASS_STYLE.background}`, boxShadow: GLASS_STYLE.boxShadow }}
     >
-      <button onClick={() => onOpenDetail?.(anime)} className="flex min-w-0 flex-1 items-center gap-5 text-left">
-        <img src={img || FALLBACK_IMG} alt="" onError={e => { e.target.src = FALLBACK_IMG; }} className="h-32 w-24 shrink-0 rounded-xl object-cover shadow-lg sm:h-36 sm:w-26" />
-        <div className="min-w-0 flex-1">
-          <div className="mb-1 text-[11px] font-black uppercase tracking-wide text-fuchsia-300">{t.mostAnticipated}</div>
-          <div className="mb-1 truncate text-[19px] font-black text-slate-50 sm:text-[22px]">{anime.title}</div>
-          <div className="mb-3 truncate text-[11.5px] text-slate-400">{genres || anime.type}</div>
-          <div className="flex items-center gap-2">
-            <div className={`inline-block rounded-full bg-white/10 px-3 py-1.5 font-bold text-white ${hasTrailer ? "text-[10.5px] text-white/70" : "text-[12px]"}`}>
-              {countdownLabel(anime, airedDates, t)}
-            </div>
-          </div>
-        </div>
-      </button>
-      {hasTrailer && (
-        <a
-          href={anime.trailer.url} target="_blank" rel="noopener noreferrer"
-          onClick={e => e.stopPropagation()}
-          className="shrink-0 rounded-full bg-white px-4 py-2 text-[12px] font-black text-violet-700 shadow-md transition hover:scale-105 hover:shadow-lg"
-        >
-          {t.trailerBtn}
-        </a>
-      )}
-    </div>
+      <img src={img || FALLBACK_IMG} alt="" onError={e => { e.target.src = FALLBACK_IMG; }} className="h-32 w-24 shrink-0 rounded-xl object-cover shadow-lg sm:h-36 sm:w-26" />
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 text-[11px] font-black uppercase tracking-wide text-fuchsia-300">{t.mostAnticipated}</div>
+        <div className="mb-1 truncate text-[19px] font-black text-slate-50 sm:text-[22px]">{anime.title}</div>
+        <div className="mb-3 truncate text-[11.5px] text-slate-400">{genres || anime.type}</div>
+        <div className="inline-block rounded-full bg-white/10 px-3 py-1.5 text-[12px] font-bold text-white">{countdownLabel(anime, airedDates, t)}</div>
+      </div>
+    </button>
   );
 }
 
@@ -212,54 +280,91 @@ function CommunityMoodBlock({ loaded, counts, total, t }) {
 // ─── Real discussions — threads + reply counts, no reactions/pagination ───────
 function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, profileCache, onOpenThread, onNewThread, t, lang }) {
   return (
-    <div className={`mb-6 overflow-hidden ${GLASS}`} style={GLASS_STYLE}>
-      <div className="flex items-center justify-between px-5 py-3.5" style={{ background: GRADIENT_PRIMARY }}>
-        <div className="text-[13px] font-black uppercase tracking-wide text-white">{t.discussions}</div>
-        <button onClick={onNewThread} className="shrink-0 rounded-full bg-white px-3.5 py-2 text-[12px] font-black text-violet-700 shadow-md transition hover:scale-105 hover:shadow-lg">
-          {t.newTopicBtn}
+    <div className="mb-6 overflow-hidden rounded-2xl" style={{background:"rgba(15,12,30,0.7)",border:"1px solid rgba(255,255,255,0.07)"}}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4">
+        <div>
+          <div style={{fontSize:13,fontWeight:800,color:"var(--text-1)",letterSpacing:0.2}}>{t.discussions}</div>
+          <div style={{fontSize:10,color:"var(--text-5)",marginTop:1}}>{threads.length} sujet{threads.length!==1?"s":""}</div>
+        </div>
+        <button onClick={onNewThread}
+          style={{padding:"7px 14px",borderRadius:20,fontSize:11,fontWeight:800,cursor:"pointer",
+            background:"rgba(124,58,237,0.2)",color:"#c084fc",border:"1px solid rgba(124,58,237,0.3)",
+            transition:"all 0.15s"}}
+          onMouseEnter={e=>{e.currentTarget.style.background="rgba(124,58,237,0.3)";}}
+          onMouseLeave={e=>{e.currentTarget.style.background="rgba(124,58,237,0.2)";}}>
+          + Nouveau sujet
         </button>
       </div>
+
+      {/* Divider */}
+      <div style={{height:1,background:"rgba(255,255,255,0.05)",margin:"0 20px"}}/>
+
       {!loaded ? (
         <div className="p-5"><Spinner small label={t.loading} /></div>
       ) : threads.length === 0 ? (
-        <div className="p-6 text-center">
-          <div className="mb-1 text-sm font-bold text-slate-300">{t.noDiscussions}</div>
-          <div className="mb-4 text-[11px] text-slate-500">{t.noDiscussionsSub}</div>
-          <button onClick={onNewThread} className="rounded-xl bg-linear-to-r from-violet-600 to-fuchsia-500 px-4 py-2 text-sm font-bold text-white">
+        <div className="px-5 py-8 text-center">
+          <div style={{fontSize:28,marginBottom:8,opacity:0.4}}>✍️</div>
+          <div style={{fontSize:12,fontWeight:700,color:"var(--text-2)",marginBottom:4}}>{t.noDiscussions}</div>
+          <div style={{fontSize:10,color:"var(--text-5)",marginBottom:16}}>{t.noDiscussionsSub}</div>
+          <button onClick={onNewThread}
+            style={{padding:"8px 20px",borderRadius:20,fontSize:11,fontWeight:800,cursor:"pointer",
+              background:"linear-gradient(135deg,#7c3aed,#6d28d9)",color:"#fff",border:"none"}}>
             {t.createTopicBtn}
           </button>
         </div>
       ) : (
         <div>
-          {threads.map(th => {
+          {threads.map((th, i) => {
             const unread = unreadCounts[th.id] || 0;
+            const replies = replyCounts[th.id] || 0;
             const profile = profileCache[th.username];
+            const isLast = i === threads.length - 1;
             return (
-              <button
-                key={th.id} onClick={() => onOpenThread(th)}
-                className="flex w-full items-start gap-3 border-b border-white/6 px-5 py-3.5 text-left transition last:border-b-0 hover:bg-white/5"
-              >
-                <Avatar profile={profile} size={36} fallback={th.username.slice(0,2).toUpperCase()} className="mt-0.5 text-[11px]"/>
+              <button key={th.id} onClick={() => onOpenThread(th)}
+                style={{display:"flex",width:"100%",alignItems:"flex-start",gap:12,
+                  padding:"14px 20px",textAlign:"left",background:"none",border:"none",
+                  borderBottom:isLast?"none":"1px solid rgba(255,255,255,0.04)",
+                  cursor:"pointer",transition:"background 0.15s"}}
+                onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"}
+                onMouseLeave={e=>e.currentTarget.style.background="none"}>
+
+                {/* Avatar */}
+                <Avatar profile={profile} size={34} fallback={th.username.slice(0,2).toUpperCase()} className="mt-0.5 text-[10px] shrink-0"/>
+
+                {/* Thread image if any */}
                 {th.image_url && (
-                  <img src={th.image_url} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" onError={e=>{e.target.style.display="none";}} />
+                  <img src={th.image_url} alt="" style={{width:40,height:40,borderRadius:8,objectFit:"cover",flexShrink:0}}
+                    onError={e=>{e.target.style.display="none";}} />
                 )}
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13.5px] font-bold text-slate-100">💬 {th.title}</div>
-                  <div className="mb-1 truncate text-[11px] text-slate-500">
-                    <span className={`font-bold ${GRADIENT_TEXT}`}>{profile?.name || th.username}</span> · @{th.username} · {timeAgo(th.created_at, lang)}
+
+                {/* Content */}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"var(--text-1)",
+                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:3}}>
+                    {th.title}
+                  </div>
+                  <div style={{fontSize:10,color:"var(--text-4)",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                    <span style={{fontWeight:700,color:"var(--text-3)"}}>{profile?.name || th.username}</span>
+                    <span style={{opacity:0.4}}>·</span>
+                    <span>{timeAgo(th.created_at, lang)}</span>
                   </div>
                   {th.tags?.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
+                    <div style={{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}}>
                       {th.tags.map(id => <TagPill key={id} id={id} />)}
                     </div>
                   )}
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-1.5">
-                  <div className={`text-[11px] font-bold ${unread > 0 ? "text-slate-100" : "text-slate-400"}`}>
-                    {t.replyCount(replyCounts[th.id] || 0)}
+
+                {/* Replies + unread */}
+                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
+                  <div style={{fontSize:11,fontWeight:700,color:unread>0?"var(--text-1)":"var(--text-5)"}}>
+                    {replies} rép.
                   </div>
                   {unread > 0 && (
-                    <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full px-[3px] text-[9px] font-black leading-none text-white" style={{ background: "#f43f5e" }}>
+                    <span style={{display:"flex",alignItems:"center",justifyContent:"center",
+                      minWidth:16,height:16,borderRadius:8,padding:"0 3px",
+                      fontSize:9,fontWeight:900,color:"#fff",background:"#7c3aed"}}>
                       {unread > 9 ? "9+" : unread}
                     </span>
                   )}
@@ -273,37 +378,98 @@ function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, profileC
   );
 }
 
-function GameButton({ emoji, label, color, onClick }) {
-  const [hover, setHover] = useState(false);
-  return (
-    <button onClick={onClick} title={label}
-      style={{width:52,height:52,borderRadius:"50%",
-        border:`2px solid rgba(${color},0.4)`,
-        background:hover?`rgba(${color},0.22)`:`rgba(${color},0.1)`,
-        cursor:"pointer",display:"flex",flexDirection:"column",
-        alignItems:"center",justifyContent:"center",gap:2,transition:"all 0.2s",
-        transform:hover?"scale(1.08)":"scale(1)"}}
-      onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)}>
-      <span style={{fontSize:18}}>{emoji}</span>
-      <span style={{fontSize:7,color:`rgb(${color})`,fontWeight:700}}>{label}</span>
-    </button>
-  );
-}
-
-function GameEloDisplay({ myUsername }) {
+// ── Unified game panel: button + score on same row per game ──────────────────
+function GamePanel({ myUsername, onWordle, onPoster, onOpQuiz, onChain, onTimeline, onCluescale }) {
   const [elo, setElo] = useState(null);
+  const [hover, setHover] = useState(null);
+
   useEffect(() => {
     if(!myUsername) return;
     sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&limit=1`)
       .then(r => { if(r?.[0]) setElo(r[0]); })
       .catch(()=>{});
   }, [myUsername]);
-  if(!elo) return null;
+
+  const total = elo
+    ? (elo.elo_chain||400) + (elo.elo_timeline||400)
+      + (elo.pts_wordle||0) + (elo.pts_poster||0)
+      + (elo.pts_opquiz||0) + (elo.pts_cluescale||0)
+    : null;
+
+  const GAMES = [
+    // Solo daily
+    { id:"anidle",    emoji:"🎯", label:"Anidle",   color:"124,58,237",  pts: elo?.pts_wordle||0,        onClick: onWordle,    type:"solo" },
+    { id:"poster",    emoji:"🖼", label:"Poster",   color:"236,72,153",  pts: elo?.pts_poster||0,        onClick: onPoster,    type:"solo" },
+    { id:"opening",   emoji:"🎵", label:"Opening",  color:"56,189,248",  pts: elo?.pts_opquiz||0,        onClick: onOpQuiz,    type:"solo" },
+    // Versus
+    { id:"linkup",    emoji:"🔗", label:"LinkUp",   color:"251,191,36",  pts: elo?.elo_chain||400,       onClick: onChain,     type:"vs",  isElo:true },
+    { id:"timeline",  emoji:"📅", label:"Timeline", color:"34,197,94",   pts: elo?.elo_timeline||400,    onClick: onTimeline,  type:"vs",  isElo:true },
+    { id:"cluescale", emoji:"🎭", label:"Cluescale",color:"167,139,250", pts: elo?.pts_cluescale||0,     onClick: onCluescale, type:"multi" },
+  ];
+
   return (
-    <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.06)",
-      textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(255,255,255,0.03)"}}>
-      <div style={{fontSize:11,fontWeight:900,color:"var(--text-2)"}}>{elo.points_total||0} pts total</div>
-      <div style={{fontSize:8,color:"rgba(148,163,184,0.5)"}}>🎮 Débloque des cadres profil</div>
+    <div>
+      {/* Title */}
+      <div style={{fontSize:10,fontWeight:800,color:"var(--text-5)",
+        letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>
+        🎮 Mini-jeux
+      </div>
+
+      {/* Game rows — 2 columns */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
+        {GAMES.map(g => {
+          const isHover = hover === g.id;
+          const rgb = g.color;
+          return (
+            <button key={g.id} onClick={g.onClick}
+              onMouseEnter={()=>setHover(g.id)}
+              onMouseLeave={()=>setHover(null)}
+              style={{
+                display:"flex",alignItems:"center",gap:7,
+                padding:"7px 9px",borderRadius:10,cursor:"pointer",
+                border:`1px solid rgba(${rgb},${isHover?0.45:0.22})`,
+                background: isHover ? `rgba(${rgb},0.15)` : `rgba(${rgb},0.07)`,
+                transition:"all 0.15s",textAlign:"left",
+              }}>
+              {/* Emoji */}
+              <span style={{fontSize:16,flexShrink:0,lineHeight:1}}>{g.emoji}</span>
+              {/* Name + pts */}
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:10,fontWeight:800,color:`rgb(${rgb})`,
+                  overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                  {g.label}
+                </div>
+                <div style={{fontSize:8,color:"var(--text-5)",marginTop:1}}>
+                  {g.type==="vs"||g.type==="multi" ? "" : "solo · "}
+                  {g.type==="vs" ? "elo" : "pts"}
+                </div>
+              </div>
+              {/* Score badge */}
+              <div style={{
+                fontSize:11,fontWeight:900,color:`rgb(${rgb})`,
+                background:`rgba(${rgb},0.12)`,
+                borderRadius:6,padding:"2px 7px",flexShrink:0,
+                minWidth:28,textAlign:"center",
+              }}>
+                {elo ? g.pts : "—"}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Total */}
+      {total !== null && (
+        <div style={{
+          marginTop:7,display:"flex",alignItems:"center",justifyContent:"space-between",
+          padding:"6px 10px",borderRadius:9,
+          background:"linear-gradient(90deg,rgba(124,58,237,0.08),rgba(56,189,248,0.05))",
+          border:"1px solid rgba(255,255,255,0.06)",
+        }}>
+          <div style={{fontSize:9,color:"var(--text-5)",fontWeight:700}}>🏆 Total</div>
+          <div style={{fontSize:13,fontWeight:900,color:"var(--text-1)"}}>{total}</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -315,6 +481,7 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
   const [newAnime, setNewAnime] = useState([]);
   const [upcoming, setUpcoming] = useState([]);
   const [trailers, setTrailers] = useState([]);
+  const [airingAnime, setAiringAnime] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [airedDates, setAiredDates] = useState({});
   const [dominantMoods, setDominantMoods] = useState({});
@@ -335,9 +502,11 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
   const [showWordle, setShowWordle]       = useState(false);
   const [showPoster, setShowPoster]       = useState(false);
   const [showOpQuiz, setShowOpQuiz]       = useState(false);
-  const [matchmaking, setMatchmaking]     = useState(null); // 'chain' | 'timeline' | null
+  const [showCluescale, setShowCluescale] = useState(false);
+  const [cluescaleRoom, setCluescaleRoom] = useState(null);
+const [matchmaking, setMatchmaking]     = useState(null);
   const [activeRoom, setActiveRoom]       = useState(null);
-  const [activeGame, setActiveGame]       = useState(null); // 'chain' | 'timeline'
+  const [activeGame, setActiveGame]       = useState(null);
   const chainCloseRef    = useRef(null);
   const timelineCloseRef = useRef(null);
 
@@ -365,6 +534,10 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
     Promise.all([fetchUpcomingAnime(15), fetchNewAnime(15), fetchLatestTrailers(15)])
       .then(([u, n, t]) => { if(!cancelled) { setUpcoming(u); setNewAnime(n); setTrailers(t); } })
       .finally(() => { if(!cancelled) setLoading(false); });
+    // Airing TV anime for seasonal section
+    sb.query("anime_cache?type=eq.TV&status=eq.Currently%20Airing&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,trailer_url&order=score.desc.nullslast&limit=24")
+      .then(rows => { if(!cancelled && rows?.length) setAiringAnime(rows); })
+      .catch(()=>{});
     return () => { cancelled = true; };
   }, []);
 
@@ -476,16 +649,30 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
             />
             <AnticipatedCard anime={mostAnticipated} airedDates={airedDates} onOpenDetail={onOpenDetail} t={t} />
 
+            {/* 1. Animés saisonniers en cours — avec bouton 💬 discussion */}
+            {airingAnime.length > 0 && (
+              <ForumCategory
+                emoji="📡" title="Animés de la saison" subtitle="En cours de diffusion"
+                items={airingAnime} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
+                metaLabel={a => a.score ? `★ ${a.score}` : "En cours"} convLink t={t}
+              />
+            )}
+
+            {/* 2. Prochaines sorties — avec bouton trailer si dispo */}
             <ForumCategory
               emoji="📅" title={t.upcomingTitle} subtitle={t.upcomingSubtitle}
               items={upcoming} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
               metaLabel={a => countdownLabel(a, airedDates, t)} trailerLink t={t}
             />
+
+            {/* 3. Nouveaux animés ajoutés — sans trailer ni convo, plus compact */}
             <ForumCategory
-              emoji="🎬" title={t.trailersTitle} subtitle={t.trailersSubtitle}
-              items={trailers} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
-              metaLabel={() => t.metaTrailer} trailerLink t={t}
+              emoji="🆕" title={t.newAnimeTitle} subtitle={t.newAnimeSubtitle}
+              items={newAnime} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
+              metaLabel={() => t.metaNew} maxVisible={NEW_ANIME_PREVIEW} t={t}
             />
+
+            {/* 4. Les + favoris — sans trailer ni convo */}
             {favoritesLoaded && favorites.length > 0 && (
               <ForumCategory
                 emoji="❤️" title={t.favoritesTitle} subtitle={t.favoritesSubtitle}
@@ -497,10 +684,12 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
                 }}
               />
             )}
+
+            {/* Derniers trailers */}
             <ForumCategory
-              emoji="🆕" title={t.newAnimeTitle} subtitle={t.newAnimeSubtitle}
-              items={newAnime} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
-              metaLabel={() => t.metaNew} maxVisible={NEW_ANIME_PREVIEW} t={t}
+              emoji="🎬" title={t.trailersTitle} subtitle={t.trailersSubtitle}
+              items={trailers} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
+              metaLabel={() => t.metaTrailer} trailerLink t={t}
             />
           </div>
 
@@ -509,15 +698,15 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
 
             {/* Mini-jeux */}
             <div className="mt-4 rounded-2xl border border-white/8 bg-white/3 p-4">
-              <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.miniGamesTitle}</div>
-              <div className="flex gap-3 justify-center flex-wrap">
-                <GameButton emoji="🎯" label={t.wordleLabel} color="124,58,237" onClick={()=>setShowWordle(true)}/>
-                <GameButton emoji="🖼" label={t.posterLabel} color="236,72,153" onClick={()=>setShowPoster(true)}/>
-                <GameButton emoji="🎵" label={t.opquizLabel} color="56,189,248" onClick={()=>setShowOpQuiz(true)}/>
-                <GameButton emoji="⛓" label={t.chainLabel} color="251,191,36" onClick={()=>setMatchmaking("chain")}/>
-                <GameButton emoji="📅" label={t.timelineLabel} color="34,197,94" onClick={()=>setMatchmaking("timeline")}/>
-              </div>
-              <GameEloDisplay myUsername={myUsername}/>
+              <GamePanel
+                myUsername={myUsername}
+                onWordle={()=>setShowWordle(true)}
+                onPoster={()=>setShowPoster(true)}
+                onOpQuiz={()=>setShowOpQuiz(true)}
+                onChain={()=>setMatchmaking("chain")}
+                onTimeline={()=>setMatchmaking("timeline")}
+                onCluescale={()=>setShowCluescale(true)}
+              />
             </div>
           </aside>
         </div>
@@ -534,43 +723,52 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
         <ThreadModal thread={openThread} username={myUsername} onClose={() => setOpenThread(null)} onOpenUser={onOpenUser} />
       )}
       {showWordle && (
-        <Modal onClose={()=>setShowWordle(false)} maxWidth="max-w-2xl">
+        <GameModal onClose={()=>setShowWordle(false)} title="🎯 Anidle" maxWidth="680px">
           {() => <WordleGame onClose={()=>setShowWordle(false)}/>}
-        </Modal>
+        </GameModal>
       )}
       {showPoster && (
-        <Modal onClose={()=>setShowPoster(false)} maxWidth="max-w-lg">
+        <GameModal onClose={()=>setShowPoster(false)} title="🖼 Devine le Poster" maxWidth="600px">
           {() => <PosterGame onClose={()=>setShowPoster(false)}/>}
-        </Modal>
+        </GameModal>
       )}
-      {showOpQuiz && (
-        <Modal onClose={()=>setShowOpQuiz(false)} maxWidth="max-w-2xl">
-          {() => <OpQuizGame onClose={()=>setShowOpQuiz(false)}/>}
-        </Modal>
-      )}
+
       {matchmaking && !activeRoom && (
-        <Modal onClose={()=>setMatchmaking(null)} maxWidth="max-w-sm">
+        <GameModal onClose={()=>setMatchmaking(null)} title={`${matchmaking === "chain" ? "🔗 LinkUp" : "📅 Timeline"} — Recherche`} maxWidth="460px">
           {() => <Matchmaking gameType={matchmaking} onClose={()=>setMatchmaking(null)}
             onMatch={room=>{setActiveRoom(room);setActiveGame(matchmaking);setMatchmaking(null);}}/>}
-        </Modal>
+        </GameModal>
       )}
       {activeRoom && activeGame === "chain" && (
-        <Modal onClose={async()=>handleGameClose(chainCloseRef.current)} maxWidth="max-w-4xl">
+        <GameModal onClose={async()=>handleGameClose(chainCloseRef.current)} title="🔗 LinkUp" subtitle="Relier les animés par studio ou genre" maxWidth="960px">
           {() => <ChainGame room={activeRoom}
-            onClose={async()=>{
-              await handleGameClose(chainCloseRef.current);
-            }}
+            onClose={async()=>{ await handleGameClose(chainCloseRef.current); }}
             onReady={(forfaitFn)=>{ chainCloseRef.current = forfaitFn; }}/>}
-        </Modal>
+        </GameModal>
       )}
       {activeRoom && activeGame === "timeline" && (
-        <Modal onClose={async()=>handleGameClose(timelineCloseRef.current)} maxWidth="max-w-6xl">
+        <GameModal onClose={async()=>handleGameClose(timelineCloseRef.current)} title="📅 Timeline" subtitle="Place les animés dans l'ordre" maxWidth="1120px">
           {() => <TimelineGame room={activeRoom}
-            onClose={async()=>{
-              await handleGameClose(timelineCloseRef.current);
-            }}
+            onClose={async()=>{ await handleGameClose(timelineCloseRef.current); }}
             onReady={(forfaitFn)=>{ timelineCloseRef.current = forfaitFn; }}/>}
-        </Modal>
+        </GameModal>
+      )}
+      {showOpQuiz && (
+        <GameModal onClose={()=>setShowOpQuiz(false)} title="🎵 Opening Quiz" subtitle="Reconnais l'animé par son opening" maxWidth="700px">
+          {() => <OpQuizGame onClose={()=>setShowOpQuiz(false)}/>}
+        </GameModal>
+      )}
+      {showCluescale && !cluescaleRoom && (
+        <GameModal onClose={()=>setShowCluescale(false)} title="🎭 Cluescale" subtitle="Juge & Jury — 2 à 4 joueurs" maxWidth="460px">
+          {() => <CluescaleMatchmaking
+            onClose={()=>setShowCluescale(false)}
+            onMatch={room=>{setCluescaleRoom(room);setShowCluescale(false);}}/>}
+        </GameModal>
+      )}
+      {cluescaleRoom && (
+        <GameModal onClose={()=>setCluescaleRoom(null)} title="🎭 Cluescale" maxWidth="600px">
+          {() => <CluescaleGame room={cluescaleRoom} onClose={()=>setCluescaleRoom(null)}/>}
+        </GameModal>
       )}
     </div>
   );

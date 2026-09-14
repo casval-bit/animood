@@ -6,7 +6,7 @@ import { PROFILE_I18N } from "../constants/profileI18n.js";
 import { AVATAR_EMOJIS } from "../constants/avatars.js";
 import { MOOD_KEYS } from "../constants/moods.js";
 import { jikan } from "../api/jikan.js";
-import { follows, sb, posts as postsApi, comments as commentsApi } from "../api/supabase.js";
+import { follows, sb, posts as postsApi } from "../api/supabase.js";
 import { dispatchPostEvent, addPostEventListener } from "../utils/postEvents.js";
 import { FRAMES, getUnlockedFrames, getBestFrame, getFrameLabel } from "../frames/frames.js";
 import { FrameSVG } from "../frames/FrameSVG.jsx";
@@ -380,7 +380,7 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
   };
 
   const handleDeletePost = async () => {
-    if(!window.confirm(t.confirmDeletePost)) return;
+if(!window.confirm(t.confirmDeletePost||"Supprimer ce post ?")) return;
     try {
       await sb.query(`posts?id=eq.${post.id}`, { method:"DELETE" });
       onDelete?.(post.id);
@@ -394,6 +394,7 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
       setPostComments(p => p.filter(c=>c.id!==commentId));
     } catch {}
   };
+
 
   const toggleCommentLike = async (commentId) => {
     const target = postComments.find(c => c.id === commentId);
@@ -452,16 +453,16 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
         <button onClick={toggleComments}
           style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:5,
             color:showComments?"#818cf8":"var(--text-3)",fontSize:12,fontWeight:700}}>
-          {t.commentsLabel}{postComments.length>0||post.comment_count>0?` (${commentsLoaded?postComments.length:post.comment_count||0})`:""} {showComments?"▲":"▼"}
+{t.commentsLabel||"💬 Commentaires"}{postComments.length>0||post.comment_count>0?` (${commentsLoaded?postComments.length:post.comment_count||0})`:""} {showComments?"▲":"▼"}
         </button>
       </div>
       {/* Comments — likeable, deletable if yours */}
       {showComments && (
         <div style={{marginTop:12,borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:10}}>
           {!commentsLoaded ? (
-            <div style={{fontSize:10,color:"var(--text-5)"}}>{t.loadingComments}</div>
+            <div style={{fontSize:10,color:"var(--text-5)"}}>{t.loadingComments||"Chargement…"}</div>
           ) : postComments.length===0 ? (
-            <div style={{fontSize:10,color:"var(--text-5)",fontStyle:"italic"}}>{t.noComments}</div>
+            <div style={{fontSize:10,color:"var(--text-5)",fontStyle:"italic"}}>{t.noComments||"Aucun commentaire"}</div>
           ) : (
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {postComments.map((c,i)=>{
@@ -498,14 +499,17 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
 }
 
 function GamePtsDisplay({ myUsername, compact }) {
-  const [pts, setPts] = useState(null);
+  const [elo, setElo] = useState(null);
   useEffect(() => {
     if(!myUsername) return;
-    sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&select=points_total&limit=1`)
-      .then(r => { if(r?.[0]) setPts(r[0].points_total||0); })
+    sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&limit=1`)
+      .then(r => { if(r?.[0]) setElo(r[0]); })
       .catch(()=>{});
   }, [myUsername]);
-  if(pts === null) return compact ? <div/> : null;
+  if(elo === null) return compact ? <div/> : null;
+  const pts = (elo.elo_chain||400) + (elo.elo_timeline||400)
+    + (elo.pts_wordle||0) + (elo.pts_poster||0)
+    + (elo.pts_opquiz||0) + (elo.pts_cluescale||0);
   if(compact) return (
     <div className="rounded-xl border border-white/6 bg-white/3 p-3 text-center">
       <div className="text-xl font-black text-violet-400">{pts}</div>

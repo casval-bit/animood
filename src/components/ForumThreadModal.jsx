@@ -44,7 +44,7 @@ export function TagPill({ id }) {
 }
 
 // ─── Create a new discussion — title + body + optional tags ───────────────────
-export function NewThreadModal({ username, onClose, onCreated }) {
+export function NewThreadModal({ username, onClose, onCreated, animeId, animeTitle, animeImage }) {
   const { lang } = useLang();
   const t = FORUM_THREAD_I18N[lang] || FORUM_THREAD_I18N.fr;
   const [title, setTitle]     = useState("");
@@ -83,7 +83,7 @@ export function NewThreadModal({ username, onClose, onCreated }) {
     if(!ttl || !b) { setError(t.errRequired); return; }
     setSubmitting(true); setError(null);
     try {
-      const rows = await sb.createThread(username, ttl, b, tags, imageUrl);
+      const rows = await sb.createThread(username, ttl, b, tags, imageUrl, animeId||null, animeTitle||null, animeImage||null);
       if(!rows?.[0]) throw new Error("empty response");
       const thread = rows[0];
       // Create poll if set
@@ -148,7 +148,7 @@ export function NewThreadModal({ username, onClose, onCreated }) {
             style={poll
               ? { borderColor: "rgba(124,58,237,.3)", background: "rgba(124,58,237,.15)", color: "#c084fc" }
               : { borderColor: "rgba(var(--fg-rgb),.1)", background: "rgba(var(--fg-rgb),.05)", color: "var(--text-2)" }}>
-            {poll ? t.pollRemove : t.pollAdd}
+{poll ? t.pollRemove : t.pollAdd}
           </button>
         </div>
 
@@ -156,7 +156,7 @@ export function NewThreadModal({ username, onClose, onCreated }) {
         {poll && (
           <div className="mb-3 rounded-xl border border-violet-500/20 bg-violet-500/5 p-3">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-[11px] font-bold text-violet-400">{t.pollLabel}</span>
+<span className="text-[11px] font-bold text-violet-400">{t.pollLabel}</span>
               <label className="flex items-center gap-1.5 text-[10px] text-slate-400 cursor-pointer">
                 <input type="checkbox" checked={poll.multi} onChange={e=>setPoll(p=>({...p,multi:e.target.checked}))}/>
                 {t.pollMultiChoice}
@@ -168,7 +168,7 @@ export function NewThreadModal({ username, onClose, onCreated }) {
                   const opts=[...poll.options]; opts[i]=e.target.value;
                   setPoll(p=>({...p,options:opts}));
                 }}
-                  placeholder={t.pollOptionPlaceholder(i+1)} maxLength={80}
+placeholder={t.pollOptionPlaceholder(i+1)} maxLength={80}
                   className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-violet-400/40"/>
                 {poll.options.length > 2 && (
                   <button onClick={()=>setPoll(p=>({...p,options:p.options.filter((_,j)=>j!==i)}))}
@@ -179,7 +179,7 @@ export function NewThreadModal({ username, onClose, onCreated }) {
             {poll.options.length < 6 && (
               <button onClick={()=>setPoll(p=>({...p,options:[...p.options,""]}))} type="button"
                 className="text-[11px] font-bold text-violet-400 hover:text-violet-300">
-                {t.pollAddOption}
+{t.pollAddOption}
               </button>
             )}
           </div>
@@ -259,7 +259,7 @@ function ForumPollDisplay({ threadId, username }) {
     <div className="mb-5 overflow-hidden rounded-xl border border-violet-500/20 bg-violet-500/4">
       {poll.multi && !voted && (
         <div className="border-b border-violet-500/10 px-3 py-1.5 text-[10px] text-violet-400">
-          {t.pollMultiHint}
+          {t.multipleChoice||"📊 Choix multiple"}
         </div>
       )}
       {poll.options.map(opt => {
@@ -286,14 +286,14 @@ function ForumPollDisplay({ threadId, username }) {
         );
       })}
       <div className="px-3 py-1.5 text-right text-[10px] text-slate-500">
-        {t.pollVoteCount(total)}
+{t.pollVoteCount(total)}
       </div>
     </div>
   );
 }
 
 // ─── Thread detail — body + replies + reply box ────────────────────────────────
-export function ThreadModal({ thread, username, onClose, onOpenUser }) {
+export function ThreadModal({ thread, username, onClose, onOpenUser, onReply }) {
   const { blockedUsers } = useApp();
   const { lang } = useLang();
   const t = FORUM_THREAD_I18N[lang] || FORUM_THREAD_I18N.fr;
@@ -306,6 +306,22 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
   const [threadLikes, setThreadLikes] = useState(thread.likes || []);
   const mention = useMentionAutocomplete(reply, username);
   const threadLiked = threadLikes.includes(username);
+  const isThreadOwner = thread.username === username;
+
+  // ── Delete thread ──
+  const deleteThread = async () => {
+    if(!window.confirm("Supprimer ce sujet ? Cette action est irréversible.")) return;
+    await sb.query(`forum_threads?id=eq.${thread.id}`, { method:"DELETE" }).catch(()=>{});
+    onClose();
+  };
+
+  // ── Delete reply ──
+  const deleteReply = async (replyId) => {
+    if(!window.confirm("Supprimer cette réponse ?")) return;
+    await sb.query(`forum_replies?id=eq.${replyId}`, { method:"DELETE" }).catch(()=>{});
+    setReplies(prev => prev.filter(r => r.id !== replyId));
+    onReply?.();
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -332,7 +348,7 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
     setSubmitting(true); setError(null);
     try {
       const rows = await sb.createReply(thread.id, username, b);
-      if(rows?.[0]) setReplies(r => [...r, rows[0]]);
+      if(rows?.[0]) { setReplies(r => [...r, rows[0]]); onReply?.(); }
       setReply("");
     } catch {
       setError(t.errReply);
@@ -366,9 +382,16 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
       <div className="max-h-[80vh] overflow-y-auto p-5">
         <div className="mb-1.5 flex items-center gap-2">
           <Avatar profile={profileCache[thread.username]} size={22} fallback={thread.username.slice(0,2).toUpperCase()} className="text-[9px]"/>
-          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500 flex-1">
             <span className={GRADIENT_TEXT}>{profileCache[thread.username]?.name || thread.username}</span> · @{thread.username} · {timeAgo(thread.created_at, lang)}
           </div>
+          {isThreadOwner && (
+            <button onClick={deleteThread}
+              className="shrink-0 text-[10px] text-slate-600 hover:text-red-400 transition px-2 py-0.5 rounded"
+              title="Supprimer le sujet">
+              🗑
+            </button>
+          )}
         </div>
         <div className="mb-1.5 text-lg font-black text-slate-100">{thread.title}</div>
         {thread.tags?.length > 0 && (
@@ -381,7 +404,7 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
           <img src={thread.image_url} alt="" className="mb-3 max-h-100 w-full rounded-xl object-cover" />
         )}
         <button onClick={toggleThreadLike}
-          className="mb-5 flex items-center gap-1 text-xs font-bold transition"
+          className="mb-3 flex items-center gap-1 text-xs font-bold transition"
           style={{color: threadLiked ? "#ef4444" : "var(--text-3)"}}>
           {threadLiked ? "❤️" : "🤍"} {threadLikes.length || ""}
         </button>
@@ -399,7 +422,14 @@ export function ThreadModal({ thread, username, onClose, onOpenUser }) {
                 <div key={r.id} className="rounded-xl border border-white/7 bg-white/4 p-3">
                   <div className="mb-1 flex items-center gap-1.5">
                     <Avatar profile={profileCache[r.username]} size={18} fallback={r.username.slice(0,2).toUpperCase()} className="text-[8px]"/>
-                    <div className="text-[10px] font-bold text-slate-500"><span className={GRADIENT_TEXT}>{profileCache[r.username]?.name || r.username}</span> · @{r.username} · {timeAgo(r.created_at, lang)}</div>
+                    <div className="text-[10px] font-bold text-slate-500 flex-1"><span className={GRADIENT_TEXT}>{profileCache[r.username]?.name || r.username}</span> · @{r.username} · {timeAgo(r.created_at, lang)}</div>
+                    {r.username === username && (
+                      <button onClick={() => deleteReply(r.id)}
+                        className="shrink-0 text-[10px] text-slate-600 hover:text-red-400 transition px-1"
+                        title="Supprimer">
+                        🗑
+                      </button>
+                    )}
                   </div>
                   <div className="mb-1.5 whitespace-pre-wrap text-[13px] text-slate-200"><MentionText text={r.body} onOpenUser={onOpenUser}/></div>
                   <button onClick={()=>toggleReplyLike(r.id)}
