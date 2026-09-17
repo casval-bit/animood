@@ -125,6 +125,7 @@ export function AppProvider({ children }) {
   // rows) read from one place and never drift out of sync. Same client-side
   // last-read-timestamp approach as DMs above.
   const [activityNotifications, setActivityNotifications] = useState([]);
+  const [gameInvites, setGameInvites] = useState([]);
 
   // Whether the user wants to receive activity notifications at all — a
   // simple on/off toggle (Settings), kept client-side in localStorage like
@@ -211,6 +212,24 @@ export function AppProvider({ children }) {
     });
   }, [myUsername]);
 
+  // Game invites — poll every 10s
+  useEffect(() => {
+    if(!myUsername) return;
+    let cancelled = false;
+    const check = async () => {
+      const invites = await sb.getGameInvites(myUsername).catch(()=>[]);
+      if(!cancelled) setGameInvites(invites);
+    };
+    check();
+    const interval = setInterval(check, 10000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [myUsername]);
+
+  const dismissGameInvite = useCallback(async (notifId) => {
+    await sb.markInviteRead(notifId);
+    setGameInvites(prev => prev.filter(n => n.id !== notifId));
+  }, []);
+
   // Update + persist in one call — every write path goes through here so nothing
   // can accidentally save under the wrong (or a hardcoded) username.
   const saveMe = useCallback((updated) => {
@@ -225,6 +244,7 @@ export function AppProvider({ children }) {
     unreadPeers, markRead, activityNotifications, markActivityRead, markAllActivityRead,
     notificationsEnabled, setNotificationsEnabled,
     blockedUsers, blockUser, unblockUser,
+    gameInvites, dismissGameInvite,
   };
 
   return <AppContext.Provider value={ctx}>{children}</AppContext.Provider>;

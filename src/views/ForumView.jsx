@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { fetchNewAnime, fetchUpcomingAnime, fetchLatestTrailers, supabaseRowToAnime } from "../api/jikan.js";
+import { fetchNewAnime, fetchUpcomingAnime, supabaseRowToAnime } from "../api/jikan.js";
 import { fetchAiredDates } from "../api/anilist.js";
-import { sb } from "../api/supabase.js";
+import { sb, follows } from "../api/supabase.js";
 import { topMoods } from "../api/moods.js";
 import { MOODS, getMoodObj } from "../constants/moods.js";
 import { useApp } from "../context/useApp.js";
@@ -379,9 +379,11 @@ function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, profileC
 }
 
 // ── Unified game panel: button + score on same row per game ──────────────────
-function GamePanel({ myUsername, onWordle, onPoster, onOpQuiz, onChain, onTimeline, onCluescale }) {
-  const [elo, setElo] = useState(null);
-  const [hover, setHover] = useState(null);
+function GamePanel({ myUsername, onWordle, onPoster, onOpQuiz, onChain, onTimeline, onCluescale, following }) {
+  const [elo, setElo]                 = useState(null);
+  const [hover, setHover]             = useState(null);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [myRank, setMyRank]           = useState(null);
 
   useEffect(() => {
     if(!myUsername) return;
@@ -390,97 +392,123 @@ function GamePanel({ myUsername, onWordle, onPoster, onOpQuiz, onChain, onTimeli
       .catch(()=>{});
   }, [myUsername]);
 
+  useEffect(() => {
+    sb.query("game_elo?select=username,elo_chain,elo_timeline,pts_wordle,pts_poster,pts_opquiz,pts_cluescale&limit=200")
+      .then(rows => {
+        if(!rows?.length) return;
+        const ranked = rows.map(r => ({
+          username: r.username,
+          total: (r.elo_chain||400)+(r.elo_timeline||400)+(r.pts_wordle||0)+(r.pts_poster||0)+(r.pts_opquiz||0)+(r.pts_cluescale||0),
+        })).sort((a,b)=>b.total-a.total);
+        setLeaderboard(ranked.slice(0,20));
+        const pos = ranked.findIndex(r=>r.username===myUsername);
+        setMyRank(pos>=0 ? {rank:pos+1, total:ranked[pos].total} : null);
+      }).catch(()=>{});
+  }, [myUsername]);
+
   const total = elo
-    ? (elo.elo_chain||400) + (elo.elo_timeline||400)
-      + (elo.pts_wordle||0) + (elo.pts_poster||0)
-      + (elo.pts_opquiz||0) + (elo.pts_cluescale||0)
+    ? (elo.elo_chain||400)+(elo.elo_timeline||400)+(elo.pts_wordle||0)+(elo.pts_poster||0)+(elo.pts_opquiz||0)+(elo.pts_cluescale||0)
     : null;
 
+  const followingSet = new Set(following||[]);
+
+  function usernameColor(u) {
+    if(u===myUsername) return "#c084fc";
+    if(followingSet.has(u)) return "#22c55e";
+    return "var(--text-2)";
+  }
+
   const GAMES = [
-    // Solo daily
-    { id:"anidle",    emoji:"🎯", label:"Anidle",   color:"124,58,237",  pts: elo?.pts_wordle||0,        onClick: onWordle,    type:"solo" },
-    { id:"poster",    emoji:"🖼", label:"Poster",   color:"236,72,153",  pts: elo?.pts_poster||0,        onClick: onPoster,    type:"solo" },
-    { id:"opening",   emoji:"🎵", label:"Opening",  color:"56,189,248",  pts: elo?.pts_opquiz||0,        onClick: onOpQuiz,    type:"solo" },
-    // Versus
-    { id:"linkup",    emoji:"🔗", label:"LinkUp",   color:"251,191,36",  pts: elo?.elo_chain||400,       onClick: onChain,     type:"vs",  isElo:true },
-    { id:"timeline",  emoji:"📅", label:"Timeline", color:"34,197,94",   pts: elo?.elo_timeline||400,    onClick: onTimeline,  type:"vs",  isElo:true },
-    { id:"cluescale", emoji:"🎭", label:"Cluescale",color:"167,139,250", pts: elo?.pts_cluescale||0,     onClick: onCluescale, type:"multi" },
+    {id:"anidle",    emoji:"🎯", label:"Anidle",   color:"124,58,237", pts:elo?.pts_wordle||0,     onClick:onWordle,    type:"solo"},
+    {id:"poster",    emoji:"🖼", label:"Poster",   color:"236,72,153", pts:elo?.pts_poster||0,     onClick:onPoster,    type:"solo"},
+    {id:"opening",   emoji:"🎵", label:"Opening",  color:"56,189,248", pts:elo?.pts_opquiz||0,     onClick:onOpQuiz,    type:"solo"},
+    {id:"linkup",    emoji:"🔗", label:"LinkUp",   color:"251,191,36", pts:elo?.elo_chain||400,    onClick:onChain,     type:"vs"},
+    {id:"timeline",  emoji:"📅", label:"Timeline", color:"34,197,94",  pts:elo?.elo_timeline||400, onClick:onTimeline,  type:"vs"},
+    {id:"cluescale", emoji:"🎭", label:"Cluescale",color:"167,139,250",pts:elo?.pts_cluescale||0,  onClick:onCluescale, type:"multi"},
   ];
 
   return (
     <div>
-      {/* Title */}
-      <div style={{fontSize:10,fontWeight:800,color:"var(--text-5)",
-        letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>
-        🎮 Mini-jeux
-      </div>
-
-      {/* Game rows — 2 columns */}
+      <div style={{fontSize:10,fontWeight:800,color:"var(--text-5)",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>🎮 Mini-jeux</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
         {GAMES.map(g => {
-          const isHover = hover === g.id;
-          const rgb = g.color;
+          const isHover = hover===g.id, rgb=g.color;
           return (
             <button key={g.id} onClick={g.onClick}
-              onMouseEnter={()=>setHover(g.id)}
-              onMouseLeave={()=>setHover(null)}
-              style={{
-                display:"flex",alignItems:"center",gap:7,
-                padding:"7px 9px",borderRadius:10,cursor:"pointer",
+              onMouseEnter={()=>setHover(g.id)} onMouseLeave={()=>setHover(null)}
+              style={{display:"flex",alignItems:"center",gap:7,padding:"7px 9px",borderRadius:10,cursor:"pointer",
                 border:`1px solid rgba(${rgb},${isHover?0.45:0.22})`,
-                background: isHover ? `rgba(${rgb},0.15)` : `rgba(${rgb},0.07)`,
-                transition:"all 0.15s",textAlign:"left",
-              }}>
-              {/* Emoji */}
+                background:isHover?`rgba(${rgb},0.15)`:`rgba(${rgb},0.07)`,
+                transition:"all 0.15s",textAlign:"left"}}>
               <span style={{fontSize:16,flexShrink:0,lineHeight:1}}>{g.emoji}</span>
-              {/* Name + pts */}
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:10,fontWeight:800,color:`rgb(${rgb})`,
-                  overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                  {g.label}
-                </div>
-                <div style={{fontSize:8,color:"var(--text-5)",marginTop:1}}>
-                  {g.type==="vs"||g.type==="multi" ? "" : "solo · "}
-                  {g.type==="vs" ? "elo" : "pts"}
-                </div>
+                <div style={{fontSize:10,fontWeight:800,color:`rgb(${rgb})`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{g.label}</div>
+                <div style={{fontSize:8,color:"var(--text-5)",marginTop:1}}>{g.type==="vs"?"elo":g.type==="multi"?"multi":"solo · pts"}</div>
               </div>
-              {/* Score badge */}
-              <div style={{
-                fontSize:11,fontWeight:900,color:`rgb(${rgb})`,
-                background:`rgba(${rgb},0.12)`,
-                borderRadius:6,padding:"2px 7px",flexShrink:0,
-                minWidth:28,textAlign:"center",
-              }}>
-                {elo ? g.pts : "—"}
+              <div style={{fontSize:11,fontWeight:900,color:`rgb(${rgb})`,background:`rgba(${rgb},0.12)`,borderRadius:6,padding:"2px 7px",flexShrink:0,minWidth:28,textAlign:"center"}}>
+                {elo?g.pts:"—"}
               </div>
             </button>
           );
         })}
       </div>
 
-      {/* Total */}
-      {total !== null && (
-        <div style={{
-          marginTop:7,display:"flex",alignItems:"center",justifyContent:"space-between",
-          padding:"6px 10px",borderRadius:9,
-          background:"linear-gradient(90deg,rgba(124,58,237,0.08),rgba(56,189,248,0.05))",
-          border:"1px solid rgba(255,255,255,0.06)",
-        }}>
+      {total!==null && (
+        <div style={{marginTop:7,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",borderRadius:9,
+          background:"linear-gradient(90deg,rgba(124,58,237,0.08),rgba(56,189,248,0.05))",border:"1px solid rgba(255,255,255,0.06)"}}>
           <div style={{fontSize:9,color:"var(--text-5)",fontWeight:700}}>🏆 Total</div>
           <div style={{fontSize:13,fontWeight:900,color:"var(--text-1)"}}>{total}</div>
+        </div>
+      )}
+
+      {leaderboard.length>0 && (
+        <div style={{marginTop:12}}>
+          <div style={{fontSize:10,fontWeight:800,color:"var(--text-5)",letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>🥇 Classement général</div>
+          <div style={{display:"flex",flexDirection:"column",gap:2}}>
+            {leaderboard.map((r,i) => {
+              const isMe=r.username===myUsername, isFriend=followingSet.has(r.username);
+              const medal=i===0?"🥇":i===1?"🥈":i===2?"🥉":null;
+              return (
+                <div key={r.username} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:7,
+                  background:isMe?"rgba(124,58,237,0.1)":"rgba(255,255,255,0.02)",
+                  border:isMe?"1px solid rgba(124,58,237,0.2)":"1px solid transparent"}}>
+                  <div style={{fontSize:9,color:"var(--text-5)",width:16,textAlign:"right",flexShrink:0}}>{medal||`${i+1}`}</div>
+                  <div style={{flex:1,fontSize:10,fontWeight:isMe||isFriend?800:500,color:usernameColor(r.username),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {r.username}
+                  </div>
+                  <div style={{fontSize:10,fontWeight:800,color:"var(--text-2)",flexShrink:0}}>{r.total}</div>
+                </div>
+              );
+            })}
+            {myRank&&myRank.rank>20&&(
+              <>
+                <div style={{padding:"3px 8px",textAlign:"center",fontSize:9,color:"var(--text-6)"}}>·  ·  ·</div>
+                <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:7,background:"rgba(124,58,237,0.1)",border:"1px solid rgba(124,58,237,0.2)"}}>
+                  <div style={{fontSize:9,color:"var(--text-5)",width:16,textAlign:"right",flexShrink:0}}>{myRank.rank}</div>
+                  <div style={{flex:1,fontSize:10,fontWeight:800,color:"#c084fc",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{myUsername}</div>
+                  <div style={{fontSize:10,fontWeight:800,color:"var(--text-2)",flexShrink:0}}>{myRank.total}</div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-export function ForumView({ onOpenDetail, onOpenUser }) {
+
+export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPendingJoin }) {
   const { myUsername, activityNotifications, markActivityRead, blockedUsers } = useApp();
+  const [followingList, setFollowingList] = useState([]);
+  useEffect(() => {
+    if(!myUsername) return;
+    follows.getFollowing(myUsername).then(setFollowingList).catch(()=>{});
+  }, [myUsername]);
   const { lang } = useLang();
   const t = FORUM_I18N[lang] || FORUM_I18N.fr;
   const [newAnime, setNewAnime] = useState([]);
   const [upcoming, setUpcoming] = useState([]);
-  const [trailers, setTrailers] = useState([]);
   const [airingAnime, setAiringAnime] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [airedDates, setAiredDates] = useState({});
@@ -504,8 +532,31 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
   const [showOpQuiz, setShowOpQuiz]       = useState(false);
   const [showCluescale, setShowCluescale] = useState(false);
   const [cluescaleRoom, setCluescaleRoom] = useState(null);
-const [matchmaking, setMatchmaking]     = useState(null);
+  const [matchmaking, setMatchmaking]     = useState(null);
   const [activeRoom, setActiveRoom]       = useState(null);
+  // Handle game invite from notification bell
+  useEffect(() => {
+    if(!pendingJoinGame) return;
+    const { gameType, roomId, privateCode } = pendingJoinGame;
+    onClearPendingJoin?.();
+    if(gameType === "cluescale") {
+      sb.query(`game_rooms?id=eq.${roomId}&limit=1`).then(rows => {
+        const r = rows?.[0];
+        if(r) setCluescaleRoom({...r, players: r.state?.players||[r.player1,r.player2].filter(Boolean)});
+      }).catch(()=>{});
+    } else {
+      sb.query(`game_rooms?private_code=eq.${encodeURIComponent(privateCode)}&status=eq.waiting&limit=1`).then(async rows => {
+        const r = rows?.[0];
+        if(!r) return;
+        await sb.query(`game_rooms?id=eq.${r.id}`, {
+          method:"PATCH",headers:{...sb.headers,"Prefer":"return=minimal"},
+          body:JSON.stringify({player2:myUsername,elo2:400,status:"active"}),
+        }).catch(()=>{});
+        setActiveRoom({...r,player2:myUsername,elo2:400});
+        setActiveGame(gameType);
+      }).catch(()=>{});
+    }
+  }, [pendingJoinGame]); // eslint-disable-line react-hooks/exhaustive-deps
   const [activeGame, setActiveGame]       = useState(null);
   const chainCloseRef    = useRef(null);
   const timelineCloseRef = useRef(null);
@@ -531,8 +582,8 @@ const [matchmaking, setMatchmaking]     = useState(null);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchUpcomingAnime(15), fetchNewAnime(15), fetchLatestTrailers(15)])
-      .then(([u, n, t]) => { if(!cancelled) { setUpcoming(u); setNewAnime(n); setTrailers(t); } })
+    Promise.all([fetchUpcomingAnime(15), fetchNewAnime(15)])
+      .then(([u, n]) => { if(!cancelled) { setUpcoming(u); setNewAnime(n); } })
       .finally(() => { if(!cancelled) setLoading(false); });
     // Airing TV anime for seasonal section
     sb.query("anime_cache?type=eq.TV&status=eq.Currently%20Airing&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,trailer_url&order=score.desc.nullslast&limit=24")
@@ -552,7 +603,7 @@ const [matchmaking, setMatchmaking]     = useState(null);
 
   // Dominant mood per visible anime — one batched query for every row on the page.
   useEffect(() => {
-    const ids = [...new Set([...upcoming, ...newAnime, ...trailers, ...favorites.map(f => f.anime)].map(a => a.mal_id))];
+    const ids = [...new Set([...upcoming, ...newAnime, ...favorites.map(f => f.anime)].map(a => a.mal_id))];
     if(!ids.length) return;
     let cancelled = false;
     sb.getMoodPtsBatch(ids).then(rows => {
@@ -565,7 +616,7 @@ const [matchmaking, setMatchmaking]     = useState(null);
       setDominantMoods(out);
     });
     return () => { cancelled = true; };
-  }, [upcoming, newAnime, trailers, favorites]);
+  }, [upcoming, newAnime, favorites]);
 
   useEffect(() => {
     let cancelled = false;
@@ -622,7 +673,7 @@ const [matchmaking, setMatchmaking]     = useState(null);
     return () => { cancelled = true; };
   }, [myUsername, blockedUsers]);
 
-  const empty = !loading && !upcoming.length && !newAnime.length && !trailers.length;
+  const empty = !loading && !upcoming.length && !newAnime.length;
   const mostAnticipated = upcoming.reduce((best, a) => {
     if(a.popularity == null) return best;
     if(!best || a.popularity < best.popularity) return a;
@@ -684,14 +735,7 @@ const [matchmaking, setMatchmaking]     = useState(null);
                 }}
               />
             )}
-
-            {/* Derniers trailers */}
-            <ForumCategory
-              emoji="🎬" title={t.trailersTitle} subtitle={t.trailersSubtitle}
-              items={trailers} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
-              metaLabel={() => t.metaTrailer} trailerLink t={t}
-            />
-          </div>
+</div>
 
           <aside className="w-full shrink-0 lg:sticky lg:top-6 lg:w-[280px]">
             <CommunityMoodBlock loaded={moodLoaded} counts={moodCounts} total={moodTotal} t={t} />
@@ -700,6 +744,7 @@ const [matchmaking, setMatchmaking]     = useState(null);
             <div className="mt-4 rounded-2xl border border-white/8 bg-white/3 p-4">
               <GamePanel
                 myUsername={myUsername}
+                following={followingList}
                 onWordle={()=>setShowWordle(true)}
                 onPoster={()=>setShowPoster(true)}
                 onOpQuiz={()=>setShowOpQuiz(true)}

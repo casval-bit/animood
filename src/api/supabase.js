@@ -98,6 +98,38 @@ export const sb = {
   },
   // getReplyCounts: reads denormalized reply_count from thread rows
   // (O(1) instead of O(n) forum_replies scan — reply_count kept in sync by createReply)
+  // ── Game invitations ──────────────────────────────────────────────────────────
+  async sendGameInvite(fromUser, toUser, gameType, roomId, privateCode) {
+    const gameNames = { chain:"LinkUp", timeline:"Timeline", cluescale:"Cluescale" };
+    const gameName = gameNames[gameType] || gameType;
+    return this.query("notifications", {
+      method: "POST",
+      headers: { ...this.headers, "Prefer": "return=representation" },
+      body: JSON.stringify({
+        username: toUser,
+        from_user: fromUser,
+        type: "game_invite",
+        content: `${fromUser} t'invite à jouer à ${gameName}`,
+        read: false,
+        payload: { gameType, roomId, privateCode, gameName },
+      }),
+    });
+  },
+  async getGameInvites(username) {
+    try {
+      return await this.query(
+        `notifications?username=eq.${encodeURIComponent(username)}&type=eq.game_invite&read=eq.false&order=created_at.desc&limit=20`
+      ) || [];
+    } catch { return []; }
+  },
+  async markInviteRead(notifId) {
+    return this.query(`notifications?id=eq.${notifId}`, {
+      method: "PATCH",
+      headers: { ...this.headers, "Prefer": "return=minimal" },
+      body: JSON.stringify({ read: true }),
+    }).catch(()=>{});
+  },
+
   async getReplyCounts(threadIds, excludeUsernames = []) {
     if(!threadIds.length) return {};
     try {

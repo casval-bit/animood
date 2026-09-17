@@ -15,18 +15,22 @@ function getTabs(t) {
   ];
 }
 
-function NotificationBell({ onChangeTab }) {
-  const { activityNotifications, markActivityRead, markAllActivityRead } = useApp();
+function NotificationBell({ onChangeTab, onJoinGame }) {
+  const { activityNotifications, markActivityRead, markAllActivityRead, gameInvites, dismissGameInvite } = useApp();
   const { lang } = useLang();
   const t = HEADER_I18N[lang] || HEADER_I18N.fr;
   const [open, setOpen] = useState(false);
-  const count = activityNotifications?.length || 0;
+  const activityCount = activityNotifications?.length || 0;
+  const inviteCount   = gameInvites?.length || 0;
+  const count         = activityCount + inviteCount;
 
   const openNotif = (n) => {
     markActivityRead(n.type, n.id);
     setOpen(false);
     onChangeTab(n.type === "thread" || n.type === "thread-mention" ? "forum" : "feed");
   };
+
+  const gameNames = { chain:"🔗 LinkUp", timeline:"📅 Timeline", cluescale:"🎭 Cluescale" };
 
   return (
     <div className="relative">
@@ -43,7 +47,7 @@ function NotificationBell({ onChangeTab }) {
         {count > 0 && (
           <span
             className="absolute -bottom-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full border-2 px-[3px] text-[9px] font-black leading-none text-white"
-            style={{ background: "#f43f5e", borderColor: "var(--surface-1-strong)" }}
+            style={{ background: inviteCount > 0 ? "#7c3aed" : "#f43f5e", borderColor: "var(--surface-1-strong)" }}
           >
             {count > 9 ? "9+" : count}
           </span>
@@ -59,19 +63,50 @@ function NotificationBell({ onChangeTab }) {
           >
             <div className="flex items-center justify-between gap-2 px-4 py-3 text-[13px] font-black uppercase tracking-wide text-white" style={{ background: GRADIENT_PRIMARY }}>
               <span>{t.activity}</span>
-              {count > 0 && (
-                <button
-                  onClick={() => markAllActivityRead()}
-                  className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold normal-case tracking-normal text-white transition hover:bg-white/25"
-                >
+              {activityCount > 0 && (
+                <button onClick={() => markAllActivityRead()} className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold normal-case tracking-normal text-white transition hover:bg-white/25">
                   {t.markAllRead}
                 </button>
               )}
             </div>
+
+            {/* Game invites — shown first */}
+            {inviteCount > 0 && (
+              <div style={{borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+                {gameInvites.map(inv => (
+                  <div key={inv.id} style={{padding:"10px 16px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                    <div style={{fontSize:12,fontWeight:700,color:"var(--text-1)",marginBottom:4}}>
+                      🎮 {gameNames[inv.payload?.gameType] || "Jeu"} — invitation de <span style={{color:"#c084fc"}}>@{inv.from_user}</span>
+                    </div>
+                    <div style={{display:"flex",gap:6}}>
+                      <button
+                        onClick={async () => {
+                          await dismissGameInvite(inv.id);
+                          setOpen(false);
+                          onJoinGame?.(inv.payload);
+                        }}
+                        style={{flex:1,padding:"5px 10px",borderRadius:8,border:"none",cursor:"pointer",
+                          background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",
+                          fontSize:11,fontWeight:800}}>
+                        Rejoindre
+                      </button>
+                      <button
+                        onClick={() => dismissGameInvite(inv.id)}
+                        style={{padding:"5px 10px",borderRadius:8,border:"1px solid rgba(255,255,255,0.1)",
+                          background:"rgba(255,255,255,0.04)",color:"var(--text-4)",cursor:"pointer",
+                          fontSize:11,fontWeight:700}}>
+                        Refuser
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {count === 0 ? (
               <div className="px-4 py-6 text-center text-xs text-slate-500">{t.nothingNew}</div>
-            ) : (
-              <div className="max-h-80 overflow-y-auto">
+            ) : activityCount === 0 && inviteCount === 0 ? null : (
+              <div className="max-h-72 overflow-y-auto">
                 {activityNotifications.map(n => {
                   const isThread = n.type === "thread" || n.type === "thread-mention";
                   const isMention = n.type === "post-mention" || n.type === "thread-mention";
@@ -99,7 +134,7 @@ function NotificationBell({ onChangeTab }) {
   );
 }
 
-export function Header({ activeTab, onChangeTab }) {
+export function Header({ activeTab, onChangeTab, onJoinGame }) {
   const { me, session, unreadPeers } = useApp();
   const { lang } = useLang();
   const t = HEADER_I18N[lang] || HEADER_I18N.fr;
@@ -144,7 +179,7 @@ export function Header({ activeTab, onChangeTab }) {
           })}
         </nav>
 
-        <NotificationBell onChangeTab={onChangeTab} />
+        <NotificationBell onChangeTab={onChangeTab} onJoinGame={onJoinGame} />
 
         <button
           onClick={() => onChangeTab("messages")}

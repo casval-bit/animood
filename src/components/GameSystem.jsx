@@ -91,6 +91,72 @@ function getAIConfig(diff) {
 }
 
 
+// ─── Friend Invite List ────────────────────────────────────────────────────────
+function FriendInviteList({ myUsername, gameType, roomId, privateCode }) {
+  const [friends, setFriends]   = useState([]);
+  const [sent, setSent]         = useState(new Set());
+  const [loading, setLoading]   = useState(true);
+
+  useEffect(() => {
+    if(!myUsername) return;
+    // Load both followers and following, merge as "friends"
+    Promise.all([
+      sb.query(`follows?follower=eq.${encodeURIComponent(myUsername)}&select=following`).catch(()=>[]),
+      sb.query(`follows?following=eq.${encodeURIComponent(myUsername)}&select=follower`).catch(()=>[]),
+    ]).then(([following, followers]) => {
+      const followingSet = new Set((following||[]).map(r=>r.following));
+      const followerSet  = new Set((followers||[]).map(r=>r.follower));
+      // Mutual friends first, then one-way
+      const all = [...new Set([...followingSet, ...followerSet])].filter(u=>u!==myUsername);
+      const sorted = all.sort((a,b) => {
+        const aM = followingSet.has(a) && followerSet.has(a);
+        const bM = followingSet.has(b) && followerSet.has(b);
+        return bM - aM;
+      });
+      setFriends(sorted);
+      setLoading(false);
+    });
+  }, [myUsername]);
+
+  const invite = async (toUser) => {
+    setSent(s => new Set([...s, toUser]));
+    await sb.sendGameInvite(myUsername, toUser, gameType, roomId, privateCode).catch(()=>{});
+  };
+
+  if(loading) return <div style={{textAlign:"center",fontSize:11,color:"var(--text-5)",padding:8}}>Chargement…</div>;
+  if(!friends.length) return <div style={{textAlign:"center",fontSize:11,color:"var(--text-5)",padding:8}}>Aucun ami à inviter</div>;
+
+  return (
+    <div>
+      <div style={{fontSize:10,fontWeight:800,color:"var(--text-5)",letterSpacing:1,
+        textTransform:"uppercase",marginBottom:8}}>
+        Inviter un ami
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:5,maxHeight:200,overflowY:"auto"}}>
+        {friends.map(u => {
+          const isSent = sent.has(u);
+          return (
+            <div key={u} style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+              padding:"7px 10px",borderRadius:10,
+              background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)"}}>
+              <span style={{fontSize:11,fontWeight:700,color:"var(--text-1)"}}>@{u}</span>
+              <button onClick={()=>!isSent&&invite(u)}
+                disabled={isSent}
+                style={{padding:"4px 12px",borderRadius:8,border:"none",cursor:isSent?"default":"pointer",
+                  fontSize:10,fontWeight:800,transition:"all 0.15s",
+                  background: isSent ? "rgba(34,197,94,0.15)" : "rgba(124,58,237,0.2)",
+                  color: isSent ? "#22c55e" : "#c084fc",
+                  opacity: isSent ? 0.8 : 1}}>
+                {isSent ? "✓ Envoyé" : "Inviter"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function Matchmaking({ gameType, onMatch, onClose }) {
   const { myUsername } = useApp();
   const { lang } = useLang();
@@ -101,6 +167,7 @@ export function Matchmaking({ gameType, onMatch, onClose }) {
   const [waitTime, setWaitTime]   = useState(0);
   const [myElo, setMyElo]         = useState(400);
   const [privateCode, setPrivateCode] = useState("");
+  const [myRoomId, setMyRoomId]       = useState(null);
   const [joinCode, setJoinCode]   = useState("");
   const [joinError, setJoinError] = useState("");
   const roomRef = useRef(null);
@@ -226,6 +293,7 @@ export function Matchmaking({ gameType, onMatch, onClose }) {
     setPrivateCode(code);
     const created = await sb.query("game_rooms",{method:"POST",headers:{...sb.headers,"Prefer":"return=representation"},body:JSON.stringify({game_type:gameType,player1:myUsername,elo1:400,status:"waiting",state:{},ranked:false,private_code:code})}).catch(()=>null);
     const myRoom = created?.[0]; if(!myRoom) return;
+    setMyRoomId(myRoom.id);
     roomRef.current = myRoom.id;
     const sub = supabase.channel(`room_${myRoom.id}`)
       .on("postgres_changes",{event:"UPDATE",schema:"public",table:"game_rooms",filter:`id=eq.${myRoom.id}`},
@@ -337,16 +405,41 @@ if(!room){setJoinError(t.errInvalidCode);return;}
   );
 
   if(mode==="private-create") return (
-    <div style={{padding:32,textAlign:"center"}}>
+    <div style={{padding:24,minWidth:320}}>
       {status==="found" ? (
-        <><div style={{fontSize:48,marginBottom:12}}>⚔️</div><div style={{fontSize:18,fontWeight:900,color:GREEN}}>{t.opponentFound}</div><div style={{fontSize:12,color:"var(--text-4)",marginTop:8}}>{tc.starting}</div></>
+        <div style={{textAlign:"center",padding:24}}>
+          <div style={{fontSize:48,marginBottom:12}}>⚔️</div>
+          <div style={{fontSize:18,fontWeight:900,color:GREEN}}>{t.opponentFound}</div>
+          <div style={{fontSize:12,color:"var(--text-4)",marginTop:8}}>{tc.starting}</div>
+        </div>
       ) : (
         <>
-          <div style={{fontSize:24,marginBottom:12}}>{t.privateRoomTitle}</div>
-          <div style={{fontSize:12,color:"var(--text-4)",marginBottom:8}}>{t.shareCode}</div>
-          <div style={{fontSize:36,fontWeight:900,color:"#c084fc",letterSpacing:8,marginBottom:16,padding:"12px 24px",background:"rgba(124,58,237,0.1)",borderRadius:12,display:"inline-block"}}>{privateCode}</div>
-          <div style={{fontSize:11,color:"var(--text-4)",marginBottom:20}}>{t.waitingConnection}</div>
-          <button onClick={cancelAndClose} style={{padding:"8px 20px",borderRadius:20,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:"var(--text-3)",cursor:"pointer",fontSize:12}}>{tc.cancel}</button>
+          {/* Code display */}
+          <div style={{textAlign:"center",marginBottom:20}}>
+            <div style={{fontSize:14,fontWeight:800,color:"var(--text-1)",marginBottom:8}}>{t.privateRoomTitle}</div>
+            <div style={{fontSize:11,color:"var(--text-4)",marginBottom:8}}>{t.shareCode}</div>
+            <div style={{fontSize:32,fontWeight:900,color:"#c084fc",letterSpacing:8,
+              padding:"10px 20px",background:"rgba(124,58,237,0.1)",borderRadius:12,
+              display:"inline-block",marginBottom:12}}>
+              {privateCode}
+            </div>
+          </div>
+
+          {/* Friend invite list */}
+          <FriendInviteList
+            myUsername={myUsername}
+            gameType={gameType}
+            roomId={myRoomId}
+            privateCode={privateCode}
+          />
+
+          <div style={{textAlign:"center",marginTop:12}}>
+            <button onClick={cancelAndClose}
+              style={{padding:"8px 20px",borderRadius:20,border:"1px solid rgba(255,255,255,0.1)",
+                background:"transparent",color:"var(--text-3)",cursor:"pointer",fontSize:12}}>
+              {tc.cancel}
+            </button>
+          </div>
         </>
       )}
     </div>
@@ -1842,16 +1935,16 @@ export function CluescaleMatchmaking({ onMatch, onClose }) {
   // Lobby
   const isHost = myUsername === players[0];
   return (
-    <div style={{padding:32,textAlign:"center"}}>
-      <div style={{fontSize:18,fontWeight:900,color:"var(--text-1)",marginBottom:4}}>🎭 Salle d'attente</div>
-      <div style={{fontSize:12,color:"var(--text-4)",marginBottom:16}}>Partage ce code :</div>
-      <div style={{fontSize:36,fontWeight:900,color:"#c084fc",letterSpacing:8,marginBottom:20,
-        padding:"12px 24px",background:"rgba(124,58,237,0.1)",borderRadius:12,display:"inline-block"}}>
+    <div style={{padding:28,textAlign:"center"}}>
+      <div style={{fontSize:16,fontWeight:900,color:"var(--text-1)",marginBottom:4}}>🎭 Salle d'attente</div>
+      <div style={{fontSize:12,color:"var(--text-4)",marginBottom:12}}>Partage ce code :</div>
+      <div style={{fontSize:32,fontWeight:900,color:"#c084fc",letterSpacing:8,marginBottom:16,
+        padding:"10px 20px",background:"rgba(124,58,237,0.1)",borderRadius:12,display:"inline-block"}}>
         {code}
       </div>
-      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+      <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:12}}>
         {players.map((p,i)=>(
-          <div key={p} style={{padding:"8px 14px",borderRadius:10,background:"rgba(255,255,255,0.04)",
+          <div key={p} style={{padding:"7px 12px",borderRadius:10,background:"rgba(255,255,255,0.04)",
             border:"1px solid rgba(255,255,255,0.07)",display:"flex",alignItems:"center",gap:8}}>
             <span style={{fontSize:14}}>{["👑","🎭","🎪","🎨"][i]}</span>
             <span style={{fontWeight:700,color:"var(--text-1)"}}>{p}</span>
@@ -1859,12 +1952,25 @@ export function CluescaleMatchmaking({ onMatch, onClose }) {
           </div>
         ))}
         {players.length < 4 && (
-          <div style={{padding:"8px 14px",borderRadius:10,border:"1px dashed rgba(255,255,255,0.08)",
+          <div style={{padding:"7px 12px",borderRadius:10,border:"1px dashed rgba(255,255,255,0.08)",
             fontSize:11,color:"var(--text-5)"}}>
             En attente… ({players.length}/4)
           </div>
         )}
       </div>
+
+      {/* Friend invite */}
+      {isHost && roomRef.current && (
+        <div style={{marginBottom:12,textAlign:"left"}}>
+          <FriendInviteList
+            myUsername={myUsername}
+            gameType="cluescale"
+            roomId={roomRef.current}
+            privateCode={code}
+          />
+        </div>
+      )}
+
       {isHost ? (
         <button onClick={startGame} disabled={players.length < 2}
           style={{width:"100%",padding:"12px",borderRadius:12,border:"none",

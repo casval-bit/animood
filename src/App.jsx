@@ -1,9 +1,8 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { ThemeProvider } from "./context/ThemeProvider.jsx";
-import { LangProvider } from "./context/LangProvider.jsx";
 import { AppProvider } from "./context/AppProvider.jsx";
+import { LangProvider } from "./context/LangProvider.jsx";
 import { useApp } from "./context/useApp.js";
-import { useLang } from "./context/useLang.js";
 import { Header } from "./components/Header.jsx";
 import { Spinner } from "./components/Spinner.jsx";
 import { AnimeDetailModal } from "./components/AnimeDetailModal.jsx";
@@ -20,18 +19,18 @@ import { SettingsView } from "./views/SettingsView.jsx";
 
 function Shell() {
   const { session, profileReady } = useApp();
-  const { lang } = useLang();
-  const [activeTab, setActiveTab]   = useState("moodboard");
-  const [showSettings, setShowSettings] = useState(false);
-  const [detailAnime, setDetailAnime]   = useState(null);
-  const [openUser, setOpenUser]         = useState(null);
+  const [activeTab, setActiveTab]             = useState("moodboard");
+  const [showSettings, setShowSettings]       = useState(false);
+  const [detailAnime, setDetailAnime]         = useState(null);
+  const [openUser, setOpenUser]               = useState(null);
+  const [pendingJoinGame, setPendingJoinGame] = useState(null);
 
   if(!session && !window.__SKIP_AUTH__) return <LoginView />;
   if(!profileReady && !window.__SKIP_AUTH__) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4">
         <span className="text-3xl">🌀</span>
-        <Spinner label={lang === "en" ? "Loading profile…" : "Chargement du profil…"} />
+        <Spinner label="Chargement du profil…" />
       </div>
     );
   }
@@ -40,30 +39,20 @@ function Shell() {
   const closeDetail = () => setDetailAnime(null);
 
   const pages = {
+    feed:      <FeedView onOpenUser={setOpenUser} />,
     moodboard: <MoodboardView onOpenDetail={openDetail} />,
     search:    <SearchView onOpenDetail={openDetail} onOpenUser={setOpenUser} />,
-    forum:     <ForumView onOpenDetail={openDetail} onOpenUser={setOpenUser} />,
+    forum:     <ForumView pendingJoinGame={pendingJoinGame} onClearPendingJoin={()=>setPendingJoinGame(null)} onOpenDetail={openDetail} onOpenUser={setOpenUser} />,
     messages:  <MessagesView />,
+    profile:   <ProfileView onOpenDetail={openDetail} onOpenSettings={() => setShowSettings(true)} />,
   };
 
   return (
     <div className="min-h-screen">
-      <Header activeTab={activeTab} onChangeTab={setActiveTab} />
-      <main>
-        {/* Feed and Profile stay mounted for cross-sync */}
-        <div style={{display: activeTab==="feed" ? "block" : "none"}}>
-          <FeedView onOpenUser={setOpenUser} onOpenDetail={openDetail}/>
-        </div>
-        <div style={{display: activeTab==="profile" ? "block" : "none"}}>
-          <ProfileView onOpenDetail={openDetail} onOpenSettings={() => setShowSettings(true)} />
-        </div>
-        {/* Other pages unmount when hidden — no sync needed */}
-        {pages[activeTab]}
-      </main>
+      <Header activeTab={activeTab} onChangeTab={setActiveTab} onJoinGame={payload=>{ setActiveTab("forum"); setPendingJoinGame(payload); }} />
+      <main>{pages[activeTab]}</main>
       <ChatBubble hidden={activeTab === "messages"} />
-
       {showSettings && <SettingsView onClose={() => setShowSettings(false)} />}
-
       {detailAnime && (
         <AnimeDetailModal
           malId={detailAnime.mal_id}
@@ -72,7 +61,6 @@ function Shell() {
           onOpenDetail={openDetail}
         />
       )}
-
       {openUser && (
         <UserProfileModal username={openUser} onClose={() => setOpenUser(null)} onOpenDetail={openDetail} />
       )}
@@ -82,12 +70,12 @@ function Shell() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <LangProvider>
+    <LangProvider>
+      <ThemeProvider>
         <AppProvider>
           <Shell />
         </AppProvider>
-      </LangProvider>
-    </ThemeProvider>
+      </ThemeProvider>
+    </LangProvider>
   );
 }
