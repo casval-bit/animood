@@ -7,6 +7,7 @@ import { jikan } from "../api/jikan.js";
 import { MentionText, useMentionAutocomplete, MentionSuggestions } from "../components/Mentions.jsx";
 import { useLang } from "../context/useLang.js";
 import { FEED_I18N } from "../constants/feedI18n.js";
+import { findBannedWord } from "../utils/contentFilter.js";
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function timeAgo(ts, lang) {
   const t = FEED_I18N[lang] || FEED_I18N.fr;
@@ -113,6 +114,7 @@ function PostComposer({ onPost }) {
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState(null);
   const [poll, setPoll] = useState(null); // null or {options:["",""], multi:false}
+  const [filterError, setFilterError] = useState(null);
   const imageInputRef = useRef(null);
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -134,6 +136,10 @@ function PostComposer({ onPost }) {
   const mention = useMentionAutocomplete(content, myUsername);
   const handlePost = async () => {
     if(!canPost) return;
+    const bannedInContent = findBannedWord(content);
+    const bannedInPoll = poll ? poll.options.map(findBannedWord).find(Boolean) : null;
+    if(bannedInContent || bannedInPoll) { setFilterError(t.bannedWordError); return; }
+    setFilterError(null);
     setPosting(true);
     try {
       const post = {
@@ -179,7 +185,7 @@ function PostComposer({ onPost }) {
       <div style={{display:"flex",gap:10}}>
         <Avatar profile={profile} size={38}/>
         <div style={{flex:1,position:"relative"}}>
-          <textarea value={content} onChange={e=>setContent(e.target.value.slice(0,280))}
+          <textarea value={content} onChange={e=>{setContent(e.target.value.slice(0,280));setFilterError(null);}}
             placeholder={t.composerPlaceholder}
             style={{width:"100%",boxSizing:"border-box",background:"none",border:"none",
               color:"var(--text-1)",fontSize:14,resize:"none",outline:"none",minHeight:70,
@@ -195,6 +201,7 @@ function PostComposer({ onPost }) {
             </div>
           )}
           {imageError && <p style={{fontSize:10,color:"#ef4444",marginBottom:6}}>{imageError}</p>}
+          {filterError && <p style={{fontSize:10,color:"#ef4444",marginBottom:6}}>⚠️ {filterError}</p>}
           {linkedAnime && (
             <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",
               background:"rgba(129,140,248,0.1)",borderRadius:8,border:"1px solid rgba(129,140,248,0.2)",marginBottom:8}}>
@@ -298,6 +305,7 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
   const [commentList, setCommentList] = useState(null);
   const [newComment, setNewComment] = useState("");
   const [posting, setPosting] = useState(false);
+  const [filterError, setFilterError] = useState(null);
   const mention = useMentionAutocomplete(newComment, myUsername);
   useEffect(() => {
     commentsApi.getForPost(postId).then(rows => {
@@ -316,6 +324,9 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
   const visibleComments = blockedUsers?.size ? (commentList||[]).filter(c => !blockedUsers.has(c.username)) : commentList;
   const handleComment = async () => {
     if(!newComment.trim() || posting) return;
+    const banned = findBannedWord(newComment);
+    if(banned) { setFilterError(t.bannedWordError); return; }
+    setFilterError(null);
     setPosting(true);
     try {
       const c = { post_id: postId, username: myUsername, content: newComment.trim(), likes:[], created_at: new Date().toISOString() };
@@ -365,10 +376,11 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
           </div>
         </div>
       ))}
+      {filterError && <p style={{fontSize:10,color:"#ef4444",margin:"0 0 6px 34px"}}>⚠️ {filterError}</p>}
       <div style={{display:"flex",gap:8,marginTop:8}}>
         <Avatar profile={profileCache[myUsername]||{avatar:"👤"}} size={26}/>
         <div style={{flex:1,display:"flex",gap:6,position:"relative"}}>
-          <input value={newComment} onChange={e=>setNewComment(e.target.value.slice(0,280))}
+          <input value={newComment} onChange={e=>{setNewComment(e.target.value.slice(0,280));setFilterError(null);}}
             onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&handleComment()}
             placeholder={t.commentPlaceholder}
             style={{flex:1,padding:"7px 12px",borderRadius:20,background:"rgba(var(--fg-rgb),0.05)",
