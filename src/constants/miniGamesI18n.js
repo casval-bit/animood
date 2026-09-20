@@ -26,6 +26,8 @@ export const MINI_GAMES_I18N = {
     opquiz: {
       title: "🎵 Quiz OP",
       loading: "Chargement…",
+      chooseDifficulty: "Choisis ton niveau",
+      difficultyHint: { easy: "Openings ultra connus", medium: "Faut s'y connaître un peu", hard: "Réservé aux vrais experts" },
       round: (i, total) => `Opening ${i}/${total}`,
       listening: "Écoute et devine…",
       difficulty: { easy: "Facile", medium: "Moyen", hard: "Difficile" },
@@ -68,6 +70,8 @@ export const MINI_GAMES_I18N = {
     opquiz: {
       title: "🎵 OP Quiz",
       loading: "Loading…",
+      chooseDifficulty: "Pick your level",
+      difficultyHint: { easy: "Super well-known openings", medium: "You need to know your anime", hard: "For true experts only" },
       round: (i, total) => `Opening ${i}/${total}`,
       listening: "Listen and guess…",
       difficulty: { easy: "Easy", medium: "Medium", hard: "Hard" },
