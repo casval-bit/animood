@@ -391,8 +391,12 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
   }, [lang]);
 
   // Progressive, non-blocking logo enhancement — never gates the initial render.
+  // Gated on the Studio tab being active (like the artist fetch above) so this
+  // Jikan-backed enrichment doesn't burn the shared rate-limited queue — and
+  // risk starving a studio modal opened moments later — while the user is
+  // still browsing another tab.
   useEffect(() => {
-    if(!popularStudios.length) return;
+    if(tab !== "studio" || !popularStudios.length) return;
     let cancelled = false;
     popularStudios.forEach((s, i) => {
       if("logo" in s) return;
@@ -404,7 +408,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
       }, i * 450);
     });
     return () => { cancelled = true; };
-  }, [popularStudios.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [popularStudios.length, tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const onDocClick = e => { if(boxRef.current && !boxRef.current.contains(e.target)) setShowSuggestions(false); };
