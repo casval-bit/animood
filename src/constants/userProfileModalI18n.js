@@ -5,6 +5,7 @@ export const USER_PROFILE_MODAL_I18N = {
 
     followers: "abonnés",
     following: "abonnements",
+    mutualFollowersTitle: (count) => `👥 ${count} abonné${count>1?"s":""} en commun`,
 
     followBtn: "Suivre",
     followingBtn: "Suivi ✓",
@@ -42,6 +43,7 @@ export const USER_PROFILE_MODAL_I18N = {
 
     followers: "followers",
     following: "following",
+    mutualFollowersTitle: (count) => `👥 ${count} mutual follower${count>1?"s":""}`,
 
     followBtn: "Follow",
     followingBtn: "Following ✓",

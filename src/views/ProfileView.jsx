@@ -70,55 +70,6 @@ function PersonalMoodRadar({ ratings, watched }) {
   );
 }
 
-// ─── TOP GENRES ───────────────────────────────────────────────────────────────
-function TopGenres({ watched }) {
-  const { lang } = useLang();
-  const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
-  const [top5, setTop5] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if(watched.length === 0) { setLoading(false); return; }
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      const genreCount = {};
-      const chunks = [];
-      for(let i=0;i<watched.length;i+=100) chunks.push(watched.slice(i,i+100));
-      for(const chunk of chunks) {
-        try {
-          const rows = await sb.query(`anime_cache?mal_id=in.(${chunk.join(",")})&select=genres`);
-          (rows||[]).forEach(row => { (row.genres||[]).forEach(g => { const name=g.name||g; genreCount[name]=(genreCount[name]||0)+1; }); });
-        } catch {}
-      }
-      if(cancelled) return;
-      setTop5(Object.entries(genreCount).sort((a,b)=>b[1]-a[1]).slice(0,5));
-      setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [watched.length]);
-
-  if(loading) return <div><div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.topGenresTitle}</div><Spinner label={t.loading} /></div>;
-  if(top5.length === 0) return null;
-  const max = top5[0][1];
-
-  return (
-    <div>
-      <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.topGenresTitle}</div>
-      <div className="flex flex-col gap-2">
-        {top5.map(([name,count]) => (
-          <div key={name}>
-            <div className="mb-1 flex justify-between"><span className="text-[11px] font-semibold text-slate-300">{name}</span><span className="text-[10px] text-slate-500">{count}</span></div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-white/6">
-              <div className="h-full rounded-full transition-[width] duration-500" style={{ width:`${(count/max)*100}%`, background: GRADIENT_PRIMARY }} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 const getTabs = (t) => [{id:"profile",label:t.tabProfile},{id:"journal",label:t.tabJournal},{id:"lists",label:t.tabLists},{id:"posts",label:t.tabPosts},{id:"stats",label:t.tabStats}];
 
 // ─── STATS TAB ────────────────────────────────────────────────────────────────
@@ -908,11 +859,6 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
             <div>
               <div className={`text-2xl font-black tracking-tight ${GRADIENT_TEXT}`}>
                 {me.name}
-                {activeBadge && (
-                  <span className="inline-flex ml-1.5 align-middle" title={`${activeBadge.label} — ${activeBadge.desc}`}>
-                    <BadgeDisplay badge={activeBadge} size={22} />
-                  </span>
-                )}
               </div>
               <div className="text-xs text-slate-500">@{myUsername} · AniMood</div>
             </div>
@@ -920,15 +866,27 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
           </div>
 
           {editingBio ? (
-            <div className="flex max-w-md gap-2">
+            <div className="flex max-w-md gap-2 items-center">
               <input value={bioInput} onChange={e => setBioInput(e.target.value)} maxLength={80} placeholder={t.bioPlaceholder}
                 className="flex-1 rounded-lg border border-violet-600/40 bg-white/7 px-2.5 py-1.5 text-xs text-slate-100 outline-none"
                 onKeyDown={e => { if(e.key==="Enter"){saveBio();setEditingBio(false);} if(e.key==="Escape")setEditingBio(false); }} />
+              {activeBadge && (
+                <span className="inline-flex align-middle" title={`${activeBadge.label} — ${activeBadge.desc}`}>
+                  <BadgeDisplay badge={activeBadge} size={20} />
+                </span>
+              )}
               <button onClick={() => { saveBio(); setEditingBio(false); }} className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-bold text-white">✓</button>
             </div>
           ) : (
-            <button onClick={() => { setBioInput(me.bio||""); setEditingBio(true); }} className="rounded-lg border border-dashed border-white/10 px-2.5 py-1.5 text-left text-[11px] text-slate-500">
-              {me.bio || t.addBioPlaceholder}
+            <button onClick={() => { setBioInput(me.bio||""); setEditingBio(true); }} className="group relative rounded-lg border border-dashed border-white/10 px-2.5 py-1.5 text-left text-[11px] text-slate-500">
+              <span className="inline-flex items-center gap-1.5">
+                <span>{me.bio || t.addBioPlaceholder}</span>
+                {activeBadge && (
+                  <span className="inline-flex align-middle" title={`${activeBadge.label} — ${activeBadge.desc}`}>
+                    <BadgeDisplay badge={activeBadge} size={16} />
+                  </span>
+                )}
+              </span>
             </button>
           )}
 
@@ -1062,7 +1020,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
             )}
           </div>
 
-          {/* RIGHT — Distribution + MoodRadar + TopGenres */}
+          {/* RIGHT — Distribution + MoodRadar */}
           <div className="flex flex-col gap-8">
             <div>
               <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.ratingDistribution}</div>
@@ -1071,7 +1029,6 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
               </div>
             </div>
             <PersonalMoodRadar ratings={me.ratings} watched={me.watched}/>
-            <TopGenres watched={me.watched}/>
           </div>
         </div>
       )}

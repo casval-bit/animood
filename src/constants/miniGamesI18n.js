@@ -40,6 +40,9 @@ export const MINI_GAMES_I18N = {
       finishScore: (score, total) => `${score}/${total} openings trouvés`,
       finishPoints: (pts) => `+${pts} points`,
       comeBackTomorrow: "Reviens demain pour 5 nouveaux openings !",
+      seenBefore: (times, rate) => `Déjà vu ${times} fois — ${rate}% de réussite`,
+      neverSeen: "Jamais vu — premier essai !",
+      progress: (recognized, total) => `Tu reconnais maintenant ${recognized}/${total} openings de ce pool`,
     },
   },
 
@@ -84,6 +87,9 @@ export const MINI_GAMES_I18N = {
       finishScore: (score, total) => `${score}/${total} openings found`,
       finishPoints: (pts) => `+${pts} points`,
       comeBackTomorrow: "Come back tomorrow for 5 new openings!",
+      seenBefore: (times, rate) => `Already seen ${times} time${times > 1 ? "s" : ""} — ${rate}% success rate`,
+      neverSeen: "Never seen before — first try!",
+      progress: (recognized, total) => `You now recognize ${recognized}/${total} openings in this pool`,
     },
   },
 };

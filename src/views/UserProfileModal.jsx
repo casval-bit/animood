@@ -36,7 +36,7 @@ function timeAgo(ts, lang = "fr") {
   return new Date(ts).toLocaleDateString(lang === "en" ? "en-US" : "fr-FR", {day:"numeric",month:"short"});
 }
 
-export function UserProfileModal({ username, onClose, onOpenDetail }) {
+export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }) {
   const { myUsername, blockedUsers, blockUser, unblockUser } = useApp();
   const { lang } = useLang();
   const t = USER_PROFILE_MODAL_I18N[lang] || USER_PROFILE_MODAL_I18N.fr;
@@ -58,6 +58,8 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
   const [showChat, setShowChat]       = useState(false);
   const [moodAvg, setMoodAvg]         = useState(null);
   const [activeBadge, setActiveBadge] = useState(null);
+  const [mutualFollowers, setMutualFollowers] = useState([]);
+  const [mutualProfiles, setMutualProfiles]   = useState({});
 
   useEffect(() => {
     let cancelled = false;
@@ -75,16 +77,32 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
             pinnedList: rows[0].pinned_list||null,
           };
         }
-        const [isF, followers, following] = await Promise.all([
+        const [isF, followers, following, myFollowers] = await Promise.all([
           isOwnProfile ? Promise.resolve(false) : follows.isFollowing(myUsername, username),
           follows.getFollowers(username),
           follows.getFollowing(username),
+          isOwnProfile ? Promise.resolve([]) : follows.getFollowers(myUsername),
         ]);
         if(cancelled) return;
         setProfile(prof);
         setIsFollowing(isF);
         setFollowerCount(followers.length);
         setFollowingCount(following.length);
+
+        // Amis d'amis — abonnés en commun entre ce profil et le mien
+        if(!isOwnProfile) {
+          const mutual = followers.filter(u => myFollowers.includes(u) && u !== myUsername && u !== username);
+          setMutualFollowers(mutual);
+          if(mutual.length) {
+            sb.query(`profiles?username=in.(${mutual.map(u=>encodeURIComponent(u)).join(",")})&select=username,name,avatar,avatar_base64`)
+              .then(rows => {
+                if(cancelled) return;
+                const cache = {};
+                (rows||[]).forEach(r => { cache[r.username] = r; });
+                setMutualProfiles(cache);
+              }).catch(()=>{});
+          }
+        }
 
         // Compute mood radar
         const watchedIds = prof?.watched||[];
@@ -265,6 +283,33 @@ export function UserProfileModal({ username, onClose, onOpenDetail }) {
               </div>
             ))}
           </div>
+
+          {/* Amis d'amis — abonnés en commun */}
+          {!isOwnProfile && mutualFollowers.length > 0 && (
+            <div className="mb-5">
+              <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                {t.mutualFollowersTitle(mutualFollowers.length)}
+              </div>
+              <div className="flex gap-3 overflow-x-auto pb-1">
+                {mutualFollowers.map(u => {
+                  const p = mutualProfiles[u];
+                  return (
+                    <button key={u} onClick={()=>onOpenUser?.(u)}
+                      className="flex shrink-0 flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-center transition hover:bg-white/5"
+                      style={{cursor:onOpenUser?"pointer":"default"}}>
+                      <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full text-base"
+                        style={{background:GRADIENT_PRIMARY}}>
+                        {(p?.avatar_base64 || (p?.avatar?.startsWith?.("http") ? p.avatar : null))
+                          ? <img src={p.avatar_base64 || p.avatar} alt="" className="h-full w-full object-cover"/>
+                          : (p?.avatar || "👤")}
+                      </div>
+                      <span className="max-w-[64px] truncate text-[9px] font-semibold text-slate-400">@{u}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <TabBar tabs={TABS} active={tab} onChange={setTab} className="mb-5"/>
 

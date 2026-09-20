@@ -98,7 +98,7 @@ function Shell() {
       )}
 
       {openUser && (
-        <UserProfileModal username={openUser} onClose={() => setOpenUser(null)} onOpenDetail={openDetail} />
+        <UserProfileModal username={openUser} onClose={() => setOpenUser(null)} onOpenDetail={openDetail} onOpenUser={setOpenUser} />
       )}
     </div>
   );
