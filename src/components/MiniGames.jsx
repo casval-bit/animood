@@ -6,6 +6,7 @@ import { useLang } from "../context/useLang.js";
 import { MINI_GAMES_I18N } from "../constants/miniGamesI18n.js";
 import { awardSoloPoints, awardOpQuizPoints } from "../utils/awardSoloPoints.js";
 import { ANIME_OPENINGS } from "../constants/animeOpenings.js";
+import { attachCommunityDifficulty, getUserStats, recordOpQuizAttempt, pickAdaptiveRounds, hashSeed } from "../utils/opquizStats.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function getDayIndex() {
@@ -547,15 +548,19 @@ const DIFF_COLOR = { easy: GREEN, medium: ORANGE, hard: RED };
 // Curated (youtubeId) entries always count toward the pool so the game never
 // runs dry — the Supabase opquiz_pool table (filled by
 // scripts/sync_opquiz_pool.mjs, resolved via AnimeThemes) adds on top of that.
-async function loadOpeningsPool(difficulty) {
+// The whole pool (every difficulty) is loaded and re-bucketed by
+// attachCommunityDifficulty before filtering to the tier the player picked, so
+// an opening the community keeps missing can graduate from "easy" to "hard"
+// (and vice versa) instead of staying pinned to its hand-picked tag forever —
+// see src/utils/opquizStats.js.
+async function loadFullOpeningsPool() {
   const curated = ANIME_OPENINGS
-    .filter(o => o.difficulty === difficulty)
-    .map(o => ({ mal_id: o.mal_id, title: o.title, difficulty, youtubeId: o.youtubeId }));
+    .map(o => ({ mal_id: o.mal_id, title: o.title, difficulty: o.difficulty, youtubeId: o.youtubeId }));
 
   let fromDb = [];
   try {
-    const rows = await sb.query(`opquiz_pool?difficulty=eq.${difficulty}&select=mal_id,title,audio_url,video_url&limit=200`);
-    fromDb = (rows||[]).map(r => ({ mal_id: r.mal_id, title: r.title, difficulty, audioUrl: r.audio_url, videoUrl: r.video_url }));
+    const rows = await sb.query(`opquiz_pool?select=mal_id,title,difficulty,audio_url,video_url&limit=1000`);
+    fromDb = (rows||[]).map(r => ({ mal_id: r.mal_id, title: r.title, difficulty: r.difficulty, audioUrl: r.audio_url, videoUrl: r.video_url }));
   } catch { /* Supabase pool unavailable — curated list still covers us */ }
 
   const byId = new Map();
@@ -564,18 +569,10 @@ async function loadOpeningsPool(difficulty) {
   return [...byId.values()];
 }
 
-function pickDailyRounds(pool) {
-  const day = getDayIndex();
-  const taken = new Set();
-  const picks = [];
-  for(let i = 0; i < OPQUIZ_TOTAL; i++) {
-    const rand = seededRand(day * 2654435761 + i * 999331);
-    let idx = Math.floor(rand() * pool.length);
-    while(taken.has(idx)) idx = (idx + 1) % pool.length;
-    taken.add(idx);
-    picks.push(pool[idx]);
-  }
-  return picks;
+async function loadOpeningsPool(difficulty) {
+  const full = await loadFullOpeningsPool();
+  const withStats = await attachCommunityDifficulty(full);
+  return withStats.filter(o => (o.communityDifficulty || o.difficulty) === difficulty);
 }
 
 export function OpQuizGame({ onClose }) {
@@ -595,10 +592,13 @@ export function OpQuizGame({ onClose }) {
   const [suggestions, setSuggestions] = useState([]);
   const [done, setDone]         = useState(false);
   const [awardedPts, setAwardedPts] = useState(null);
+  const [userStats, setUserStats] = useState(new Map()); // mal_id -> {attempts, correct}, this player's history for the current pool
+  const [progress, setProgress] = useState(null); // {recognized, total} for the current pool
   const timer = useRef(null);
   const awardedRef = useRef(false);
   const guardAudioRef = useRef(null);
   const openingAudioRef = useRef(null);
+  const roundStartRef = useRef(null);
 
   // Claim the OS media-session focus with fake metadata while the blind phase is active,
   // so pressing volume keys / the speaker icon shows "???" instead of the real anime title.
@@ -647,6 +647,13 @@ export function OpQuizGame({ onClose }) {
       setDone(saved.done||false);
       setAwardedPts(saved.awardedPts ?? null);
       awardedRef.current = !!saved.done;
+      // Re-derive this player's stats + pool-wide progress after a reload, so the
+      // "seen before" reveal copy and the finish-screen progress line still work.
+      loadOpeningsPool(saved.difficulty).then(async pool => {
+        const stats = await getUserStats(myUsername, pool.map(o => o.mal_id));
+        setUserStats(stats);
+        setProgress({ recognized: pool.filter(o => (stats.get(o.mal_id)?.correct||0) > 0).length, total: pool.length });
+      }).catch(()=>{});
     }
   }, []);
 
@@ -659,7 +666,11 @@ export function OpQuizGame({ onClose }) {
   const startDifficulty = async (diff) => {
     setPoolLoading(true);
     const pool = await loadOpeningsPool(diff);
-    const picked = pickDailyRounds(pool);
+    const stats = await getUserStats(myUsername, pool.map(o => o.mal_id));
+    setUserStats(stats);
+    setProgress({ recognized: pool.filter(o => (stats.get(o.mal_id)?.correct||0) > 0).length, total: pool.length });
+    const seed = getDayIndex() * 2654435761 + hashSeed(myUsername || "anon") * 97;
+    const picked = pickAdaptiveRounds(pool, stats, seed, OPQUIZ_TOTAL);
     setDifficulty(diff);
     setRounds(picked);
     setPoolLoading(false);
@@ -684,16 +695,26 @@ export function OpQuizGame({ onClose }) {
   const submitGuess = async (anime) => {
     if(revealed) return;
     const correct = anime.mal_id === current.mal_id;
+    const responseMs = roundStartRef.current ? Date.now() - roundStartRef.current : 0;
+    const prior = userStats.get(current.mal_id);
+    const seenBefore = prior?.attempts || 0;
+    const priorRate = seenBefore > 0 ? Math.round((prior.correct / prior.attempts) * 100) : null;
     let targetImage = null;
     try {
       const rows = await sb.query(`anime_cache?mal_id=eq.${current.mal_id}&select=image_url&limit=1`);
       targetImage = rows?.[0]?.image_url || null;
     } catch {}
-    setRevealed({ correct, targetImage });
+    setRevealed({ correct, targetImage, seenBefore, priorRate });
     setQuery(""); setSuggestions([]);
     const newResults = [...results, { correct }];
     setResults(newResults);
     saveState(newResults, roundIdx, false, null);
+    setUserStats(prev => {
+      const next = new Map(prev);
+      next.set(current.mal_id, { attempts: seenBefore + 1, correct: (prior?.correct || 0) + (correct ? 1 : 0) });
+      return next;
+    });
+    recordOpQuizAttempt(myUsername, current.mal_id, correct, responseMs).catch(()=>{});
   };
 
   const nextRound = () => {
@@ -746,6 +767,7 @@ export function OpQuizGame({ onClose }) {
         <div style={{fontSize:28,marginBottom:8}}>{t.finishTitle}</div>
         <div style={{fontSize:16,fontWeight:700,color:"var(--text-1)",marginBottom:6}}>{t.finishScore(score, TOTAL)}</div>
         {awardedPts != null && <div style={{fontSize:13,color:GREEN,fontWeight:700,marginBottom:12}}>{t.finishPoints(awardedPts)}</div>}
+        {progress && <div style={{fontSize:11,color:"var(--text-3)",marginBottom:8}}>{t.progress(progress.recognized, progress.total)}</div>}
         <div style={{fontSize:11,color:"var(--text-4)"}}>{t.comeBackTomorrow}</div>
       </div>
     );
@@ -792,7 +814,7 @@ export function OpQuizGame({ onClose }) {
             />
           )
         ) : (
-          <button onClick={()=>setPlaying(true)}
+          <button onClick={()=>{ setPlaying(true); roundStartRef.current = Date.now(); }}
             style={{background:"rgba(124,58,237,0.15)",border:"2px solid rgba(124,58,237,0.4)",
               borderRadius:"50%",width:64,height:64,cursor:"pointer",fontSize:24,color:"#c084fc"}}>
             ▶
@@ -820,6 +842,9 @@ export function OpQuizGame({ onClose }) {
           <div style={{textAlign:"left"}}>
             <div style={{fontSize:13,fontWeight:800,color:revealed.correct?GREEN:RED}}>
               {revealed.correct ? t.correct : t.wrong(current.title)}
+            </div>
+            <div style={{fontSize:10,color:"var(--text-4)",marginTop:2}}>
+              {revealed.seenBefore > 0 ? t.seenBefore(revealed.seenBefore, revealed.priorRate) : t.neverSeen}
             </div>
           </div>
         </div>
