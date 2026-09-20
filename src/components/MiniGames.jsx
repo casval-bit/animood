@@ -5,7 +5,7 @@ import { MOOD_KEYS } from "../constants/moods.js";
 import { useLang } from "../context/useLang.js";
 import { MINI_GAMES_I18N } from "../constants/miniGamesI18n.js";
 import { awardSoloPoints, awardOpQuizPoints } from "../utils/awardSoloPoints.js";
-import { ANIME_OPENINGS, OPQUIZ_DIFFICULTY_PLAN } from "../constants/animeOpenings.js";
+import { ANIME_OPENINGS } from "../constants/animeOpenings.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function getDayIndex() {
@@ -541,34 +541,52 @@ export function PosterGame({ onClose }) {
 }
 
 // ─── GAME 3 — Quiz OP ──────────────────────────────────────────────────────
-function pickDailyOpenings() {
-  const day = getDayIndex();
-  const pools = {
-    easy:   ANIME_OPENINGS.filter(o => o.difficulty === "easy"),
-    medium: ANIME_OPENINGS.filter(o => o.difficulty === "medium"),
-    hard:   ANIME_OPENINGS.filter(o => o.difficulty === "hard"),
-  };
-  const taken = {};
-  return OPQUIZ_DIFFICULTY_PLAN.map((diff, i) => {
-    const pool = pools[diff];
-    const rand = seededRand(day * 2654435761 + i * 999331 + diff.length * 7919);
-    let idx = Math.floor(rand() * pool.length);
-    const set = taken[diff] || (taken[diff] = new Set());
-    while(set.has(idx)) idx = (idx + 1) % pool.length;
-    set.add(idx);
-    return pool[idx];
-  });
+const OPQUIZ_TOTAL = 5;
+const DIFF_COLOR = { easy: GREEN, medium: ORANGE, hard: RED };
+
+// Curated (youtubeId) entries always count toward the pool so the game never
+// runs dry — the Supabase opquiz_pool table (filled by
+// scripts/sync_opquiz_pool.mjs, resolved via AnimeThemes) adds on top of that.
+async function loadOpeningsPool(difficulty) {
+  const curated = ANIME_OPENINGS
+    .filter(o => o.difficulty === difficulty)
+    .map(o => ({ mal_id: o.mal_id, title: o.title, difficulty, youtubeId: o.youtubeId }));
+
+  let fromDb = [];
+  try {
+    const rows = await sb.query(`opquiz_pool?difficulty=eq.${difficulty}&select=mal_id,title,audio_url,video_url&limit=200`);
+    fromDb = (rows||[]).map(r => ({ mal_id: r.mal_id, title: r.title, difficulty, audioUrl: r.audio_url, videoUrl: r.video_url }));
+  } catch { /* Supabase pool unavailable — curated list still covers us */ }
+
+  const byId = new Map();
+  curated.forEach(o => byId.set(o.mal_id, o));
+  fromDb.forEach(o => byId.set(o.mal_id, o));
+  return [...byId.values()];
 }
 
-const DIFF_COLOR = { easy: GREEN, medium: ORANGE, hard: RED };
+function pickDailyRounds(pool) {
+  const day = getDayIndex();
+  const taken = new Set();
+  const picks = [];
+  for(let i = 0; i < OPQUIZ_TOTAL; i++) {
+    const rand = seededRand(day * 2654435761 + i * 999331);
+    let idx = Math.floor(rand() * pool.length);
+    while(taken.has(idx)) idx = (idx + 1) % pool.length;
+    taken.add(idx);
+    picks.push(pool[idx]);
+  }
+  return picks;
+}
 
 export function OpQuizGame({ onClose }) {
   const { lang } = useLang();
   const t = (MINI_GAMES_I18N[lang] || MINI_GAMES_I18N.fr).opquiz;
   const { myUsername } = useApp();
-  const TOTAL = OPQUIZ_DIFFICULTY_PLAN.length;
+  const TOTAL = OPQUIZ_TOTAL;
 
-  const [rounds]         = useState(pickDailyOpenings);
+  const [difficulty, setDifficulty] = useState(null);
+  const [poolLoading, setPoolLoading] = useState(false);
+  const [rounds, setRounds]     = useState(null);
   const [roundIdx, setRoundIdx] = useState(0);
   const [results, setResults]   = useState([]);
   const [revealed, setRevealed] = useState(null); // {correct, targetImage}
@@ -580,6 +598,7 @@ export function OpQuizGame({ onClose }) {
   const timer = useRef(null);
   const awardedRef = useRef(false);
   const guardAudioRef = useRef(null);
+  const openingAudioRef = useRef(null);
 
   // Claim the OS media-session focus with fake metadata while the blind phase is active,
   // so pressing volume keys / the speaker icon shows "???" instead of the real anime title.
@@ -601,13 +620,28 @@ export function OpQuizGame({ onClose }) {
 
   useEffect(() => () => {
     guardAudioRef.current?.pause();
+    openingAudioRef.current?.pause();
     if (typeof navigator !== "undefined" && "mediaSession" in navigator) navigator.mediaSession.metadata = null;
   }, []);
+
+  // AnimeThemes-sourced rounds play through a real <audio> element (see player
+  // below) — kick it off explicitly rather than relying on autoPlay, and reset
+  // it to the start of the clip each time a new round begins.
+  useEffect(() => {
+    const current = rounds ? rounds[roundIdx] : null;
+    const el = openingAudioRef.current;
+    if(playing && current?.audioUrl && el) {
+      el.currentTime = 0;
+      el.play().catch(() => {});
+    }
+  }, [playing, rounds, roundIdx]);
 
   useEffect(() => {
     const key = `animood_opquiz_${getDayIndex()}`;
     const saved = JSON.parse(localStorage.getItem(key)||"null");
-    if(saved) {
+    if(saved && saved.difficulty && saved.rounds?.length) {
+      setDifficulty(saved.difficulty);
+      setRounds(saved.rounds);
       setResults(saved.results||[]);
       setRoundIdx(saved.roundIdx||0);
       setDone(saved.done||false);
@@ -616,13 +650,23 @@ export function OpQuizGame({ onClose }) {
     }
   }, []);
 
-  const saveState = (r, idx, isDone, pts) => {
+  const saveState = (r, idx, isDone, pts, diff = difficulty, rnds = rounds) => {
     localStorage.setItem(`animood_opquiz_${getDayIndex()}`, JSON.stringify({
-      results: r, roundIdx: idx, done: isDone, awardedPts: pts,
+      results: r, roundIdx: idx, done: isDone, awardedPts: pts, difficulty: diff, rounds: rnds,
     }));
   };
 
-  const current = rounds[roundIdx];
+  const startDifficulty = async (diff) => {
+    setPoolLoading(true);
+    const pool = await loadOpeningsPool(diff);
+    const picked = pickDailyRounds(pool);
+    setDifficulty(diff);
+    setRounds(picked);
+    setPoolLoading(false);
+    saveState([], 0, false, null, diff, picked);
+  };
+
+  const current = rounds ? rounds[roundIdx] : null;
 
   const search = (q) => {
     setQuery(q);
@@ -672,6 +716,29 @@ export function OpQuizGame({ onClose }) {
     }
   };
 
+  if(difficulty === null) {
+    return (
+      <div style={{padding:32,textAlign:"center",maxWidth:400,margin:"0 auto"}}>
+        <div style={{fontSize:22,marginBottom:4}}>{t.title}</div>
+        <div style={{fontSize:13,color:"var(--text-4)",marginBottom:20}}>{t.chooseDifficulty}</div>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {["easy","medium","hard"].map(diff => (
+            <button key={diff} onClick={()=>startDifficulty(diff)}
+              style={{padding:"14px 16px",borderRadius:14,cursor:"pointer",textAlign:"left",
+                background:`${DIFF_COLOR[diff]}18`,border:`1px solid ${DIFF_COLOR[diff]}55`}}>
+              <div style={{fontSize:15,fontWeight:800,color:DIFF_COLOR[diff]}}>{t.difficulty[diff]}</div>
+              <div style={{fontSize:11,color:"var(--text-4)"}}>{t.difficultyHint[diff]}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if(poolLoading || !rounds) {
+    return <div style={{padding:32,textAlign:"center",color:"var(--text-4)"}}>{t.loading}</div>;
+  }
+
   if(done) {
     const score = results.filter(r=>r.correct).length;
     return (
@@ -700,19 +767,30 @@ export function OpQuizGame({ onClose }) {
         </div>
       </div>
 
-      {/* Player — video stays hidden behind an opaque cover while guessing (audio only), and only reveals once the round is answered */}
+      {/* Player — video/audio stays hidden behind an opaque cover while guessing, and only reveals once the round is answered */}
       <div style={{position:"relative",width:"100%",aspectRatio:"16/9",borderRadius:12,overflow:"hidden",
         background:"#0a0a12",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"center"}}>
         {playing ? (
-          <iframe
-            key={current.youtubeId}
-            src={`https://www.youtube.com/embed/${current.youtubeId}?autoplay=1&start=3&rel=0&modestbranding=1&controls=0&disablekb=1`}
-            title="opening"
-            allow="autoplay; encrypted-media"
-            tabIndex={revealed ? 0 : -1}
-            style={{width:"100%",height:"100%",border:"none",
-              pointerEvents:revealed?"auto":"none"}}
-          />
+          current.audioUrl ? (
+            <>
+              <span style={{fontSize:40,opacity:0.5}}>🎵</span>
+              <audio ref={openingAudioRef} key={current.audioUrl} src={current.audioUrl}
+                controls={!!revealed}
+                style={{position:"absolute",bottom:10,left:10,right:10,height:32,
+                  opacity:revealed?1:0,pointerEvents:revealed?"auto":"none"}}
+              />
+            </>
+          ) : (
+            <iframe
+              key={current.youtubeId}
+              src={`https://www.youtube.com/embed/${current.youtubeId}?autoplay=1&start=3&rel=0&modestbranding=1&controls=0&disablekb=1`}
+              title="opening"
+              allow="autoplay; encrypted-media"
+              tabIndex={revealed ? 0 : -1}
+              style={{width:"100%",height:"100%",border:"none",
+                pointerEvents:revealed?"auto":"none"}}
+            />
+          )
         ) : (
           <button onClick={()=>setPlaying(true)}
             style={{background:"rgba(124,58,237,0.15)",border:"2px solid rgba(124,58,237,0.4)",
