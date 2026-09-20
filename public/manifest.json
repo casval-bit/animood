@@ -1,0 +1,27 @@
+{
+  "name": "AniMood",
+  "short_name": "AniMood",
+  "description": "Decouvre des animes par humeur - moodboard, feed, forum, mini-jeux et plus.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#070B17",
+  "theme_color": "#7c3aed",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["entertainment", "social", "games"],
+  "lang": "fr"
+}

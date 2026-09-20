@@ -142,6 +142,12 @@ body {
 .animate-crystal   { animation: crystal-pulse 2s ease-in-out infinite; }
 .animate-mood-pop  { animation: mood-pop 0.35s cubic-bezier(.34,1.56,.64,1) both; }
 
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+.animate-float { animation: float 3s ease-in-out infinite; }
+
 /* Thin, unobtrusive scrollbars everywhere — desktop-grid layout has a lot of scroll areas */
 * {
   scrollbar-width: thin;

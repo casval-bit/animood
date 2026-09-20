@@ -1,16 +1,20 @@
 import { useState, useEffect } from "react";
+import { useModalBack } from "../hooks/useModalBack.js";
 
 export function Modal({ onClose, children, maxWidth = "max-w-lg", bodyClassName = "" }) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
   useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
 
-  const close = async () => {
+  // Pushes a history entry on mount so the browser/device back button
+  // closes this modal instead of navigating away from the page underneath.
+  const requestClose = useModalBack(onClose);
+
+  const close = () => {
     if(closing) return;
     setClosing(true);
     setVisible(false);
-    // Wait for onClose (may be async — e.g. forfait patch) before unmounting
-    try { await Promise.resolve(onClose()); } catch {}
+    requestClose();
   };
 
   return (

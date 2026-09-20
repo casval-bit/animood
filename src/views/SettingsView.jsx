@@ -11,6 +11,7 @@ import { GRADIENT_PRIMARY } from "../constants/theme.js";
 import { SETTINGS_I18N } from "../constants/settingsI18n.js";
 import { getFrameLabel } from "../frames/frames.js";
 import { BADGES, getUnlockedBadges, getBestBadge, getBadgeLabel } from "../badges/badges.jsx";
+import { useModalBack } from "../hooks/useModalBack.js";
 
 const LANG_OPTIONS = [
   { id: "fr", label: "Français", flag: "🇫🇷" },
@@ -46,6 +47,9 @@ function Section({ title, children }) {
 }
 
 export function SettingsView({ onClose }) {
+  // Pushes a history entry on mount so the browser/device back button
+  // closes this screen instead of navigating away from the page underneath.
+  const requestClose = useModalBack(onClose);
   const { me, saveMe, logout, myUsername, blockedUsers, unblockUser, notificationsEnabled, setNotificationsEnabled } = useApp();
   const { theme, setTheme } = useTheme();
   const { lang, setLang } = useLang();
@@ -263,7 +267,7 @@ export function SettingsView({ onClose }) {
   return (
     <div className="fixed inset-0 z-400 flex flex-col backdrop-blur-2xl" style={{ background:"var(--overlay)" }}>
       <div className="flex items-center gap-3 border-b border-white/6 px-6 py-4">
-        <button onClick={onClose} className="text-xl text-slate-400">←</button>
+        <button onClick={requestClose} className="text-xl text-slate-400">←</button>
         <span className="text-base font-black text-slate-100">{t.title}</span>
       </div>
 
