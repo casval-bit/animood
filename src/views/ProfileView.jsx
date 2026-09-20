@@ -498,7 +498,7 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
   );
 }
 
-function GamePtsDisplay({ myUsername, compact }) {
+function GamePtsDisplay({ myUsername }) {
   const [pts, setPts] = useState(null);
   useEffect(() => {
     if(!myUsername) return;
@@ -506,21 +506,12 @@ function GamePtsDisplay({ myUsername, compact }) {
       .then(r => { if(r?.[0]) setPts(r[0].points_total||0); })
       .catch(()=>{});
   }, [myUsername]);
-  if(pts === null) return compact ? <div/> : null;
-  if(compact) return (
-    <div className="rounded-xl border border-white/6 bg-white/3 p-3 text-center">
-      <div className="text-xl font-black text-violet-400">{pts}</div>
-      <div className="mt-0.5 text-[9px] text-slate-500">🎮 Pts jeux</div>
-    </div>
-  );
+  if(pts === null) return null;
   return (
-    <>
-      <div className="w-px h-3 bg-white/10"/>
-      <div className="flex items-center gap-1.5">
-        <span className="text-[13px] font-black text-violet-400">{pts}</span>
-        <span className="text-[11px] text-slate-500">pts jeux 🎮</span>
-      </div>
-    </>
+    <div className="flex items-center gap-1.5">
+      <span className="text-[13px] font-black text-violet-400">{pts}</span>
+      <span className="text-[11px] text-slate-500">pts jeux 🎮</span>
+    </div>
   );
 }
 
@@ -910,9 +901,6 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
           {unlockedFrames.length > 0 && (
             <div onClick={() => setShowFramePicker(true)} className="absolute right-0 top-0 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-2 border-slate-950 bg-indigo-600 text-[10px]">🖼</div>
           )}
-          {unlockedBadges.length > 0 && (
-            <div onClick={() => setShowBadgePicker(true)} className="absolute -right-1 bottom-0 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-2 border-slate-950 bg-amber-600 text-[10px]">🏆</div>
-          )}
         </div>
 
         <div className="flex-1">
@@ -944,7 +932,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
             </button>
           )}
 
-          {/* Followers / Following */}
+          {/* Followers / Following / Stats */}
           <div className="flex items-center gap-4 mt-2 flex-wrap">
             <div className="flex items-center gap-1.5">
               <span className="text-[13px] font-black text-slate-100">{followerCount}</span>
@@ -955,6 +943,38 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
               <span className="text-[13px] font-black text-slate-100">{followingCount}</span>
               <span className="text-[11px] text-slate-500">{t.followingLabel(followingCount)}</span>
             </div>
+            <div className="w-px h-3 bg-white/10"/>
+            <GamePtsDisplay myUsername={myUsername}/>
+          </div>
+
+          {/* Stats + lien vers badges */}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {[
+              { emoji:"📺", label:t.statVus, value: me.watched.length, color:"#7c3aed" },
+              { emoji:"⭐", label:t.statNotes, value: rated.length, color:"#f59e0b" },
+              { emoji:"🎯", label:t.statMoy, value: rated.length ? (rated.reduce((a,id)=>a+(me.ratings[id]?.score||0),0)/rated.length).toFixed(1) : "—", color:"#22c55e" },
+            ].map((s, i) => (
+              <div key={i}
+                className="flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold"
+                style={{
+                  background: `${s.color}18`,
+                  border: `1px solid ${s.color}30`,
+                  color: s.color,
+                }}>
+                <span className="text-[10px]">{s.emoji}</span>
+                <span>{s.value}</span>
+                <span className="font-normal opacity-60">{s.label}</span>
+              </div>
+            ))}
+
+            {unlockedBadges.length > 0 && (
+              <button onClick={() => setShowBadgePicker(true)}
+                className="flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-bold transition hover:bg-white/5"
+                style={{ border: "1px solid rgba(251,191,36,0.3)", color: "#fbbf24" }}>
+                <span>🏆</span>
+                <span>{unlockedBadges.length} badge{unlockedBadges.length > 1 ? "s" : ""}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1042,21 +1062,8 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
             )}
           </div>
 
-          {/* RIGHT — 3 stats + Distribution + MoodRadar + TopGenres */}
+          {/* RIGHT — Distribution + MoodRadar + TopGenres */}
           <div className="flex flex-col gap-8">
-            <div className="grid grid-cols-4 gap-3">
-              {[
-                {l:t.statVus, v:me.watched.length},
-                {l:t.statNotes, v:rated.length},
-                {l:t.statMoy, v:rated.length?(rated.reduce((a,id)=>a+(me.ratings[id]?.score||0),0)/rated.length).toFixed(1):"—"},
-              ].map(s=>(
-                <div key={s.l} className="rounded-xl border border-white/6 bg-white/3 p-3 text-center">
-                  <div className="text-xl font-black text-violet-400">{s.v}</div>
-                  <div className="mt-0.5 text-[9px] text-slate-500">{s.l}</div>
-                </div>
-              ))}
-              <GamePtsDisplay myUsername={myUsername} compact/>
-            </div>
             <div>
               <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.ratingDistribution}</div>
               <div className="rounded-2xl border border-white/6 bg-white/3 p-4">
