@@ -13,6 +13,11 @@
 --
 -- New in v.08.01: player3/player4 on game_rooms, needed for Cluescale (2-4
 -- players) — Chain/Timeline still only ever use player1/player2.
+--
+-- New in v.08.03: per-game point columns (pts_wordle/pts_poster/pts_opquiz/
+-- pts_cluescale) alongside points_total. points_total stays the running
+-- aggregate (used for profile-frame unlocks, see src/frames/frames.js) while
+-- the pts_* columns let the leaderboard show a breakdown per game.
 
 create table if not exists game_elo (
   username         text primary key,
@@ -28,6 +33,11 @@ create table if not exists game_elo (
   -- New in v.07.02 — solo OP Quiz points + daily streak tracking.
   streak_opquiz    integer not null default 0,
   last_opquiz_date text,
+  -- New in v.08.03 — per-game point breakdown for the leaderboard.
+  pts_wordle       integer not null default 0,
+  pts_poster       integer not null default 0,
+  pts_opquiz       integer not null default 0,
+  pts_cluescale    integer not null default 0,
   updated_at       timestamptz not null default now()
 );
 
@@ -38,6 +48,12 @@ alter table game_elo add column if not exists streak_poster    integer not null 
 alter table game_elo add column if not exists last_poster_date text;
 alter table game_elo add column if not exists streak_opquiz    integer not null default 0;
 alter table game_elo add column if not exists last_opquiz_date text;
+
+-- Existing installs: add the v.08.03 per-game point columns if missing.
+alter table game_elo add column if not exists pts_wordle       integer not null default 0;
+alter table game_elo add column if not exists pts_poster       integer not null default 0;
+alter table game_elo add column if not exists pts_opquiz       integer not null default 0;
+alter table game_elo add column if not exists pts_cluescale    integer not null default 0;
 
 create table if not exists game_rooms (
   id           bigint generated always as identity primary key,

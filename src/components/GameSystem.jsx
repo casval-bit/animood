@@ -1458,6 +1458,39 @@ export function CluescaleGame({ room, onClose }) {
     }
   };
 
+  // Award pts_cluescale to the winner on game end — only once per game
+  const awardedCluescaleRef = useRef(false);
+  useEffect(() => {
+    if(state?.phase !== "gameEnd" || awardedCluescaleRef.current) return;
+    awardedCluescaleRef.current = true;
+    const sorted = Object.entries(state.scores||{}).sort((a,b)=>b[1]-a[1]);
+    if(sorted.length < 2) return;
+    const [[winner, winScore], [, secondScore]] = sorted;
+    if(winner !== myUsername) return; // only the winner gets points
+    const earned = (winScore - secondScore) * 3;
+    if(earned <= 0) return;
+    sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&limit=1`)
+      .then(rows => {
+        const row = rows?.[0];
+        const patch = {
+          pts_cluescale: (row?.pts_cluescale||0) + earned,
+          points_total: (row?.points_total||0) + earned,
+          updated_at: new Date().toISOString(),
+        };
+        if(row) {
+          sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}`, {
+            method:"PATCH", headers:{...sb.headers,"Prefer":"return=minimal"},
+            body: JSON.stringify(patch),
+          }).catch(()=>{});
+        } else {
+          sb.query("game_elo", {
+            method:"POST", headers:{...sb.headers,"Prefer":"resolution=ignore-duplicates,return=minimal"},
+            body: JSON.stringify({ username:myUsername, elo_chain:400, elo_timeline:400, ...patch }),
+          }).catch(()=>{});
+        }
+      }).catch(()=>{});
+  }, [state?.phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if(!state) return <div style={{padding:32,textAlign:"center"}}><div style={{fontSize:32}}>⏳</div><div style={{color:"var(--text-4)",fontSize:13,marginTop:8}}>Initialisation…</div></div>;
 
   const isJudge = state.judge === myUsername;

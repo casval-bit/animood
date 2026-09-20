@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { fetchNewAnime, fetchUpcomingAnime, fetchLatestTrailers, supabaseRowToAnime } from "../api/jikan.js";
+import { fetchNewAnime, fetchUpcomingAnime, supabaseRowToAnime } from "../api/jikan.js";
 import { fetchAiredDates } from "../api/anilist.js";
-import { sb } from "../api/supabase.js";
+import { sb, follows } from "../api/supabase.js";
 import { topMoods } from "../api/moods.js";
 import { MOODS, getMoodObj } from "../constants/moods.js";
 import { useApp } from "../context/useApp.js";
@@ -330,48 +330,131 @@ function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, profileC
   );
 }
 
-function GameButton({ emoji, label, color, onClick }) {
-  const [hover, setHover] = useState(false);
-  return (
-    <button onClick={onClick} title={label}
-      style={{width:52,height:52,borderRadius:"50%",
-        border:`2px solid rgba(${color},0.4)`,
-        background:hover?`rgba(${color},0.22)`:`rgba(${color},0.1)`,
-        cursor:"pointer",display:"flex",flexDirection:"column",
-        alignItems:"center",justifyContent:"center",gap:2,transition:"all 0.2s",
-        transform:hover?"scale(1.08)":"scale(1)"}}
-      onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)}>
-      <span style={{fontSize:18}}>{emoji}</span>
-      <span style={{fontSize:7,color:`rgb(${color})`,fontWeight:700}}>{label}</span>
-    </button>
-  );
-}
+// Unified game panel: a 2-column grid of buttons (each showing the player's own
+// score for that game) plus an inline top-20 leaderboard ranked by points_total,
+// with the player's own rank shown below it when they're outside the top 20.
+function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChain, onTimeline, onCluescale, t }) {
+  const [elo, setElo]                 = useState(null);
+  const [hover, setHover]             = useState(null);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [myRank, setMyRank]           = useState(null);
 
-function GameEloDisplay({ myUsername }) {
-  const [elo, setElo] = useState(null);
   useEffect(() => {
     if(!myUsername) return;
     sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&limit=1`)
       .then(r => { if(r?.[0]) setElo(r[0]); })
       .catch(()=>{});
   }, [myUsername]);
-  if(!elo) return null;
+
+  useEffect(() => {
+    // points_total is the server-maintained aggregate (kept in sync by
+    // awardSoloPoints.js, updateElo and the Cluescale award in GameSystem.jsx),
+    // so ranking by it directly avoids re-deriving a total client-side.
+    sb.query("game_elo?select=username,points_total&order=points_total.desc&limit=200")
+      .then(rows => {
+        if(!rows?.length) return;
+        setLeaderboard(rows.slice(0,20));
+        const pos = rows.findIndex(r=>r.username===myUsername);
+        setMyRank(pos>=0 ? {rank:pos+1, points_total:rows[pos].points_total} : null);
+      }).catch(()=>{});
+  }, [myUsername]);
+
+  const followingSet = new Set(following||[]);
+  function usernameColor(u) {
+    if(u===myUsername) return "#c084fc";
+    if(followingSet.has(u)) return "#22c55e";
+    return "var(--text-2)";
+  }
+
+  const GAMES = [
+    {id:"wordle",    emoji:"🎯", label:t.wordleLabel,    color:"124,58,237", pts:elo?.pts_wordle||0,     onClick:onWordle,   type:"solo"},
+    {id:"poster",    emoji:"🖼", label:t.posterLabel,    color:"236,72,153", pts:elo?.pts_poster||0,     onClick:onPoster,   type:"solo"},
+    {id:"opquiz",    emoji:"🎵", label:t.opquizLabel,    color:"56,189,248", pts:elo?.pts_opquiz||0,     onClick:onOpQuiz,   type:"solo"},
+    {id:"chain",     emoji:"⛓", label:t.chainLabel,     color:"251,191,36", pts:elo?.elo_chain||400,    onClick:onChain,    type:"vs"},
+    {id:"timeline",  emoji:"📅", label:t.timelineLabel,  color:"34,197,94",  pts:elo?.elo_timeline||400, onClick:onTimeline, type:"vs"},
+    {id:"cluescale", emoji:"🎭", label:t.cluescaleLabel, color:"251,113,133",pts:elo?.pts_cluescale||0,  onClick:onCluescale,type:"multi"},
+  ];
+
   return (
-    <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.06)",
-      textAlign:"center",padding:"6px 4px",borderRadius:8,background:"rgba(255,255,255,0.03)"}}>
-      <div style={{fontSize:11,fontWeight:900,color:"var(--text-2)"}}>{elo.points_total||0} pts total</div>
-      <div style={{fontSize:8,color:"rgba(148,163,184,0.5)"}}>🎮 Débloque des cadres profil</div>
+    <div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
+        {GAMES.map(g => {
+          const isHover = hover===g.id, rgb=g.color;
+          return (
+            <button key={g.id} onClick={g.onClick}
+              onMouseEnter={()=>setHover(g.id)} onMouseLeave={()=>setHover(null)}
+              style={{display:"flex",alignItems:"center",gap:7,padding:"7px 9px",borderRadius:10,cursor:"pointer",
+                border:`1px solid rgba(${rgb},${isHover?0.45:0.22})`,
+                background:isHover?`rgba(${rgb},0.15)`:`rgba(${rgb},0.07)`,
+                transition:"all 0.15s",textAlign:"left"}}>
+              <span style={{fontSize:16,flexShrink:0,lineHeight:1}}>{g.emoji}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:10,fontWeight:800,color:`rgb(${rgb})`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{g.label}</div>
+                <div style={{fontSize:8,color:"var(--text-5)",marginTop:1}}>{g.type==="vs"?"elo":g.type==="multi"?"multi":"solo · pts"}</div>
+              </div>
+              <div style={{fontSize:11,fontWeight:900,color:`rgb(${rgb})`,background:`rgba(${rgb},0.12)`,borderRadius:6,padding:"2px 7px",flexShrink:0,minWidth:28,textAlign:"center"}}>
+                {elo?g.pts:"—"}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {elo && (
+        <div style={{marginTop:7,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",borderRadius:9,
+          background:"linear-gradient(90deg,rgba(124,58,237,0.08),rgba(56,189,248,0.05))",border:"1px solid rgba(255,255,255,0.06)"}}>
+          <div style={{fontSize:9,color:"var(--text-5)",fontWeight:700}}>{t.unlocksFramesLabel}</div>
+          <div style={{fontSize:13,fontWeight:900,color:"var(--text-1)"}}>{elo.points_total||0}</div>
+        </div>
+      )}
+
+      {leaderboard.length>0 && (
+        <div style={{marginTop:12}}>
+          <div style={{fontSize:10,fontWeight:800,color:"var(--text-5)",letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>{t.leaderboardTitle}</div>
+          <div style={{display:"flex",flexDirection:"column",gap:2}}>
+            {leaderboard.map((r,i) => {
+              const isMe=r.username===myUsername, isFriend=followingSet.has(r.username);
+              const medal=i===0?"🥇":i===1?"🥈":i===2?"🥉":null;
+              return (
+                <div key={r.username} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:7,
+                  background:isMe?"rgba(124,58,237,0.1)":"rgba(255,255,255,0.02)",
+                  border:isMe?"1px solid rgba(124,58,237,0.2)":"1px solid transparent"}}>
+                  <div style={{fontSize:9,color:"var(--text-5)",width:16,textAlign:"right",flexShrink:0}}>{medal||`${i+1}`}</div>
+                  <div style={{flex:1,fontSize:10,fontWeight:isMe||isFriend?800:500,color:usernameColor(r.username),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {r.username}{isMe && <span style={{marginLeft:4,fontSize:9,color:"#c084fc"}}>({t.youLabel})</span>}
+                  </div>
+                  <div style={{fontSize:10,fontWeight:800,color:"var(--text-2)",flexShrink:0}}>{r.points_total}</div>
+                </div>
+              );
+            })}
+            {myRank && myRank.rank>20 && (
+              <>
+                <div style={{padding:"3px 8px",textAlign:"center",fontSize:9,color:"var(--text-6)"}}>·  ·  ·</div>
+                <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:7,background:"rgba(124,58,237,0.1)",border:"1px solid rgba(124,58,237,0.2)"}}>
+                  <div style={{fontSize:9,color:"var(--text-5)",width:16,textAlign:"right",flexShrink:0}}>{myRank.rank}</div>
+                  <div style={{flex:1,fontSize:10,fontWeight:800,color:"#c084fc",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{myUsername}</div>
+                  <div style={{fontSize:10,fontWeight:800,color:"var(--text-2)",flexShrink:0}}>{myRank.points_total}</div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 export function ForumView({ onOpenDetail, onOpenUser }) {
   const { myUsername, activityNotifications, markActivityRead, blockedUsers } = useApp();
+  const [followingList, setFollowingList] = useState([]);
+  useEffect(() => {
+    if(!myUsername) return;
+    follows.getFollowing(myUsername).then(setFollowingList).catch(()=>{});
+  }, [myUsername]);
   const { lang } = useLang();
   const t = FORUM_I18N[lang] || FORUM_I18N.fr;
   const [newAnime, setNewAnime] = useState([]);
   const [upcoming, setUpcoming] = useState([]);
-  const [trailers, setTrailers] = useState([]);
   const [airingAnime, setAiringAnime] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [airedDates, setAiredDates] = useState({});
@@ -422,8 +505,8 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchUpcomingAnime(15), fetchNewAnime(15), fetchLatestTrailers(15)])
-      .then(([u, n, t]) => { if(!cancelled) { setUpcoming(u); setNewAnime(n); setTrailers(t); } })
+    Promise.all([fetchUpcomingAnime(30), fetchNewAnime(15)])
+      .then(([u, n]) => { if(!cancelled) { setUpcoming(u); setNewAnime(n); } })
       .finally(() => { if(!cancelled) setLoading(false); });
     // Airing TV anime for seasonal section
     sb.query("anime_cache?type=eq.TV&status=eq.Currently%20Airing&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,trailer_url&order=score.desc.nullslast&limit=24")
@@ -443,7 +526,7 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
 
   // Dominant mood per visible anime — one batched query for every row on the page.
   useEffect(() => {
-    const ids = [...new Set([...upcoming, ...newAnime, ...trailers, ...favorites.map(f => f.anime)].map(a => a.mal_id))];
+    const ids = [...new Set([...upcoming, ...newAnime, ...favorites.map(f => f.anime)].map(a => a.mal_id))];
     if(!ids.length) return;
     let cancelled = false;
     sb.getMoodPtsBatch(ids).then(rows => {
@@ -456,7 +539,7 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
       setDominantMoods(out);
     });
     return () => { cancelled = true; };
-  }, [upcoming, newAnime, trailers, favorites]);
+  }, [upcoming, newAnime, favorites]);
 
   useEffect(() => {
     let cancelled = false;
@@ -513,7 +596,7 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
     return () => { cancelled = true; };
   }, [myUsername, blockedUsers]);
 
-  const empty = !loading && !upcoming.length && !newAnime.length && !trailers.length;
+  const empty = !loading && !upcoming.length && !newAnime.length;
   const mostAnticipated = upcoming.reduce((best, a) => {
     if(a.popularity == null) return best;
     if(!best || a.popularity < best.popularity) return a;
@@ -555,11 +638,6 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
               items={upcoming} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
               metaLabel={a => countdownLabel(a, airedDates, t)} trailerLink t={t}
             />
-            <ForumCategory
-              emoji="🎬" title={t.trailersTitle} subtitle={t.trailersSubtitle}
-              items={trailers} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
-              metaLabel={() => t.metaTrailer} trailerLink t={t}
-            />
 
             {/* 3. Nouveaux animés ajoutés — sans trailer ni convo, plus compact */}
             <ForumCategory
@@ -585,18 +663,20 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
           <aside className="w-full shrink-0 lg:sticky lg:top-6 lg:w-[280px]">
             <CommunityMoodBlock loaded={moodLoaded} counts={moodCounts} total={moodTotal} t={t} />
 
-            {/* Mini-jeux */}
+            {/* Mini-jeux + classement */}
             <div className="mt-4 rounded-2xl border border-white/8 bg-white/3 p-4">
               <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.miniGamesTitle}</div>
-              <div className="flex gap-3 justify-center flex-wrap">
-                <GameButton emoji="🎯" label={t.wordleLabel} color="124,58,237" onClick={()=>setShowWordle(true)}/>
-                <GameButton emoji="🖼" label={t.posterLabel} color="236,72,153" onClick={()=>setShowPoster(true)}/>
-                <GameButton emoji="🎵" label={t.opquizLabel} color="56,189,248" onClick={()=>setShowOpQuiz(true)}/>
-                <GameButton emoji="⛓" label={t.chainLabel} color="251,191,36" onClick={()=>setMatchmaking("chain")}/>
-                <GameButton emoji="📅" label={t.timelineLabel} color="34,197,94" onClick={()=>setMatchmaking("timeline")}/>
-                <GameButton emoji="🎭" label="Cluescale" color="251,113,133" onClick={()=>setShowCluescale(true)}/>
-              </div>
-              <GameEloDisplay myUsername={myUsername}/>
+              <GamePanel
+                myUsername={myUsername}
+                following={followingList}
+                onWordle={()=>setShowWordle(true)}
+                onPoster={()=>setShowPoster(true)}
+                onOpQuiz={()=>setShowOpQuiz(true)}
+                onChain={()=>setMatchmaking("chain")}
+                onTimeline={()=>setMatchmaking("timeline")}
+                onCluescale={()=>setShowCluescale(true)}
+                t={t}
+              />
             </div>
           </aside>
         </div>
