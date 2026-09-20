@@ -1,9 +1,9 @@
 export const STUDIO_MODAL_I18N = {
   fr: {
-    sortedByScore: "Animés triés par score MAL",
+    sortedByScore: "Sélection populaire, mélangée à chaque visite",
   },
 
   en: {
-    sortedByScore: "Anime sorted by MAL score",
+    sortedByScore: "Popular picks, shuffled on every visit",
   },
 };

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useLang } from "../context/useLang.js";
 import { STUDIO_MODAL_I18N } from "../constants/studioModalI18n.js";
 import { jikan } from "../api/jikan.js";
-import { studioBlurb, getStudioCountries } from "../api/studios.js";
+import { studioBlurb, getStudioCountries, fetchAnimeByStudio } from "../api/studios.js";
 import { Spinner } from "./Spinner.jsx";
 import { Modal } from "./Modal.jsx";
 
@@ -19,7 +19,7 @@ export function StudioModal({ studioId, studioName, onClose, onOpenDetail }) {
 
   useEffect(() => {
     if(!studioId) return;
-    jikan.getProducerAnime(studioId).then(r => setAnimes(r.data||[])).catch(console.error).finally(() => setLoading(false));
+    fetchAnimeByStudio(studioId).then(setAnimes).catch(console.error).finally(() => setLoading(false));
     jikan.getProducerFull(studioId).then(r => {
       setAbout(r?.data?.about || null);
       setLogo(r?.data?.images?.jpg?.image_url || null);
