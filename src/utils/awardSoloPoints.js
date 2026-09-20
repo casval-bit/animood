@@ -1,15 +1,23 @@
 // Helper used by Wordle, Poster and the OP Quiz solo games to update points/streaks
-// on game_elo. gameKey selects which streak_<gameKey>/last_<gameKey>_date pair to use.
+// on game_elo. gameKey selects which pts_<gameKey>/streak_<gameKey>/last_<gameKey>_date
+// column set to use. points_total is kept as a running aggregate across every game
+// (solo + chain/timeline win bonuses + Cluescale, see GameSystem.jsx) since it's what
+// drives profile-frame unlocks in src/frames/frames.js.
 
 import { sb } from "../api/supabase.js";
 
 async function applyPoints(myUsername, gameKey, basePoints) {
   const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+  const ptsField    = `pts_${gameKey}`;
   const streakField = `streak_${gameKey}`;
   const lastField   = `last_${gameKey}_date`;
 
   const rows = await sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&limit=1`).catch(()=>[]);
   const row  = rows?.[0];
+
+  // Server-side guard: already credited today for this game — don't award twice
+  // (defense in depth alongside the per-game localStorage lock in the game components).
+  if(row?.[lastField] === today) return 0;
 
   let streak = 1;
   if(row) {
@@ -23,9 +31,9 @@ async function applyPoints(myUsername, gameKey, basePoints) {
   const bonusStreak = Math.max(0, streak - 1);
   const totalPts = basePoints + bonusStreak;
 
-  const current = row?.points_total || 0;
   const patch = {
-    points_total: current + totalPts,
+    [ptsField]: (row?.[ptsField] || 0) + totalPts,
+    points_total: (row?.points_total || 0) + totalPts,
     [streakField]: streak,
     [lastField]: today,
     updated_at: new Date().toISOString(),
