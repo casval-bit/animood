@@ -1028,6 +1028,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
               </div>
             </div>
             <PersonalMoodRadar ratings={me.ratings} watched={me.watched}/>
+            <TopGenres watched={me.watched}/>
           </div>
         </div>
       )}

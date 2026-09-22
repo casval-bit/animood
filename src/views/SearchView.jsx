@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/useApp.js";
 import { useLang } from "../context/useLang.js";
 import { jikan, supabaseRowToAnime, fetchPopularAnime, fetchTitleSuggestions } from "../api/jikan.js";
@@ -18,22 +18,22 @@ const FALLBACK = "https://placehold.co/64x92/1a1a2e/818cf8?text=?";
 
 function getTabs(t) {
   return [
-    { id:"anime",   label:t.tabAnime,   emoji:"­ƒô║" },
-    { id:"studio",  label:t.tabStudio,  emoji:"­ƒÄ¼" },
-    { id:"artist",  label:t.tabArtist,  emoji:"­ƒÄñ" },
-    { id:"members", label:t.tabMembers, emoji:"­ƒæÑ" },
+    { id:"anime",   label:t.tabAnime,   emoji:"📺" },
+    { id:"studio",  label:t.tabStudio,  emoji:"🎬" },
+    { id:"artist",  label:t.tabArtist,  emoji:"🎤" },
+    { id:"members", label:t.tabMembers, emoji:"👥" },
   ];
 }
 function getTypeFilters(t) {
   return [
-    { id:"all",   label:t.filterAll,   emoji:"­ƒöÇ" },
-    { id:"TV",    label:t.filterAnime, emoji:"­ƒô║" },
-    { id:"Movie", label:t.filterMovie, emoji:"­ƒÄ¼" },
-    { id:"OVA",   label:t.filterOva,   emoji:"­ƒÆ┐" },
+    { id:"all",   label:t.filterAll,   emoji:"🔀" },
+    { id:"TV",    label:t.filterAnime, emoji:"📺" },
+    { id:"Movie", label:t.filterMovie, emoji:"🎬" },
+    { id:"OVA",   label:t.filterOva,   emoji:"💿" },
   ];
 }
 
-// "Populaires" only makes sense for TV series ÔÇö films & OAV are rarer, so we frame
+// "Populaires" only makes sense for TV series — films & OAV are rarer, so we frame
 // them as curated picks instead of implying a huge, ranked pool.
 function getPopularLabels(t) {
   return {
@@ -73,7 +73,7 @@ function MemberCard({ u, onOpenUser, t }) {
     <button onClick={()=>onOpenUser(u.username)}
       className={`flex items-center gap-3 p-3.5 text-left transition-all duration-300 hover:-translate-y-1 hover:border-white/15 ${GLASS}`} style={GLASS_STYLE}>
       <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-violet-600 to-fuchsia-500 text-lg">
-        {avatar ? <img src={avatar} alt={u.name} className="h-full w-full object-cover"/> : (u.avatar||"­ƒæñ")}
+        {avatar ? <img src={avatar} alt={u.name} className="h-full w-full object-cover"/> : (u.avatar||"👤")}
       </div>
       <div className="flex-1 min-w-0">
         <div className={`text-[13px] font-black ${GRADIENT_TEXT}`}>{u.name||u.username}</div>
@@ -84,7 +84,7 @@ function MemberCard({ u, onOpenUser, t }) {
           {u.followerCount !== undefined && (
             <>
               <span className="text-[10px] text-slate-400"><span className="font-bold text-slate-300">{u.followerCount}</span> {t.followerWord(u.followerCount)}</span>
-              <span className="text-slate-600">┬À</span>
+              <span className="text-slate-600">·</span>
               <span className="text-[10px] text-slate-400"><span className="font-bold text-slate-300">{u.followingCount}</span> {t.followingWord(u.followingCount)}</span>
             </>
           )}
@@ -93,7 +93,7 @@ function MemberCard({ u, onOpenUser, t }) {
         </div>
         {u.bio && <div className="mt-0.5 text-[10px] italic text-slate-400 truncate">{u.bio}</div>}
       </div>
-      <span className="text-slate-600">ÔÇ║</span>
+      <span className="text-slate-600">›</span>
     </button>
   );
 }
@@ -114,7 +114,7 @@ function StudioCard({ studio, onClick, t }) {
           </div>
           <div className="text-[10px] text-slate-500">{studio.count ? t.studioPopularCount(studio.count) : t.studioAnimationDefault}</div>
         </div>
-        <span className="shrink-0 text-slate-600 transition group-hover:translate-x-0.5">ÔÇ║</span>
+        <span className="shrink-0 text-slate-600 transition group-hover:translate-x-0.5">›</span>
       </div>
       <p className="text-[12px] leading-relaxed text-slate-400">{studio.blurb}</p>
       {studio.titles?.length > 0 && (
@@ -137,12 +137,12 @@ function ArtistCard({ artist, onClick, t }) {
         <div className="truncate text-[15px] font-black text-slate-100">{artist.name}</div>
         <div className="text-[10px] text-slate-500">{t.artistThemeCount(artist.themes.length)}</div>
       </div>
-      <span className="shrink-0 text-slate-600 transition group-hover:translate-x-0.5">ÔÇ║</span>
+      <span className="shrink-0 text-slate-600 transition group-hover:translate-x-0.5">›</span>
     </button>
   );
 }
 
-// ÔöÇÔöÇÔöÇ Weekly Airing Calendar ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+// ─── Weekly Airing Calendar ────────────────────────────────────────────────────
 const DAYS_FR  = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
 const DAYS_EN  = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 const DAY_ABBR = ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
@@ -160,7 +160,7 @@ function getBroadcastDay(anime) {
 
 function AiringCalendar({ anime, onOpenDetail, me }) {
   const [myOnly, setMyOnly] = useState(false);
-  const todayIdx = (new Date().getDay() + 6) % 7; // 0=Mon ÔÇª 6=Sun
+  const todayIdx = (new Date().getDay() + 6) % 7; // 0=Mon … 6=Sun
 
   // Build "my anime" set:
   // 1. Anime currently in watching/onhold/watchlist
@@ -198,7 +198,7 @@ function AiringCalendar({ anime, onOpenDetail, me }) {
   function isMyAnime(a) {
     const status = myStatuses[a.mal_id];
     if(["watching","onhold","watchlist"].includes(status)) return true;
-    if(myIds.has(a.mal_id)) return false; // already seen, same anime ÔÇö skip
+    if(myIds.has(a.mal_id)) return false; // already seen, same anime — skip
     // Check if it's a sequel of something they watched
     const bt = baseTitle(a.title);
     const bte = baseTitle(a.title_en || "");
@@ -231,7 +231,7 @@ function AiringCalendar({ anime, onOpenDetail, me }) {
     return (
       <div>
         <div style={{marginBottom:12,fontSize:11,color:"var(--text-5)",textAlign:"center"}}>
-          Donn├®es de diffusion non disponibles ÔÇö affichage par popularit├®
+          Données de diffusion non disponibles — affichage par popularité
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(110px, 1fr))",gap:10}}>
           {displayed.map(a => (
@@ -249,7 +249,7 @@ function AiringCalendar({ anime, onOpenDetail, me }) {
                 overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                 {a.title_en||a.title}
               </div>
-              {a.score && <div style={{fontSize:8,color:"#fbbf24",marginTop:2}}>Ôÿà {a.score}</div>}
+              {a.score && <div style={{fontSize:8,color:"#fbbf24",marginTop:2}}>★ {a.score}</div>}
             </button>
           ))}
         </div>
@@ -267,12 +267,11 @@ function AiringCalendar({ anime, onOpenDetail, me }) {
         flexWrap:"wrap",gap:8,
       }}>
         <div style={{fontSize:11,color:"var(--text-4)"}}>
-          <span style={{fontWeight:700,color:"var(--text-2)"}}>{totalWithDay}</span> anim├®s planifi├®s
-          {unknownDay.length > 0 && <span style={{marginLeft:8,opacity:0.6}}>+ {unknownDay.length} sans horaire</span>}
+          <span style={{fontWeight:700,color:"var(--text-2)"}}>{totalWithDay}</span> animés planifiés
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <div style={{fontSize:10,color:"var(--text-5)"}}>
-            Saison en cours ┬À {new Date().getFullYear()}
+            Saison en cours · {new Date().getFullYear()}
           </div>
           {/* Mon calendrier toggle */}
           <button onClick={()=>setMyOnly(p=>!p)} style={{
@@ -343,7 +342,7 @@ function AiringCalendar({ anime, onOpenDetail, me }) {
                     fontSize:9,color: animes.length > 0 ? "var(--text-4)" : "var(--text-6)",
                     marginLeft:"auto",
                   }}>
-                    {animes.length > 0 ? `${animes.length} anime${animes.length > 1 ? "s" : ""}` : "ÔÇö"}
+                    {animes.length > 0 ? `${animes.length} anime${animes.length > 1 ? "s" : ""}` : "—"}
                   </span>
                 </div>
               </div>
@@ -354,7 +353,7 @@ function AiringCalendar({ anime, onOpenDetail, me }) {
                   <div style={{
                     padding:"12px 4px",textAlign:"center",
                     fontSize:18,opacity:0.08,
-                  }}>┬À</div>
+                  }}>·</div>
                 ) : animes.map(a => {
                   const watchStatus = (me?.statuses||{})[a.mal_id];
                   const dotColor = statusColors[watchStatus];
@@ -395,14 +394,14 @@ function AiringCalendar({ anime, onOpenDetail, me }) {
                         <div style={{display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}>
                           {a.score && (
                             <span style={{fontSize:8,color:"#fbbf24",fontWeight:700}}>
-                              Ôÿà {a.score}
+                              ★ {a.score}
                             </span>
                           )}
                           {a.year && a.year < 2025 && (
                             <span style={{fontSize:8,color:"var(--text-6)",
                               background:"rgba(255,255,255,0.06)",
                               padding:"1px 4px",borderRadius:3}}>
-                              r├®current
+                              récurrent
                             </span>
                           )}
                         </div>
@@ -416,33 +415,6 @@ function AiringCalendar({ anime, onOpenDetail, me }) {
         })}
       </div>
 
-      {/* Unknown day section */}
-      {unknownDay.length > 0 && (
-        <div style={{marginTop:16,padding:"12px 16px",borderRadius:12,
-          background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.05)"}}>
-          <div style={{fontSize:10,fontWeight:700,color:"var(--text-5)",marginBottom:8}}>
-            ­ƒô║ Jour de diffusion non pr├®cis├® ({unknownDay.length})
-          </div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            {unknownDay.map(a => (
-              <button key={a.mal_id} onClick={()=>onOpenDetail(a)} style={{
-                display:"flex",gap:6,alignItems:"center",
-                background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",
-                borderRadius:8,padding:"5px 8px",cursor:"pointer",transition:"background 0.12s",
-              }}
-              onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.07)";}}
-              onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,0.03)";}}>
-                <img src={a.image_url||a.large_image} alt="" style={{
-                  width:18,height:24,objectFit:"cover",borderRadius:3,flexShrink:0,
-                }} onError={e=>{e.target.style.display="none";}}/>
-                <span style={{fontSize:9,fontWeight:600,color:"var(--text-3)"}}>
-                  {a.title_en||a.title}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -507,7 +479,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
       setLoadingMembers(false);
     })();
   }, [tab]);
-  // Artist tab is backed by a third-party API ÔÇö fetched lazily on first visit
+  // Artist tab is backed by a third-party API — fetched lazily on first visit
   // (like the members tab) rather than eagerly on mount (unlike studios,
   // which is a single cheap Supabase query).
   useEffect(() => {
@@ -523,7 +495,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
 
   useEffect(() => { const t = setTimeout(() => inputRef.current?.focus(), 150); return () => clearTimeout(t); }, []);
 
-  // Categories are never empty ÔÇö prefill popular anime, refetched per type filter so
+  // Categories are never empty — prefill popular anime, refetched per type filter so
   // "Film"/"OAV" don't just show a TV-dominated list under the wrong label.
   // loadingPopular is flipped back on in changeTypeFilter (the event handler), not here,
   // so the effect body only synchronizes with the fetch instead of driving state itself.
@@ -572,7 +544,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
           .filter(s => s.name && s.count >= 2)
           .sort((a,b) => b.count - a.count)
           .slice(0, 12)
-          .map(s => ({ ...s, blurb: `${s.count} anim├®s populaires` }));
+          .map(s => ({ ...s, blurb: `${s.count} animés populaires` }));
         setPopularStudios(sorted);
       })
       .catch(()=>{})
@@ -580,7 +552,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
     return () => { cancelled = true; };
   }, [lang]);
 
-  // Progressive, non-blocking logo enhancement ÔÇö never gates the initial render.
+  // Progressive, non-blocking logo enhancement — never gates the initial render.
   useEffect(() => {
     if(!popularStudios.length) return;
     let cancelled = false;
@@ -620,7 +592,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
         });
         setResults(sorted);
       } else if(tab === "studio") {
-        // First try Supabase ÔÇö extract unique studios from anime_cache
+        // First try Supabase — extract unique studios from anime_cache
         let studios = [];
         try {
           const { sb } = await import("../api/supabase.js");
@@ -635,7 +607,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
             (row.studios||[]).forEach(s => {
               if(!s?.name || !s.name.toLowerCase().includes(trimmed.toLowerCase())) return;
               if(!studioMap.has(s.mal_id)) {
-                studioMap.set(s.mal_id, { mal_id: s.mal_id, name: s.name, count: 0, blurb: `${s.count || '?'} anim├®s populaires`, titles: [], country: null });
+                studioMap.set(s.mal_id, { mal_id: s.mal_id, name: s.name, count: 0, blurb: `${s.count || '?'} animés populaires`, titles: [], country: null });
               }
               studioMap.get(s.mal_id).count++;
             });
@@ -650,9 +622,9 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
           const jikanStudios = (d.data||[]).map(s => ({
             mal_id: s.mal_id, name: s.titles?.[0]?.title || "Studio", count: s.count,
             established: s.established, logo: s.images?.jpg?.image_url || null,
-            blurb: '?? anim├®s', titles: [],
+            blurb: '?? animés', titles: [],
           }));
-          // Merge ÔÇö prefer Jikan entries (more complete) but keep Supabase-only ones
+          // Merge — prefer Jikan entries (more complete) but keep Supabase-only ones
           const merged = new Map(studios.map(s => [s.mal_id, s]));
           jikanStudios.forEach(s => { merged.set(s.mal_id, { ...merged.get(s.mal_id)||{}, ...s }); });
           studios = [...merged.values()].sort((a,b) => b.count - a.count).slice(0,30);
@@ -731,7 +703,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
         </div>
 
         <div ref={boxRef} className="relative w-full sm:w-96">
-          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500">­ƒöì</span>
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500">🔍</span>
           <input ref={inputRef} value={query}
             onChange={e => onQueryChange(e.target.value)}
             onFocus={() => { if(suggestions.length) setShowSuggestions(true); }}
@@ -739,7 +711,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
             placeholder={tab==="anime"?t.placeholderAnime:tab==="studio"?t.placeholderStudio:tab==="artist"?t.placeholderArtist:t.placeholderMembers}
             className="w-full rounded-2xl border border-white/10 bg-white/6 py-3 pl-10 pr-9 text-sm text-slate-100 outline-none transition focus:border-violet-400/50 focus:bg-white/8" />
           {query && (
-            <button onClick={clearSearch} className="absolute right-3 top-1/2 flex h-5.5 w-5.5 -translate-y-1/2 items-center justify-center rounded-full bg-white/8 text-[11px] text-slate-400">Ô£ò</button>
+            <button onClick={clearSearch} className="absolute right-3 top-1/2 flex h-5.5 w-5.5 -translate-y-1/2 items-center justify-center rounded-full bg-white/8 text-[11px] text-slate-400">✕</button>
           )}
 
           {tab === "anime" && showSuggestions && suggestions.length > 0 && (
@@ -754,10 +726,10 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[13px] font-bold text-slate-100">{row.title_en || row.title}</div>
                     <div className="truncate text-[10px] text-slate-500">
-                      {row.title_en && row.title_en !== row.title ? `${row.title} ┬À ` : ""}{row.year || "?"}{row.type ? ` ┬À ${row.type}` : ""}
+                      {row.title_en && row.title_en !== row.title ? `${row.title} · ` : ""}{row.year || "?"}{row.type ? ` · ${row.type}` : ""}
                     </div>
                   </div>
-                  {row.score && <span className="shrink-0 text-[11px] font-bold text-amber-400">Ôÿà{row.score}</span>}
+                  {row.score && <span className="shrink-0 text-[11px] font-bold text-amber-400">★{row.score}</span>}
                 </button>
               ))}
             </div>
@@ -771,16 +743,16 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
         </div>
       )}
 
-      {/* ÔöÇÔöÇ ANIME TAB ÔöÇÔöÇ */}
+      {/* ── ANIME TAB ── */}
       {tab === "anime" && !submitted && (
         <>
-          {/* ÔöÇÔöÇ CALENDRIER SAISONNIER ÔÇö vue par d├®faut, pleine page ÔöÇÔöÇ */}
+          {/* ── CALENDRIER SAISONNIER — vue par défaut, pleine page ── */}
           {typeFilter === "all" && (
             <div className="mb-10">
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
                 <div>
                   <div style={{fontSize:15,fontWeight:900,color:"var(--text-1)"}}>Saison en cours</div>
-                  <div style={{fontSize:10,color:"var(--text-5)",marginTop:2}}>Anim├®s TV ┬À class├®s par jour de diffusion</div>
+                  <div style={{fontSize:10,color:"var(--text-5)",marginTop:2}}>Animés TV · classés par jour de diffusion</div>
                 </div>
               </div>
               {loadingAiring
@@ -790,7 +762,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
             </div>
           )}
 
-          {/* ÔöÇÔöÇ POPULAIRES ÔÇö en dessous du calendrier ÔöÇÔöÇ */}
+          {/* ── POPULAIRES — en dessous du calendrier ── */}
           <div style={{
             borderTop: typeFilter === "all" ? "1px solid rgba(255,255,255,0.06)" : "none",
             paddingTop: typeFilter === "all" ? 24 : 0,
@@ -809,7 +781,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
         </>
       )}
 
-      {/* ÔöÇÔöÇ STUDIO TAB ÔöÇÔöÇ */}
+      {/* ── STUDIO TAB ── */}
       {tab === "studio" && !submitted && (
         <>
           <SectionLabel className="mb-3">{t.studiosPopular}</SectionLabel>
@@ -823,7 +795,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
         </>
       )}
 
-      {/* ÔöÇÔöÇ ARTIST TAB ÔöÇÔöÇ */}
+      {/* ── ARTIST TAB ── */}
       {tab === "artist" && !submitted && (
         <>
           <SectionLabel className="mb-3">{t.artistsPopular}</SectionLabel>
@@ -835,7 +807,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
         </>
       )}
 
-      {/* ÔöÇÔöÇ MEMBERS TAB (search-only) ÔöÇÔöÇ */}
+      {/* ── MEMBERS TAB (search-only) ── */}
       {tab === "members" && !submitted && (() => {
         // Filtered at render (not just at fetch time) so blocking someone who
         // follows you drops them from this list immediately, without waiting
@@ -845,7 +817,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
         <div>
           {loadingMembers && <Spinner label={t.loading}/>}
           {!loadingMembers && visibleMembers.length === 0 && (
-            <EmptyState emoji="­ƒæÑ" title={t.noMembersTitle} subtitle={t.noMembersSubtitle} />
+            <EmptyState emoji="👥" title={t.noMembersTitle} subtitle={t.noMembersSubtitle} />
           )}
           {!loadingMembers && visibleMembers.length > 0 && (
             <>
@@ -861,13 +833,13 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
         );
       })()}
 
-      {/* ÔöÇÔöÇ SEARCH RESULTS (any tab) ÔöÇÔöÇ */}
+      {/* ── SEARCH RESULTS (any tab) ── */}
       {submitted && (
         <>
           <div className="mb-3 text-[11px] font-semibold text-slate-500">{loading ? t.searching : t.resultCount(results.length)}</div>
           {loading && <Spinner label={t.searchingInProgress} />}
           {error && <div className="py-8 text-center text-xs text-red-400">{t.errorPrefix(error)}</div>}
-          {!loading && !error && results.length === 0 && <EmptyState emoji="­ƒöì" title={t.noResultsTitle} subtitle={t.noResultsSubtitle} />}
+          {!loading && !error && results.length === 0 && <EmptyState emoji="🔍" title={t.noResultsTitle} subtitle={t.noResultsSubtitle} />}
 
           {!loading && tab === "anime" && results.length > 0 && (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">

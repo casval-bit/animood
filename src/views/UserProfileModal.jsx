@@ -6,7 +6,6 @@ import { MOOD_KEYS } from "../constants/moods.js";
 import { sb, follows, loadProfile } from "../api/supabase.js";
 import { jikan } from "../api/jikan.js";
 import { FRAMES } from "../frames/frames.js";
-import { BADGES, BadgeDisplay } from "../badges/badges.jsx";
 import { FrameSVG } from "../frames/FrameSVG.jsx";
 import { Spinner } from "../components/Spinner.jsx";
 import { AnimePoster } from "../components/AnimeCard.jsx";
@@ -36,7 +35,7 @@ function timeAgo(ts, lang = "fr") {
   return new Date(ts).toLocaleDateString(lang === "en" ? "en-US" : "fr-FR", {day:"numeric",month:"short"});
 }
 
-export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }) {
+export function UserProfileModal({ username, onClose, onOpenDetail }) {
   const { myUsername, blockedUsers, blockUser, unblockUser } = useApp();
   const { lang } = useLang();
   const t = USER_PROFILE_MODAL_I18N[lang] || USER_PROFILE_MODAL_I18N.fr;
@@ -57,9 +56,6 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
   const [animeCache, setAnimeCache]   = useState({});
   const [showChat, setShowChat]       = useState(false);
   const [moodAvg, setMoodAvg]         = useState(null);
-  const [activeBadge, setActiveBadge] = useState(null);
-  const [mutualFollowers, setMutualFollowers] = useState([]);
-  const [mutualProfiles, setMutualProfiles]   = useState({});
 
   useEffect(() => {
     let cancelled = false;
@@ -77,32 +73,16 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
             pinnedList: rows[0].pinned_list||null,
           };
         }
-        const [isF, followers, following, myFollowers] = await Promise.all([
+        const [isF, followers, following] = await Promise.all([
           isOwnProfile ? Promise.resolve(false) : follows.isFollowing(myUsername, username),
           follows.getFollowers(username),
           follows.getFollowing(username),
-          isOwnProfile ? Promise.resolve([]) : follows.getFollowers(myUsername),
         ]);
         if(cancelled) return;
         setProfile(prof);
         setIsFollowing(isF);
         setFollowerCount(followers.length);
         setFollowingCount(following.length);
-
-        // Amis d'amis — abonnés en commun entre ce profil et le mien
-        if(!isOwnProfile) {
-          const mutual = followers.filter(u => myFollowers.includes(u) && u !== myUsername && u !== username);
-          setMutualFollowers(mutual);
-          if(mutual.length) {
-            sb.query(`profiles?username=in.(${mutual.map(u=>encodeURIComponent(u)).join(",")})&select=username,name,avatar,avatar_base64`)
-              .then(rows => {
-                if(cancelled) return;
-                const cache = {};
-                (rows||[]).forEach(r => { cache[r.username] = r; });
-                setMutualProfiles(cache);
-              }).catch(()=>{});
-          }
-        }
 
         // Compute mood radar
         const watchedIds = prof?.watched||[];
@@ -124,12 +104,6 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
             const avg={}; MOOD_KEYS.forEach(k=>{avg[k]=Math.round(totals[k]/cnt);});
             if(!cancelled) setMoodAvg(avg);
           }
-        }
-
-        // Badge actif
-        const badgeId = prof?.activeBadge || prof?.active_badge || null;
-        if(badgeId && BADGES[badgeId]) {
-          setActiveBadge(BADGES[badgeId]);
         }
       } catch(e) { console.error(e); }
       finally { if(!cancelled) setLoading(false); }
@@ -193,16 +167,6 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
         <EmptyState emoji="😶" title={t.notFound} />
       ) : (
         <div className="p-6">
-          {/* Banner */}
-          {profile.banner && (
-            <div className="-mx-6 -mt-6 mb-4 relative h-24 sm:h-32 overflow-hidden">
-              <img src={profile.banner} alt="" className="w-full h-full object-cover" />
-              <div className="absolute inset-0" style={{
-                background: "linear-gradient(to bottom, transparent 50%, rgba(2,6,23,0.85) 100%)",
-              }}/>
-            </div>
-          )}
-
           {/* Header */}
           <div className="mb-5 flex items-start gap-4">
             <FrameSVG frame={profile.activeFrame ? FRAMES[profile.activeFrame] : null} size={72}>
@@ -214,14 +178,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
               </div>
             </FrameSVG>
             <div className="flex-1 min-w-0">
-              <div className={`text-xl font-black ${GRADIENT_TEXT}`}>
-                {profile.name||username}
-                {activeBadge && (
-                  <span className="inline-flex ml-1 align-middle" title={`${activeBadge.label} — ${activeBadge.desc}`}>
-                    <BadgeDisplay badge={activeBadge} size={20} />
-                  </span>
-                )}
-              </div>
+              <div className={`text-xl font-black ${GRADIENT_TEXT}`}>{profile.name||username}</div>
               <div className="text-xs text-slate-500 mb-1">@{username}</div>
               {profile.bio && <div className="text-xs italic text-slate-400 mb-2">{profile.bio}</div>}
               <div className="flex items-center gap-4 text-[11px]">
@@ -283,33 +240,6 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
               </div>
             ))}
           </div>
-
-          {/* Amis d'amis — abonnés en commun */}
-          {!isOwnProfile && mutualFollowers.length > 0 && (
-            <div className="mb-5">
-              <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                {t.mutualFollowersTitle(mutualFollowers.length)}
-              </div>
-              <div className="flex gap-3 overflow-x-auto pb-1">
-                {mutualFollowers.map(u => {
-                  const p = mutualProfiles[u];
-                  return (
-                    <button key={u} onClick={()=>onOpenUser?.(u)}
-                      className="flex shrink-0 flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-center transition hover:bg-white/5"
-                      style={{cursor:onOpenUser?"pointer":"default"}}>
-                      <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full text-base"
-                        style={{background:GRADIENT_PRIMARY}}>
-                        {(p?.avatar_base64 || (p?.avatar?.startsWith?.("http") ? p.avatar : null))
-                          ? <img src={p.avatar_base64 || p.avatar} alt="" className="h-full w-full object-cover"/>
-                          : (p?.avatar || "👤")}
-                      </div>
-                      <span className="max-w-[64px] truncate text-[9px] font-semibold text-slate-400">@{u}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           <TabBar tabs={TABS} active={tab} onChange={setTab} className="mb-5"/>
 

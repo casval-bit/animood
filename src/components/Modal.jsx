@@ -1,15 +1,10 @@
-﻿import { useState, useEffect } from "react";
-import { useModalBack } from "../hooks/useModalBack.js";
+import { useState, useEffect } from "react";
 
-// â”€â”€â”€ Standard Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Standard Modal ────────────────────────────────────────────────────────────
 export function Modal({ onClose, children, maxWidth = "max-w-lg", bodyClassName = "" }) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
   useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
-
-  // Pushes a history entry on mount so the browser/device back button
-  // closes this modal instead of navigating away from the page underneath.
-  const requestClose = useModalBack(onClose);
 
   const close = async () => {
     if(closing) return;
@@ -44,7 +39,7 @@ export function Modal({ onClose, children, maxWidth = "max-w-lg", bodyClassName 
   );
 }
 
-// â”€â”€â”€ Game Board Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Game Board Modal ──────────────────────────────────────────────────────────
 export function GameModal({ onClose, children, title, subtitle, maxWidth = "920px", noPad = false }) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -104,7 +99,7 @@ export function GameModal({ onClose, children, title, subtitle, maxWidth = "920p
           }}
           onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.12)";e.currentTarget.style.color="var(--text-1)";}}
           onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,0.05)";e.currentTarget.style.color="var(--text-4)";}}>
-            Ã—
+            ×
           </button>
         </div>
 
@@ -121,4 +116,3 @@ export function GameModal({ onClose, children, title, subtitle, maxWidth = "920p
     </div>
   );
 }
-

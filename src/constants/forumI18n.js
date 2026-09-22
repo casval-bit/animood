@@ -42,7 +42,9 @@ export const FORUM_I18N = {
 
     // ForumCategory sections
     upcomingTitle: "Prochaines sorties",
-    upcomingSubtitle: "Bandes-annonces et annonces à venir",
+    upcomingSubtitle: "Annonces à venir",
+    trailersTitle: "Derniers trailers",
+    trailersSubtitle: "Bandes-annonces récentes",
     favoritesTitle: "Les plus ajoutés en favoris",
     favoritesSubtitle: "D'après les favoris épinglés des membres",
     newAnimeTitle: "Nouveaux animes ajoutés",
@@ -69,13 +71,8 @@ export const FORUM_I18N = {
     wordlePtsLabel: "🎯 Pts Wordle",
     posterPtsLabel: "🖼 Pts Poster",
     opquizPtsLabel: "🎵 Pts Quiz OP",
-    cluescaleLabel: "Cluescale",
-    cluescalePtsLabel: "🎭 Pts Cluescale",
     totalPtsLabel: (n) => `${n} pts total`,
     unlocksFramesLabel: "🎮 Débloque des cadres profil",
-    leaderboardTitle: "🥇 Classement général",
-    leaderboardEmpty: "Personne n'a encore joué !",
-    youLabel: "toi",
   },
 
   en: {
@@ -121,7 +118,9 @@ export const FORUM_I18N = {
 
     // ForumCategory sections
     upcomingTitle: "Upcoming releases",
-    upcomingSubtitle: "Trailers and upcoming announcements",
+    upcomingSubtitle: "Announcements to come",
+    trailersTitle: "Latest trailers",
+    trailersSubtitle: "Recent trailers",
     favoritesTitle: "Most added to favorites",
     favoritesSubtitle: "Based on members' pinned favorites",
     newAnimeTitle: "Newly added anime",
@@ -148,12 +147,7 @@ export const FORUM_I18N = {
     wordlePtsLabel: "🎯 Wordle Pts",
     posterPtsLabel: "🖼 Poster Pts",
     opquizPtsLabel: "🎵 OP Quiz Pts",
-    cluescaleLabel: "Cluescale",
-    cluescalePtsLabel: "🎭 Cluescale Pts",
     totalPtsLabel: (n) => `${n} pts total`,
     unlocksFramesLabel: "🎮 Unlocks profile frames",
-    leaderboardTitle: "🥇 Leaderboard",
-    leaderboardEmpty: "No one has played yet!",
-    youLabel: "you",
   },
 };

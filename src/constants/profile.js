@@ -1,8 +1,6 @@
 export const DEFAULT_PROFILE = {
   id:"", name:"", avatar:"🎮", bio:"",
   avatar_base64: null,
-  banner: null,           // Cloudinary URL for profile banner
-  activeBadge: null,      // Selected badge id
   watched:[], statuses:{}, ratings:{},
   favorites:[null,null,null,null,null],
   highlights:[],

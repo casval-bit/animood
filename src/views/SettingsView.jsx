@@ -10,8 +10,6 @@ import { uploadToCloudinary } from "../api/cloudinary.js";
 import { GRADIENT_PRIMARY } from "../constants/theme.js";
 import { SETTINGS_I18N } from "../constants/settingsI18n.js";
 import { getFrameLabel } from "../frames/frames.js";
-import { BADGES, getUnlockedBadges, getBestBadge, getBadgeLabel } from "../badges/badges.jsx";
-import { useModalBack } from "../hooks/useModalBack.js";
 
 const LANG_OPTIONS = [
   { id: "fr", label: "Français", flag: "🇫🇷" },
@@ -47,9 +45,6 @@ function Section({ title, children }) {
 }
 
 export function SettingsView({ onClose }) {
-  // Pushes a history entry on mount so the browser/device back button
-  // closes this screen instead of navigating away from the page underneath.
-  const requestClose = useModalBack(onClose);
   const { me, saveMe, logout, myUsername, blockedUsers, unblockUser, notificationsEnabled, setNotificationsEnabled } = useApp();
   const { theme, setTheme } = useTheme();
   const { lang, setLang } = useLang();
@@ -88,16 +83,6 @@ export function SettingsView({ onClose }) {
   const [activeFrame,    setActiveFrame]    = useState(null);
   const [framesLoading,  setFramesLoading]  = useState(true);
 
-  // Banner
-  const bannerRef = useRef(null);
-  const [bannerError, setBannerError] = useState(null);
-  const [bannerUploading, setBannerUploading] = useState(false);
-
-  // Badges
-  const [unlockedBadges, setUnlockedBadges] = useState([]);
-  const [activeBadge, setActiveBadge] = useState(null);
-  const [badgesLoading, setBadgesLoading] = useState(true);
-
   useEffect(() => {
     (async () => {
       try {
@@ -133,70 +118,9 @@ export function SettingsView({ onClose }) {
     })();
   }, []);
 
-  // Load badges
-  useEffect(() => {
-    (async () => {
-      try {
-        const [followerRows, voteRows, gameEloRows] = await Promise.all([
-          follows.getFollowers(myUsername).catch(()=>[]),
-          sb.query(`user_votes?username=eq.${encodeURIComponent(myUsername)}&select=pts_added&limit=1000`).catch(()=>[]),
-          sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&select=points_total&limit=1`).catch(()=>[]),
-        ]);
-        const gamePoints = gameEloRows?.[0]?.points_total || 0;
-        const genreCounts = {};
-        const chunks = [];
-        for(let i=0;i<me.watched.length;i+=100) chunks.push(me.watched.slice(i,i+100));
-        for(const chunk of chunks) {
-          try {
-            const rows = await sb.query(`anime_cache?mal_id=in.(${chunk.join(",")})&select=genres`);
-            (rows||[]).forEach(r => { (r.genres||[]).forEach(g => { const n=g.name||g; genreCounts[n]=(genreCounts[n]||0)+1; }); });
-          } catch {}
-        }
-        const unlocked = getUnlockedBadges({
-          watchedCount: me.watched.length,
-          genreCounts,
-          followerCount: (followerRows||[]).length,
-          userVotes: voteRows||[],
-          gamePoints,
-          ratedCount: Object.keys(me.ratings).length,
-        });
-        setUnlockedBadges(unlocked);
-        const savedBadgeId = me.activeBadge;
-        const savedBadge = savedBadgeId ? BADGES[savedBadgeId] : null;
-        const bestBadge = getBestBadge(unlocked);
-        setActiveBadge(savedBadge && unlocked.find(b=>b.id===savedBadgeId) ? savedBadge : bestBadge);
-      } catch(e) { console.error("badges error", e); }
-      setBadgesLoading(false);
-    })();
-  }, []);
-
   const applyFrame = async (frame) => {
     setActiveFrame(frame);
     saveMe({ ...me, activeFrame: frame?.id || null });
-  };
-
-  const applyBadge = (badge) => {
-    setActiveBadge(badge);
-    saveMe({ ...me, activeBadge: badge?.id || null });
-  };
-
-  const handleBannerUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if(!file) return;
-    setBannerError(null);
-    setBannerUploading(true);
-    try {
-      const url = await uploadToCloudinary(file, "avatar", lang);
-      saveMe({ ...me, banner: url });
-    } catch(err) {
-      setBannerError(err.message);
-    }
-    setBannerUploading(false);
-    e.target.value = "";
-  };
-
-  const removeBanner = () => {
-    saveMe({ ...me, banner: null });
   };
 
   const handleSaveUsername = () => {
@@ -267,7 +191,7 @@ export function SettingsView({ onClose }) {
   return (
     <div className="fixed inset-0 z-400 flex flex-col backdrop-blur-2xl" style={{ background:"var(--overlay)" }}>
       <div className="flex items-center gap-3 border-b border-white/6 px-6 py-4">
-        <button onClick={requestClose} className="text-xl text-slate-400">←</button>
+        <button onClick={onClose} className="text-xl text-slate-400">←</button>
         <span className="text-base font-black text-slate-100">{t.title}</span>
       </div>
 
@@ -415,84 +339,6 @@ export function SettingsView({ onClose }) {
                             </div>
                             <span style={{fontSize:9,fontWeight:700,color:isUnlocked?frame.color:"rgba(148,163,184,0.5)",textAlign:"center",maxWidth:56,lineHeight:1.2}}>
                               {getFrameLabel(frame, lang)}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </>
-          )}
-        </Section>
-
-        <Section title={t.banner}>
-          {me.banner ? (
-            <div className="mb-3">
-              <div className="relative w-full h-28 rounded-xl overflow-hidden" style={{background:"rgba(255,255,255,0.03)"}}>
-                <img src={me.banner} alt="banner" className="w-full h-full object-cover"/>
-              </div>
-              <button onClick={removeBanner}
-                className="mt-2 w-full rounded-xl border border-red-400/20 bg-red-400/6 py-2 text-xs font-bold text-red-400">
-                {t.bannerRemove}
-              </button>
-            </div>
-          ) : (
-            <div className="mb-3">
-              <input ref={bannerRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleBannerUpload} className="hidden"/>
-              <button onClick={()=>bannerRef.current?.click()} disabled={bannerUploading}
-                className="w-full rounded-xl border-2 border-dashed border-violet-400/40 bg-violet-400/6 py-3.5 text-sm font-bold text-violet-300 disabled:opacity-50">
-                {bannerUploading ? t.bannerUploading : t.bannerUpload}
-              </button>
-              <p className="mt-1.5 text-[10px] text-slate-600 text-center">{t.bannerHint}</p>
-            </div>
-          )}
-          {bannerError && <p className="text-xs text-red-400">{bannerError}</p>}
-        </Section>
-
-        <Section title={t.badge}>
-          {badgesLoading ? (
-            <p className="text-xs text-slate-500 text-center py-2">{t.badgeLoading}</p>
-          ) : (
-            <>
-              <button onClick={()=>applyBadge(null)}
-                className="mb-3 flex w-full items-center gap-3 rounded-xl p-2.5 text-left transition"
-                style={{border:!activeBadge?"2px solid #7c3aed":"2px solid transparent",background:!activeBadge?"rgba(124,58,237,0.1)":"transparent"}}>
-                <div style={{width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.05)",
-                  border:"2px dashed rgba(255,255,255,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🚫</div>
-                <div>
-                  <div className="text-xs font-bold text-slate-100">{t.badgeNone}</div>
-                  <div className="text-[10px] text-slate-500">{t.badgeNoneDesc}</div>
-                </div>
-              </button>
-              {["watched","contribution","followers","genre","games","rated"].map(cat => {
-                const catBadges = Object.values(BADGES).filter(b=>b.category===cat);
-                if(!catBadges.length) return null;
-                const catLabels = {watched:t.badgeCatWatched,contribution:t.badgeCatContribution,followers:t.badgeCatFollowers,genre:t.badgeCatGenre,games:t.badgeCatGames,rated:t.badgeCatRated};
-                return (
-                  <div key={cat} className="mb-4">
-                    <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-600">{catLabels[cat]}</div>
-                    <div className="flex flex-wrap gap-2">
-                      {catBadges.map(badge => {
-                        const isUnlocked = unlockedBadges.some(b=>b.id===badge.id);
-                        const isActive = activeBadge?.id === badge.id;
-                        return (
-                          <button key={badge.id}
-                            onClick={()=>isUnlocked && applyBadge(badge)}
-                            title={isUnlocked ? getBadgeLabel(badge, lang) : t.badgeLocked(getBadgeLabel(badge, lang))}
-                            style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:8,borderRadius:12,
-                              cursor:isUnlocked?"pointer":"not-allowed",
-                              border:isActive?"2px solid #7c3aed":"2px solid transparent",
-                              background:isActive?"rgba(124,58,237,0.1)":"rgba(255,255,255,0.03)",
-                              opacity:isUnlocked?1:0.4,
-                              filter:isUnlocked?"none":"grayscale(1)"}}>
-                            <span style={{fontSize:28, lineHeight:1,
-                              filter: isUnlocked ? `drop-shadow(0 0 6px ${badge.color}60)` : "none"}}>
-                              {badge.emoji}
-                            </span>
-                            <span style={{fontSize:9,fontWeight:700,color:isUnlocked?badge.color:"rgba(148,163,184,0.5)",textAlign:"center",maxWidth:56,lineHeight:1.2}}>
-                              {getBadgeLabel(badge, lang)}
                             </span>
                           </button>
                         );

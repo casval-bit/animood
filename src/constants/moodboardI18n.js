@@ -27,14 +27,11 @@ export const MOODBOARD_I18N = {
     noResultsTitle: "Aucun animé trouvé",
     noResultsSubtitle: "Essaie d'autres filtres",
 
-    emptyTitle: "Quelle est ton humeur du jour ?",
-    emptySubtitle: "Sélectionne 1 à 3 moods et laisse notre IA te trouver l'animé parfait.",
+    emptyTitle: "Choisis tes moods.",
+    emptySubtitle: "Nous trouverons le meilleur anime.",
     statAnimeCount: "12 000 animes",
     statAiRecs: "Recommandations IA",
     statSatisfaction: "98% de satisfaction",
-    statMoods: "8 humeurs",
-    statFriends: "Suggestions entre amis",
-    emptyCta: "Commence par choisir un mood ci-contre ✦",
 
     currentMood: "Mood actuel",
     dominantGenres: "Genres dominants",
@@ -94,14 +91,11 @@ export const MOODBOARD_I18N = {
     noResultsTitle: "No anime found",
     noResultsSubtitle: "Try different filters",
 
-    emptyTitle: "What's your mood today?",
-    emptySubtitle: "Pick 1 to 3 moods and let our AI find the perfect anime for you.",
+    emptyTitle: "Choose your moods.",
+    emptySubtitle: "We'll find the best anime for you.",
     statAnimeCount: "12,000 anime",
     statAiRecs: "AI recommendations",
     statSatisfaction: "98% satisfaction",
-    statMoods: "8 moods",
-    statFriends: "Friend suggestions",
-    emptyCta: "Start by picking a mood on the side ✦",
 
     currentMood: "Current mood",
     dominantGenres: "Dominant genres",

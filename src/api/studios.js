@@ -1,6 +1,5 @@
 // ─── POPULAR STUDIOS — derived from real anime_cache data, no guesswork ───────
 import { sb } from "./supabase.js";
-import { supabaseRowToAnime, jikan } from "./jikan.js";
 
 const STUDIO_BLURBS = {
   fr: {
@@ -116,35 +115,4 @@ export async function getStudioCountries(studioIds, lang = "fr") {
   const out = {};
   counts.forEach((c, id) => { out[id] = countryBadge(c.JP >= c.other ? "JP" : "other", lang); });
   return out;
-}
-
-function shuffle(arr) {
-  const a = [...arr];
-  for(let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-// Anime made by one studio — sourced from anime_cache (same jsonb containment as
-// getStudioCountries above) rather than Jikan's live /producers endpoint, which is
-// rate-limited and was going silently empty whenever the shared Jikan queue was
-// already busy (e.g. loading the popular-studio logos). Falls back to Jikan only
-// for a studio not yet present in the cache.
-//
-// Pulls a wider pool of the studio's best-rated anime, then shuffles it down to
-// `limit` — so the modal reads as "popular right now" rather than the same fixed
-// top-N every single time it's opened.
-export async function fetchAnimeByStudio(studioId, limit = 24) {
-  if(!studioId) return [];
-  const pool = Math.max(limit * 2, 40);
-  try {
-    const rows = await sb.query(`anime_cache?select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,studios&studios=cs.[{"mal_id":${studioId}}]&order=score.desc.nullslast&limit=${pool}`);
-    if(rows?.length) return shuffle(rows.map(supabaseRowToAnime)).slice(0, limit);
-  } catch { /* fall through to Jikan */ }
-  try {
-    const res = await jikan.getProducerAnime(studioId);
-    return shuffle(res?.data || []).slice(0, limit);
-  } catch { return []; }
 }

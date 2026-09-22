@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+﻿import { useState } from "react";
 import { ThemeProvider } from "./context/ThemeProvider.jsx";
 import { AppProvider } from "./context/AppProvider.jsx";
 import { LangProvider } from "./context/LangProvider.jsx";
@@ -24,30 +24,6 @@ function Shell() {
   const [detailAnime, setDetailAnime]         = useState(null);
   const [openUser, setOpenUser]               = useState(null);
   const [pendingJoinGame, setPendingJoinGame] = useState(null);
-
-  // Seed the very first history entry with the current tab so the first
-  // back press has a well-defined page to land on instead of leaving the app.
-  useEffect(() => {
-    if (!window.history.state?.tab) {
-      window.history.replaceState({ tab: activeTab }, "");
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Restore the tab that was active when the browser/device back button is
-  // pressed, instead of always falling back to the home tab.
-  useEffect(() => {
-    const handlePopState = (e) => {
-      if (e.state && e.state.tab) setActiveTab(e.state.tab);
-    };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
-
-  const changeTab = (tab) => {
-    if (tab === activeTab) return;
-    window.history.pushState({ tab }, "");
-    setActiveTab(tab);
-  };
 
   if(!session && !window.__SKIP_AUTH__) return <LoginView />;
   if(!profileReady && !window.__SKIP_AUTH__) {
@@ -86,7 +62,7 @@ function Shell() {
         />
       )}
       {openUser && (
-        <UserProfileModal username={openUser} onClose={() => setOpenUser(null)} onOpenDetail={openDetail} onOpenUser={setOpenUser} />
+        <UserProfileModal username={openUser} onClose={() => setOpenUser(null)} onOpenDetail={openDetail} />
       )}
     </div>
   );
@@ -103,4 +79,3 @@ export default function App() {
     </LangProvider>
   );
 }
-

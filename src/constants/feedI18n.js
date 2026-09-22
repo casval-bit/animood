@@ -20,7 +20,6 @@ export const FEED_I18N = {
     spoilerTag: "SPOILER",
     spoilerReveal: "⚠️ Contenu spoiler — cliquer pour révéler",
     comments: "Commentaires",
-    bannedWordError: "Ton message contient un mot ou une expression interdite. Merci de le reformuler.",
 
     channelGeneral: "Général",
     channelRecent: "Récents",
@@ -56,7 +55,6 @@ export const FEED_I18N = {
     spoilerTag: "SPOILER",
     spoilerReveal: "⚠️ Spoiler content — click to reveal",
     comments: "Comments",
-    bannedWordError: "Your message contains a forbidden word or phrase. Please rephrase it.",
 
     channelGeneral: "General",
     channelRecent: "Recent",

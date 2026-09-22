@@ -105,32 +105,3 @@ export async function fetchThemesForAnime(title, malId) {
     }))
     .filter(theme => theme.artists.length > 0);
 }
-
-// Resolves a direct, always-playable audio (and video) link for one anime's
-// opening — used by scripts/sync_opquiz_pool.mjs to build the blind-test pool.
-// AnimeThemes hosts the files itself (no YouTube region-lock/Content-ID risk),
-// so unlike animeOpenings.js's youtubeId picks, these don't need per-entry
-// manual verification. Returns null when no OP with a resolvable audio file
-// exists for this anime.
-export async function fetchOpeningAudio(title, malId) {
-  if(!title) return null;
-  const url = `${BASE}/anime?q=${encodeURIComponent(title)}&page[size]=5&include=animethemes.animethemeentries.videos.audio,resources`;
-  const res = await fetch(url);
-  if(!res.ok) throw new Error(`AnimeThemes ${res.status}`);
-  const json = await res.json();
-  const list = json.anime || [];
-  const match = list.find(a => extractMalId(a.resources) === malId) || (malId ? null : list[0]);
-  if(!match) return null;
-  const openings = (match.animethemes || []).filter(t => t.type === "OP");
-  for(const theme of openings) {
-    for(const entry of theme.animethemeentries || []) {
-      for(const video of entry.videos || []) {
-        const audioLink = video.audio?.link || null;
-        if(audioLink || video.link) {
-          return { audioUrl: audioLink || video.link, videoUrl: video.link || null };
-        }
-      }
-    }
-  }
-  return null;
-}

@@ -1,4 +1,4 @@
--- ─── Mini-games — solo (Wordle/Poster/OP Quiz) + matchmaking (Chain/Timeline/Cluescale) ───
+-- ─── Mini-games — solo (Wordle/Poster) + 1v1 matchmaking (Chain/Timeline) ───
 -- Run this once in the Supabase SQL editor (Project → SQL Editor → New query).
 --
 -- game_elo and game_rooms were created directly on the shared Supabase project
@@ -10,14 +10,6 @@
 -- in v.07 (ported from animood-v.05.03) and don't exist yet on the shared
 -- table. On a fresh project, both CREATE TABLEs run for real and this file is
 -- self-contained.
---
--- New in v.08.01: player3/player4 on game_rooms, needed for Cluescale (2-4
--- players) — Chain/Timeline still only ever use player1/player2.
---
--- New in v.08.03: per-game point columns (pts_wordle/pts_poster/pts_opquiz/
--- pts_cluescale) alongside points_total. points_total stays the running
--- aggregate (used for profile-frame unlocks, see src/frames/frames.js) while
--- the pts_* columns let the leaderboard show a breakdown per game.
 
 create table if not exists game_elo (
   username         text primary key,
@@ -33,11 +25,6 @@ create table if not exists game_elo (
   -- New in v.07.02 — solo OP Quiz points + daily streak tracking.
   streak_opquiz    integer not null default 0,
   last_opquiz_date text,
-  -- New in v.08.03 — per-game point breakdown for the leaderboard.
-  pts_wordle       integer not null default 0,
-  pts_poster       integer not null default 0,
-  pts_opquiz       integer not null default 0,
-  pts_cluescale    integer not null default 0,
   updated_at       timestamptz not null default now()
 );
 
@@ -49,34 +36,21 @@ alter table game_elo add column if not exists last_poster_date text;
 alter table game_elo add column if not exists streak_opquiz    integer not null default 0;
 alter table game_elo add column if not exists last_opquiz_date text;
 
--- Existing installs: add the v.08.03 per-game point columns if missing.
-alter table game_elo add column if not exists pts_wordle       integer not null default 0;
-alter table game_elo add column if not exists pts_poster       integer not null default 0;
-alter table game_elo add column if not exists pts_opquiz       integer not null default 0;
-alter table game_elo add column if not exists pts_cluescale    integer not null default 0;
-
 create table if not exists game_rooms (
   id           bigint generated always as identity primary key,
-  game_type    text not null,               -- 'chain' | 'timeline' | 'cluescale'
+  game_type    text not null,               -- 'chain' | 'timeline'
   player1      text not null,
   player2      text,
-  -- New in v.08.01 — Cluescale seats up to 4 players (player1 doubles as host).
-  player3      text,
-  player4      text,
   elo1         integer not null default 400,
   elo2         integer,
   status       text not null default 'waiting', -- 'waiting' | 'active' | 'finished'
-  state        jsonb not null default '{}',  -- full in-progress game state (chain/timeline/cluescale)
+  state        jsonb not null default '{}',  -- full in-progress game state (chain/timeline)
   ranked       boolean not null default true,
   private_code text,                          -- set only for a private (unranked) room
   winner       text,
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now()
 );
-
--- Existing installs: add the v.08.01 columns if missing.
-alter table game_rooms add column if not exists player3 text;
-alter table game_rooms add column if not exists player4 text;
 
 create index if not exists game_rooms_matchmaking_idx
   on game_rooms(game_type, status) where private_code is null;

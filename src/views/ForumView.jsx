@@ -498,7 +498,7 @@ function GamePanel({ myUsername, onWordle, onPoster, onOpQuiz, onChain, onTimeli
 }
 
 
-// ── Per-game Elo leaderboard ──────────────────────────────────────────────────
+// ── Per-game Elo leaderboard ─────────────────────────────────────────────────
 function EloLeaderboard({ gameType, myUsername, following }) {
   const [rows, setRows]     = useState([]);
   const [myRank, setMyRank] = useState(null);
@@ -510,9 +510,9 @@ function EloLeaderboard({ gameType, myUsername, following }) {
       .then(data => {
         if(!data?.length) return;
         const sorted = [...data].sort((a,b)=>(b[field]||400)-(a[field]||400));
-        setRows(sorted.slice(0,20).map((r,i)=>({username:r.username, pts:r[field]||400, rank:i+1})));
+        setRows(sorted.slice(0,20).map((r,i)=>({username:r.username,pts:r[field]||400,rank:i+1})));
         const pos = sorted.findIndex(r=>r.username===myUsername);
-        if(pos>=20) setMyRank({rank:pos+1, pts:sorted[pos][field]||400});
+        if(pos>=20) setMyRank({rank:pos+1,pts:sorted[pos][field]||400});
       }).catch(()=>{});
   }, [gameType, myUsername]);
 
@@ -546,9 +546,9 @@ function EloLeaderboard({ gameType, myUsername, following }) {
             </div>
           );
         })}
-        {myRank&&(
+        {myRank && (
           <>
-            <div style={{padding:"3px 8px",textAlign:"center",fontSize:9,color:"var(--text-6)"}}>·  ·  ·</div>
+            <div style={{padding:"3px 8px",textAlign:"center",fontSize:9,color:"var(--text-6)"}}>· · ·</div>
             <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:7,
               background:"rgba(124,58,237,0.1)",border:"1px solid rgba(124,58,237,0.2)"}}>
               <div style={{fontSize:9,color:"var(--text-5)",width:16,textAlign:"right",flexShrink:0}}>{myRank.rank}</div>
@@ -804,7 +804,7 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
           <aside className="w-full shrink-0 lg:sticky lg:top-6 lg:w-[280px]">
             <CommunityMoodBlock loaded={moodLoaded} counts={moodCounts} total={moodTotal} t={t} />
 
-            {/* Mini-jeux + classement */}
+            {/* Mini-jeux */}
             <div className="mt-4 rounded-2xl border border-white/8 bg-white/3 p-4">
               <GamePanel
                 myUsername={myUsername}
@@ -848,7 +848,7 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
             <div>
               <Matchmaking gameType={matchmaking} onClose={()=>setMatchmaking(null)}
                 onMatch={room=>{setActiveRoom(room);setActiveGame(matchmaking);setMatchmaking(null);}}/>
-              <div style={{padding:"0 20px 20px"}}>
+              <div style={{padding:"0 16px 16px"}}>
                 <EloLeaderboard gameType={matchmaking} myUsername={myUsername} following={followingList}/>
               </div>
             </div>
@@ -885,18 +885,6 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
         <GameModal onClose={()=>setCluescaleRoom(null)} title="🎭 Cluescale" maxWidth="600px">
           {() => <CluescaleGame room={cluescaleRoom} onClose={()=>setCluescaleRoom(null)}/>}
         </GameModal>
-      )}
-      {showCluescale && !cluescaleRoom && (
-        <Modal onClose={()=>setShowCluescale(false)} maxWidth="max-w-sm">
-          {() => <CluescaleMatchmaking
-            onClose={()=>setShowCluescale(false)}
-            onMatch={room=>{setCluescaleRoom(room);setShowCluescale(false);}}/>}
-        </Modal>
-      )}
-      {cluescaleRoom && (
-        <Modal onClose={()=>setCluescaleRoom(null)} maxWidth="max-w-lg">
-          {() => <CluescaleGame room={cluescaleRoom} onClose={()=>setCluescaleRoom(null)}/>}
-        </Modal>
       )}
     </div>
   );
