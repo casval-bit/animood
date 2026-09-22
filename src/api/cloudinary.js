@@ -19,7 +19,8 @@ export async function uploadToCloudinary(file, type = "post", lang = "fr") {
   }
 
   // Resize client-side before upload to save bandwidth
-  const resized = await resizeImage(file, type === "avatar" ? 256 : 800);
+  const maxDim = type === "avatar" ? 256 : type === "banner" ? 1200 : 800;
+  const resized = await resizeImage(file, maxDim);
 
   const fd = new FormData();
   fd.append("file",         resized);

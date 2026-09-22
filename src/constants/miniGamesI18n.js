@@ -26,6 +26,8 @@ export const MINI_GAMES_I18N = {
     opquiz: {
       title: "🎵 Quiz OP",
       loading: "Chargement…",
+      chooseDifficulty: "Choisis ton niveau",
+      difficultyHint: { easy: "Openings ultra connus", medium: "Faut s'y connaître un peu", hard: "Réservé aux vrais experts" },
       round: (i, total) => `Opening ${i}/${total}`,
       listening: "Écoute et devine…",
       difficulty: { easy: "Facile", medium: "Moyen", hard: "Difficile" },
@@ -38,6 +40,9 @@ export const MINI_GAMES_I18N = {
       finishScore: (score, total) => `${score}/${total} openings trouvés`,
       finishPoints: (pts) => `+${pts} points`,
       comeBackTomorrow: "Reviens demain pour 5 nouveaux openings !",
+      seenBefore: (times, rate) => `Déjà vu ${times} fois — ${rate}% de réussite`,
+      neverSeen: "Jamais vu — premier essai !",
+      progress: (recognized, total) => `Tu reconnais maintenant ${recognized}/${total} openings de ce pool`,
     },
   },
 
@@ -68,6 +73,8 @@ export const MINI_GAMES_I18N = {
     opquiz: {
       title: "🎵 OP Quiz",
       loading: "Loading…",
+      chooseDifficulty: "Pick your level",
+      difficultyHint: { easy: "Super well-known openings", medium: "You need to know your anime", hard: "For true experts only" },
       round: (i, total) => `Opening ${i}/${total}`,
       listening: "Listen and guess…",
       difficulty: { easy: "Easy", medium: "Medium", hard: "Hard" },
@@ -80,6 +87,9 @@ export const MINI_GAMES_I18N = {
       finishScore: (score, total) => `${score}/${total} openings found`,
       finishPoints: (pts) => `+${pts} points`,
       comeBackTomorrow: "Come back tomorrow for 5 new openings!",
+      seenBefore: (times, rate) => `Already seen ${times} time${times > 1 ? "s" : ""} — ${rate}% success rate`,
+      neverSeen: "Never seen before — first try!",
+      progress: (recognized, total) => `You now recognize ${recognized}/${total} openings in this pool`,
     },
   },
 };

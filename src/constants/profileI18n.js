@@ -12,10 +12,6 @@ export const PROFILE_I18N = {
     moodProfileTitle: "🎭 Ton profil émotionnel",
     basedOn: (count, total) => `Basé sur ${count} animés vus sur ${total}`,
 
-    // TopGenres
-    topGenresTitle: "🎌 Genres les plus vus",
-    loading: "Chargement…",
-
     // StatBars (genres/studios/VAs sort buttons)
     sortCount: "Quantité",
     sortAvgRating: "Note moy.",
@@ -114,6 +110,21 @@ export const PROFILE_I18N = {
     frameCatFollowers: "👥 Followers",
     frameCatGenre: "🎌 Genre",
 
+    // Badges
+    badgeSectionTitle: "🏆 Badges",
+    badgeSelectTitle: "Badge actif",
+    badgeNone: "Aucun badge",
+    badgeNoneDesc: "Pas de badge affiché à côté du pseudo",
+    badgeCatWatched: "📺 Animés vus",
+    badgeCatContribution: "🗳️ Contribution",
+    badgeCatFollowers: "👥 Followers",
+    badgeCatGenre: "🎌 Genre",
+    badgeCatGames: "🎮 Jeux",
+    badgeCatRated: "✍️ Notés",
+
+    // Banner
+    bannerTitle: "🖼️ Bannière",
+
     // Avatar picker modal
     chooseAvatarTitle: "Choisir un avatar",
   },
@@ -130,10 +141,6 @@ export const PROFILE_I18N = {
     calculating: "Calculating…",
     moodProfileTitle: "🎭 Your emotional profile",
     basedOn: (count, total) => `Based on ${count} watched anime out of ${total}`,
-
-    // TopGenres
-    topGenresTitle: "🎌 Most watched genres",
-    loading: "Loading…",
 
     // StatBars (genres/studios/VAs sort buttons)
     sortCount: "Count",
@@ -235,5 +242,20 @@ export const PROFILE_I18N = {
 
     // Avatar picker modal
     chooseAvatarTitle: "Choose an avatar",
+
+    // Badges
+    badgeSectionTitle: "🏆 Badges",
+    badgeSelectTitle: "Active badge",
+    badgeNone: "No badge",
+    badgeNoneDesc: "No badge shown next to username",
+    badgeCatWatched: "📺 Watched anime",
+    badgeCatContribution: "🗳️ Contribution",
+    badgeCatFollowers: "👥 Followers",
+    badgeCatGenre: "🎌 Genre",
+    badgeCatGames: "🎮 Games",
+    badgeCatRated: "✍️ Rated",
+
+    // Banner
+    bannerTitle: "🖼️ Banner",
   },
 };

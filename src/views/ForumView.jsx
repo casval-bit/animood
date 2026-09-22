@@ -498,6 +498,70 @@ function GamePanel({ myUsername, onWordle, onPoster, onOpQuiz, onChain, onTimeli
 }
 
 
+// ── Per-game Elo leaderboard ──────────────────────────────────────────────────
+function EloLeaderboard({ gameType, myUsername, following }) {
+  const [rows, setRows]     = useState([]);
+  const [myRank, setMyRank] = useState(null);
+  const field = gameType === "chain" ? "elo_chain" : "elo_timeline";
+  const followingSet = new Set(following||[]);
+
+  useEffect(() => {
+    sb.query(`game_elo?select=username,${field}&order=${field}.desc&limit=200`)
+      .then(data => {
+        if(!data?.length) return;
+        const sorted = [...data].sort((a,b)=>(b[field]||400)-(a[field]||400));
+        setRows(sorted.slice(0,20).map((r,i)=>({username:r.username, pts:r[field]||400, rank:i+1})));
+        const pos = sorted.findIndex(r=>r.username===myUsername);
+        if(pos>=20) setMyRank({rank:pos+1, pts:sorted[pos][field]||400});
+      }).catch(()=>{});
+  }, [gameType, myUsername]);
+
+  if(!rows.length) return null;
+
+  function uColor(u) {
+    if(u===myUsername) return "#c084fc";
+    if(followingSet.has(u)) return "#22c55e";
+    return "var(--text-2)";
+  }
+
+  return (
+    <div style={{marginTop:16,paddingTop:12,borderTop:"1px solid rgba(255,255,255,0.06)"}}>
+      <div style={{fontSize:9,fontWeight:800,color:"var(--text-5)",letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>
+        🏆 Classement {gameType==="chain"?"LinkUp":"Timeline"}
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:2}}>
+        {rows.map(r=>{
+          const isMe=r.username===myUsername;
+          const medal=r.rank===1?"🥇":r.rank===2?"🥈":r.rank===3?"🥉":null;
+          return (
+            <div key={r.username} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:7,
+              background:isMe?"rgba(124,58,237,0.1)":"rgba(255,255,255,0.02)",
+              border:isMe?"1px solid rgba(124,58,237,0.2)":"1px solid transparent"}}>
+              <div style={{fontSize:9,color:"var(--text-5)",width:16,textAlign:"right",flexShrink:0}}>{medal||r.rank}</div>
+              <div style={{flex:1,fontSize:10,fontWeight:isMe||followingSet.has(r.username)?800:500,
+                color:uColor(r.username),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                {r.username}
+              </div>
+              <div style={{fontSize:10,fontWeight:800,color:"var(--text-2)",flexShrink:0}}>{r.pts}</div>
+            </div>
+          );
+        })}
+        {myRank&&(
+          <>
+            <div style={{padding:"3px 8px",textAlign:"center",fontSize:9,color:"var(--text-6)"}}>·  ·  ·</div>
+            <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:7,
+              background:"rgba(124,58,237,0.1)",border:"1px solid rgba(124,58,237,0.2)"}}>
+              <div style={{fontSize:9,color:"var(--text-5)",width:16,textAlign:"right",flexShrink:0}}>{myRank.rank}</div>
+              <div style={{flex:1,fontSize:10,fontWeight:800,color:"#c084fc",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{myUsername}</div>
+              <div style={{fontSize:10,fontWeight:800,color:"var(--text-2)",flexShrink:0}}>{myRank.pts}</div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPendingJoin }) {
   const { myUsername, activityNotifications, markActivityRead, blockedUsers } = useApp();
   const [followingList, setFollowingList] = useState([]);
@@ -740,7 +804,7 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
           <aside className="w-full shrink-0 lg:sticky lg:top-6 lg:w-[280px]">
             <CommunityMoodBlock loaded={moodLoaded} counts={moodCounts} total={moodTotal} t={t} />
 
-            {/* Mini-jeux */}
+            {/* Mini-jeux + classement */}
             <div className="mt-4 rounded-2xl border border-white/8 bg-white/3 p-4">
               <GamePanel
                 myUsername={myUsername}
@@ -779,9 +843,16 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
       )}
 
       {matchmaking && !activeRoom && (
-        <GameModal onClose={()=>setMatchmaking(null)} title={`${matchmaking === "chain" ? "🔗 LinkUp" : "📅 Timeline"} — Recherche`} maxWidth="460px">
-          {() => <Matchmaking gameType={matchmaking} onClose={()=>setMatchmaking(null)}
-            onMatch={room=>{setActiveRoom(room);setActiveGame(matchmaking);setMatchmaking(null);}}/>}
+        <GameModal onClose={()=>setMatchmaking(null)} title={`${matchmaking === "chain" ? "🔗 LinkUp" : "📅 Timeline"} — Recherche`} maxWidth="520px">
+          {() => (
+            <div>
+              <Matchmaking gameType={matchmaking} onClose={()=>setMatchmaking(null)}
+                onMatch={room=>{setActiveRoom(room);setActiveGame(matchmaking);setMatchmaking(null);}}/>
+              <div style={{padding:"0 20px 20px"}}>
+                <EloLeaderboard gameType={matchmaking} myUsername={myUsername} following={followingList}/>
+              </div>
+            </div>
+          )}
         </GameModal>
       )}
       {activeRoom && activeGame === "chain" && (
@@ -814,6 +885,18 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
         <GameModal onClose={()=>setCluescaleRoom(null)} title="🎭 Cluescale" maxWidth="600px">
           {() => <CluescaleGame room={cluescaleRoom} onClose={()=>setCluescaleRoom(null)}/>}
         </GameModal>
+      )}
+      {showCluescale && !cluescaleRoom && (
+        <Modal onClose={()=>setShowCluescale(false)} maxWidth="max-w-sm">
+          {() => <CluescaleMatchmaking
+            onClose={()=>setShowCluescale(false)}
+            onMatch={room=>{setCluescaleRoom(room);setShowCluescale(false);}}/>}
+        </Modal>
+      )}
+      {cluescaleRoom && (
+        <Modal onClose={()=>setCluescaleRoom(null)} maxWidth="max-w-lg">
+          {() => <CluescaleGame room={cluescaleRoom} onClose={()=>setCluescaleRoom(null)}/>}
+        </Modal>
       )}
     </div>
   );
