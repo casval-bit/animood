@@ -72,8 +72,9 @@ export function ChatModal({ username, peer, onClose }) {
       <div className="flex max-h-[55vh] min-h-[40vh] flex-col gap-2 overflow-y-auto p-4">
         {loading ? <Spinner small label={t.loading} /> : messages.length === 0 ? (
           <div className="m-auto text-center text-xs text-slate-600">{t.noMessagesYet}</div>
-        ) : messages.map(m => {
+        ) : messages.map((m, i) => {
           const mine = m.sender === username;
+          const isLastMine = mine && !messages.slice(i + 1).some(x => x.sender === username);
           return (
             <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
               <div
@@ -83,7 +84,10 @@ export function ChatModal({ username, peer, onClose }) {
                   : { background: "rgba(var(--fg-rgb),.07)", color: "var(--text-1)", borderBottomLeftRadius: 4 }}
               >
                 <div className="whitespace-pre-wrap">{m.body}</div>
-                <div className={`mt-1 text-[9.5px] ${mine ? "text-white/60" : "text-slate-500"}`}>{timeAgo(m.created_at, lang)}</div>
+                <div className={`mt-1 flex items-center gap-1 text-[9.5px] ${mine ? "text-white/60" : "text-slate-500"}`}>
+                  <span>{timeAgo(m.created_at, lang)}</span>
+                  {isLastMine && <span>· {m.read_at ? t.seen : t.sent}</span>}
+                </div>
               </div>
             </div>
           );

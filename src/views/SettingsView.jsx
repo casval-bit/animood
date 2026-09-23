@@ -7,6 +7,7 @@ import { importAniListUser } from "../api/anilist.js";
 import { GradientButton, TabBar } from "../components/ui.jsx";
 import { sb, follows } from "../api/supabase.js";
 import { uploadToCloudinary } from "../api/cloudinary.js";
+import { UserPickerModal } from "../components/UserPickerModal.jsx";
 import { GRADIENT_PRIMARY } from "../constants/theme.js";
 import { SETTINGS_I18N } from "../constants/settingsI18n.js";
 import { getFrameLabel } from "../frames/frames.js";
@@ -68,6 +69,12 @@ export function SettingsView({ onClose }) {
 
   const [usernameInput, setUsernameInput] = useState(me.name || "");
   const [usernameSaved, setUsernameSaved] = useState(false);
+  const [showPrivacyPicker, setShowPrivacyPicker] = useState(false);
+  const visibility = me.visibility || "everyone";
+  const visibilityAllowed = me.visibilityAllowed || [];
+  const setVisibility = (v) => saveMe({ ...me, visibility: v });
+  const addAllowedUser = (username) => saveMe({ ...me, visibilityAllowed: [...new Set([...visibilityAllowed, username])] });
+  const removeAllowedUser = (username) => saveMe({ ...me, visibilityAllowed: visibilityAllowed.filter(u => u !== username) });
 
   const [deleteNotice, setDeleteNotice] = useState(false);
 
@@ -504,6 +511,52 @@ export function SettingsView({ onClose }) {
             </>
           )}
         </Section>
+
+        <Section title={t.privacyTitle}>
+          <p className="mb-3 text-xs leading-relaxed text-slate-500">{t.privacyDesc}</p>
+          <div className="flex flex-col gap-2">
+            {[
+              { id: "everyone", label: t.privacyEveryone, desc: t.privacyEveryoneDesc },
+              { id: "friends",  label: t.privacyFriends,  desc: t.privacyFriendsDesc },
+              { id: "custom",   label: t.privacyCustom,   desc: t.privacyCustomDesc },
+            ].map(opt => {
+              const active = visibility === opt.id;
+              return (
+                <button key={opt.id} onClick={() => setVisibility(opt.id)}
+                  className="flex items-center justify-between rounded-xl p-3 text-left transition"
+                  style={{ border: active ? "2px solid #7c3aed" : "2px solid transparent", background: active ? "rgba(124,58,237,0.1)" : "rgba(var(--fg-rgb),0.03)" }}>
+                  <div>
+                    <div className="text-xs font-bold text-slate-100">{opt.label}</div>
+                    <div className="text-[10px] text-slate-500">{opt.desc}</div>
+                  </div>
+                  {active && <span className="shrink-0 text-violet-400">✓</span>}
+                </button>
+              );
+            })}
+          </div>
+
+          {visibility === "custom" && (
+            <div className="mt-3 flex flex-col gap-2">
+              {visibilityAllowed.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-2">{t.privacyCustomListEmpty}</p>
+              ) : (
+                visibilityAllowed.map(u => (
+                  <div key={u} className="flex items-center justify-between rounded-xl border border-white/7 bg-white/4 px-3 py-2.5">
+                    <span className="text-xs font-bold text-slate-200">@{u}</span>
+                    <button onClick={() => removeAllowedUser(u)}
+                      className="rounded-full border border-white/10 px-3 py-1 text-[11px] font-bold text-slate-300 transition hover:bg-white/5">
+                      {t.privacyCustomRemoveBtn}
+                    </button>
+                  </div>
+                ))
+              )}
+              <button onClick={() => setShowPrivacyPicker(true)}
+                className="w-full rounded-xl border-2 border-dashed border-violet-400/40 bg-violet-400/6 py-2.5 text-sm font-bold text-violet-300">
+                {t.privacyCustomAddBtn}
+              </button>
+            </div>
+          )}
+        </Section>
         </>}
 
         {/* ─── DONNÉES ─── */}
@@ -616,6 +669,15 @@ export function SettingsView({ onClose }) {
         </>}
 
       </div>
+
+      {showPrivacyPicker && (
+        <UserPickerModal
+          myUsername={myUsername}
+          excludeUsernames={visibilityAllowed}
+          onSelect={addAllowedUser}
+          onClose={() => setShowPrivacyPicker(false)}
+        />
+      )}
     </div>
   );
 }

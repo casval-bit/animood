@@ -18,6 +18,7 @@ import { AnimePoster } from "../components/AnimeCard.jsx";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { Modal } from "../components/Modal.jsx";
 import { FavoriteSearchModal } from "../components/FavoriteSearchModal.jsx";
+import { FollowListModal } from "../components/FollowListModal.jsx";
 import { TabBar } from "../components/ui.jsx";
 import { GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
 
@@ -466,7 +467,7 @@ function GamePtsDisplay({ myUsername }) {
   );
 }
 
-export function ProfileView({ onOpenDetail, onOpenSettings }) {
+export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
   const { me, saveMe, myUsername } = useApp();
   const { lang } = useLang();
   const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
@@ -486,6 +487,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
   const [activeBadge, setActiveBadge] = useState(null);
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
+  const [followListMode, setFollowListMode] = useState(null); // "followers" | "following" | null
   const [editingBio, setEditingBio] = useState(false);
   const [bioInput, setBioInput] = useState(me.bio||"");
   const [openList, setOpenList] = useState(null);
@@ -892,15 +894,15 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
 
           {/* Followers / Following / Stats */}
           <div className="flex items-center gap-4 mt-2 flex-wrap">
-            <div className="flex items-center gap-1.5">
+            <button onClick={() => setFollowListMode("followers")} className="flex items-center gap-1.5 transition hover:opacity-75">
               <span className="text-[13px] font-black text-slate-100">{followerCount}</span>
               <span className="text-[11px] text-slate-500">{t.followerLabel(followerCount)}</span>
-            </div>
+            </button>
             <div className="w-px h-3 bg-white/10"/>
-            <div className="flex items-center gap-1.5">
+            <button onClick={() => setFollowListMode("following")} className="flex items-center gap-1.5 transition hover:opacity-75">
               <span className="text-[13px] font-black text-slate-100">{followingCount}</span>
               <span className="text-[11px] text-slate-500">{t.followingLabel(followingCount)}</span>
-            </div>
+            </button>
             <div className="w-px h-3 bg-white/10"/>
             <GamePtsDisplay myUsername={myUsername}/>
           </div>
@@ -1467,6 +1469,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings }) {
       )}
 
       {favPopup !== null && <FavoriteSearchModal onSelect={selectFavorite} onClose={() => setFavPopup(null)} />}
+      {followListMode && (
+        <FollowListModal username={myUsername} mode={followListMode} onClose={() => setFollowListMode(null)} onOpenUser={onOpenUser} />
+      )}
     </div>
   );
 }
