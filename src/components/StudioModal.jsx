@@ -1,12 +1,16 @@
 import { useState, useEffect } from "react";
+import { useLang } from "../context/useLang.js";
+import { STUDIO_MODAL_I18N } from "../constants/studioModalI18n.js";
 import { jikan } from "../api/jikan.js";
-import { studioBlurb, getStudioCountries } from "../api/studios.js";
+import { studioBlurb, getStudioCountries, fetchAnimeByStudio } from "../api/studios.js";
 import { Spinner } from "./Spinner.jsx";
 import { Modal } from "./Modal.jsx";
 
 const FALLBACK = "https://placehold.co/200x300/1a1a2e/818cf8?text=?";
 
 export function StudioModal({ studioId, studioName, onClose, onOpenDetail }) {
+  const { lang } = useLang();
+  const t = STUDIO_MODAL_I18N[lang] || STUDIO_MODAL_I18N.fr;
   const [animes, setAnimes]   = useState([]);
   const [about, setAbout]     = useState(null);
   const [logo, setLogo]       = useState(null);
@@ -15,13 +19,13 @@ export function StudioModal({ studioId, studioName, onClose, onOpenDetail }) {
 
   useEffect(() => {
     if(!studioId) return;
-    jikan.getProducerAnime(studioId).then(r => setAnimes(r.data||[])).catch(console.error).finally(() => setLoading(false));
+    fetchAnimeByStudio(studioId).then(setAnimes).catch(console.error).finally(() => setLoading(false));
     jikan.getProducerFull(studioId).then(r => {
       setAbout(r?.data?.about || null);
       setLogo(r?.data?.images?.jpg?.image_url || null);
     }).catch(() => {});
-    getStudioCountries([studioId]).then(c => setCountry(c[studioId] || null)).catch(() => {});
-  }, [studioId]);
+    getStudioCountries([studioId], lang).then(c => setCountry(c[studioId] || null)).catch(() => {});
+  }, [studioId, lang]);
 
   return (
     <Modal onClose={onClose} maxWidth="max-w-2xl">
@@ -37,10 +41,10 @@ export function StudioModal({ studioId, studioName, onClose, onOpenDetail }) {
                 <span className="shrink-0 rounded-full bg-white/6 px-1.5 py-0.5 text-[9px] font-bold text-slate-400">{country.emoji} {country.label}</span>
               )}
             </div>
-            <div className="text-xs text-slate-500">Animés triés par score MAL</div>
+            <div className="text-xs text-slate-500">{t.sortedByScore}</div>
           </div>
         </div>
-        <p className="mb-5 text-[13px] leading-relaxed text-slate-400">{about ? (about.length > 260 ? about.slice(0,260)+"…" : about) : studioBlurb(studioName)}</p>
+        <p className="mb-5 text-[13px] leading-relaxed text-slate-400">{about ? (about.length > 260 ? about.slice(0,260)+"…" : about) : studioBlurb(studioName, lang)}</p>
         {loading && <Spinner />}
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
           {animes.map(a => (
