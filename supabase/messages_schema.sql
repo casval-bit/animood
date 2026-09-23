@@ -9,8 +9,12 @@ create table if not exists direct_messages (
   sender     text not null,
   recipient  text not null,
   body       text not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  read_at    timestamptz
 );
+
+-- Already-deployed databases: add the column if it's missing (safe to re-run).
+alter table direct_messages add column if not exists read_at timestamptz;
 
 create index if not exists direct_messages_sender_idx on direct_messages(sender);
 create index if not exists direct_messages_recipient_idx on direct_messages(recipient);
@@ -19,3 +23,6 @@ alter table direct_messages enable row level security;
 
 create policy "direct_messages_select" on direct_messages for select using (true);
 create policy "direct_messages_insert" on direct_messages for insert with check (true);
+-- Needed so the recipient can stamp read_at on incoming messages (mark-as-read).
+drop policy if exists "direct_messages_update" on direct_messages;
+create policy "direct_messages_update" on direct_messages for update using (true) with check (true);

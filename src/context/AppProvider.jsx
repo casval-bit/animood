@@ -7,7 +7,6 @@ function usernameFromEmail(email) {
   return email.split("@")[0].replace(/[^a-z0-9]/gi, "").toLowerCase().slice(0, 20);
 }
 
-const lastReadKey = (username, peer) => `animood_dm_read_${username}_${peer}`;
 const postReadKey = (username, postId) => `animood_post_read_${username}_${postId}`;
 const threadReadKey = (username, threadId) => `animood_forum_read_${username}_${threadId}`;
 const postMentionReadKey = (username, postId) => `animood_mention_post_read_${username}_${postId}`;
@@ -78,12 +77,12 @@ export function AppProvider({ children }) {
     catch(e) { console.error(e); setBlockedUsers(prev => new Set(prev).add(username)); }
   }, [myUsername]);
 
-  // Unread DM tracking — no read_at column server-side, so "read" is just a
-  // per-peer timestamp kept in localStorage; a conversation is unread when its
-  // last message is newer than that timestamp and wasn't sent by me. Blocked
-  // peers are excluded so a message from someone you've blocked (still
-  // deliverable — blocking is enforced client-side only, see above) can't
-  // leave a stuck unread badge for a conversation that's hidden from the list.
+  // Unread DM tracking — server-side source of truth via direct_messages.read_at
+  // (stamped by markRead below): a conversation is unread when its last message
+  // was sent to me and hasn't been marked read yet. Blocked peers are excluded
+  // so a message from someone you've blocked (still deliverable — blocking is
+  // enforced client-side only, see above) can't leave a stuck unread badge for
+  // a conversation that's hidden from the list.
   const [unreadPeers, setUnreadPeers] = useState(new Set());
 
   useEffect(() => {
@@ -96,8 +95,7 @@ export function AppProvider({ children }) {
       convos.forEach(c => {
         if(c.lastMessage.sender === myUsername) return;
         if(blockedUsers.has(c.peer)) return;
-        const lastRead = localStorage.getItem(lastReadKey(myUsername, c.peer));
-        if(!lastRead || new Date(c.lastMessage.created_at) > new Date(lastRead)) unread.add(c.peer);
+        if(!c.lastMessage.read_at) unread.add(c.peer);
       });
       setUnreadPeers(unread);
     };
@@ -106,9 +104,11 @@ export function AppProvider({ children }) {
     return () => { cancelled = true; clearInterval(interval); };
   }, [myUsername, blockedUsers]);
 
+  // Stamps read_at server-side (so the sender sees a "seen" tick) and drops the
+  // peer from the local unread set immediately, without waiting for the next poll.
   const markRead = useCallback((peer) => {
     if(!myUsername) return;
-    localStorage.setItem(lastReadKey(myUsername, peer), new Date().toISOString());
+    dm.markThreadRead(myUsername, peer);
     setUnreadPeers(prev => {
       if(!prev.has(peer)) return prev;
       const next = new Set(prev);

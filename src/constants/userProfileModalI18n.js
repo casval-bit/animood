@@ -6,6 +6,8 @@ export const USER_PROFILE_MODAL_I18N = {
     followers: "abonnés",
     following: "abonnements",
     mutualFollowersTitle: (count) => `👥 ${count} abonné${count>1?"s":""} en commun`,
+    privateProfileTitle: "Profil privé",
+    privateProfileDesc: "Ce membre limite qui peut voir son profil.",
 
     followBtn: "Suivre",
     followingBtn: "Suivi ✓",
@@ -44,6 +46,8 @@ export const USER_PROFILE_MODAL_I18N = {
     followers: "followers",
     following: "following",
     mutualFollowersTitle: (count) => `👥 ${count} mutual follower${count>1?"s":""}`,
+    privateProfileTitle: "Private profile",
+    privateProfileDesc: "This member restricts who can see their profile.",
 
     followBtn: "Follow",
     followingBtn: "Following ✓",

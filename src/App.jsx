@@ -5,6 +5,7 @@ import { AppProvider } from "./context/AppProvider.jsx";
 import { useApp } from "./context/useApp.js";
 import { useLang } from "./context/useLang.js";
 import { Header } from "./components/Header.jsx";
+import { Footer } from "./components/Footer.jsx";
 import { Spinner } from "./components/Spinner.jsx";
 import { AnimeDetailModal } from "./components/AnimeDetailModal.jsx";
 import { ChatBubble } from "./components/ChatBubble.jsx";
@@ -79,11 +80,12 @@ function Shell() {
           <FeedView onOpenUser={setOpenUser} onOpenDetail={openDetail}/>
         </div>
         <div style={{display: activeTab==="profile" ? "block" : "none"}}>
-          <ProfileView onOpenDetail={openDetail} onOpenSettings={() => setShowSettings(true)} />
+          <ProfileView onOpenDetail={openDetail} onOpenSettings={() => setShowSettings(true)} onOpenUser={setOpenUser} />
         </div>
         {/* Other pages unmount when hidden — no sync needed */}
         {pages[activeTab]}
       </main>
+      <Footer />
       <ChatBubble hidden={activeTab === "messages"} />
 
       {showSettings && <SettingsView onClose={() => setShowSettings(false)} />}

@@ -15,7 +15,9 @@ import { ScoreChart } from "../components/ScoreChart.jsx";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { Modal } from "../components/Modal.jsx";
 import { ChatModal } from "../components/ChatModal.jsx";
+import { FollowListModal } from "../components/FollowListModal.jsx";
 import { TabBar } from "../components/ui.jsx";
+import { canViewProfile } from "../utils/profilePrivacy.js";
 import { GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
 import { USER_PROFILE_MODAL_I18N } from "../constants/userProfileModalI18n.js";
 import { COMMON_I18N } from "../constants/commonI18n.js";
@@ -54,6 +56,8 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
   const [followLoading, setFollowLoading] = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
+  const [isFriend, setIsFriend] = useState(false);
+  const [followListMode, setFollowListMode] = useState(null); // "followers" | "following" | null
   const [animeCache, setAnimeCache]   = useState({});
   const [showChat, setShowChat]       = useState(false);
   const [moodAvg, setMoodAvg]         = useState(null);
@@ -75,6 +79,8 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
             highlights: rows[0].highlights||[],
             customLists: rows[0].custom_lists||[],
             pinnedList: rows[0].pinned_list||null,
+            visibility: rows[0].visibility||"everyone",
+            visibilityAllowed: rows[0].visibility_allowed||[],
           };
         }
         const [isF, followers, following, myFollowers] = await Promise.all([
@@ -88,6 +94,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
         setIsFollowing(isF);
         setFollowerCount(followers.length);
         setFollowingCount(following.length);
+        setIsFriend(isF && following.includes(myUsername));
 
         // Amis d'amis — abonnés en commun entre ce profil et le mien
         if(!isOwnProfile) {
@@ -185,6 +192,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
   const customLists  = profile?.customLists || profile?.custom_lists || [];
   const pinnedList   = customLists.find(l=>l.id===pinnedListId) || null;
   const highlights   = profile?.highlights || [];
+  const canView = profile ? canViewProfile(profile, { isOwnProfile, isFriend, viewerUsername: myUsername }) : true;
 
   return (
     <>
@@ -194,7 +202,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
       ) : (
         <div className="p-6">
           {/* Banner */}
-          {profile.banner && (
+          {canView && profile.banner && (
             <div className="-mx-6 -mt-6 mb-4 relative h-24 sm:h-32 overflow-hidden">
               <img src={profile.banner} alt="" className="w-full h-full object-cover" />
               <div className="absolute inset-0" style={{
@@ -225,8 +233,14 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
               <div className="text-xs text-slate-500 mb-1">@{username}</div>
               {profile.bio && <div className="text-xs italic text-slate-400 mb-2">{profile.bio}</div>}
               <div className="flex items-center gap-4 text-[11px]">
-                <span><span className="font-black text-slate-100">{followerCount}</span> <span className="text-slate-500">{t.followers}</span></span>
-                <span><span className="font-black text-slate-100">{followingCount}</span> <span className="text-slate-500">{t.following}</span></span>
+                <button onClick={()=>canView && setFollowListMode("followers")} disabled={!canView}
+                  className={`transition ${canView ? "hover:opacity-75" : "cursor-default"}`}>
+                  <span className="font-black text-slate-100">{followerCount}</span> <span className="text-slate-500">{t.followers}</span>
+                </button>
+                <button onClick={()=>canView && setFollowListMode("following")} disabled={!canView}
+                  className={`transition ${canView ? "hover:opacity-75" : "cursor-default"}`}>
+                  <span className="font-black text-slate-100">{followingCount}</span> <span className="text-slate-500">{t.following}</span>
+                </button>
               </div>
             </div>
             {!isOwnProfile && (
@@ -269,6 +283,10 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
             )}
           </div>
 
+          {!canView ? (
+            <EmptyState emoji="🔒" title={t.privateProfileTitle} subtitle={t.privateProfileDesc} />
+          ) : (
+          <>
           {/* Stats row */}
           <div className="mb-5 grid grid-cols-4 gap-2">
             {[
@@ -431,10 +449,15 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
               </div>
             )
           )}
+          </>
+          )}
         </div>
       )}
     </Modal>
     {showChat && <ChatModal username={myUsername} peer={username} onClose={()=>setShowChat(false)}/>}
+    {followListMode && (
+      <FollowListModal username={username} mode={followListMode} onClose={()=>setFollowListMode(null)} onOpenUser={onOpenUser}/>
+    )}
     </>
   );
 }

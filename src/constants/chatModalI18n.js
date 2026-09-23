@@ -6,6 +6,8 @@ export const CHAT_MODAL_I18N = {
     messagePlaceholder: "Écrire un message…",
     sendBtn: "Envoyer",
     sending: "…",
+    sent: "Envoyé",
+    seen: "Vu",
   },
 
   en: {
@@ -15,5 +17,7 @@ export const CHAT_MODAL_I18N = {
     messagePlaceholder: "Write a message…",
     sendBtn: "Send",
     sending: "…",
+    sent: "Sent",
+    seen: "Seen",
   },
 };

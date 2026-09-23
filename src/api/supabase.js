@@ -64,6 +64,8 @@ export const sb = {
       highlights:        data.highlights || [],
       custom_lists:     data.customLists || [],
       pinned_list:      data.pinnedList || null,
+      visibility:       data.visibility || "everyone",
+      visibility_allowed: data.visibilityAllowed || data.visibility_allowed || [],
       updated_at:       data.updated_at,
     };
     return this.query("profiles?on_conflict=username", {
@@ -305,6 +307,8 @@ export async function loadProfile(username) {
         highlights: remote.highlights || [],
         customLists: remote.custom_lists || remote.customLists || [],
         pinnedList: remote.pinned_list || remote.pinnedList || null,
+        visibility: remote.visibility || "everyone",
+        visibilityAllowed: remote.visibility_allowed || remote.visibilityAllowed || [],
       };
       localStorage.setItem(`animood_profile_${username}`, JSON.stringify(profile));
       return profile;
@@ -400,6 +404,19 @@ export const dm = {
       headers: { ...sb.headers, "Prefer": "return=representation" },
       body: JSON.stringify([{ sender, recipient, body }]),
     });
+  },
+  // Stamps read_at on every unread message `peer` sent to `username` — the
+  // server-side source of truth read receipts are built on (see AppProvider's
+  // unreadPeers and the "seen" tick under the sender's last bubble).
+  async markThreadRead(username, peer) {
+    const u = encodeURIComponent(username), p = encodeURIComponent(peer);
+    try {
+      return await sb.query(`direct_messages?sender=eq.${p}&recipient=eq.${u}&read_at=is.null`, {
+        method: "PATCH",
+        headers: { ...sb.headers, "Prefer": "return=minimal" },
+        body: JSON.stringify({ read_at: new Date().toISOString() }),
+      });
+    } catch { return null; }
   },
 };
 

@@ -26,7 +26,7 @@ function BubbleIcon({ open }) {
 
 // ─── Inline thread — same 1:1 chat as ChatModal, restyled for the compact panel ─
 function ThreadPane({ username, peer, onBack }) {
-  const { blockedUsers } = useApp();
+  const { blockedUsers, markRead } = useApp();
   const { lang } = useLang();
   const t = CHAT_BUBBLE_I18N[lang] || CHAT_BUBBLE_I18N.fr;
   const isBlocked = blockedUsers?.has(peer);
@@ -39,12 +39,15 @@ function ThreadPane({ username, peer, onBack }) {
 
   useEffect(() => {
     let cancelled = false;
-    dm.getThread(username, peer).then(rows => { if(!cancelled) setMessages(rows); }).finally(() => { if(!cancelled) setLoading(false); });
-    const interval = setInterval(() => {
-      dm.getThread(username, peer).then(rows => { if(!cancelled) setMessages(rows); });
-    }, 4000);
+    const fetchThread = () => dm.getThread(username, peer).then(rows => {
+      if(cancelled) return;
+      setMessages(rows);
+      markRead(peer);
+    });
+    fetchThread().finally(() => { if(!cancelled) setLoading(false); });
+    const interval = setInterval(fetchThread, 4000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [username, peer]);
+  }, [username, peer, markRead]);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,8 +88,9 @@ function ThreadPane({ username, peer, onBack }) {
           <div className="m-auto text-xs text-slate-600">{t.loading}</div>
         ) : messages.length === 0 ? (
           <div className="m-auto text-center text-xs text-slate-600">{t.noMessagesYet}</div>
-        ) : messages.map(m => {
+        ) : messages.map((m, i) => {
           const mine = m.sender === username;
+          const isLastMine = mine && !messages.slice(i + 1).some(x => x.sender === username);
           return (
             <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
               <div
@@ -96,7 +100,10 @@ function ThreadPane({ username, peer, onBack }) {
                   : { background: "rgba(var(--fg-rgb),.07)", color: "var(--text-1)", borderBottomLeftRadius: 4 }}
               >
                 <div className="whitespace-pre-wrap">{m.body}</div>
-                <div className={`mt-0.5 text-[9px] ${mine ? "text-white/60" : "text-slate-500"}`}>{timeAgo(m.created_at, lang)}</div>
+                <div className={`mt-0.5 flex items-center gap-1 text-[9px] ${mine ? "text-white/60" : "text-slate-500"}`}>
+                  <span>{timeAgo(m.created_at, lang)}</span>
+                  {isLastMine && <span>· {m.read_at ? t.seen : t.sent}</span>}
+                </div>
               </div>
             </div>
           );
