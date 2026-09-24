@@ -144,114 +144,279 @@ function ArtistCard({ artist, onClick, t }) {
 }
 
 // ─── Weekly Airing Calendar ────────────────────────────────────────────────────
-const DAYS_FR = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
-const DAYS_EN = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday","Unknown"];
+const DAYS_FR  = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
+const DAYS_EN  = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 
 function getBroadcastDay(anime) {
   const b = anime.broadcast;
   if(!b) return null;
-  if(typeof b === "object" && b.day) return b.day;
+  if(typeof b === "object" && b.day) return b.day.replace(/s$/i, "");
   if(typeof b === "string") {
-    const match = b.match(/^(\w+)s?\s+at/i);
-    if(match) return match[1];
+    const m = b.match(/^(\w+)s?\s+at/i);
+    if(m) return m[1];
   }
   return null;
 }
 
 function AiringCalendar({ anime, onOpenDetail, me }) {
-  const todayIdx = (new Date().getDay() + 6) % 7; // 0=Mon...6=Sun
-  const statusColors = { completed:"#3b82f6", watching:"#22c55e", dropped:"#ef4444", onhold:"#f59e0b", watchlist:"#9ca3af" };
+  const [myOnly, setMyOnly] = useState(false);
+  const todayIdx = (new Date().getDay() + 6) % 7; // 0=Mon … 6=Sun
 
-  // Group by day — only if broadcast day is available
+  // Build "my anime" set:
+  // 1. Anime currently in watching/onhold/watchlist
+  // 2. Airing anime whose base title matches a completed/watching series
+  const myStatuses = me?.statuses || {};
+  const myWatched  = me?.watched  || {};
+
+  // Extract base titles from watched anime (remove season suffixes for matching)
+  function baseTitle(title) {
+    return (title || "")
+      .toLowerCase()
+      .replace(/\s*(season|saison|cours|part|cour|2nd|3rd|4th|5th|\d+(?:st|nd|rd|th)|\bii\b|\biii\b|\biv\b|\bv\b)\b.*/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  // All mal_ids the user has interacted with
+  const myIds = new Set(Object.keys(myStatuses).map(Number));
+
+  // Base titles the user has watched/is watching
+  const myBaseTitles = new Set();
+  Object.values(myWatched).forEach(a => {
+    if(a?.title) myBaseTitles.add(baseTitle(a.title));
+    if(a?.title_en) myBaseTitles.add(baseTitle(a.title_en));
+  });
+  // Also from statuses (may have more entries)
+  Object.keys(myStatuses).forEach(id => {
+    const a = myWatched[id];
+    if(a?.title) myBaseTitles.add(baseTitle(a.title));
+  });
+
+  // Filter: show anime if:
+  // - user has it in watching/onhold/watchlist, OR
+  // - user has completed/watched a series with the same base title
+  function isMyAnime(a) {
+    const status = myStatuses[a.mal_id];
+    if(["watching","onhold","watchlist"].includes(status)) return true;
+    if(myIds.has(a.mal_id)) return false; // already seen, same anime — skip
+    // Check if it's a sequel of something they watched
+    const bt = baseTitle(a.title);
+    const bte = baseTitle(a.title_en || "");
+    return myBaseTitles.has(bt) || (bte && myBaseTitles.has(bte));
+  }
+
+  const displayed = myOnly ? anime.filter(isMyAnime) : anime;
+  const myCount   = anime.filter(isMyAnime).length;
+
+  // Group by day
   const byDay = {};
-  DAYS_EN.slice(0,7).forEach(d => { byDay[d] = []; });
+  DAYS_EN.forEach(d => { byDay[d] = []; });
   const unknownDay = [];
-  
-  anime.forEach(a => {
-    const day = getBroadcastDay(a);
-    const key = day ? DAYS_EN.find(d => d.toLowerCase() === day.toLowerCase()) : null;
+  displayed.forEach(a => {
+    const raw = getBroadcastDay(a);
+    const key = raw ? DAYS_EN.find(d => d.toLowerCase() === raw.toLowerCase()) : null;
     if(key) byDay[key].push(a);
-    else unknownDay.push(a);
+    else    unknownDay.push(a);
   });
 
   const hasDayData = Object.values(byDay).some(arr => arr.length > 0);
+  const totalWithDay = Object.values(byDay).reduce((s, arr) => s + arr.length, 0);
+  const statusColors = {
+    completed:"#3b82f6", watching:"#22c55e",
+    dropped:"#ef4444", onhold:"#f59e0b", watchlist:"#9ca3af",
+  };
 
-  // If no day data at all, just show a grid
+  // Fallback grid when no broadcast data
   if(!hasDayData) {
     return (
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5">
-        {anime.map(a => (
-          <button key={a.mal_id} onClick={()=>onOpenDetail(a)}
-            className="flex flex-col items-center gap-1.5 rounded-xl border border-white/6 bg-white/3 p-2 text-center transition hover:bg-white/6 hover:border-violet-400/20"
-            style={{cursor:"pointer"}}>
-            <img src={a.image_url||a.large_image} alt=""
-              style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",borderRadius:8,
-                border:`2px solid ${statusColors[(me.statuses||{})[a.mal_id]]||"transparent"}`}}
-              onError={e=>{e.target.style.display="none";}}/>
-            <div style={{fontSize:10,fontWeight:700,color:"var(--text-1)",
-              overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",width:"100%"}}>
-              {a.title_en||a.title}
-            </div>
-            {a.score && <div style={{fontSize:9,color:"#fbbf24"}}>★ {a.score}</div>}
-          </button>
-        ))}
+      <div>
+        <div style={{marginBottom:12,fontSize:11,color:"var(--text-5)",textAlign:"center"}}>
+          Données de diffusion non disponibles — affichage par popularité
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(110px, 1fr))",gap:10}}>
+          {displayed.map(a => (
+            <button key={a.mal_id} onClick={()=>onOpenDetail(a)} style={{
+              background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",
+              borderRadius:12,padding:8,cursor:"pointer",textAlign:"left",transition:"all 0.15s",
+            }}
+            onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.07)";}}
+            onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,0.03)";}}>
+              <img src={a.image_url||a.large_image} alt="" style={{
+                width:"100%",aspectRatio:"2/3",objectFit:"cover",borderRadius:8,marginBottom:6,
+                border:`2px solid ${statusColors[(me?.statuses||{})[a.mal_id]]||"transparent"}`,
+              }} onError={e=>{e.target.style.display="none";}}/>
+              <div style={{fontSize:9,fontWeight:700,color:"var(--text-1)",
+                overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                {a.title_en||a.title}
+              </div>
+              {a.score && <div style={{fontSize:8,color:"#fbbf24",marginTop:2}}>★ {a.score}</div>}
+            </button>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{overflowX:"auto",paddingBottom:8}}>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(120px,1fr))",gap:8,minWidth:840}}>
-        {DAYS_EN.slice(0,7).map((day, idx) => {
+    <div>
+      {/* Stats bar + toggle */}
+      <div style={{
+        display:"flex",alignItems:"center",justifyContent:"space-between",
+        marginBottom:16,padding:"8px 16px",borderRadius:12,
+        background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",
+        flexWrap:"wrap",gap:8,
+      }}>
+        <div style={{fontSize:11,color:"var(--text-4)"}}>
+          <span style={{fontWeight:700,color:"var(--text-2)"}}>{totalWithDay}</span> animés planifiés
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{fontSize:10,color:"var(--text-5)"}}>
+            Saison en cours · {new Date().getFullYear()}
+          </div>
+          {/* Mon calendrier toggle */}
+          <button onClick={()=>setMyOnly(p=>!p)} style={{
+            display:"flex",alignItems:"center",gap:6,
+            padding:"5px 12px",borderRadius:20,fontSize:10,fontWeight:800,
+            cursor:"pointer",transition:"all 0.15s",
+            background: myOnly ? "rgba(124,58,237,0.25)" : "rgba(255,255,255,0.05)",
+            color: myOnly ? "#c084fc" : "var(--text-4)",
+            border: myOnly ? "1px solid rgba(124,58,237,0.4)" : "1px solid rgba(255,255,255,0.08)",
+          }}>
+            <div style={{
+              width:14,height:14,borderRadius:4,flexShrink:0,
+              background: myOnly ? "#7c3aed" : "rgba(255,255,255,0.08)",
+              border: myOnly ? "none" : "1px solid rgba(255,255,255,0.15)",
+              display:"flex",alignItems:"center",justifyContent:"center",
+            }}>
+              {myOnly && <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+                <path d="M1.5 4.5L3.5 6.5L7.5 2.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>}
+            </div>
+            Mon calendrier
+            {myCount > 0 && (
+              <span style={{
+                background:"rgba(124,58,237,0.3)",color:"#c084fc",
+                fontSize:9,padding:"1px 5px",borderRadius:10,
+              }}>{myCount}</span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* 7-day grid */}
+      <div style={{overflowX:"auto",paddingBottom:8}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7, minmax(120px, 1fr))",gap:6,minWidth:840}}>
+        {DAYS_EN.map((day, idx) => {
           const isToday = idx === todayIdx;
-          const labelFr = DAYS_FR[idx];
-          const animes = byDay[day] || [];
+          const animes  = byDay[day] || [];
           return (
             <div key={day} style={{
-              borderRadius:12,
-              border:`1px solid ${isToday?"rgba(124,58,237,0.4)":"rgba(255,255,255,0.06)"}`,
-              background:isToday?"rgba(124,58,237,0.06)":"rgba(255,255,255,0.02)",
-              overflow:"hidden",
+              borderRadius:14,overflow:"hidden",
+              border:`1px solid ${isToday ? "rgba(124,58,237,0.5)" : "rgba(255,255,255,0.06)"}`,
+              background: isToday ? "rgba(124,58,237,0.07)" : "rgba(255,255,255,0.015)",
+              boxShadow: isToday ? "0 0 0 1px rgba(124,58,237,0.15), 0 4px 20px rgba(124,58,237,0.08)" : "none",
             }}>
+              {/* Day header */}
               <div style={{
-                padding:"6px 10px",
-                borderBottom:`1px solid ${isToday?"rgba(124,58,237,0.2)":"rgba(255,255,255,0.05)"}`,
-                textAlign:"center",
-                fontSize:isToday?12:11,
-                fontWeight:isToday?900:700,
-                color:isToday?"#c084fc":"var(--text-3)",
+                padding:"10px 10px 8px",
+                borderBottom:`1px solid ${isToday ? "rgba(124,58,237,0.2)" : "rgba(255,255,255,0.05)"}`,
+                background: isToday ? "rgba(124,58,237,0.12)" : "rgba(255,255,255,0.02)",
               }}>
-                {labelFr}
-                {isToday && <div style={{fontSize:8,color:"#c084fc",marginTop:1}}>Aujourd'hui</div>}
+                <div style={{
+                  fontSize:13,fontWeight:900,
+                  color: isToday ? "#c084fc" : "var(--text-2)",
+                  letterSpacing: isToday ? 0.3 : 0,
+                }}>
+                  {DAYS_FR[idx]}
+                </div>
+                <div style={{
+                  display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:2,
+                }}>
+                  {isToday && (
+                    <span style={{
+                      fontSize:8,fontWeight:800,
+                      background:"rgba(124,58,237,0.3)",color:"#c084fc",
+                      padding:"1px 6px",borderRadius:4,letterSpacing:0.5,
+                    }}>AUJOURD'HUI</span>
+                  )}
+                  <span style={{
+                    fontSize:9,color: animes.length > 0 ? "var(--text-4)" : "var(--text-6)",
+                    marginLeft:"auto",
+                  }}>
+                    {animes.length > 0 ? `${animes.length} anime${animes.length > 1 ? "s" : ""}` : "—"}
+                  </span>
+                </div>
               </div>
-              <div style={{padding:6,display:"flex",flexDirection:"column",gap:5}}>
+
+              {/* Anime list */}
+              <div style={{padding:6,display:"flex",flexDirection:"column",gap:4,minHeight:40}}>
                 {animes.length === 0 ? (
-                  <div style={{padding:"8px 4px",textAlign:"center",fontSize:9,color:"var(--text-5)"}}>—</div>
-                ) : animes.map(a => (
-                  <button key={a.mal_id} onClick={()=>onOpenDetail(a)}
-                    style={{display:"flex",gap:6,alignItems:"center",background:"none",border:"none",
-                      cursor:"pointer",textAlign:"left",padding:"3px 2px",borderRadius:6,
-                      transition:"background 0.15s"}}
-                    onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
-                    onMouseLeave={e=>e.currentTarget.style.background="none"}>
-                    <img src={a.image_url} alt="" style={{
-                      width:26,height:36,objectFit:"cover",borderRadius:4,flexShrink:0,
-                      border:`1px solid ${statusColors[(me.statuses||{})[a.mal_id]]||"rgba(255,255,255,0.08)"}`,
-                    }} onError={e=>{e.target.style.display="none";}}/>
-                    <div style={{minWidth:0}}>
-                      <div style={{fontSize:9,fontWeight:700,color:"var(--text-1)",
-                        overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:80}}>
-                        {a.title_en || a.title}
+                  <div style={{
+                    padding:"12px 4px",textAlign:"center",
+                    fontSize:18,opacity:0.08,
+                  }}>·</div>
+                ) : animes.map(a => {
+                  const watchStatus = (me?.statuses||{})[a.mal_id];
+                  const dotColor = statusColors[watchStatus];
+                  return (
+                    <button key={a.mal_id} onClick={()=>onOpenDetail(a)} style={{
+                      display:"flex",gap:7,alignItems:"center",
+                      background:"none",border:"none",cursor:"pointer",
+                      textAlign:"left",padding:"4px 4px",borderRadius:8,
+                      transition:"background 0.12s",width:"100%",
+                    }}
+                    onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.06)";}}
+                    onMouseLeave={e=>{e.currentTarget.style.background="none";}}>
+                      {/* Poster */}
+                      <div style={{position:"relative",flexShrink:0}}>
+                        <img src={a.image_url||a.large_image} alt="" style={{
+                          width:32,height:44,objectFit:"cover",borderRadius:5,display:"block",
+                          border: dotColor ? `2px solid ${dotColor}` : "1px solid rgba(255,255,255,0.1)",
+                        }} onError={e=>{e.target.style.display="none";}}/>
+                        {dotColor && (
+                          <div style={{
+                            position:"absolute",bottom:-2,right:-2,
+                            width:8,height:8,borderRadius:"50%",
+                            background:dotColor,border:"1px solid rgba(0,0,0,0.5)",
+                          }}/>
+                        )}
                       </div>
-                      {a.score && <div style={{fontSize:8,color:"#fbbf24"}}>★ {a.score}</div>}
-                    </div>
-                  </button>
-                ))}
+                      {/* Info */}
+                      <div style={{minWidth:0,flex:1}}>
+                        <div style={{
+                          fontSize:10,fontWeight:700,color:"var(--text-1)",
+                          overflow:"hidden",textOverflow:"ellipsis",
+                          display:"-webkit-box",WebkitLineClamp:2,
+                          WebkitBoxOrient:"vertical",lineHeight:1.3,
+                          marginBottom:2,
+                        }}>
+                          {a.title_en || a.title}
+                        </div>
+                        <div style={{display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}>
+                          {a.score && (
+                            <span style={{fontSize:8,color:"#fbbf24",fontWeight:700}}>
+                              ★ {a.score}
+                            </span>
+                          )}
+                          {a.year && a.year < 2025 && (
+                            <span style={{fontSize:8,color:"var(--text-6)",
+                              background:"rgba(255,255,255,0.06)",
+                              padding:"1px 4px",borderRadius:3}}>
+                              récurrent
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           );
         })}
       </div>
+      </div>
+
       {unknownDay.length > 0 && (
         <div style={{marginTop:10}}>
           <div style={{fontSize:9,color:"var(--text-5)",marginBottom:5}}>📺 Jour non précisé ({unknownDay.length})</div>
@@ -297,6 +462,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
   const [loadingStudios, setLoadingStudios] = useState(true);
   const [popularArtists, setPopularArtists] = useState([]);
   const [loadingArtists, setLoadingArtists] = useState(false);
+  const [artistsError, setArtistsError]     = useState(false);
 
   const [suggestions, setSuggestions]         = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -337,9 +503,15 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
   // which is a single cheap Supabase query).
   useEffect(() => {
     if(tab !== "artist" || popularArtists.length) return;
-    setLoadingArtists(true);
-    fetchPopularArtists(16).then(setPopularArtists).catch(() => {}).finally(() => setLoadingArtists(false));
-  }, [tab]);
+    loadPopularArtists();
+  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  function loadPopularArtists() {
+    setLoadingArtists(true); setArtistsError(false);
+    fetchPopularArtists(16)
+      .then(setPopularArtists)
+      .catch(() => setArtistsError(true))
+      .finally(() => setLoadingArtists(false));
+  }
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
 
   const inputRef = useRef(null);
@@ -366,10 +538,10 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
     (async () => {
       try {
         const rows = await sb.query(
-          "anime_cache?type=eq.TV&status=eq.Currently%20Airing&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,fetched_at&order=score.desc.nullslast&limit=50"
+          "anime_cache?type=eq.TV&status=eq.Currently%20Airing&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,broadcast&order=score.desc.nullslast&limit=200"
         ).catch(()=>[]);
         if(!cancelled && rows?.length) {
-          setAiringAnime(rows);
+          setAiringAnime(rows.filter(a => a.type === "TV"));
         } else if(!cancelled) {
           const res = await fetch("https://api.jikan.moe/v4/seasons/now?limit=50").catch(()=>null);
           const data = res?.ok ? await res.json() : null;
@@ -593,8 +765,11 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
         <>
           {/* ── WEEKLY AIRING CALENDAR ── */}
           {typeFilter === "all" && (
-            <div className="mb-8">
-              <SectionLabel className="mb-3">📅 Calendrier de la saison</SectionLabel>
+            <div className="mb-10">
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:15,fontWeight:900,color:"var(--text-1)"}}>📅 Saison en cours</div>
+                <div style={{fontSize:10,color:"var(--text-5)",marginTop:2}}>Animés TV · classés par jour de diffusion</div>
+              </div>
               {loadingAiring ? <Spinner label={t.loading} /> : <AiringCalendar anime={airingAnime} onOpenDetail={onOpenDetail} me={me}/>}
             </div>
           )}
@@ -629,7 +804,15 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
       {tab === "artist" && !submitted && (
         <>
           <SectionLabel className="mb-3">{t.artistsPopular}</SectionLabel>
-          {loadingArtists ? <Spinner label={t.loading} /> : (
+          {loadingArtists ? <Spinner label={t.loading} /> : artistsError ? (
+            <div className="py-8 text-center">
+              <div className="mb-3 text-xs text-red-400">{t.animeThemesDown}</div>
+              <button onClick={loadPopularArtists}
+                className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-[11px] font-bold text-slate-300 transition hover:bg-white/10">
+                {t.retry}
+              </button>
+            </div>
+          ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {popularArtists.map(a => <ArtistCard key={a.slug} artist={a} onClick={() => setArtistModal(a)} t={t} />)}
             </div>

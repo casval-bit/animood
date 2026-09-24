@@ -26,6 +26,7 @@ function Shell() {
   const [showSettings, setShowSettings] = useState(false);
   const [detailAnime, setDetailAnime]   = useState(null);
   const [openUser, setOpenUser]         = useState(null);
+  const [pendingJoinGame, setPendingJoinGame] = useState(null);
 
   // Seed the very first history entry with the current tab so the first
   // back press has a well-defined page to land on instead of leaving the app.
@@ -67,13 +68,15 @@ function Shell() {
   const pages = {
     moodboard: <MoodboardView onOpenDetail={openDetail} />,
     search:    <SearchView onOpenDetail={openDetail} onOpenUser={setOpenUser} />,
-    forum:     <ForumView onOpenDetail={openDetail} onOpenUser={setOpenUser} />,
+    forum:     <ForumView onOpenDetail={openDetail} onOpenUser={setOpenUser}
+                 pendingJoinGame={pendingJoinGame} onClearPendingJoin={() => setPendingJoinGame(null)} />,
     messages:  <MessagesView />,
   };
 
   return (
     <div className="min-h-screen">
-      <Header activeTab={activeTab} onChangeTab={changeTab} />
+      <Header activeTab={activeTab} onChangeTab={changeTab}
+        onJoinGame={payload => { changeTab("forum"); setPendingJoinGame(payload); }} />
       <main>
         {/* Feed and Profile stay mounted for cross-sync */}
         <div style={{display: activeTab==="feed" ? "block" : "none"}}>

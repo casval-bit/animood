@@ -420,6 +420,32 @@ export const dm = {
   },
 };
 
+// ─── GAME INVITES — invite a follower/following into a private game room ──────
+// See supabase/game_invites_schema.sql. Polled from AppProvider.jsx every 10s,
+// surfaced in the header notification bell (Header.jsx) above activity notifs.
+export const gameInvites = {
+  async send(fromUser, toUser, gameType, roomId, privateCode) {
+    return sb.query("game_invites", {
+      method: "POST",
+      headers: { ...sb.headers, "Prefer": "return=representation" },
+      body: JSON.stringify([{ from_user: fromUser, to_user: toUser, game_type: gameType, room_id: roomId, private_code: privateCode || null }]),
+    });
+  },
+  async getPending(username) {
+    try {
+      return await sb.query(`game_invites?to_user=eq.${encodeURIComponent(username)}&status=eq.pending&order=created_at.desc&limit=20`) || [];
+    } catch { return []; }
+  },
+  // status: "accepted" | "declined"
+  async respond(id, status) {
+    return sb.query(`game_invites?id=eq.${id}`, {
+      method: "PATCH",
+      headers: { ...sb.headers, "Prefer": "return=minimal" },
+      body: JSON.stringify({ status }),
+    }).catch(() => {});
+  },
+};
+
 // ─── POSTS ────────────────────────────────────────────────────────────────────
 export const posts = {
   async getFeed({ limit=20, offset=0, username=null, animeId=null, genre=null, season=null, following=[] }) {

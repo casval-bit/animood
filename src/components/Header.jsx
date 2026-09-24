@@ -15,17 +15,25 @@ function getTabs(t) {
   ];
 }
 
-function NotificationBell({ onChangeTab }) {
-  const { activityNotifications, markActivityRead, markAllActivityRead } = useApp();
+function NotificationBell({ onChangeTab, onJoinGame }) {
+  const { activityNotifications, markActivityRead, markAllActivityRead, gameInvites, dismissGameInvite } = useApp();
   const { lang } = useLang();
   const t = HEADER_I18N[lang] || HEADER_I18N.fr;
   const [open, setOpen] = useState(false);
-  const count = activityNotifications?.length || 0;
+  const activityCount = activityNotifications?.length || 0;
+  const inviteCount   = gameInvites?.length || 0;
+  const count = activityCount + inviteCount;
 
   const openNotif = (n) => {
     markActivityRead(n.type, n.id);
     setOpen(false);
     onChangeTab(n.type === "thread" || n.type === "thread-mention" ? "forum" : "feed");
+  };
+
+  const joinInvite = async (inv) => {
+    await dismissGameInvite(inv.id, "accepted");
+    setOpen(false);
+    onJoinGame?.({ gameType: inv.game_type, roomId: inv.room_id, privateCode: inv.private_code });
   };
 
   return (
@@ -59,7 +67,7 @@ function NotificationBell({ onChangeTab }) {
           >
             <div className="flex items-center justify-between gap-2 px-4 py-3 text-[13px] font-black uppercase tracking-wide text-white" style={{ background: GRADIENT_PRIMARY }}>
               <span>{t.activity}</span>
-              {count > 0 && (
+              {activityCount > 0 && (
                 <button
                   onClick={() => markAllActivityRead()}
                   className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold normal-case tracking-normal text-white transition hover:bg-white/25"
@@ -68,6 +76,31 @@ function NotificationBell({ onChangeTab }) {
                 </button>
               )}
             </div>
+
+            {/* Game invites — shown first, own accept/decline actions */}
+            {inviteCount > 0 && (
+              <div className="border-b border-white/6">
+                {gameInvites.map(inv => (
+                  <div key={inv.id} className="border-b border-white/4 px-4 py-2.5 last:border-b-0">
+                    <div className="mb-1.5 text-[12px] font-bold text-slate-100">
+                      {t.gameInvite(t.gameNames[inv.game_type] || inv.game_type, inv.from_user)}
+                    </div>
+                    <div className="flex gap-1.5">
+                      <button onClick={() => joinInvite(inv)}
+                        className="flex-1 rounded-lg py-1 text-[11px] font-extrabold text-white transition hover:opacity-90"
+                        style={{ background: GRADIENT_PRIMARY }}>
+                        {t.gameInviteJoin}
+                      </button>
+                      <button onClick={() => dismissGameInvite(inv.id, "declined")}
+                        className="rounded-lg border border-white/10 bg-white/4 px-2.5 py-1 text-[11px] font-bold text-slate-400 transition hover:bg-white/8">
+                        {t.gameInviteDecline}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {count === 0 ? (
               <div className="px-4 py-6 text-center text-xs text-slate-500">{t.nothingNew}</div>
             ) : (
@@ -99,7 +132,7 @@ function NotificationBell({ onChangeTab }) {
   );
 }
 
-export function Header({ activeTab, onChangeTab }) {
+export function Header({ activeTab, onChangeTab, onJoinGame }) {
   const { me, session, unreadPeers } = useApp();
   const { lang } = useLang();
   const t = HEADER_I18N[lang] || HEADER_I18N.fr;
@@ -144,7 +177,7 @@ export function Header({ activeTab, onChangeTab }) {
           })}
         </nav>
 
-        <NotificationBell onChangeTab={onChangeTab} />
+        <NotificationBell onChangeTab={onChangeTab} onJoinGame={onJoinGame} />
 
         <button
           onClick={() => onChangeTab("messages")}

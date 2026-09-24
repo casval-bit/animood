@@ -71,6 +71,55 @@ function PersonalMoodRadar({ ratings, watched }) {
   );
 }
 
+// ─── TOP GENRES ───────────────────────────────────────────────────────────────
+function TopGenres({ watched }) {
+  const { lang } = useLang();
+  const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
+  const [top5, setTop5] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if(watched.length === 0) { setLoading(false); return; }
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const genreCount = {};
+      const chunks = [];
+      for(let i=0;i<watched.length;i+=100) chunks.push(watched.slice(i,i+100));
+      for(const chunk of chunks) {
+        try {
+          const rows = await sb.query(`anime_cache?mal_id=in.(${chunk.join(",")})&select=genres`);
+          (rows||[]).forEach(row => { (row.genres||[]).forEach(g => { const name=g.name||g; genreCount[name]=(genreCount[name]||0)+1; }); });
+        } catch {}
+      }
+      if(cancelled) return;
+      setTop5(Object.entries(genreCount).sort((a,b)=>b[1]-a[1]).slice(0,5));
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [watched.length]);
+
+  if(loading) return <div><div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.topGenresTitle}</div><Spinner label={t.topGenresLoading} /></div>;
+  if(top5.length === 0) return null;
+  const max = top5[0][1];
+
+  return (
+    <div>
+      <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.topGenresTitle}</div>
+      <div className="flex flex-col gap-2">
+        {top5.map(([name,count]) => (
+          <div key={name}>
+            <div className="mb-1 flex justify-between"><span className="text-[11px] font-semibold text-slate-300">{name}</span><span className="text-[10px] text-slate-500">{count}</span></div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-white/6">
+              <div className="h-full rounded-full transition-[width] duration-500" style={{ width:`${(count/max)*100}%`, background: GRADIENT_PRIMARY }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const getTabs = (t) => [{id:"profile",label:t.tabProfile},{id:"journal",label:t.tabJournal},{id:"lists",label:t.tabLists},{id:"posts",label:t.tabPosts},{id:"stats",label:t.tabStats}];
 
 // ─── STATS TAB ────────────────────────────────────────────────────────────────
@@ -1031,6 +1080,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
               </div>
             </div>
             <PersonalMoodRadar ratings={me.ratings} watched={me.watched}/>
+            <TopGenres watched={me.watched}/>
           </div>
         </div>
       )}
