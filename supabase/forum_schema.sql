@@ -60,13 +60,20 @@ alter table forum_replies enable row level security;
 drop policy if exists "forum_threads_select" on forum_threads;
 drop policy if exists "forum_threads_insert" on forum_threads;
 drop policy if exists "forum_threads_update" on forum_threads;
+drop policy if exists "forum_threads_delete" on forum_threads;
 create policy "forum_threads_select" on forum_threads for select using (true);
 create policy "forum_threads_insert" on forum_threads for insert with check (true);
 create policy "forum_threads_update" on forum_threads for update using (true) with check (true);
+-- Delete: anyone can technically call it (no Auth session to check ownership
+-- against server-side), but the client only ever exposes the 🗑 button to the
+-- thread's own author — see ForumThreadModal.jsx's isThreadOwner check.
+create policy "forum_threads_delete" on forum_threads for delete using (true);
 
 drop policy if exists "forum_replies_select" on forum_replies;
 drop policy if exists "forum_replies_insert" on forum_replies;
 drop policy if exists "forum_replies_update" on forum_replies;
+drop policy if exists "forum_replies_delete" on forum_replies;
 create policy "forum_replies_select" on forum_replies for select using (true);
 create policy "forum_replies_insert" on forum_replies for insert with check (true);
 create policy "forum_replies_update" on forum_replies for update using (true) with check (true);
+create policy "forum_replies_delete" on forum_replies for delete using (true);

@@ -29,6 +29,13 @@ export const GAME_SYSTEM_I18N = {
       connecting: "Connexion…",
       myElo: (elo) => `Ton Elo : ${elo}`,
     },
+    friendInvite: {
+      title: "Inviter un ami",
+      loading: "Chargement…",
+      noFriends: "Aucun ami à inviter",
+      invite: "Inviter",
+      sent: "✓ Envoyé",
+    },
     chain: {
       round: (n) => `Manche ${n}/3`,
       chooseLinkType: "Choisis le type de lien",
@@ -96,6 +103,13 @@ export const GAME_SYSTEM_I18N = {
       waitStatus: (waitTime, range) => `Wait: ${waitTime}s · Elo range: ±${range}`,
       connecting: "Connecting…",
       myElo: (elo) => `Your Elo: ${elo}`,
+    },
+    friendInvite: {
+      title: "Invite a friend",
+      loading: "Loading…",
+      noFriends: "No friends to invite",
+      invite: "Invite",
+      sent: "✓ Sent",
     },
     chain: {
       round: (n) => `Round ${n}/3`,

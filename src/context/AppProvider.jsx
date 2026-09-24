@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { onAuthChange, loadProfile, saveProfile, signOut, dm, posts, sb, blocks } from "../api/supabase.js";
+import { onAuthChange, loadProfile, saveProfile, signOut, dm, posts, sb, blocks, gameInvites as gameInvitesApi } from "../api/supabase.js";
 import { DEFAULT_PROFILE } from "../constants/profile.js";
 import { AppContext } from "./appContextObject.js";
 
@@ -117,6 +117,33 @@ export function AppProvider({ children }) {
     });
   }, [myUsername]);
 
+  // Game invites — pending invitations to a private LinkUp/Timeline/Cluescale
+  // room, sent by a follower/following from FriendInviteList (GameSystem.jsx).
+  // Polled rather than derived like activityNotifications above, since these
+  // are real server-side rows (game_invites), not something we can recompute
+  // from existing tables.
+  const [gameInvites, setGameInvites] = useState([]);
+
+  useEffect(() => {
+    if(!myUsername) return;
+    let cancelled = false;
+    const check = async () => {
+      const rows = await gameInvitesApi.getPending(myUsername);
+      if(!cancelled) setGameInvites(rows);
+    };
+    check();
+    const interval = setInterval(check, 10000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [myUsername]);
+
+  // Removes an invite from the bell immediately (optimistic) and marks it
+  // dealt with server-side — called both on decline and right before joining
+  // (accept), so the invite never lingers whichever way the user resolves it.
+  const dismissGameInvite = useCallback(async (id, status = "declined") => {
+    setGameInvites(prev => prev.filter(inv => inv.id !== id));
+    await gameInvitesApi.respond(id, status);
+  }, []);
+
   // Activity notifications — new comments/replies (from someone else) on a Feed
   // post or Forum thread I started or took part in, PLUS any post/comment/
   // thread/reply where someone else typed "@myUsername" (regardless of whether
@@ -223,6 +250,7 @@ export function AppProvider({ children }) {
   const ctx = {
     session, me, setMe, saveMe, myUsername, profileReady, logout,
     unreadPeers, markRead, activityNotifications, markActivityRead, markAllActivityRead,
+    gameInvites, dismissGameInvite,
     notificationsEnabled, setNotificationsEnabled,
     blockedUsers, blockUser, unblockUser,
   };

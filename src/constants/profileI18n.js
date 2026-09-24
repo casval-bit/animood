@@ -12,6 +12,10 @@ export const PROFILE_I18N = {
     moodProfileTitle: "🎭 Ton profil émotionnel",
     basedOn: (count, total) => `Basé sur ${count} animés vus sur ${total}`,
 
+    // TopGenres
+    topGenresTitle: "🎨 Genres préférés",
+    topGenresLoading: "Calcul en cours…",
+
     // StatBars (genres/studios/VAs sort buttons)
     sortCount: "Quantité",
     sortAvgRating: "Note moy.",
@@ -141,6 +145,10 @@ export const PROFILE_I18N = {
     calculating: "Calculating…",
     moodProfileTitle: "🎭 Your emotional profile",
     basedOn: (count, total) => `Based on ${count} watched anime out of ${total}`,
+
+    // TopGenres
+    topGenresTitle: "🎨 Favorite genres",
+    topGenresLoading: "Calculating…",
 
     // StatBars (genres/studios/VAs sort buttons)
     sortCount: "Count",

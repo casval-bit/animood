@@ -76,6 +76,7 @@ export const FORUM_I18N = {
     leaderboardTitle: "🥇 Classement général",
     leaderboardEmpty: "Personne n'a encore joué !",
     youLabel: "toi",
+    eloLeaderboardTitle: (gameLabel) => `🏆 Classement ${gameLabel}`,
   },
 
   en: {
@@ -155,5 +156,6 @@ export const FORUM_I18N = {
     leaderboardTitle: "🥇 Leaderboard",
     leaderboardEmpty: "No one has played yet!",
     youLabel: "you",
+    eloLeaderboardTitle: (gameLabel) => `🏆 ${gameLabel} leaderboard`,
   },
 };

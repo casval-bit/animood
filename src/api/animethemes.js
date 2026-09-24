@@ -4,6 +4,17 @@
 // lookup used for studios.
 const BASE = "https://api.animethemes.moe";
 
+// AnimeThemes sits behind Cloudflare and its origin sometimes hangs (522)
+// instead of failing fast — cap each request so the UI can show an error
+// rather than an endless spinner.
+function fetchWithTimeout(url, ms = 12000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { signal: ctrl.signal })
+    .catch(() => { throw new Error("AnimeThemes unreachable"); })
+    .finally(() => clearTimeout(timer));
+}
+
 function extractMalId(resources) {
   const r = (resources || []).find(r => r.site === "MyAnimeList");
   return r ? r.external_id : null;
@@ -42,7 +53,7 @@ export async function searchArtists(query, limit = 24) {
   const q = query.trim();
   if(!q) return [];
   const url = `${BASE}/artist?q=${encodeURIComponent(q)}&page[size]=${limit}&include=songs.animethemes.anime`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url);
   if(!res.ok) throw new Error(`AnimeThemes ${res.status}`);
   const json = await res.json();
   return (json.artists || []).map(normalizeArtist).filter(a => a.themes.length);
@@ -62,13 +73,17 @@ let popularArtistsCache = null;
 export async function fetchPopularArtists(limit = 16) {
   if(popularArtistsCache) return popularArtistsCache.slice(0, limit);
   const names = POPULAR_ARTIST_NAMES.slice(0, limit);
+  let failures = 0;
   const results = await Promise.all(names.map(async name => {
     try {
       const found = await searchArtists(name, 3);
       return found.find(a => a.name.toLowerCase() === name.toLowerCase()) || found[0] || null;
-    } catch { return null; }
+    } catch { failures++; return null; }
   }));
   const artists = results.filter(Boolean);
+  // Every lookup failing means the API is down, not that no artist matched —
+  // surface it so the Artist tab can show an error instead of a blank page.
+  if(!artists.length && failures) throw new Error("AnimeThemes unavailable");
   if(artists.length) popularArtistsCache = artists;
   return artists;
 }

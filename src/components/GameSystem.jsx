@@ -1,7 +1,7 @@
 // ─── GAME SYSTEM — Matchmaking + Chain + Timeline ─────────────────────────────
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useApp } from "../context/useApp.js";
-import { sb, supabase } from "../api/supabase.js";
+import { sb, supabase, gameInvites } from "../api/supabase.js";
 import { Spinner } from "./Spinner.jsx";
 import { useLang } from "../context/useLang.js";
 import { GAME_SYSTEM_I18N } from "../constants/gameSystemI18n.js";
@@ -79,6 +79,73 @@ async function updateElo(username, field, delta, pointsDelta=0) {
   return newElo;
 }
 
+// ─── FRIEND INVITE LIST — invite a follower/following into a private room ─────
+function FriendInviteList({ myUsername, gameType, roomId, privateCode }) {
+  const { lang } = useLang();
+  const t = (GAME_SYSTEM_I18N[lang] || GAME_SYSTEM_I18N.fr).friendInvite;
+  const [friends, setFriends] = useState([]);
+  const [sent, setSent]       = useState(new Set());
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if(!myUsername) return;
+    // Load both followers and following, merge as "friends" — mutuals first.
+    Promise.all([
+      sb.query(`follows?follower=eq.${encodeURIComponent(myUsername)}&select=following`).catch(()=>[]),
+      sb.query(`follows?following=eq.${encodeURIComponent(myUsername)}&select=follower`).catch(()=>[]),
+    ]).then(([following, followers]) => {
+      const followingSet = new Set((following||[]).map(r=>r.following));
+      const followerSet  = new Set((followers||[]).map(r=>r.follower));
+      const all = [...new Set([...followingSet, ...followerSet])].filter(u=>u!==myUsername);
+      const sorted = all.sort((a,b) => {
+        const aM = followingSet.has(a) && followerSet.has(a);
+        const bM = followingSet.has(b) && followerSet.has(b);
+        return bM - aM;
+      });
+      setFriends(sorted);
+      setLoading(false);
+    });
+  }, [myUsername]);
+
+  const invite = async (toUser) => {
+    setSent(s => new Set([...s, toUser]));
+    await gameInvites.send(myUsername, toUser, gameType, roomId, privateCode).catch(()=>{});
+  };
+
+  if(loading) return <div style={{textAlign:"center",fontSize:11,color:"var(--text-5)",padding:8}}>{t.loading}</div>;
+  if(!friends.length) return <div style={{textAlign:"center",fontSize:11,color:"var(--text-5)",padding:8}}>{t.noFriends}</div>;
+
+  return (
+    <div>
+      <div style={{fontSize:10,fontWeight:800,color:"var(--text-5)",letterSpacing:1,
+        textTransform:"uppercase",marginBottom:8}}>
+        {t.title}
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:5,maxHeight:200,overflowY:"auto"}}>
+        {friends.map(u => {
+          const isSent = sent.has(u);
+          return (
+            <div key={u} style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+              padding:"7px 10px",borderRadius:10,
+              background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)"}}>
+              <span style={{fontSize:11,fontWeight:700,color:"var(--text-1)"}}>@{u}</span>
+              <button onClick={()=>!isSent&&invite(u)}
+                disabled={isSent}
+                style={{padding:"4px 12px",borderRadius:8,border:"none",cursor:isSent?"default":"pointer",
+                  fontSize:10,fontWeight:800,transition:"all 0.15s",
+                  background: isSent ? "rgba(34,197,94,0.15)" : "rgba(124,58,237,0.2)",
+                  color: isSent ? "#22c55e" : "#c084fc",
+                  opacity: isSent ? 0.8 : 1}}>
+                {isSent ? t.sent : t.invite}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── MATCHMAKING ──────────────────────────────────────────────────────────────
 function generateCode() {
   return Math.random().toString(36).substring(2,7).toUpperCase();
@@ -94,6 +161,7 @@ export function Matchmaking({ gameType, onMatch, onClose }) {
   const [waitTime, setWaitTime]   = useState(0);
   const [myElo, setMyElo]         = useState(400);
   const [privateCode, setPrivateCode] = useState("");
+  const [myRoomId, setMyRoomId]   = useState(null);
   const [joinCode, setJoinCode]   = useState("");
   const [joinError, setJoinError] = useState("");
   const roomRef = useRef(null);
@@ -219,6 +287,7 @@ export function Matchmaking({ gameType, onMatch, onClose }) {
     const created = await sb.query("game_rooms",{method:"POST",headers:{...sb.headers,"Prefer":"return=representation"},body:JSON.stringify({game_type:gameType,player1:myUsername,elo1:400,status:"waiting",state:{},ranked:false,private_code:code})}).catch(()=>null);
     const myRoom = created?.[0]; if(!myRoom) return;
     roomRef.current = myRoom.id;
+    setMyRoomId(myRoom.id);
     const sub = supabase.channel(`room_${myRoom.id}`)
       .on("postgres_changes",{event:"UPDATE",schema:"public",table:"game_rooms",filter:`id=eq.${myRoom.id}`},
         p=>{const r=p.new;if(r.status==="active"&&r.player2){setStatus("found");setTimeout(()=>onMatch(r),500);}})
@@ -338,6 +407,11 @@ if(!room){setJoinError(t.errInvalidCode);return;}
           <div style={{fontSize:12,color:"var(--text-4)",marginBottom:8}}>{t.shareCode}</div>
           <div style={{fontSize:36,fontWeight:900,color:"#c084fc",letterSpacing:8,marginBottom:16,padding:"12px 24px",background:"rgba(124,58,237,0.1)",borderRadius:12,display:"inline-block"}}>{privateCode}</div>
           <div style={{fontSize:11,color:"var(--text-4)",marginBottom:20}}>{t.waitingConnection}</div>
+
+          <div style={{textAlign:"left",marginBottom:16}}>
+            <FriendInviteList myUsername={myUsername} gameType={gameType} roomId={myRoomId} privateCode={privateCode}/>
+          </div>
+
           <button onClick={cancelAndClose} style={{padding:"8px 20px",borderRadius:20,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:"var(--text-3)",cursor:"pointer",fontSize:12}}>{tc.cancel}</button>
         </>
       )}
@@ -458,7 +532,7 @@ export function ChainGame({ room, onClose, onReady }) {
   useEffect(() => {
     const poll = setInterval(async () => {
       try {
-        const rows = await sb.query(`game_rooms?id=eq.${room.id}&select=state,status,winner&limit=1`);
+        const rows = await sb.query(`game_rooms?id=eq.${room.id}&select=state,status,winner,updated_at&limit=1`);
         const r = rows?.[0];
         if(!r) return;
         // Check if opponent left
@@ -468,6 +542,18 @@ export function ChainGame({ room, onClose, onReady }) {
           clearInterval(poll);
           setState(s => ({...s, phase:"gameEnd", winner: myUsername, opponentLeft: true}));
           return;
+        }
+        // Stale detection: opponent's client went silent (crash, dead network,
+        // sleep) mid-turn without ever triggering the visibilitychange forfeit
+        // above — if it's their turn and nothing has moved in 45s, claim the win.
+        if(r.updated_at && !isMyTurn) {
+          const stale = Date.now() - new Date(r.updated_at).getTime() > 45000;
+          if(stale) {
+            await sb.query(`game_rooms?id=eq.${room.id}`, { method: "PATCH", headers: { ...sb.headers, "Prefer": "return=minimal" }, body: JSON.stringify({ status: "finished", winner: myUsername }) }).catch(()=>{});
+            clearInterval(poll);
+            setState(s => ({...s, phase:"gameEnd", winner: myUsername, opponentLeft: true}));
+            return;
+          }
         }
         const newState = r.state;
         if(!newState?.scores) return;
@@ -880,7 +966,7 @@ onKeyDown={e=>{if(e.key==="Enter"&&suggestions.length>0)handleGuess(suggestions[
                 <div style={{fontSize:14,color:"var(--text-3)",marginBottom:20}}>
                   {myScore} – {oppScore}
                 </div>
-                <button onClick={handleForfait}
+                <button onClick={onClose}
                   style={{padding:"10px 24px",borderRadius:20,border:"none",
                     background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",
                     fontWeight:800,fontSize:13,cursor:"pointer"}}>
@@ -1858,6 +1944,13 @@ export function CluescaleMatchmaking({ onMatch, onClose }) {
           </div>
         )}
       </div>
+
+      {isHost && room?.id && (
+        <div style={{marginBottom:16,textAlign:"left"}}>
+          <FriendInviteList myUsername={myUsername} gameType="cluescale" roomId={room.id} privateCode={code}/>
+        </div>
+      )}
+
       {isHost ? (
         <button onClick={startGame} disabled={players.length < 2}
           style={{width:"100%",padding:"12px",borderRadius:12,border:"none",

@@ -2,7 +2,8 @@
 // Cache-first for static assets (JS, CSS, images), network-first for API calls.
 // Offline fallback: cached pages, the app shell stays usable from cache.
 
-const CACHE_NAME = "animood-v1";
+// Bumped from v1: v1 cached unhashed .js/.css forever (see isStaticAsset).
+const CACHE_NAME = "animood-v2";
 
 // Assets to pre-cache on install — the critical app shell.
 const PRECACHE_URLS = [
@@ -60,12 +61,14 @@ function isApiRequest(url) {
   return API_PATTERNS.some((pat) => pat.test(url));
 }
 
+// Only content-hashed build output (/assets/) and images are safe to serve
+// cache-first — an unhashed .js/.css keeps its URL across versions, so caching
+// it forever pins a stale copy.
 function isStaticAsset(url) {
-  const { pathname } = new URL(url);
+  const { origin, pathname } = new URL(url);
+  if (origin !== self.location.origin) return false;
   return (
     pathname.startsWith("/assets/") ||
-    pathname.endsWith(".js") ||
-    pathname.endsWith(".css") ||
     pathname.endsWith(".svg") ||
     pathname.endsWith(".png") ||
     pathname.endsWith(".jpg") ||

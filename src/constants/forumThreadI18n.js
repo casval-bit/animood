@@ -29,6 +29,10 @@ export const FORUM_THREAD_I18N = {
     reply: "Répondre",
     pollMultiHint: "📊 Choix multiple",
     pollVoteCount: (n) => `${n} vote${n !== 1 ? "s" : ""}`,
+    deleteThreadTitle: "Supprimer le sujet",
+    deleteThreadConfirm: "Supprimer ce sujet ? Cette action est irréversible.",
+    deleteReplyTitle: "Supprimer",
+    deleteReplyConfirm: "Supprimer cette réponse ?",
   },
 
   en: {
@@ -61,5 +65,9 @@ export const FORUM_THREAD_I18N = {
     reply: "Reply",
     pollMultiHint: "📊 Multiple choice",
     pollVoteCount: (n) => `${n} vote${n !== 1 ? "s" : ""}`,
+    deleteThreadTitle: "Delete topic",
+    deleteThreadConfirm: "Delete this topic? This can't be undone.",
+    deleteReplyTitle: "Delete",
+    deleteReplyConfirm: "Delete this reply?",
   },
 };

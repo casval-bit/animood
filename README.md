@@ -7,7 +7,7 @@ A mood-driven anime app — moodboard, feed, search, forum, profiles, and messag
 No setup needed — the Supabase key already in the code is the `anon`/publishable key (safe to ship client-side by design; access control lives in RLS policies, not in keeping it secret), and the DB schema is already migrated on the shared Supabase project.
 
 ```bash
-git clone -b animood-v.09.01 https://github.com/casval-bit/animood.git
+git clone -b animood-v.10.00 https://github.com/casval-bit/animood.git
 cd animood
 npm install
 npm run dev
@@ -30,7 +30,8 @@ npm run lint      # eslint across the project
 - **Messages** — 1:1 chat between members ("Messages" tab + "💬 Message" button on any profile), plus a floating chat bubble available from any page, and a "✏️ Nouveau" button to start a conversation without going through a profile first. Conversation list, chat header, and the new-message search all show the other person's real profile photo and display name, not just their `@handle`. Read receipts: your last sent bubble shows "envoyé"/"vu" once the recipient opens the thread, backed by a server-side `read_at` on `direct_messages` instead of a per-device `localStorage` timestamp — so the unread badge and the seen tick agree across devices.
 - **Mini-jeux** (Forum → 🎮 Mini-jeux du jour) — three solo daily games (Wordle Animé, Poster Mystère, OP Quiz — pick a difficulty, then guess the anime from its opening theme, all three awarding points on a win, once per day per game) plus three 1v1/multijoueur games (Chaîne Animé, Timeline, Cluescale — devine un score 1-20 à partir d'un indice donné par le juge, 2 à 4 joueurs) with matchmaking (Elo range widens the longer you wait) or a private room code. Each game button shows your own score for that game, and an inline top-20 leaderboard (medals, followed friends highlighted, your rank shown separately if you're outside the top 20) ranked on `game_elo.points_total`, which also feeds the profile frames below. Chaîne et Timeline se jouent aussi **vs IA** (facile/moyen/difficile) sans passer par le matchmaking. Le matchmaking nettoie désormais les rooms "waiting" abandonnées (parties fantômes) avant d'en recréer une, et rafraîchit la sienne en arrière-plan tant qu'elle attend un adversaire. OP Quiz's daily picks are now adaptive: openings you tend to miss come back weighted higher, ones you've mastered fade toward a small floor instead of disappearing, and the difficulty tag itself re-buckets from real community answers once an opening has enough attempts.
 - **Discussions par animé** — chaque fiche animé a sa propre section "💬 Discussions" (sujets de forum liés à cet animé, créés et consultés sans quitter la fiche) ; les animés de la saison en cours dans le Forum pointent vers la même liste de discussions.
-- **Calendrier de la saison** (Recherche → onglet Animé) — grille par jour de diffusion des animés TV en cours, jour courant mis en avant.
+- **Calendrier de la saison** (Recherche → onglet Animé) — tableau Lundi → Dimanche des animés TV en cours classés par jour de diffusion, jour courant mis en avant, avec un filtre "Mon calendrier" (tes animés en cours/à voir + les suites des séries que tu as vues).
+- **Invitations de jeu** — depuis une room privée LinkUp / Timeline / Cluescale, invite directement un abonné/abonnement ; l'invitation arrive dans la cloche 🔔 avec Rejoindre / Refuser.
 - **Cadres de profil** — unlockable decorative avatar borders across 5 tracks (abonnés, contribution aux moods, animés vus, genre préféré, jeux). Settings → Profil shows every frame, locked ones greyed out with a 🔒 and the unlock condition, and lets you pick your active one.
 - **Badges de profil** — same idea as profile frames (unlock tracks: anime watched, followers, mood contributions, etc.), shown as a pill in the profile's stats row with a picker for the active one.
 - **PWA** — installable (manifest + service worker + icons); the browser/device back button closes modals and returns to the previous tab instead of leaving the app.
@@ -46,139 +47,39 @@ npm run lint      # eslint across the project
 - **Theme** — selectable light/dark appearance (Settings → 🎨 Apparence). Dark (glass/gradient) stays the default; the light theme is a softer, violet-tinted "social feed" look, not a flat white dashboard.
 - **AniList import** — also pulls a public AniList account's custom (sub-)lists, filterable from Profile → Journal. Re-run the same import anytime (same username, now with a clearly labeled field and a "🔄 Réimporter" button) to resync after updating your list on AniList.
 
-## v.09.01 — en comparaison avec v.09.00
+## v.10.00 — en comparaison avec v.09.01
 
-- **Confidentialité du profil** — nouveau réglage (Settings → Profil) avec trois modes : tout le monde, amis seulement (abonnement mutuel), ou une liste de personnes choisies (recherche + ajout via un picker dédié, `UserPickerModal`). L'application est faite côté client (`src/utils/profilePrivacy.js`) dans `UserProfileModal` : un profil non autorisé affiche un état verrouillé "🔒" à la place de la bannière/stats/listes. Nécessite `supabase/profile_privacy_schema.sql` — voir Database plus bas.
-- **Listes abonnés/abonnements cliquables** — les compteurs "N abonnés" / "N abonnements", sur ton propre profil comme sur celui d'un autre membre, ouvrent maintenant une liste (`FollowListModal`) avec avatar + nom + `@username`, cliquable pour sauter directement sur ce profil.
-- **Accusés de lecture des messages** — un "vu"/"envoyé" apparaît sous ta dernière bulle envoyée dans une conversation (Messages et bulle de chat flottante), basé sur une colonne `read_at` posée côté serveur quand le destinataire ouvre le fil, plutôt qu'un timestamp `localStorage` par appareil comme avant — l'accusé de lecture et le badge non-lu restent donc cohérents même en changeant d'appareil. Nécessite de relancer `supabase/messages_schema.sql` (colonne + policy UPDATE) sur les bases déjà déployées.
-- **Footer** — chaque page se termine désormais par un pied de page (nom/tagline AniMood, copyright) avec des liens "Mentions légales" / "Confidentialité" ouvrant des pages légales à compléter avant une mise en ligne publique réelle (contenu actuellement en placeholders `[...]`).
+- **Invitations de jeu** — dans une room privée LinkUp / Timeline / Cluescale, une liste de tes abonnés/abonnements (mutuels en premier) permet de les inviter en un clic. L'invitation apparaît en tête de la cloche 🔔 (vérifiée toutes les 10 s) avec "Rejoindre" (bascule sur le Forum et entre dans la room comme joueur) ou "Refuser". Nécessite `supabase/game_invites_schema.sql` — voir Database plus bas.
+- **Classement Elo par jeu** — la modale de matchmaking LinkUp/Timeline affiche un mini-classement Elo propre au jeu (médailles, amis suivis en vert, ton rang à part si tu es hors du top).
+- **Parties 1v1 abandonnées** — si l'adversaire ne donne plus signe de vie pendant son tour (crash, réseau coupé, veille) depuis 45 s, la victoire t'est attribuée au lieu de rester bloqué indéfiniment.
+- **Forum — suppression** — l'auteur d'un sujet ou d'une réponse peut le supprimer (🗑, avec confirmation). Nécessite de relancer `supabase/forum_schema.sql` (policies DELETE).
+- **Modale Studio** — catalogue complet du studio (jusqu'à 200 animés), tri Récents / Mieux notés / Populaires, option pour masquer les animés déjà vus, et tes statuts affichés sur les affiches.
+- **Profil** — retour de la section "🎌 Genres les plus vus".
+- **Footer** — liens À propos / Catégories / Contact / FAQ / Modération, ouvrant des pages d'info (`InfoModal`), en plus de Mentions légales / Confidentialité.
+- **Calendrier de la saison restauré** (Recherche → Animé) — il était retombé en simple grille, parce que la requête ne demandait plus la colonne `broadcast` à `anime_cache`. Le tableau Lundi → Dimanche est revenu, avec le filtre "Mon calendrier", jusqu'à 200 animés, défilement horizontal sur mobile, et une ligne "Jour non précisé".
+- **Fix onglet Artiste** — quand l'API AnimeThemes.moe est indisponible (erreur Cloudflare 522 côté serveur), l'onglet restait vide sans explication. Les requêtes ont maintenant un délai max de 12 s, et l'onglet affiche un message d'erreur avec un bouton "Réessayer".
+- **Fix écran blanc en dev** — un service worker laissé par un build de prod pouvait servir des modules Vite périmés en `npm run dev`. Le service worker n'est plus enregistré qu'en prod, tout reliquat est désinscrit en dev, et le cache passe en `animood-v2` en ne gardant en cache-first que les fichiers hashés de `/assets/` et les images.
 
-## v.09.00 — en comparaison avec v.08.05
+## v.10.00 — en comparaison avec v.08.06
 
-- **OP Quiz — difficulté auto-apprenante** — les 5 openings du jour ne sont plus tirés au hasard dans le pool : ceux que tu rates souvent reviennent avec un poids plus élevé, ceux que tu maîtrises redescendent vers un plancher (sans jamais disparaître complètement), et les jamais-vus restent au milieu pour continuer à découvrir du contenu. Le tirage reste déterministe (seedé sur le jour + ton pseudo) donc un refresh en cours de journée ne remélange pas tes manches. Le tag de difficulté de chaque opening (`easy`/`medium`/`hard`) se recalcule aussi à partir des vraies réponses de la communauté une fois qu'il a assez de tentatives (`opquiz_stats.difficulty_score`), au lieu de rester figé sur le tag choisi à la main dans `animeOpenings.js`/`opquiz_pool` pour toujours. L'écran de révélation affiche désormais "déjà vu N fois — X% de réussite" (ou "jamais vu — premier essai !"), et l'écran de fin ton taux de reconnaissance sur le pool entier. Nécessite `supabase/opquiz_stats_schema.sql` — voir Database plus bas.
-- **Modération de contenu** — les posts Feed, commentaires et options de sondage passent par un filtre de mots interdits (`src/constants/bannedWords.js` / `src/utils/contentFilter.js`) avant publication ; en cas de correspondance, le post est bloqué avec un message d'erreur inline au lieu d'être publié.
-- **Abonnés en commun** — la modale de profil d'un autre membre affiche maintenant vos abonnés en commun ("👥 N abonnés en commun"), cliquables pour naviguer directement vers leur profil.
-- **Nettoyage Profil** — la section "🎌 Genres les plus vus" de ton propre profil (redondante avec le tri par genre déjà disponible dans les stats) est retirée.
+v.10.00 reprend les fonctionnalités de v.08.06 (calendrier saisonnier, invitations de jeu, classement Elo par jeu, tri de la modale Studio, suppression dans le forum, genres les plus vus, pages À propos / Contact / FAQ), et ajoute :
 
-## v.08.05 — en comparaison avec v.08.02
-
-- **Classement mini-jeux fusionné avec `animood-v.08.04` (GitHub)** — cette branche parallèle avait reconstruit le panneau "🎮 Mini-jeux" différemment : score affiché par jeu sur chaque bouton (Wordle/Poster/OP Quiz/Cluescale séparés, au lieu d'un total unique) et un mini-classement top 20 intégré directement dans le panneau (médailles, amis suivis en vert surlignés, ta position affichée à part si tu es hors du top 20) au lieu d'un bouton "Classement" ouvrant un modal. Repris ici (`ForumView.jsx`), avec deux corrections par rapport à `animood-v.08.04` :
-  - le classement est trié sur `points_total` (déjà maintenu côté serveur, cohérent avec le système de cadres de profil) plutôt que recalculé côté client en sommant 6 colonnes séparées à chaque affichage ;
-  - `game_schema.sql` déclare réellement les colonnes `pts_wordle`/`pts_poster`/`pts_opquiz`/`pts_cluescale` — sur `animood-v.08.04`, le code les lit/écrit sans qu'elles existent nulle part dans le schéma SQL suivi.
-  Cluescale attribue désormais aussi des points (`pts_cluescale`, uniquement au gagnant, `(score gagnant - 2e score) × 3`) — repris de `animood-v.08.04`, ça manquait totalement côté local jusqu'ici. Le modal `Leaderboard.jsx` (avatars, filtres Total/Elo Chaîne/Elo Timeline) est retiré, remplacé par le panneau inline.
-- **Garde-fou anti-triche côté serveur** — `awardSoloPoints.js` refuse maintenant de recréditer des points si le joueur a déjà gagné aujourd'hui pour ce jeu (vérifié via `last_<jeu>_date` en base), en plus du verrou `localStorage` existant qui pouvait être contourné en vidant le cache navigateur. Repris de `animood-v.08.04`.
-- **Badges de profil** *(déjà sur `animood-v.08.02`, jamais documenté jusqu'ici)* — système de badges déblocables (mêmes conditions que les cadres : animés vus, followers, contribution moods, etc.), affichés en pastille sur le profil avec sélection du badge actif. Nécessite `supabase/badges_schema.sql` — voir Database plus bas.
-- **PWA** — l'app est maintenant installable (manifest + service worker + icônes) ; le bouton retour du navigateur/appareil ferme les modales et revient à l'onglet précédent au lieu de quitter l'app (`App.jsx`, `Modal.jsx`, nouveau hook `src/hooks/useModalBack.js`).
-- **OP Quiz** — choix de la difficulté avant de commencer, et le pool d'openings n'est plus limité aux ~24 entrées codées en dur : un nouveau job GitHub Actions (`scripts/sync_opquiz_pool.mjs`) résout l'audio via AnimeThemes.moe et alimente une table `opquiz_pool`, utilisée en plus de la liste statique (qui reste un filet de sécurité si la table est vide/injoignable).
-- **Fix modale Studio** — la liste d'animés d'un studio venait de l'endpoint `/producers` de Jikan (rate-limité), qui revenait souvent vide si la queue partagée était déjà occupée ailleurs (ex. chargement des logos studios en arrière-plan). Passe maintenant par `anime_cache` (même source que le reste de l'app), avec un tirage aléatoire parmi les mieux notés à chaque ouverture plutôt que toujours le même top N figé.
-- **Profil** — le badge "🏆" flottant sur l'avatar est remplacé par une pastille dans la ligne de stats (à côté de "vus"/"notés"/"moyenne"), plus lisible.
-
-## v.08.02 — en comparaison avec v.08
-
-Fusion de `animood-v.08.01` (GitHub) — cette branche parallèle a fini par ajouter de vraies nouveautés, récupérées ici en plus de `v.08` :
-
-- **Cluescale** — nouveau mini-jeu 2 à 4 joueurs (Forum → 🎮 Mini-jeux du jour) : le juge reçoit un thème et un score 1-20 tirés au sort, donne un indice, les autres devinent le score (exact = +3, ±1 = +1 ; le juge gagne +2 si quelqu'un tombe juste).
-- **vs IA** — Chaîne et Timeline se jouent désormais aussi contre une IA (facile/moyen/difficile), sans passer par le matchmaking.
-- **Discussions par animé** — chaque fiche animé a sa propre section "💬 Discussions" (sujets de forum liés à cet animé) ; les animés de la saison en cours dans le Forum pointent vers la même liste.
-- **Calendrier de la saison** — grille par jour de diffusion des animés TV en cours (Recherche → onglet Animé), jour courant mis en avant.
-- **Fix "parties fantômes"** — le matchmaking nettoie désormais les rooms `waiting` abandonnées avant d'en recréer une, et rafraîchit la sienne en arrière-plan tant qu'elle attend un adversaire.
-- La fusion a aussi corrigé plusieurs régressions présentes sur cette branche GitHub à l'endroit où elle avait rejoint `animood-v.07` : l'import cassé d'OP Quiz (`MiniGames.jsx`/`ForumView.jsx`), la disparition des fonctions `calcChainElo`/`calcTimelineElo` (`GameSystem.jsx`, aurait fait planter la fin de toute partie classée), un retour en arrière sur les likes RLS-safe et l'i18n dans `ProfileView.jsx`, la disparition de la catégorie "🎬 Trailers" et du design simplifié de `GameEloDisplay` dans `ForumView.jsx`, une réécriture buguée d'`awardSoloPoints.js` (perte de `points_total`/`awardOpQuizPoints`), et un bug d'encodage (mojibake) dans les commentaires de `supabase.js`.
-- **Nouvelles colonnes SQL** — `forum_threads.anime_id/anime_title/anime_image/reply_count/last_reply_at` (discussions par animé) et `game_rooms.player3/player4` (Cluescale) : voir Database plus bas, `game_schema.sql` reste ⚠️ non exécuté sur le projet partagé.
-
-## v.08 — en comparaison avec v.07.02
-
-- **Recherche d'artiste** — nouvel onglet "Artiste" dans Recherche, propulsé par l'API gratuite AnimeThemes.moe (aucun jeu de données local à maintenir) : cherche un chanteur/groupe et retrouve tous les OP/ED qu'il a interprétés, avec une grille d'artistes connus préchargée (LiSA, YOASOBI, Aimer, ClariS, Linked Horizon, FLOW...) dès le premier passage. Lien réciproque sur la fiche animé : chaque animé affiche désormais ses OP/ED avec l'artiste, cliquable directement vers son catalogue complet.
-- **Notifications** — réglage pour activer/désactiver les notifications d'activité, action "tout marquer comme lu" dans le menu 🔔.
-- **OP Quiz** — protection anti-triche pendant la phase à l'aveugle : le lecteur revendique le focus média de l'OS avec des métadonnées factices ("???") pour empêcher les overlays de touches de volume de révéler le titre de l'animé.
-- **Forum** — lien trailer direct sur les lignes d'animés anticipés/sujets, au lieu de toujours retomber sur le libellé générique.
-- **Repassage sur `animood-v.07` (GitHub)** — cette branche parallèle continue de diverger et ne compile plus (JSX cassé dans `GameEloDisplay`). Aucune fonctionnalité neuve utilisable dedans, mais trois nettoyages ont été repris proprement : `ThreadModal` perd sa prop `onLikeUpdate` inutilisée, `ProfilePostCard` perd son `useEffect` de resynchro des likes (redondant), et `GameEloDisplay` est simplifié à un total de points unique (`elo.points_total`) avec les boutons mini-jeux factorisés dans `GameButton`. OP Quiz est conservé (contrairement à cette branche GitHub qui l'avait supprimé).
-
-## v.07.02 — en comparaison avec v.07.01
-
-- **OP Quiz** — troisième mini-jeu solo (Forum → 🎮 Mini-jeux du jour) : deviner l'animé à partir de son opening. Suit sa propre streak/points (`streak_opquiz`, `last_opquiz_date` dans `game_elo`), en attente d'exécution avec le reste de `game_schema.sql` — voir Database plus bas.
-- **Mini-jeux 1v1 (Chaîne, Timeline)** — implémentation remplacée par celle développée en parallèle sur `animood-v.07` (branche divergente, jamais fusionnée) : l'abandon en pleine partie demande maintenant une confirmation et fait passer la room à `"finished"` (au lieu de la remettre silencieusement à `"waiting"`), et la fenêtre de jeu expose sa fonction de forfait au parent (`onReady`) plutôt que de la dupliquer dans `ForumView`.
-- **Repassage sur `animood-v.07` (GitHub)** — cette même branche parallèle a continué à évoluer séparément sur GitHub après sa divergence, avec un merge non documenté ("thread likes, comment likes, i18n"). Comparée en détail à celle-ci : pas de fonctionnalité réellement nouvelle dedans (aucun fichier en plus, OP Quiz y a même été supprimé), et `ForumView.jsx` n'y compile plus (JSX cassé dans `GameEloDisplay`, retour JSX supprimé sans retirer les balises de fermeture). Seuls trois changements valables en ont été repris ici, réimplémentés proprement :
-  - `ThreadModal` perd sa prop `onLikeUpdate` (et l'appel associé) — n'était utile que pour resynchroniser la liste des sujets du Forum sans recharger, jugé pas assez utile pour le coût.
-  - `ProfilePostCard` perd le `useEffect` qui resynchronisait `liked`/`likeCount` depuis `post.likes` — redondant avec la mise à jour optimiste déjà faite dans `handleLike`.
-  - `GameEloDisplay` (Forum → carte mini-jeux) simplifié : un seul total de points (`elo.points_total`) au lieu de la grille détaillée par jeu (Elo Chaîne/Timeline + points Wordle/Poster/OP Quiz séparés) ; les 5 boutons de mini-jeux factorisés dans un composant `GameButton` au lieu d'être dupliqués. OP Quiz conservé (contrairement à `animood-v.07`).
-  - Au passage, date et type de post dans "Mes Posts" (`ProfileView.jsx`) passés en français en dur plutôt que via l'i18n FR/EN — repris tel quel de la branche GitHub.
-
-## v.07.01 — en comparaison avec v.07
-
-`v.07` a été publié avec un système de like qui *semblait* fonctionner (le cœur devenait rouge, le compteur montait) mais qui, dans les faits, avait deux problèmes trouvés et corrigés après coup — voir la section `v.07` ci-dessous pour l'histoire complète, résumée ici :
-
-- Les commentaires affichés dans Profil → "Mes Posts" n'avaient aucun bouton like (lecture seule), et les likes de commentaires n'étaient synchronisés entre aucune vue.
-- **Le vrai bug** : les tables `posts` et `comments` n'avaient jamais eu de policy `UPDATE` en base (Row Level Security), donc liker un post ou un commentaire du Feed semblait marcher à l'écran (mise à jour optimiste) mais ne survivait jamais à un rechargement de page. Corrigé par `supabase/posts_schema.sql` (nouveau), **exécuté et confirmé** sur le projet partagé.
-
-Avec `v.07.01`, le système de like (posts et commentaires, Feed / Profil / Forum) fonctionne et persiste réellement. Il reste un seul point en attente côté Supabase : `supabase/game_schema.sql` (points des mini-jeux solo Wordle/Poster) — voir Database plus bas.
-
-## v.07 — en comparaison avec v.06.01
-
-Deux chantiers sur cette version : récupérer des fonctionnalités qui existaient sur une branche parallèle (`animood-v.05.03`) mais n'avaient jamais rejoint la ligne `v.06`, puis harmoniser le système de like partout où il existe.
-
-**Fonctionnalités récupérées depuis `animood-v.05.03`** (développées là-bas en parallèle de la traduction FR/EN et du blocage d'utilisateur, jamais fusionnées depuis) :
-
-- **Sondages** — voir plus haut. Stockés dans une nouvelle table `polls` (schéma dans `supabase/polls_schema.sql`, voir Database ci-dessous).
-- **Sync Feed ↔ Profil** — voir "Profils enrichis" plus haut ; réalisé via un petit bus d'événements (`src/utils/postEvents.js`) plutôt qu'un rechargement.
-- **Points pour les mini-jeux solo** — voir "Mini-jeux" plus haut (`src/utils/awardSoloPoints.js`).
-- **Matchmaking plus robuste** — élargissement progressif de la fourchette d'Elo si personne n'est trouvé rapidement, un mécanisme de secours par polling en plus du temps réel Supabase (au cas où une mise à jour "adversaire trouvé" serait manquée), et un abandon en pleine partie fiable : la fenêtre de jeu attend maintenant la fin du PATCH de fin de partie avant de se fermer, au lieu de fermer immédiatement et de risquer de perdre l'enregistrement du forfait.
-- Tous les nouveaux textes ont été intégrés au système de traduction FR/EN existant (la branche d'origine ne l'avait pas) ; quelques variables et une fonction mortes déjà inutilisées dans la source d'origine (`getEloBracket`, `maxScore`, `avgScore`, `solopts`, un composant `GameButton` devenu orphelin après fusion) ont été nettoyées au passage.
-
-**Système de like harmonisé — Feed / Profil / Forum**
-
-Avant cette version, trois endroits différents géraient les likes de trois façons différentes, et un bug plus profond touchait les deux qui semblaient fonctionner :
-
-- **Feed** (posts et commentaires) — un helper partagé `posts.toggleLike` / `comments.toggleLike` dans `src/api/supabase.js`, appelé côté client, avec mise à jour optimiste immédiate à l'écran. Ça avait l'air de marcher (le cœur devient rouge, le compteur monte) — voir plus bas pourquoi ce n'était qu'une apparence.
-- **Profil → "Mes Posts"** — sa **propre** logique copiée-collée pour les posts (un `PATCH` direct vers Supabase, recalculé côté client) au lieu de réutiliser le helper du Feed, et carrément aucun bouton like sur les commentaires (juste du texte en lecture seule).
-- **Forum** (sujets et réponses) — **ne fonctionnait pas du tout**, ni le bouton ni la colonne en base. Le code contenait littéralement ce commentaire : `// ─── Thread detail — body + replies + reply box, no reactions/pagination ──────`. Documenté comme volontairement hors scope au moment du "squelette" initial du forum.
-
-Ce qui a été fait, en plusieurs passes :
-
-1. **Forum** — ajout d'un bouton ❤️/🤍 + compteur sur le sujet et sur chaque réponse dans `ThreadModal`, même style que Feed/Profil. Deux nouvelles méthodes API, `sb.toggleThreadLike` / `sb.toggleReplyLike`, calquées sur `posts.toggleLike`. Le like remonte à `ForumView` (prop `onLikeUpdate`) pour que la liste des sujets reste à jour à la réouverture.
-2. **Profil → posts** — `ProfilePostCard` bascule sur le même helper partagé `posts.toggleLike` que le Feed au lieu de son `PATCH` maison.
-3. **Profil → commentaires** — ajout du bouton like sur chaque commentaire affiché dans "Mes Posts" (`comments.toggleLike`), qui n'existait pas du tout (lecture seule jusque-là).
-4. **Synchro entre vues** — App.jsx garde Feed et Profil montés en permanence (juste cachés en CSS), donc un like fait dans l'un doit apparaître instantanément dans l'autre sans recharger. Deux bugs trouvés et corrigés ici :
-   - Les cartes de post (`PostCard`, `ProfilePostCard`) initialisaient leur `liked`/`likeCount` une seule fois avec `useState(post.likes...)` : le bus d'événements (`src/utils/postEvents.js`) mettait bien à jour le tableau `likes` du post dans la vue d'à côté, mais la carte déjà montée ne relisait jamais ce nouveau prop. Ajouté un `useEffect` qui resynchronise à chaque changement de `post.likes`.
-   - Les likes de **commentaires** n'étaient dans aucun bus du tout — ni le Feed ni le Profil ne prévenaient l'autre. Ajouté un type d'événement `"commentLike"` (même mécanique que les likes de post) diffusé et écouté des deux côtés.
-5. **La vraie racine du problème** — malgré tout ce qui précède, les likes sur les posts et les commentaires du Feed **ne survivaient pas à un rechargement de page** : le cœur redevenait blanc et le compteur retombait à zéro. En cause : les tables `posts`/`comments` (jamais suivies par un fichier SQL dans ce dépôt, créées à la main sur le projet partagé comme `game_elo`/`game_rooms` avant `game_schema.sql`) n'avaient qu'un `SELECT`/`INSERT` en Row Level Security, jamais d'`UPDATE` — confirmé en demandant à l'utilisateur de tester un F5 après un like (le like disparaissait). Exactement le même trou que celui trouvé et corrigé sur le Forum au point 1. Le `PATCH` du like échouait donc silencieusement (`.catch(()=>{})`) à chaque fois ; la mise à jour optimiste donnait l'illusion que ça marchait jusqu'au rechargement suivant. `supabase/posts_schema.sql` (nouveau fichier) documente les deux tables et ajoute les policies `UPDATE`/`DELETE` qui manquaient.
-
-**État des migrations Supabase** (SQL Editor → coller → Run) :
-
-1. ✅ `supabase/forum_schema.sql` — exécuté. Les likes Forum (sujets + réponses) sont fonctionnels.
-2. ✅ `supabase/polls_schema.sql` — exécuté. La table `polls` existe, les sondages Feed/Forum sont fonctionnels.
-3. ✅ `supabase/posts_schema.sql` — exécuté. Les likes sur les posts et les commentaires du Feed/Profil persistent maintenant après un rechargement.
-4. ⚠️ `supabase/game_schema.sql` — **pas encore exécuté** (laissé à quelqu'un d'autre de l'équipe). Documente `game_elo`/`game_rooms` et ajoute les colonnes `streak_wordle` / `last_wordle_date` / `streak_poster` / `last_poster_date` et, depuis `v.07.02`, `streak_opquiz` / `last_opquiz_date`. Tant que ce n'est pas fait, gagner à Wordle/Poster/OP Quiz ne persiste aucun point (le reste des mini-jeux — Elo, matchmaking — fonctionne déjà).
-
-**Fichiers touchés**
-
-| Zone | Fichiers |
-|---|---|
-| Sondages, sync posts, points solo, matchmaking | `src/App.jsx`, `src/components/ForumThreadModal.jsx`, `src/components/GameSystem.jsx`, `src/components/MiniGames.jsx`, `src/components/Modal.jsx`, `src/views/FeedView.jsx`, `src/views/ForumView.jsx`, `src/views/ProfileView.jsx`, `src/utils/awardSoloPoints.js` *(nouveau)*, `src/utils/postEvents.js` *(nouveau)*, i18n : `src/constants/forumI18n.js`, `forumThreadI18n.js`, `gameSystemI18n.js`, `profileI18n.js` |
-| Likes Forum + Profil (posts et commentaires) + synchro Feed↔Profil | `src/api/supabase.js`, `src/components/ForumThreadModal.jsx`, `src/views/ForumView.jsx`, `src/views/ProfileView.jsx`, `src/views/FeedView.jsx`, `src/utils/postEvents.js`, `supabase/forum_schema.sql` |
-| Schémas SQL en attente d'exécution | `supabase/polls_schema.sql` *(nouveau, exécuté)*, `supabase/game_schema.sql` *(nouveau, en attente)*, `supabase/posts_schema.sql` *(nouveau, en attente)* |
-
-## v.06.01 — en comparaison avec v.06
-
-- **Traduction FR/EN complète** — la bascule de langue existait déjà en Réglages depuis `animood-v.06` mais ne traduisait que ce réglage lui-même ; le reste de l'app restait en français quel que soit le choix. Le switch FR/EN traduit maintenant réellement toute l'interface : Feed, Forum (tags, badge non-lu), Moodboard, Recherche (filtres durée/type/pays), Profils, Messages/bulle de chat, Mini-jeux, modales Anime/Personne/Studio (y compris les blurbs de studio), statuts de visionnage, et le nom/la description des cadres de profil.
-- **Fix** — un message, commentaire ou mention d'un utilisateur bloqué pouvait quand même faire apparaître un badge "non lu" sur les Messages ou une entrée dans la cloche 🔔 d'activité, alors que le blocage le masque déjà des listes (Feed/Forum/Recherche/DMs). Les deux flux excluent désormais aussi les utilisateurs bloqués.
-
-## v.06 — en comparaison avec v.05
-
-Tout ce qui suit est nouveau depuis la dernière version documentée (`animood-v.05`) :
-
-- **Mini-jeux + classement ELO**, **cadres de profil déblocables**, **profils (soi et amis) enrichis** (stats, mood moyen, listes) et une refonte des **Réglages** (thème, langue, nom modifiable) — développés sur `animood-v.05.01`, jamais documentés ici jusqu'à présent.
-- **Blocage d'utilisateur** — nouvelle fonctionnalité complète (profil, DMs, mentions, recherche, gestion en Réglages), avec le bouton volontairement discret plutôt qu'au même niveau que Suivre/Message.
-- **Photo de profil + nom modifiable partout** — le fil, le forum et les messages affichent désormais la vraie photo et le nom d'affichage (pas juste `@handle`) à côté de l'auteur, avec les mêmes données en direct depuis `profiles` : renommer son compte dans Réglages met donc à jour l'affichage partout, sans rien recharger. Le nom d'un post dans le fil est aussi cliquable → ouvre le profil (avant, seules les mentions dans le texte l'étaient).
-- **Fix** — la page de profil affichait `@{nom modifiable en minuscules}` comme handle au lieu du vrai `@username` ; un changement de nom pouvait donc casser ton propre lien de profil. Corrigé pour utiliser le vrai username.
+- **Invitations de jeu dans leur propre table** — v.08.06 les stockait comme des lignes `type = "game_invite"` dans une table `notifications` générique, jamais déclarée dans les schémas SQL suivis. v.10.00 utilise une table dédiée `game_invites` (`supabase/game_invites_schema.sql`), liée à `game_rooms` : une invitation disparaît automatiquement quand sa room est supprimée.
+- **Confidentialité du profil** — Settings → Profil : tout le monde, amis seulement (abonnement mutuel) ou une liste de personnes choisies. Un profil non autorisé affiche un état verrouillé "🔒". Nécessite `supabase/profile_privacy_schema.sql`.
+- **Listes abonnés/abonnements cliquables** — sur ton profil comme sur celui des autres, avec avatar + nom + `@username`.
+- **Accusés de lecture des messages** — "vu"/"envoyé" sous ta dernière bulle, basés sur une colonne `read_at` côté serveur (cohérent entre appareils). Nécessite de relancer `supabase/messages_schema.sql`.
+- **Footer légal** — liens Mentions légales / Confidentialité (contenu placeholder à compléter avant une mise en ligne publique).
+- **Fix onglet Artiste** et **fix écran blanc en dev** — voir la section ci-dessus.
 
 ## Database (Supabase)
 
-Schema is already applied on the shared project **except for the files/columns flagged ⚠️ below** (`game_schema.sql`, the `v.08` columns on `forum_threads`, `badges_schema.sql`, `opquiz_pool_schema.sql`, `opquiz_stats_schema.sql`, the `v.09.01` `read_at` column on `messages_schema.sql`, `profile_privacy_schema.sql`) — every other addition (`polls_schema.sql`, `posts_schema.sql`, the original `forum_schema.sql` columns) has already been run. For a fresh Supabase project (or after a reset), run everything in this table in order in the SQL Editor:
+Schema is already applied on the shared project **except for the files/columns flagged ⚠️ below** (`game_schema.sql`, the `v.08` columns on `forum_threads`, `badges_schema.sql`, `opquiz_pool_schema.sql`, `opquiz_stats_schema.sql`, the `v.09.01` `read_at` column on `messages_schema.sql`, `profile_privacy_schema.sql`, the `v.10.00` delete policies on `forum_schema.sql`, `game_invites_schema.sql`) — every other addition (`polls_schema.sql`, `posts_schema.sql`, the original `forum_schema.sql` columns) has already been run. For a fresh Supabase project (or after a reset), run everything in this table in order in the SQL Editor:
 
 | File | Adds |
 |---|---|
 | ⚠️ `supabase/forum_schema.sql` | `forum_threads`, `forum_replies` (+ `tags`, `image_url`, `likes` — already applied). **New in v.08, not yet run on the shared project:** `anime_id`/`anime_title`/`anime_image`/`reply_count`/`last_reply_at` on `forum_threads`, needed for the per-anime "💬 Discussions" section and the reply-count/last-activity shown on each thread. Until this runs, creating a thread from an anime's detail page (or replying to one) will fail silently (`.catch(()=>{})`) since those columns don't exist yet. Safe to re-run even if you already ran an older version: every statement is `add column if not exists` / `drop policy if exists` then `create policy`. |
 | ⚠️ `supabase/messages_schema.sql` | `direct_messages` (already applied). **New in v.09.01, not yet confirmed run:** `read_at` column + an `UPDATE` RLS policy, needed so the recipient can stamp a message as read (powers the "vu"/"envoyé" tick). Safe to re-run: `add column if not exists` / `drop policy if exists` then `create policy`. Until this runs, marking a thread read fails silently and every message shows as "envoyé". |
+| ⚠️ `supabase/game_invites_schema.sql` | **New file in v.10.00 — not yet confirmed run.** Creates `game_invites` (`from_user`, `to_user`, `game_type`, `room_id` → `game_rooms` with `on delete cascade`, `private_code`, `status` pending/accepted/declined) plus a partial index on pending invites. Until this runs, sending an invite fails silently and the bell shows no game invites. |
 | `supabase/anilist_sub_lists.sql` | `anilist_sub_lists` column on `profiles` |
 | `supabase/blocks_schema.sql` | `user_blocks` (one-directional user blocking) |
 | ⚠️ `supabase/profile_privacy_schema.sql` | **New file in v.09.01 — not yet confirmed run.** Adds `visibility` (`everyone`/`friends`/`custom`, default `everyone`) and `visibility_allowed` (jsonb array of usernames) to `profiles`. Enforced client-side only (`src/utils/profilePrivacy.js`), same access model as the rest of the app. Until this runs, the privacy setting in Settings → Profil won't persist. |

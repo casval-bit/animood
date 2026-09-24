@@ -306,6 +306,22 @@ export function ThreadModal({ thread, username, onClose, onOpenUser, onReply }) 
   const [threadLikes, setThreadLikes] = useState(thread.likes || []);
   const mention = useMentionAutocomplete(reply, username);
   const threadLiked = threadLikes.includes(username);
+  const isThreadOwner = thread.username === username;
+
+  // ── Delete thread ──
+  const deleteThread = async () => {
+    if(!window.confirm(t.deleteThreadConfirm)) return;
+    await sb.query(`forum_threads?id=eq.${thread.id}`, { method: "DELETE" }).catch(() => {});
+    onClose();
+  };
+
+  // ── Delete reply ──
+  const deleteReply = async (replyId) => {
+    if(!window.confirm(t.deleteReplyConfirm)) return;
+    await sb.query(`forum_replies?id=eq.${replyId}`, { method: "DELETE" }).catch(() => {});
+    setReplies(prev => prev.filter(r => r.id !== replyId));
+    onReply?.();
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -366,9 +382,16 @@ export function ThreadModal({ thread, username, onClose, onOpenUser, onReply }) 
       <div className="max-h-[80vh] overflow-y-auto p-5">
         <div className="mb-1.5 flex items-center gap-2">
           <Avatar profile={profileCache[thread.username]} size={22} fallback={thread.username.slice(0,2).toUpperCase()} className="text-[9px]"/>
-          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500 flex-1">
             <span className={GRADIENT_TEXT}>{profileCache[thread.username]?.name || thread.username}</span> · @{thread.username} · {timeAgo(thread.created_at, lang)}
           </div>
+          {isThreadOwner && (
+            <button onClick={deleteThread}
+              className="shrink-0 rounded px-2 py-0.5 text-[10px] text-slate-600 transition hover:text-red-400"
+              title={t.deleteThreadTitle}>
+              🗑
+            </button>
+          )}
         </div>
         <div className="mb-1.5 text-lg font-black text-slate-100">{thread.title}</div>
         {thread.tags?.length > 0 && (
@@ -399,7 +422,14 @@ export function ThreadModal({ thread, username, onClose, onOpenUser, onReply }) 
                 <div key={r.id} className="rounded-xl border border-white/7 bg-white/4 p-3">
                   <div className="mb-1 flex items-center gap-1.5">
                     <Avatar profile={profileCache[r.username]} size={18} fallback={r.username.slice(0,2).toUpperCase()} className="text-[8px]"/>
-                    <div className="text-[10px] font-bold text-slate-500"><span className={GRADIENT_TEXT}>{profileCache[r.username]?.name || r.username}</span> · @{r.username} · {timeAgo(r.created_at, lang)}</div>
+                    <div className="flex-1 text-[10px] font-bold text-slate-500"><span className={GRADIENT_TEXT}>{profileCache[r.username]?.name || r.username}</span> · @{r.username} · {timeAgo(r.created_at, lang)}</div>
+                    {r.username === username && (
+                      <button onClick={() => deleteReply(r.id)}
+                        className="shrink-0 px-1 text-[10px] text-slate-600 transition hover:text-red-400"
+                        title={t.deleteReplyTitle}>
+                        🗑
+                      </button>
+                    )}
                   </div>
                   <div className="mb-1.5 whitespace-pre-wrap text-[13px] text-slate-200"><MentionText text={r.body} onOpenUser={onOpenUser}/></div>
                   <button onClick={()=>toggleReplyLike(r.id)}

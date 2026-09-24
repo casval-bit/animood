@@ -444,7 +444,73 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
   );
 }
 
-export function ForumView({ onOpenDetail, onOpenUser }) {
+// ── Per-game Elo leaderboard — shown inside the LinkUp/Timeline matchmaking modal ──
+function EloLeaderboard({ gameType, myUsername, following }) {
+  const { lang } = useLang();
+  const t = FORUM_I18N[lang] || FORUM_I18N.fr;
+  const [rows, setRows]     = useState([]);
+  const [myRank, setMyRank] = useState(null);
+  const field = gameType === "chain" ? "elo_chain" : "elo_timeline";
+  const followingSet = new Set(following||[]);
+
+  useEffect(() => {
+    sb.query(`game_elo?select=username,${field}&order=${field}.desc&limit=200`)
+      .then(data => {
+        if(!data?.length) return;
+        const sorted = [...data].sort((a,b)=>(b[field]||400)-(a[field]||400));
+        setRows(sorted.slice(0,20).map((r,i)=>({username:r.username,pts:r[field]||400,rank:i+1})));
+        const pos = sorted.findIndex(r=>r.username===myUsername);
+        if(pos>=20) setMyRank({rank:pos+1,pts:sorted[pos][field]||400});
+      }).catch(()=>{});
+  }, [gameType, myUsername]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if(!rows.length) return null;
+
+  function uColor(u) {
+    if(u===myUsername) return "#c084fc";
+    if(followingSet.has(u)) return "#22c55e";
+    return "var(--text-2)";
+  }
+
+  return (
+    <div style={{marginTop:16,paddingTop:12,borderTop:"1px solid rgba(255,255,255,0.06)"}}>
+      <div style={{fontSize:9,fontWeight:800,color:"var(--text-5)",letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>
+        {t.eloLeaderboardTitle(gameType==="chain" ? t.chainLabel : t.timelineLabel)}
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:2}}>
+        {rows.map(r=>{
+          const isMe=r.username===myUsername;
+          const medal=r.rank===1?"🥇":r.rank===2?"🥈":r.rank===3?"🥉":null;
+          return (
+            <div key={r.username} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:7,
+              background:isMe?"rgba(124,58,237,0.1)":"rgba(255,255,255,0.02)",
+              border:isMe?"1px solid rgba(124,58,237,0.2)":"1px solid transparent"}}>
+              <div style={{fontSize:9,color:"var(--text-5)",width:16,textAlign:"right",flexShrink:0}}>{medal||r.rank}</div>
+              <div style={{flex:1,fontSize:10,fontWeight:isMe||followingSet.has(r.username)?800:500,
+                color:uColor(r.username),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                {r.username}
+              </div>
+              <div style={{fontSize:10,fontWeight:800,color:"var(--text-2)",flexShrink:0}}>{r.pts}</div>
+            </div>
+          );
+        })}
+        {myRank && (
+          <>
+            <div style={{padding:"3px 8px",textAlign:"center",fontSize:9,color:"var(--text-6)"}}>· · ·</div>
+            <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:7,
+              background:"rgba(124,58,237,0.1)",border:"1px solid rgba(124,58,237,0.2)"}}>
+              <div style={{fontSize:9,color:"var(--text-5)",width:16,textAlign:"right",flexShrink:0}}>{myRank.rank}</div>
+              <div style={{flex:1,fontSize:10,fontWeight:800,color:"#c084fc",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{myUsername}</div>
+              <div style={{fontSize:10,fontWeight:800,color:"var(--text-2)",flexShrink:0}}>{myRank.pts}</div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPendingJoin }) {
   const { myUsername, activityNotifications, markActivityRead, blockedUsers } = useApp();
   const [followingList, setFollowingList] = useState([]);
   useEffect(() => {
@@ -483,6 +549,46 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
   const [activeGame, setActiveGame]       = useState(null);
   const chainCloseRef    = useRef(null);
   const timelineCloseRef = useRef(null);
+
+  // Auto-join a room after accepting a game invite from the notification bell
+  // (Header.jsx → App.jsx switches to this tab and hands us the invite payload).
+  useEffect(() => {
+    if(!pendingJoinGame) return;
+    const { gameType, roomId, privateCode } = pendingJoinGame;
+    onClearPendingJoin?.();
+    if(gameType === "cluescale") {
+      sb.query(`game_rooms?id=eq.${roomId}&limit=1`).then(async rows => {
+        const r = rows?.[0];
+        if(!r) return;
+        const currentPlayers = r.state?.players || [r.player1, r.player2, r.player3, r.player4].filter(Boolean);
+        // Register myself as a player (same playerN + state.players bookkeeping
+        // as the manual "join with code" path) so the host actually sees me in
+        // the lobby, instead of just opening the room read-only.
+        if(currentPlayers.includes(myUsername) || currentPlayers.length >= 4) {
+          setCluescaleRoom({...r, players: currentPlayers});
+          return;
+        }
+        const newPlayers = [...currentPlayers, myUsername];
+        const playerField = `player${newPlayers.length}`;
+        await sb.query(`game_rooms?id=eq.${r.id}`, {
+          method: "PATCH", headers: { ...sb.headers, "Prefer": "return=minimal" },
+          body: JSON.stringify({ [playerField]: myUsername, state: {...r.state, players: newPlayers} }),
+        }).catch(()=>{});
+        setCluescaleRoom({...r, [playerField]: myUsername, state: {...r.state, players: newPlayers}, players: newPlayers});
+      }).catch(()=>{});
+    } else {
+      sb.query(`game_rooms?private_code=eq.${encodeURIComponent(privateCode)}&status=eq.waiting&limit=1`).then(async rows => {
+        const r = rows?.[0];
+        if(!r) return;
+        await sb.query(`game_rooms?id=eq.${r.id}`, {
+          method: "PATCH", headers: { ...sb.headers, "Prefer": "return=minimal" },
+          body: JSON.stringify({ player2: myUsername, elo2: 400, status: "active" }),
+        }).catch(()=>{});
+        setActiveRoom({...r, player2: myUsername, elo2: 400});
+        setActiveGame(gameType);
+      }).catch(()=>{});
+    }
+  }, [pendingJoinGame]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGameClose = async (gameRef) => {
     if(gameRef) {
@@ -710,8 +816,15 @@ export function ForumView({ onOpenDetail, onOpenUser }) {
 
       {matchmaking && !activeRoom && (
         <Modal onClose={()=>setMatchmaking(null)} maxWidth="max-w-sm">
-          {() => <Matchmaking gameType={matchmaking} onClose={()=>setMatchmaking(null)}
-            onMatch={room=>{setActiveRoom(room);setActiveGame(matchmaking);setMatchmaking(null);}}/>}
+          {() => (
+            <div>
+              <Matchmaking gameType={matchmaking} onClose={()=>setMatchmaking(null)}
+                onMatch={room=>{setActiveRoom(room);setActiveGame(matchmaking);setMatchmaking(null);}}/>
+              <div style={{padding:"0 16px 16px"}}>
+                <EloLeaderboard gameType={matchmaking} myUsername={myUsername} following={followingList}/>
+              </div>
+            </div>
+          )}
         </Modal>
       )}
       {activeRoom && activeGame === "chain" && (
