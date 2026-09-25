@@ -2,12 +2,15 @@
 // Public, unauthenticated API. No local caching/table to maintain: artist ↔
 // anime ↔ song links are fetched live, same spirit as the Jikan producers
 // lookup used for studios.
+import { sb } from "./supabase.js";
+import { POPULAR_ARTIST_NAMES } from "../constants/popularArtists.js";
+
 const BASE = "https://api.animethemes.moe";
 
 // AnimeThemes sits behind Cloudflare and its origin sometimes hangs (522)
 // instead of failing fast — cap each request so the UI can show an error
 // rather than an endless spinner.
-function fetchWithTimeout(url, ms = 12000) {
+function fetchWithTimeout(url, ms = 8000) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
   return fetch(url, { signal: ctrl.signal })
@@ -49,9 +52,37 @@ function normalizeArtist(artist) {
   return { slug: artist.slug, name: artist.name, themes };
 }
 
+// ─── artist_cache (Supabase) — copy kept by scripts/sync_artists.mjs so the
+// Artist tab survives AnimeThemes outages. Rows look like live artists, plus a
+// resolved malId on each theme. Empty/missing table → [] (live API only).
+const rowToArtist = (row) => ({ slug: row.slug, name: row.name, themes: row.themes || [] });
+
+async function cachedPopularArtists(limit) {
+  const rows = await sb.query(`artist_cache?popular_rank=not.is.null&order=popular_rank.asc&limit=${limit}&select=slug,name,themes`).catch(() => []);
+  return (rows || []).map(rowToArtist).filter(a => a.themes.length);
+}
+
+async function cachedSearchArtists(query, limit) {
+  const enc = encodeURIComponent(query);
+  const rows = await sb.query(`artist_cache?name=ilike.*${enc}*&limit=${limit}&select=slug,name,themes`).catch(() => []);
+  return (rows || []).map(rowToArtist).filter(a => a.themes.length);
+}
+
+// Live search, falling back to the cached copy when AnimeThemes is down. Only
+// rethrows when the cache has nothing either, so the UI can show the outage.
 export async function searchArtists(query, limit = 24) {
   const q = query.trim();
   if(!q) return [];
+  try {
+    return await searchArtistsLive(q, limit);
+  } catch(e) {
+    const cached = await cachedSearchArtists(q, limit);
+    if(cached.length) return cached;
+    throw e;
+  }
+}
+
+async function searchArtistsLive(q, limit) {
   const url = `${BASE}/artist?q=${encodeURIComponent(q)}&page[size]=${limit}&include=songs.animethemes.anime`;
   const res = await fetchWithTimeout(url);
   if(!res.ok) throw new Error(`AnimeThemes ${res.status}`);
@@ -59,31 +90,23 @@ export async function searchArtists(query, limit = 24) {
   return (json.artists || []).map(normalizeArtist).filter(a => a.themes.length);
 }
 
-// A hand-picked set of well-known OP/ED singers and bands, spanning decades —
-// so the Artist tab isn't a blank search box on first visit. Verified against
-// the live API (exact-name match, non-empty theme list) before being added here.
-const POPULAR_ARTIST_NAMES = [
-  "LiSA", "YOASOBI", "Aimer", "ClariS", "Linked Horizon", "FLOW",
-  "Kenshi Yonezu", "UVERworld", "MAN WITH A MISSION", "Asian Kung-Fu Generation",
-  "RADWIMPS", "Kalafina", "fripSide", "Konomi Suzuki", "Minami Kuribayashi", "Eir Aoi",
-];
-
 let popularArtistsCache = null;
 
+// Cached copy first (one Supabase query, works during AnimeThemes outages),
+// live API only when the cache is empty.
 export async function fetchPopularArtists(limit = 16) {
   if(popularArtistsCache) return popularArtistsCache.slice(0, limit);
+  const cached = await cachedPopularArtists(limit);
+  if(cached.length) { popularArtistsCache = cached; return cached; }
+
   const names = POPULAR_ARTIST_NAMES.slice(0, limit);
-  let failures = 0;
-  const results = await Promise.all(names.map(async name => {
-    try {
-      const found = await searchArtists(name, 3);
-      return found.find(a => a.name.toLowerCase() === name.toLowerCase()) || found[0] || null;
-    } catch { failures++; return null; }
-  }));
-  const artists = results.filter(Boolean);
-  // Every lookup failing means the API is down, not that no artist matched —
-  // surface it so the Artist tab can show an error instead of a blank page.
-  if(!artists.length && failures) throw new Error("AnimeThemes unavailable");
+  const pick = (name, found) => found.find(a => a.name.toLowerCase() === name.toLowerCase()) || found[0] || null;
+  // Probe with the first name alone: during an outage this fails once after
+  // the timeout instead of firing 16 requests that all hang.
+  const first = pick(names[0], await searchArtistsLive(names[0], 3).catch(() => { throw new Error("AnimeThemes unavailable"); }));
+  const rest = await Promise.all(names.slice(1).map(name =>
+    searchArtistsLive(name, 3).then(found => pick(name, found)).catch(() => null)));
+  const artists = [first, ...rest].filter(Boolean);
   if(artists.length) popularArtistsCache = artists;
   return artists;
 }

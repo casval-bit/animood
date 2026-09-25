@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "sync:anime": "node scripts/sync_new_anime.mjs",
-    "sync:moods": "node scripts/sync_new_moods.mjs"
+    "sync:moods": "node scripts/sync_new_moods.mjs",
+    "sync:artists": "node scripts/sync_artists.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",

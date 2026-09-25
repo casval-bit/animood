@@ -58,7 +58,7 @@ export const SEARCH_I18N = {
 
     errorPrefix: (msg) => `Erreur : ${msg}`,
     jikanDown: "Jikan est temporairement indisponible — réessaie dans quelques secondes",
-    animeThemesDown: "La base des openings est temporairement indisponible — réessaie dans quelques secondes",
+    animeThemesDown: "AnimeThemes, la base des openings/endings, est hors ligne pour le moment (panne chez eux) — réessaie un peu plus tard.",
     retry: "Réessayer",
 
     studioAnimationDefault: "Studio d'animation",
@@ -130,7 +130,7 @@ export const SEARCH_I18N = {
 
     errorPrefix: (msg) => `Error: ${msg}`,
     jikanDown: "Jikan is temporarily unavailable — try again in a few seconds",
-    animeThemesDown: "The opening database is temporarily unavailable — try again in a few seconds",
+    animeThemesDown: "AnimeThemes, the opening/ending database, is offline right now (outage on their side) — try again a bit later.",
     retry: "Retry",
 
     studioAnimationDefault: "Animation studio",
