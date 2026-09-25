@@ -35,6 +35,7 @@ export const INFO_MODAL_I18N = {
         { q: "Comment signaler un bug ou un problème ?", a: "Via la page Contact ou directement sur GitHub Issues. Décris le problème et les étapes pour le reproduire — ça aide beaucoup." },
         { q: "Les mini-jeux sont-ils disponibles en solo ?", a: "Oui — Anidle, Poster et Quiz OP sont des jeux solo jouables chaque jour. LinkUp, Timeline et Cluescale sont des jeux multijoueur que tu peux lancer depuis le Forum." },
         { q: "Comment inviter des amis à jouer ?", a: "Depuis le lobby d'une partie privée LinkUp/Timeline/Cluescale, tu peux inviter un abonné ou une personne que tu suis directement. Il/elle reçoit l'invitation dans sa cloche de notifications et peut rejoindre en un clic." },
+        { q: "Pourquoi un animé du calendrier n'est-il pas au même jour que sur MyAnimeList ?", a: "MyAnimeList et les sites japonais indiquent la diffusion en heure japonaise (JST, UTC+9). Le calendrier de l'onglet Saison convertit le jour et l'heure dans ton fuseau horaire : un épisode diffusé le lundi à 1h00 au Japon apparaît le dimanche à 18h00 en France (17h00 en hiver). Survole l'heure d'une carte pour voir l'heure japonaise d'origine. L'heure de sortie sur les plateformes de streaming (Crunchyroll, ADN…) peut encore différer." },
       ],
     },
     categories: {
@@ -96,6 +97,7 @@ export const INFO_MODAL_I18N = {
         { q: "How do I report a bug or issue?", a: "Via the Contact page or directly on GitHub Issues. Describe the problem and the steps to reproduce it — that helps a lot." },
         { q: "Are the mini-games available solo?", a: "Yes — Anidle, Poster and OP Quiz are solo games playable daily. LinkUp, Timeline and Cluescale are multiplayer games you can launch from the Forum." },
         { q: "How do I invite friends to play?", a: "From a private LinkUp/Timeline/Cluescale room's lobby, you can invite a follower or someone you follow directly. They get the invite in their notification bell and can join with one click." },
+        { q: "Why isn't a calendar anime on the same day as on MyAnimeList?", a: "MyAnimeList and Japanese sites list broadcasts in Japan time (JST, UTC+9). The Season tab calendar converts both the day and the time to your timezone: an episode airing Monday at 1:00 AM in Japan shows up on Sunday at 6:00 PM in France (5:00 PM in winter). Hover a card's time to see the original Japan time. Release times on streaming platforms (Crunchyroll, ADN…) may still differ." },
       ],
     },
     categories: {
