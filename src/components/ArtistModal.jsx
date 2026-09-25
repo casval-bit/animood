@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLang } from "../context/useLang.js";
 import { ARTIST_MODAL_I18N } from "../constants/artistModalI18n.js";
-import { jikan } from "../api/jikan.js";
+import { jikan, fetchTitleSuggestions } from "../api/jikan.js";
 import { resolveMalId } from "../api/animethemes.js";
 import { Modal } from "./Modal.jsx";
 import { Spinner } from "./Spinner.jsx";
@@ -15,7 +15,11 @@ export function ArtistModal({ artist, onClose, onOpenDetail }) {
     if(loadingId) return;
     setLoadingId(theme.animeId);
     try {
-      const malId = await resolveMalId(theme.animeSlug);
+      // Cached artists carry the MAL id; live ones resolve it via AnimeThemes,
+      // and if that's down too, by title in our own anime_cache.
+      const malId = theme.malId
+        || await resolveMalId(theme.animeSlug).catch(() => null)
+        || (await fetchTitleSuggestions(theme.animeTitle, 1))[0]?.mal_id;
       if(!malId) return;
       const r = await jikan.getAnime(malId);
       if(r?.data) onOpenDetail(r.data);

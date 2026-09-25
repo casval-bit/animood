@@ -10,6 +10,9 @@ const SUPABASE_URL  = process.env.SUPABASE_URL;
 const SUPABASE_ANON = process.env.SUPABASE_ANON;
 const ANIMETHEMES_BASE = "https://api.animethemes.moe";
 const DELAY_MS = 300; // politeness delay between AnimeThemes requests
+// Cloudflare in front of AnimeThemes answers 403 to Node's default fetch
+// (no User-Agent) — identify the script explicitly.
+const AT_HEADERS = { "User-Agent": "AniMood-sync/1.0 (+https://github.com/casval-bit/animood)" };
 const TARGET_PER_TIER = 50;
 const CANDIDATE_TYPES = "TV,ONA"; // openings mostly make sense for these
 
@@ -54,7 +57,7 @@ function extractMalId(resources) {
 // standalone here since this script runs outside the Vite/browser build.
 async function fetchOpeningAudio(title, malId) {
   const url = `${ANIMETHEMES_BASE}/anime?q=${encodeURIComponent(title)}&page[size]=5&include=animethemes.animethemeentries.videos.audio,resources`;
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: AT_HEADERS });
   if(!res.ok) return null;
   const json = await res.json();
   const list = json.anime || [];
