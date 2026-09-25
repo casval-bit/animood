@@ -5,7 +5,8 @@ export const CHAT_BUBBLE_I18N = {
     blockedMessage: (peer) => `🚫 Tu as bloqué @${peer} — débloque-le depuis son profil pour lui écrire.`,
     messagePlaceholder: "Écrire un message…",
     sent: "Envoyé",
-    seen: "Vu",
+    delivered: "Vu",
+    read: (time) => `Lu à ${time}`,
 
     noConversationsYet: "Aucune conversation pour l'instant — va sur le profil d'un membre pour lui écrire.",
     youPrefix: "Toi: ",
@@ -26,7 +27,8 @@ export const CHAT_BUBBLE_I18N = {
     blockedMessage: (peer) => `🚫 You blocked @${peer} — unblock them from their profile to message them.`,
     messagePlaceholder: "Write a message…",
     sent: "Sent",
-    seen: "Seen",
+    delivered: "Delivered",
+    read: (time) => `Read at ${time}`,
 
     noConversationsYet: "No conversations yet — visit a member's profile to message them.",
     youPrefix: "You: ",

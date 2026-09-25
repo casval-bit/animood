@@ -29,9 +29,7 @@ export const MOODBOARD_I18N = {
 
     emptyTitle: "Quelle est ton humeur du jour ?",
     emptySubtitle: "Sélectionne 1 à 3 moods et laisse notre IA te trouver l'animé parfait.",
-    statAnimeCount: "12 000 animes",
     statAiRecs: "Recommandations IA",
-    statSatisfaction: "98% de satisfaction",
     statMoods: "8 humeurs",
     statFriends: "Suggestions entre amis",
     emptyCta: "Commence par choisir un mood ci-contre ✦",
@@ -96,9 +94,7 @@ export const MOODBOARD_I18N = {
 
     emptyTitle: "What's your mood today?",
     emptySubtitle: "Pick 1 to 3 moods and let our AI find the perfect anime for you.",
-    statAnimeCount: "12,000 anime",
     statAiRecs: "AI recommendations",
-    statSatisfaction: "98% satisfaction",
     statMoods: "8 moods",
     statFriends: "Friend suggestions",
     emptyCta: "Start by picking a mood on the side ✦",

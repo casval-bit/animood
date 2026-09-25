@@ -8,6 +8,7 @@ import { Avatar } from "./Avatar.jsx";
 import { timeAgo } from "./ForumThreadModal.jsx";
 import { GRADIENT_PRIMARY } from "../constants/theme.js";
 import { CHAT_MODAL_I18N } from "../constants/chatModalI18n.js";
+import { MessageReceipt } from "./MessageReceipt.jsx";
 
 const INPUT = "flex-1 rounded-full border border-white/12 bg-white/7 px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-violet-400/50";
 
@@ -86,7 +87,7 @@ export function ChatModal({ username, peer, onClose }) {
                 <div className="whitespace-pre-wrap">{m.body}</div>
                 <div className={`mt-1 flex items-center gap-1 text-[9.5px] ${mine ? "text-white/60" : "text-slate-500"}`}>
                   <span>{timeAgo(m.created_at, lang)}</span>
-                  {isLastMine && <span>· {m.read_at ? t.seen : t.sent}</span>}
+                  {isLastMine && <><span>·</span><MessageReceipt message={m} t={t} lang={lang} /></>}
                 </div>
               </div>
             </div>

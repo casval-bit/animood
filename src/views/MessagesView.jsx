@@ -8,6 +8,7 @@ import { Avatar } from "../components/Avatar.jsx";
 import { ChatModal } from "../components/ChatModal.jsx";
 import { NewMessageModal } from "../components/NewMessageModal.jsx";
 import { timeAgo } from "../components/ForumThreadModal.jsx";
+import { MessageReceipt } from "../components/MessageReceipt.jsx";
 import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
 import { MESSAGES_I18N } from "../constants/messagesI18n.js";
 
@@ -89,6 +90,9 @@ export function MessagesView() {
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1.5">
                     <div className="text-[10px] text-slate-600">{timeAgo(c.lastMessage.created_at, lang)}</div>
+                    {c.lastMessage.sender === myUsername && (
+                      <div className="text-[9.5px] text-slate-500"><MessageReceipt message={c.lastMessage} t={t} lang={lang} /></div>
+                    )}
                     {unread && <span className="h-2 w-2 rounded-full" style={{ background: "#f43f5e" }} />}
                   </div>
                 </button>
