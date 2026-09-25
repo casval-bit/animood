@@ -1,12 +1,30 @@
 export const SEARCH_I18N = {
   fr: {
     title: "🔍 Recherche",
-    subtitle: "Explore les animes et studios les plus populaires, ou cherche par titre.",
+    subtitle: "Cherche un animé, un studio, un artiste ou un membre — ou explore la saison en cours.",
 
     tabAnime: "Animé",
     tabStudio: "Studio",
     tabArtist: "Artiste",
     tabMembers: "Membres",
+    tabSeason: "Saison",
+
+    seasonTitle: "📅 Saison en cours",
+    seasonSubtitle: "Animés TV · classés par jour de diffusion",
+    days: ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"],
+    today: "AUJOURD'HUI",
+    scheduledWord: (n) => `animé${n !== 1 ? "s" : ""} planifié${n !== 1 ? "s" : ""}`,
+    seasonYear: (y) => `Saison en cours · ${y}`,
+    myCalendar: "Mon calendrier",
+    viewDay: "Jour",
+    viewWeek: "Semaine",
+    noAnimeThisDay: "Aucun animé diffusé ce jour-là",
+    localTimeNote: "Jours et heures convertis dans ton fuseau horaire (diffusion d'origine au Japon).",
+    jstTooltip: (time) => `${time} heure japonaise (JST)`,
+    dayAnimeCount: (n) => `${n} animé${n !== 1 ? "s" : ""}`,
+    recurring: "récurrent",
+    unknownDay: (n) => `📺 Jour non précisé (${n})`,
+    noBroadcastData: "Données de diffusion non disponibles — affichage par popularité",
 
     filterAll: "Tout",
     filterAnime: "Animé",
@@ -55,12 +73,30 @@ export const SEARCH_I18N = {
 
   en: {
     title: "🔍 Search",
-    subtitle: "Explore the most popular anime and studios, or search by title.",
+    subtitle: "Search for an anime, studio, artist or member — or browse the current season.",
 
     tabAnime: "Anime",
     tabStudio: "Studio",
     tabArtist: "Artist",
     tabMembers: "Members",
+    tabSeason: "Season",
+
+    seasonTitle: "📅 Current season",
+    seasonSubtitle: "TV anime · by broadcast day",
+    days: ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
+    today: "TODAY",
+    scheduledWord: () => "scheduled anime",
+    seasonYear: (y) => `Current season · ${y}`,
+    myCalendar: "My calendar",
+    viewDay: "Day",
+    viewWeek: "Week",
+    noAnimeThisDay: "No anime airing on this day",
+    localTimeNote: "Days and times converted to your timezone (original broadcast in Japan).",
+    jstTooltip: (time) => `${time} Japan time (JST)`,
+    dayAnimeCount: (n) => `${n} anime`,
+    recurring: "ongoing",
+    unknownDay: (n) => `📺 Day not specified (${n})`,
+    noBroadcastData: "Broadcast data unavailable — sorted by popularity",
 
     filterAll: "All",
     filterAnime: "Anime",
