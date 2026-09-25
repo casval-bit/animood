@@ -16,7 +16,7 @@ export function Footer() {
     <footer className="mx-auto mt-10 max-w-6xl px-3 pb-8 pt-4 sm:px-4">
       <div className="flex flex-col items-center gap-2 border-t border-white/8 pt-6 text-center">
         <div className="flex items-center gap-2">
-          <span className="text-lg">🌀</span>
+          <img src="/logo-mark.png" alt="" className="h-6 w-6 rounded-full object-cover" />
           <span className={`text-sm font-black tracking-tight ${GRADIENT_TEXT}`}>AniMood</span>
         </div>
         <p className="text-xs text-slate-500">{t.tagline}</p>

@@ -3,7 +3,7 @@
 // Offline fallback: cached pages, the app shell stays usable from cache.
 
 // Bumped from v1: v1 cached unhashed .js/.css forever (see isStaticAsset).
-const CACHE_NAME = "animood-v2";
+const CACHE_NAME = "animood-v3";
 
 // Assets to pre-cache on install — the critical app shell.
 const PRECACHE_URLS = [
@@ -11,7 +11,8 @@ const PRECACHE_URLS = [
   "/index.html",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
-  "/favicon.svg",
+  "/favicon.png",
+  "/logo-mark.png",
   "/icons.svg",
 ];
 
@@ -74,7 +75,6 @@ function isStaticAsset(url) {
     pathname.endsWith(".jpg") ||
     pathname.endsWith(".webp") ||
     pathname.endsWith(".ico") ||
-    pathname === "/favicon.svg" ||
     pathname === "/icons.svg" ||
     pathname.startsWith("/icons/")
   );

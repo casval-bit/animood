@@ -91,6 +91,9 @@ export function AppProvider({ children }) {
     const check = async () => {
       const convos = await dm.listConversations(myUsername);
       if(cancelled) return;
+      // Anything addressed to me that reached this poll counts as delivered —
+      // flips the sender's receipt from "Envoyé" to "Vu".
+      dm.markDelivered(myUsername);
       const unread = new Set();
       convos.forEach(c => {
         if(c.lastMessage.sender === myUsername) return;

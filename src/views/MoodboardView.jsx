@@ -315,9 +315,9 @@ export function MoodboardView({ onOpenDetail }) {
                   <p className="text-sm text-slate-500">{t.emptySubtitle}</p>
                 </div>
                 <div className="flex flex-wrap justify-center gap-3">
-                  <StatPill label={t.statAnimeCount} />
+                  <StatPill label={t.statMoods} />
                   <StatPill label={t.statAiRecs} />
-                  <StatPill label={t.statSatisfaction} />
+                  <StatPill label={t.statFriends} />
                 </div>
               </div>
             )}

@@ -7,7 +7,8 @@ export const CHAT_MODAL_I18N = {
     sendBtn: "Envoyer",
     sending: "…",
     sent: "Envoyé",
-    seen: "Vu",
+    delivered: "Vu",
+    read: (time) => `Lu à ${time}`,
   },
 
   en: {
@@ -18,6 +19,7 @@ export const CHAT_MODAL_I18N = {
     sendBtn: "Send",
     sending: "…",
     sent: "Sent",
-    seen: "Seen",
+    delivered: "Delivered",
+    read: (time) => `Read at ${time}`,
   },
 };

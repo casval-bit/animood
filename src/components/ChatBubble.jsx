@@ -6,6 +6,7 @@ import { Avatar } from "./Avatar.jsx";
 import { timeAgo } from "./ForumThreadModal.jsx";
 import { GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
 import { CHAT_BUBBLE_I18N } from "../constants/chatBubbleI18n.js";
+import { MessageReceipt } from "./MessageReceipt.jsx";
 
 const INPUT = "flex-1 rounded-full border border-white/12 bg-white/7 px-3.5 py-2 text-[13px] text-slate-100 outline-none focus:border-violet-400/50";
 
@@ -102,7 +103,7 @@ function ThreadPane({ username, peer, onBack }) {
                 <div className="whitespace-pre-wrap">{m.body}</div>
                 <div className={`mt-0.5 flex items-center gap-1 text-[9px] ${mine ? "text-white/60" : "text-slate-500"}`}>
                   <span>{timeAgo(m.created_at, lang)}</span>
-                  {isLastMine && <span>· {m.read_at ? t.seen : t.sent}</span>}
+                  {isLastMine && <><span>·</span><MessageReceipt message={m} t={t} lang={lang} /></>}
                 </div>
               </div>
             </div>

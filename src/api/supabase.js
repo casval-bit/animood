@@ -405,6 +405,20 @@ export const dm = {
       body: JSON.stringify([{ sender, recipient, body }]),
     });
   },
+  // Stamps delivered_at on every message sent to `username` that their app
+  // hasn't picked up yet — the "Vu" stage of receipts (arrived in the
+  // recipient's inbox, thread not opened yet). Called from AppProvider's
+  // background unread poll, so it happens without any user action.
+  async markDelivered(username) {
+    const u = encodeURIComponent(username);
+    try {
+      return await sb.query(`direct_messages?recipient=eq.${u}&delivered_at=is.null`, {
+        method: "PATCH",
+        headers: { ...sb.headers, "Prefer": "return=minimal" },
+        body: JSON.stringify({ delivered_at: new Date().toISOString() }),
+      });
+    } catch { return null; }
+  },
   // Stamps read_at on every unread message `peer` sent to `username` — the
   // server-side source of truth read receipts are built on (see AppProvider's
   // unreadPeers and the "seen" tick under the sender's last bubble).

@@ -10,6 +10,9 @@ export const MESSAGES_I18N = {
 
     conversationsHeader: "💬 Conversations",
     youPrefix: "Toi: ",
+    sent: "Envoyé",
+    delivered: "Vu",
+    read: (time) => `Lu à ${time}`,
   },
 
   en: {
@@ -23,5 +26,8 @@ export const MESSAGES_I18N = {
 
     conversationsHeader: "💬 Conversations",
     youPrefix: "You: ",
+    sent: "Sent",
+    delivered: "Delivered",
+    read: (time) => `Read at ${time}`,
   },
 };

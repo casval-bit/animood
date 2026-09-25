@@ -20,7 +20,7 @@ export function LoginView() {
   return (
     <div className="flex min-h-screen items-center justify-center px-6">
       <div className={`w-full max-w-sm p-8 text-center ${GLASS}`} style={GLASS_STYLE}>
-        <div className="mb-3 text-6xl">🌀</div>
+        <img src="/logo-mark.png" alt="" className="mx-auto mb-3 h-24 w-24 rounded-3xl object-cover" />
         <h1 className={`mb-2 text-4xl font-black tracking-tight ${GRADIENT_TEXT}`}>
           AniMood
         </h1>

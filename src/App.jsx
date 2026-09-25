@@ -56,7 +56,7 @@ function Shell() {
   if(!profileReady && !window.__SKIP_AUTH__) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4">
-        <span className="text-3xl">🌀</span>
+        <img src="/logo-mark.png" alt="AniMood" className="h-16 w-16 rounded-2xl object-cover" />
         <Spinner label={lang === "en" ? "Loading profile…" : "Chargement du profil…"} />
       </div>
     );

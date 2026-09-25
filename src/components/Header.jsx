@@ -154,7 +154,7 @@ export function Header({ activeTab, onChangeTab, onJoinGame }) {
         style={{ background: "var(--surface-1)", boxShadow: "var(--shadow-card)" }}
       >
         <div className="flex shrink-0 items-center gap-2">
-          <span className="text-xl">🌀</span>
+          <img src="/logo-mark.png" alt="AniMood" className="h-8 w-8 rounded-full object-cover" />
           <span className={`hidden text-lg font-black tracking-tight sm:inline ${GRADIENT_TEXT}`}>
             AniMood
           </span>
