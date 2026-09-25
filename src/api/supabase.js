@@ -334,6 +334,19 @@ export const follows = {
     const rows = await sb.query(`follows?follower=eq.${encodeURIComponent(username)}&select=following`);
     return (rows||[]).map(r=>r.following);
   },
+  // Follower / following counts for many users in one request instead of two
+  // per user. Returns { [username]: { followers, following } }.
+  async getCounts(usernames) {
+    const counts = Object.fromEntries(usernames.map(u => [u, { followers:0, following:0 }]));
+    if(!usernames.length) return counts;
+    const list = usernames.map(u => encodeURIComponent(u)).join(",");
+    const rows = await sb.query(`follows?or=(follower.in.(${list}),following.in.(${list}))&select=follower,following`);
+    (rows||[]).forEach(r => {
+      if(counts[r.follower])  counts[r.follower].following++;
+      if(counts[r.following]) counts[r.following].followers++;
+    });
+    return counts;
+  },
   async isFollowing(follower, following) {
     const rows = await sb.query(`follows?follower=eq.${encodeURIComponent(follower)}&following=eq.${encodeURIComponent(following)}&limit=1`);
     return (rows||[]).length > 0;
