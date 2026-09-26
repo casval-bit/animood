@@ -83,7 +83,7 @@ v.10.00 reprend les fonctionnalités de v.08.06 (calendrier saisonnier, invitati
 
 ## Database (Supabase)
 
-Schema is already applied on the shared project **except for the files/columns flagged ⚠️ below** (`profile_privacy_schema.sql`, `opquiz_pool_schema.sql`, `opquiz_stats_schema.sql`, `artist_cache_schema.sql`) — every other schema has already been run. For a fresh Supabase project (or after a reset), run everything in this table in order in the SQL Editor:
+All schemas are already applied on the shared project. For a fresh Supabase project (or after a reset), run everything in this table in order in the SQL Editor:
 
 | File | Adds |
 |---|---|
@@ -92,14 +92,14 @@ Schema is already applied on the shared project **except for the files/columns f
 | ✅ `supabase/game_invites_schema.sql` | `game_invites` (`from_user`, `to_user`, `game_type`, `room_id` → `game_rooms` with `on delete cascade`, `private_code`, `status` pending/accepted/declined) plus a partial index on pending invites. |
 | ✅ `supabase/anilist_sub_lists.sql` | `anilist_sub_lists` column on `profiles` for AniList custom/sub-lists. |
 | ✅ `supabase/blocks_schema.sql` | `user_blocks` (one-directional user blocking). |
-| ⚠️ `supabase/profile_privacy_schema.sql` | **Not yet run.** Adds `visibility` (`everyone`/`friends`/`custom`, default `everyone`) and `visibility_allowed` (jsonb array of usernames) to `profiles`. Enforced client-side only (`src/utils/profilePrivacy.js`), same access model as the rest of the app. Until this runs, the privacy setting in Settings → Profil won't persist. |
+| ✅ `supabase/profile_privacy_schema.sql` | Adds `visibility` (`everyone`/`friends`/`custom`, default `everyone`) and `visibility_allowed` (jsonb array of usernames) to `profiles`. Enforced client-side only (`src/utils/profilePrivacy.js`), same access model as the rest of the app. |
 | ✅ `supabase/polls_schema.sql` | `polls` (belongs to either a Feed post or a Forum thread — `options` jsonb `{id, text, votes[]}[]`, `multi` boolean). |
 | ✅ `supabase/posts_schema.sql` | `posts`, `comments` tables with `UPDATE`/`DELETE` RLS policies for liking and deleting posts/comments. |
 | ✅ `supabase/game_schema.sql` | `game_elo`, `game_rooms` tables with columns for solo game points (`streak_wordle`, `last_wordle_date`, etc.) and multiplayer (`player3`/`player4` for Cluescale), plus per-game point breakdowns (`pts_wordle`/`pts_poster`/`pts_opquiz`/`pts_cluescale`). |
 | ✅ `supabase/badges_schema.sql` | `active_badge` column on `profiles`. Badge unlock conditions are computed client-side (`src/badges/badges.jsx`). |
-| ⚠️ `supabase/artist_cache_schema.sql` | **Not yet run.** Creates `artist_cache` (`slug`, `name`, `themes` jsonb), filled by `scripts/sync_artists.mjs`. Purely additive: while missing, the Artist tab uses the live AnimeThemes API as fallback. |
-| ⚠️ `supabase/opquiz_pool_schema.sql` | **Not yet run.** Creates `opquiz_pool` (`mal_id`, `difficulty`, `audio_url`, `video_url`), filled by `scripts/sync_opquiz_pool.mjs`. Purely additive: OP Quiz falls back to the ~24 hand-picked entries in `src/constants/animeOpenings.js` until this runs. |
-| ⚠️ `supabase/opquiz_stats_schema.sql` | **Not yet run.** Creates `opquiz_stats` (community-wide per-opening attempts/correct/response-time, with `difficulty_score`) and `opquiz_user_stats` (per-player per-opening history). Purely additive: OP Quiz falls back to hand-picked difficulty tags and treats all openings as never-seen until this runs. |
+| ✅ `supabase/artist_cache_schema.sql` | Creates `artist_cache` (`slug`, `name`, `themes` jsonb), filled by `scripts/sync_artists.mjs`. Caches AnimeThemes data to survive datacenter outages — the Artist tab falls back to the live API if the cache is empty. |
+| ✅ `supabase/opquiz_pool_schema.sql` | Creates `opquiz_pool` (`mal_id`, `difficulty`, `audio_url`, `video_url`), filled by `scripts/sync_opquiz_pool.mjs`. OP Quiz falls back to ~24 hand-picked entries in `src/constants/animeOpenings.js` if empty. |
+| ✅ `supabase/opquiz_stats_schema.sql` | Creates `opquiz_stats` (community-wide per-opening attempts/correct/response-time, with `difficulty_score`) and `opquiz_user_stats` (per-player per-opening history). Enables adaptive difficulty picker — falls back to hand-picked tags if empty. |
 
 Access model: like the rest of the app, these tables use the shared `anon` key with open RLS policies ("anyone can read/insert/update/delete") — not per-user privacy, consistent with `profiles`/`follows`/`user_votes`.
 
