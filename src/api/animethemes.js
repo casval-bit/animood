@@ -4,6 +4,7 @@
 // lookup used for studios.
 import { sb } from "./supabase.js";
 import { POPULAR_ARTIST_NAMES } from "../constants/popularArtists.js";
+import { ARTIST_SEED } from "../constants/artistSeed.js";
 
 const BASE = "https://api.animethemes.moe";
 
@@ -68,23 +69,25 @@ async function cachedSearchArtists(query, limit) {
   return (rows || []).map(rowToArtist).filter(a => a.themes.length);
 }
 
-// Live search, falling back to the cached copy when AnimeThemes is down. Only
-// rethrows when the cache has nothing either, so the UI can show the outage.
+const seedSearch = (q, limit) =>
+  ARTIST_SEED.filter(a => a.name.toLowerCase().includes(q.toLowerCase())).slice(0, limit);
+
+// Live search → cached copy → bundled seed. Never throws: an outage just
+// narrows the results instead of showing an error.
 export async function searchArtists(query, limit = 24) {
   const q = query.trim();
   if(!q) return [];
   try {
     return await searchArtistsLive(q, limit);
-  } catch(e) {
+  } catch {
     const cached = await cachedSearchArtists(q, limit);
-    if(cached.length) return cached;
-    throw e;
+    return cached.length ? cached : seedSearch(q, limit);
   }
 }
 
-async function searchArtistsLive(q, limit) {
+async function searchArtistsLive(q, limit, timeoutMs) {
   const url = `${BASE}/artist?q=${encodeURIComponent(q)}&page[size]=${limit}&include=songs.animethemes.anime`;
-  const res = await fetchWithTimeout(url);
+  const res = await fetchWithTimeout(url, timeoutMs);
   if(!res.ok) throw new Error(`AnimeThemes ${res.status}`);
   const json = await res.json();
   return (json.artists || []).map(normalizeArtist).filter(a => a.themes.length);
@@ -93,22 +96,26 @@ async function searchArtistsLive(q, limit) {
 let popularArtistsCache = null;
 
 // Cached copy first (one Supabase query, works during AnimeThemes outages),
-// live API only when the cache is empty.
+// then the live API, then the bundled seed. Never throws.
 export async function fetchPopularArtists(limit = 16) {
   if(popularArtistsCache) return popularArtistsCache.slice(0, limit);
   const cached = await cachedPopularArtists(limit);
   if(cached.length) { popularArtistsCache = cached; return cached; }
 
+  const live = await fetchPopularArtistsLive(limit).catch(() => []);
+  if(live.length) { popularArtistsCache = live; return live; }
+  return ARTIST_SEED.slice(0, limit);
+}
+
+async function fetchPopularArtistsLive(limit) {
   const names = POPULAR_ARTIST_NAMES.slice(0, limit);
   const pick = (name, found) => found.find(a => a.name.toLowerCase() === name.toLowerCase()) || found[0] || null;
-  // Probe with the first name alone: during an outage this fails once after
-  // the timeout instead of firing 16 requests that all hang.
-  const first = pick(names[0], await searchArtistsLive(names[0], 3).catch(() => { throw new Error("AnimeThemes unavailable"); }));
+  // Probe with the first name alone, on a short timeout: during an outage the
+  // seed shows up after ~3s instead of 16 requests that all hang.
+  const first = pick(names[0], await searchArtistsLive(names[0], 3, 3000));
   const rest = await Promise.all(names.slice(1).map(name =>
     searchArtistsLive(name, 3).then(found => pick(name, found)).catch(() => null)));
-  const artists = [first, ...rest].filter(Boolean);
-  if(artists.length) popularArtistsCache = artists;
-  return artists;
+  return [first, ...rest].filter(Boolean);
 }
 
 // Resolves a MAL id from an AnimeThemes anime slug — called on demand (e.g.

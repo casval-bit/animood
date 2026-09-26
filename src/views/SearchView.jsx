@@ -76,7 +76,6 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
   const [loadingStudios, setLoadingStudios] = useState(true);
   const [popularArtists, setPopularArtists] = useState([]);
   const [loadingArtists, setLoadingArtists] = useState(false);
-  const [artistsError, setArtistsError]     = useState(false);
 
   const [suggestions, setSuggestions]         = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -128,15 +127,10 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
   // which is a single cheap Supabase query).
   useEffect(() => {
     if(tab !== "artist" || popularArtists.length) return;
-    loadPopularArtists();
-  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
-  function loadPopularArtists() {
-    setLoadingArtists(true); setArtistsError(false);
     fetchPopularArtists(16)
       .then(setPopularArtists)
-      .catch(() => setArtistsError(true))
       .finally(() => setLoadingArtists(false));
-  }
+  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { const t = setTimeout(() => inputRef.current?.focus(), 150); return () => clearTimeout(t); }, []);
 
@@ -207,9 +201,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
       }
     } catch(e) {
       if(id !== searchIdRef.current) return;
-      if(e.message?.includes("AnimeThemes")) {
-        setError(t.animeThemesDown);
-      } else if(e.message?.includes("504") || e.message?.includes("Gateway") || e.message?.includes("fetch")) {
+      if(e.message?.includes("504") || e.message?.includes("Gateway") || e.message?.includes("fetch")) {
         setError(t.jikanDown);
       } else setError(e.message);
     } finally {
@@ -226,6 +218,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
   const changeTab = (id) => {
     setTab(id); setSuggestions([]); setShowSuggestions(false);
     if(id === "members" && !defaultMembers.length) setLoadingMembers(true);
+    if(id === "artist" && !popularArtists.length) setLoadingArtists(true);
     if(submitted && id !== "season") doSearch(query, id);
   };
   const changeTypeFilter = (id) => {
@@ -372,15 +365,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
       {tab === "artist" && !submitted && (
         <>
           <SectionLabel className="mb-3">{t.artistsPopular}</SectionLabel>
-          {loadingArtists ? <Spinner label={t.loading} /> : artistsError ? (
-            <div className="py-8 text-center">
-              <div className="mb-3 text-xs text-red-400">{t.animeThemesDown}</div>
-              <button onClick={loadPopularArtists}
-                className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-[11px] font-bold text-slate-300 transition hover:bg-white/10">
-                {t.retry}
-              </button>
-            </div>
-          ) : (
+          {loadingArtists ? <Spinner label={t.loading} /> : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {popularArtists.map(a => <ArtistCard key={a.slug} artist={a} onClick={() => setArtistModal(a)} t={t} />)}
             </div>
