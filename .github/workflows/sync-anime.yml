@@ -1,4 +1,4 @@
-name: Sync Anime Database
+﻿name: Sync Anime Database
 
 on:
   schedule:
@@ -36,6 +36,20 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: node scripts/sync_new_moods.mjs 2>&1 | tee /tmp/moods_log.txt
 
+      - name: Expand Quiz OP opening pool
+        id: sync_opquiz
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON: ${{ secrets.SUPABASE_ANON }}
+        run: node scripts/sync_opquiz_pool.mjs 2>&1 | tee /tmp/opquiz_log.txt
+
+      - name: Refresh Artist tab cache
+        id: sync_artists
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON: ${{ secrets.SUPABASE_ANON }}
+        run: node scripts/sync_artists.mjs 2>&1 | tee /tmp/artists_log.txt
+
       - name: Write summary
         if: always()
         run: |
@@ -49,5 +63,15 @@ jobs:
           echo "### 🎭 Moods tagged" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           tail -5 /tmp/moods_log.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎵 Quiz OP pool" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -5 /tmp/opquiz_log.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎤 Artist cache" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -3 /tmp/artists_log.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
