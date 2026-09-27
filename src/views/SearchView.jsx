@@ -158,8 +158,45 @@ function getBroadcastDay(anime) {
   return null;
 }
 
+// Known platforms for filter UI
+const PLATFORMS = [
+  { id:"crunchyroll", label:"Crunchyroll", names:["Crunchyroll"],                          color:"#f47521", fr:true,  us:true,  jp:true  },
+  { id:"netflix",     label:"Netflix",     names:["Netflix"],                               color:"#e50914", fr:true,  us:true,  jp:true  },
+  { id:"amazon",      label:"Amazon",      names:["Amazon Prime Video"],                   color:"#00a8e0", fr:true,  us:true,  jp:true  },
+  { id:"hidive",      label:"HIDIVE",      names:["HIDIVE"],                                color:"#00aeef", fr:false, us:true,  jp:false },
+  { id:"disney",      label:"Disney+",     names:["Disney Plus","Disney+"],                color:"#113ccf", fr:true,  us:true,  jp:true  },
+  { id:"hulu",        label:"Hulu",        names:["Hulu"],                                  color:"#1ce783", fr:false, us:true,  jp:false },
+  { id:"adn",         label:"ADN",         names:["Anime Digital Network","ADN"],           color:"#0090d0", fr:true,  us:false, jp:false },
+  { id:"max",         label:"Max",         names:["Max"],                                   color:"#0030ff", fr:true,  us:true,  jp:false },
+  { id:"bilibili",    label:"Bilibili",    names:["Bilibili","Bilibili Global"],            color:"#00a1d6", fr:false, us:false, jp:false },
+  { id:"muse",        label:"Muse Asia",   names:["Muse Asia"],                             color:"#e4007c", fr:false, us:false, jp:false },
+  { id:"anioneasia",  label:"Ani-One",     names:["Ani-One Asia"],                         color:"#ff6600", fr:false, us:false, jp:false },
+];
+
+// Helper: get platform IDs from a streaming array [{url,name}]
+function getStreamingPlatforms(streamingArr) {
+  if(!Array.isArray(streamingArr)) return new Set();
+  const names = streamingArr.map(s => s.name);
+  const result = new Set();
+  PLATFORMS.forEach(p => {
+    if(p.names.some(n => names.includes(n))) result.add(p.id);
+  });
+  return result;
+}
+
 function AiringCalendar({ anime, onOpenDetail, me }) {
   const [myOnly, setMyOnly] = useState(false);
+  const [platformFilters, setPlatformFilters] = useState(new Set());
+  const [showPlatforms, setShowPlatforms] = useState(false);
+  const [region, setRegion] = useState(null); // "fr"|"us"|"jp"|null
+
+  // Close platform dropdown on outside click
+  useEffect(()=>{
+    if(!showPlatforms) return;
+    const handler = ()=>setShowPlatforms(false);
+    setTimeout(()=>document.addEventListener('click',handler),0);
+    return ()=>document.removeEventListener('click',handler);
+  },[showPlatforms]);
   const todayIdx = (new Date().getDay() + 6) % 7; // 0=Mon … 6=Sun
 
   // Build "my anime" set:
@@ -205,7 +242,32 @@ function AiringCalendar({ anime, onOpenDetail, me }) {
     return myBaseTitles.has(bt) || (bte && myBaseTitles.has(bte));
   }
 
-  const displayed = myOnly ? anime.filter(isMyAnime) : anime;
+  // Apply filters
+  let displayed = myOnly ? anime.filter(isMyAnime) : anime;
+  if(platformFilters.size > 0 || region) {
+    displayed = displayed.filter(a => {
+      const streamingIds = getStreamingPlatforms(a.streaming);
+      if(platformFilters.size > 0) {
+        for(const pid of platformFilters) {
+          if(!streamingIds.has(pid)) return false;
+          // Check region for this platform
+          if(region) {
+            const p = PLATFORMS.find(pl => pl.id === pid);
+            if(p && !p[region]) return false;
+          }
+        }
+        return true;
+      } else if(region) {
+        // Region only — show if any available platform matches region
+        for(const pid of streamingIds) {
+          const p = PLATFORMS.find(pl => pl.id === pid);
+          if(p && p[region]) return true;
+        }
+        return false;
+      }
+      return true;
+    });
+  }
   const myCount   = anime.filter(isMyAnime).length;
 
   // Group by day
@@ -259,47 +321,139 @@ function AiringCalendar({ anime, onOpenDetail, me }) {
 
   return (
     <div>
-      {/* Stats bar + toggle */}
+      {/* Controls bar — left: région | middle: plateformes | right: mon calendrier */}
       <div style={{
         display:"flex",alignItems:"center",justifyContent:"space-between",
-        marginBottom:16,padding:"8px 16px",borderRadius:12,
+        marginBottom:14,padding:"8px 14px",borderRadius:12,
         background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",
         flexWrap:"wrap",gap:8,
       }}>
-        <div style={{fontSize:11,color:"var(--text-4)"}}>
-          <span style={{fontWeight:700,color:"var(--text-2)"}}>{totalWithDay}</span> animés planifiés
+        {/* LEFT: région */}
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          {[
+            {id:"fr",label:"🇫🇷 FR"},
+            {id:"us",label:"🇺🇸 US"},
+            {id:"jp",label:"🇯🇵 JP"},
+          ].map(r => (
+            <button key={r.id} onClick={()=>setRegion(region===r.id?null:r.id)} style={{
+              padding:"4px 10px",borderRadius:20,fontSize:9,fontWeight:800,cursor:"pointer",
+              background: region===r.id ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.03)",
+              color: region===r.id ? "var(--text-1)" : "var(--text-5)",
+              border: region===r.id ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.07)",
+              transition:"all 0.15s",
+            }}>{r.label}</button>
+          ))}
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <div style={{fontSize:10,color:"var(--text-5)"}}>
-            Saison en cours · {new Date().getFullYear()}
-          </div>
-          {/* Mon calendrier toggle */}
-          <button onClick={()=>setMyOnly(p=>!p)} style={{
+
+        {/* MIDDLE: plateforme dropdown */}
+        <div style={{position:"relative"}}>
+          <button onClick={()=>setShowPlatforms(p=>!p)} style={{
             display:"flex",alignItems:"center",gap:6,
-            padding:"5px 12px",borderRadius:20,fontSize:10,fontWeight:800,
-            cursor:"pointer",transition:"all 0.15s",
-            background: myOnly ? "rgba(124,58,237,0.25)" : "rgba(255,255,255,0.05)",
-            color: myOnly ? "#c084fc" : "var(--text-4)",
-            border: myOnly ? "1px solid rgba(124,58,237,0.4)" : "1px solid rgba(255,255,255,0.08)",
+            padding:"5px 12px",borderRadius:20,fontSize:10,fontWeight:700,cursor:"pointer",
+            background: platformFilters.size>0 ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.03)",
+            color: platformFilters.size>0 ? "var(--text-1)" : "var(--text-4)",
+            border: platformFilters.size>0 ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.07)",
+            transition:"all 0.15s",
           }}>
-            <div style={{
-              width:14,height:14,borderRadius:4,flexShrink:0,
-              background: myOnly ? "#7c3aed" : "rgba(255,255,255,0.08)",
-              border: myOnly ? "none" : "1px solid rgba(255,255,255,0.15)",
-              display:"flex",alignItems:"center",justifyContent:"center",
-            }}>
-              {myOnly && <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
-                <path d="M1.5 4.5L3.5 6.5L7.5 2.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>}
-            </div>
-            Mon calendrier
-            {myCount > 0 && (
-              <span style={{
-                background:"rgba(124,58,237,0.3)",color:"#c084fc",
-                fontSize:9,padding:"1px 5px",borderRadius:10,
-              }}>{myCount}</span>
+            📺 Plateformes
+            {platformFilters.size>0 && (
+              <span style={{background:"rgba(255,255,255,0.2)",color:"var(--text-1)",
+                fontSize:9,padding:"1px 5px",borderRadius:8}}>{platformFilters.size}</span>
             )}
           </button>
+          {showPlatforms && (
+            <div style={{
+              position:"absolute",top:"calc(100% + 6px)",left:0,zIndex:50,
+              background:"#161226",border:"1px solid rgba(255,255,255,0.1)",
+              borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",
+              padding:8,minWidth:180,
+            }}>
+              <div style={{fontSize:9,fontWeight:700,color:"var(--text-5)",
+                padding:"2px 6px 6px",textTransform:"uppercase",letterSpacing:1}}>
+                Filtrer par plateforme
+              </div>
+              {PLATFORMS.filter(p => anime.some(a => {
+                const ids = getStreamingPlatforms(a.streaming);
+                if(!ids.has(p.id)) return false;
+                if(region) return p[region] === true;
+                return true;
+              })).map(p => {
+                const checked = platformFilters.has(p.id);
+                return (
+                  <button key={p.id} onClick={()=>{
+                    setPlatformFilters(prev => {
+                      const next = new Set(prev);
+                      checked ? next.delete(p.id) : next.add(p.id);
+                      return next;
+                    });
+                  }} style={{
+                    display:"flex",alignItems:"center",gap:8,width:"100%",
+                    padding:"6px 8px",borderRadius:8,background:"none",border:"none",
+                    cursor:"pointer",textAlign:"left",transition:"background 0.12s",
+                  }}
+                  onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
+                  onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                    <div style={{
+                      width:14,height:14,borderRadius:3,flexShrink:0,
+                      background: checked ? p.color : "rgba(255,255,255,0.08)",
+                      border: checked ? "none" : "1px solid rgba(255,255,255,0.15)",
+                      display:"flex",alignItems:"center",justifyContent:"center",
+                    }}>
+                      {checked && <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+                        <path d="M1.5 4.5L3.5 6.5L7.5 2.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>}
+                    </div>
+                    <span style={{fontSize:10,fontWeight:600,color: checked ? p.color : "var(--text-3)"}}>
+                      {p.label}
+                    </span>
+                  </button>
+                );
+              })}
+              {platformFilters.size > 0 && (
+                <button onClick={()=>setPlatformFilters(new Set())} style={{
+                  width:"100%",marginTop:4,padding:"5px 8px",borderRadius:8,
+                  background:"none",border:"none",cursor:"pointer",
+                  fontSize:9,color:"var(--text-5)",textAlign:"center",
+                }}
+                onMouseEnter={e=>e.currentTarget.style.color="var(--text-2)"}
+                onMouseLeave={e=>e.currentTarget.style.color="var(--text-5)"}>
+                  Réinitialiser
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT: mon calendrier */}
+        <button onClick={()=>setMyOnly(p=>!p)} style={{
+          display:"flex",alignItems:"center",gap:6,
+          padding:"5px 12px",borderRadius:20,fontSize:10,fontWeight:800,
+          cursor:"pointer",transition:"all 0.15s",
+          background: myOnly ? "rgba(124,58,237,0.25)" : "rgba(255,255,255,0.05)",
+          color: myOnly ? "#c084fc" : "var(--text-4)",
+          border: myOnly ? "1px solid rgba(124,58,237,0.4)" : "1px solid rgba(255,255,255,0.08)",
+        }}>
+          <div style={{
+            width:14,height:14,borderRadius:4,flexShrink:0,
+            background: myOnly ? "#7c3aed" : "rgba(255,255,255,0.08)",
+            border: myOnly ? "none" : "1px solid rgba(255,255,255,0.15)",
+            display:"flex",alignItems:"center",justifyContent:"center",
+          }}>
+            {myOnly && <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+              <path d="M1.5 4.5L3.5 6.5L7.5 2.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>}
+          </div>
+          Mon calendrier
+          {myCount > 0 && (
+            <span style={{background:"rgba(124,58,237,0.3)",color:"#c084fc",
+              fontSize:9,padding:"1px 5px",borderRadius:10}}>{myCount}</span>
+          )}
+        </button>
+
+        {/* Stats */}
+        <div style={{width:"100%",fontSize:10,color:"var(--text-5)"}}>
+          <span style={{fontWeight:700,color:"var(--text-3)"}}>{totalWithDay}</span> animés
+          {(platformFilters.size>0||region) && <span style={{marginLeft:6,color:"#c084fc"}}>· filtrés</span>}
         </div>
       </div>
 
@@ -513,7 +667,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
     (async () => {
       try {
         const rows = await sb.query(
-          "anime_cache?type=eq.TV&status=eq.Currently%20Airing&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,broadcast&order=score.desc.nullslast&limit=200"
+          "anime_cache?type=eq.TV&status=eq.Currently%20Airing&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,broadcast,streaming&order=score.desc.nullslast&limit=200"
         ).catch(()=>[]);
         if(!cancelled && rows?.length) {
           // Filter out TV Shorts and non-TV (extra safety)
