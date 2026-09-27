@@ -366,7 +366,7 @@ async function jobTrailers() {
     .or("trailer.is.null,trailer.eq.{}");
   const { data: rest } = await supabase.from("anime_cache")
     .select("mal_id,title,trailer").neq("status","Not yet aired")
-    .or("trailer.is.null,trailer.eq.{}").limit(500);
+    .or("trailer.is.null,trailer.eq.{}").limit(5000);
 
   const toFetch = [...(upcoming||[]), ...(rest||[])];
   log(`${(upcoming||[]).length} upcoming + ${(rest||[]).length} others = ${toFetch.length} without trailer`);
@@ -574,5 +574,6 @@ Jobs:
 `);
 }
 log("=== Done ===");
+
 
 

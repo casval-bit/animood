@@ -593,6 +593,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
   const [popularAnime, setPopularAnime]     = useState([]);
   const [loadingPopular, setLoadingPopular] = useState(true);
   const [airingAnime, setAiringAnime]       = useState([]);
+  const [finishedAnime, setFinishedAnime]   = useState([]);
   const [loadingAiring, setLoadingAiring]   = useState(true);
   const [popularStudios, setPopularStudios] = useState([]);
   const [loadingStudios, setLoadingStudios] = useState(true);
@@ -675,6 +676,21 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
         }
       } catch {}
       if(!cancelled) setLoadingAiring(false);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Fetch recently finished seasonal anime (ended this season)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const threeMonthsAgo = new Date(Date.now() - 90*24*60*60*1000).toISOString().slice(0,10);
+        const rows = await sb.query(
+          `anime_cache?type=eq.TV&status=eq.Finished%20Airing&select=mal_id,title,score,year,episodes,image_url,large_image,genres,aired_from&aired_from=gte.${threeMonthsAgo}&order=score.desc.nullslast&limit=30`
+        ).catch(()=>[]);
+        if(!cancelled && rows?.length) setFinishedAnime(rows);
+      } catch {}
     })();
     return () => { cancelled = true; };
   }, []);
@@ -911,7 +927,60 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
               </div>
               {loadingAiring
                 ? <Spinner label={t.loading}/>
-                : <AiringCalendar anime={airingAnime} onOpenDetail={onOpenDetail} me={me}/>
+                : <>
+                    <AiringCalendar anime={airingAnime} onOpenDetail={onOpenDetail} me={me}/>
+                    {finishedAnime.length > 0 && (
+                      <div style={{marginTop:24}}>
+                        {/* Header row matching day columns */}
+                        <div style={{
+                          padding:"8px 12px",marginBottom:4,
+                          borderBottom:"1px solid rgba(255,255,255,0.06)",
+                          display:"flex",alignItems:"center",gap:6,
+                        }}>
+                          <span style={{fontSize:11,fontWeight:900,color:"var(--text-4)"}}>🎬</span>
+                          <span style={{fontSize:11,fontWeight:900,color:"var(--text-3)"}}>Terminés cette saison</span>
+                          <span style={{fontSize:9,color:"var(--text-6)",marginLeft:4}}>{finishedAnime.length} animés</span>
+                        </div>
+                        {/* Cards — same style as calendar cards */}
+                        <div style={{
+                          display:"grid",
+                          gridTemplateColumns:"repeat(auto-fill, minmax(140px, 1fr))",
+                          gap:4,padding:"6px 4px",
+                        }}>
+                          {[...finishedAnime].sort((a,b)=>(b.score||0)-(a.score||0)).map(a => (
+                            <button key={a.mal_id} onClick={()=>onOpenDetail(a)} style={{
+                              display:"flex",gap:7,alignItems:"center",
+                              background:"none",border:"none",cursor:"pointer",
+                              textAlign:"left",padding:"4px 4px",borderRadius:8,
+                              transition:"background 0.12s",width:"100%",
+                            }}
+                            onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.06)";}}
+                            onMouseLeave={e=>{e.currentTarget.style.background="none";}}>
+                              <img src={a.image_url||a.large_image} alt="" style={{
+                                width:32,height:44,objectFit:"cover",borderRadius:5,flexShrink:0,
+                                border:"1px solid rgba(255,255,255,0.1)",display:"block",
+                              }} onError={e=>{e.target.style.display="none";}}/>
+                              <div style={{minWidth:0,flex:1}}>
+                                <div style={{
+                                  fontSize:10,fontWeight:700,color:"var(--text-1)",
+                                  overflow:"hidden",textOverflow:"ellipsis",
+                                  display:"-webkit-box",WebkitLineClamp:2,
+                                  WebkitBoxOrient:"vertical",lineHeight:1.3,marginBottom:2,
+                                }}>
+                                  {a.title_en||a.title}
+                                </div>
+                                {a.score && (
+                                  <span style={{fontSize:8,color:"#fbbf24",fontWeight:700}}>
+                                    ★ {a.score}
+                                  </span>
+                                )}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
               }
             </div>
           )}

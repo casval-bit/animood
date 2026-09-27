@@ -299,7 +299,10 @@ function Footer({ onOpenPage }) {
       <div style={{maxWidth:960,margin:"0 auto",display:"flex",flexDirection:"column",gap:24}}>
         {/* Logo + tagline */}
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:22}}>🌀</span>
+          <picture>
+            <source srcSet="/logo-transparent.png" media="(prefers-color-scheme: dark)"/>
+            <img src="/logo-light.png" alt="" style={{height:52,width:"auto",objectFit:"contain",flexShrink:0,marginTop:-8}}/>
+          </picture>
           <div>
             <div style={{
               fontSize:16,fontWeight:900,
