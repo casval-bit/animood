@@ -1996,3 +1996,551 @@ async function pushStateToRoom(roomId, newState, isAI=false) {
 }
 
 
+
+
+// ─── UNDERCOVER ───────────────────────────────────────────────────────────────
+const UNDERCOVER_WORDS = [
+  { word:"Naruto",              hint:"Shonen ninja" },
+  { word:"One Piece",           hint:"Aventure en mer" },
+  { word:"Dragon Ball Z",       hint:"Combat de super-héros" },
+  { word:"Death Note",          hint:"Thriller psychologique" },
+  { word:"Attack on Titan",     hint:"Anime sombre post-apocalyptique" },
+  { word:"Demon Slayer",        hint:"Combat de démons" },
+  { word:"My Hero Academia",    hint:"École de super-héros" },
+  { word:"Fullmetal Alchemist", hint:"Alchimie et frères" },
+  { word:"Sword Art Online",    hint:"Jeu vidéo virtuel" },
+  { word:"Hunter x Hunter",     hint:"Aventure et chasseurs" },
+  { word:"Bleach",              hint:"Combat de shinigami" },
+  { word:"Tokyo Ghoul",         hint:"Monde de monstres urbains" },
+  { word:"Re:Zero",             hint:"Boucle temporelle isekai" },
+  { word:"Steins;Gate",         hint:"Science-fiction temporelle" },
+  { word:"Code Geass",          hint:"Pouvoir mental et politique" },
+  { word:"Evangelion",          hint:"Mechas et psychologie" },
+  { word:"Jujutsu Kaisen",      hint:"Exorcisme de malédictions" },
+  { word:"Spy x Family",        hint:"Famille secrète et espionnage" },
+  { word:"Haikyuu",             hint:"Sport de filet" },
+  { word:"Goku",                hint:"Héros de Dragon Ball" },
+  { word:"Luffy",               hint:"Capitaine de pirates élastique" },
+  { word:"Light Yagami",        hint:"Génie qui juge la mort" },
+  { word:"Levi Ackerman",       hint:"Soldat d'élite contre les titans" },
+  { word:"Eren Yeager",         hint:"Protagoniste d'un anime de titans" },
+  { word:"Itadori Yuji",        hint:"Hôte d'une malédiction démoniaque" },
+  { word:"Tanjiro Kamado",      hint:"Chasseur de démons à la hache" },
+  { word:"L",                   hint:"Détective mystérieux assis bizarrement" },
+  { word:"Edward Elric",        hint:"Alchimiste aux bras de métal" },
+  { word:"Killua",              hint:"Jeune assassin aux cheveux blancs" },
+  { word:"Zero Two",            hint:"Pilote aux cornes de Franxx" },
+  { word:"Anya Forger",         hint:"Petite fille espion télépathe" },
+  { word:"Shoyo Hinata",        hint:"Petit volleyeur très sauteur" },
+  { word:"Rimuru Tempest",      hint:"Slime réincarné en seigneur" },
+  { word:"Kaguya Shinomiya",    hint:"Étudiante brillante et fière" },
+];
+
+export function UndercoverLobby({ onStart, onClose }) {
+  const { myUsername } = useApp();
+  const [players, setPlayers] = useState([myUsername]);
+  const [input, setInput]     = useState("");
+
+  const addPlayer = () => {
+    const name = input.trim();
+    if(!name || players.includes(name) || players.length >= 3) return;
+    setPlayers(p => [...p, name]);
+    setInput("");
+  };
+
+  const startGame = () => {
+    if(players.length !== 3) return;
+    const entry = UNDERCOVER_WORDS[Math.floor(Math.random() * UNDERCOVER_WORDS.length)];
+    const impostorIdx = Math.floor(Math.random() * 3);
+    const gamePlayers = players.map((username, i) => ({
+      username,
+      isImpostor: i === impostorIdx,
+      word: i === impostorIdx ? null : entry.word,
+      hint: i === impostorIdx ? entry.hint : null,
+    }));
+    onStart(gamePlayers);
+  };
+
+  return (
+    <div style={{padding:28,maxWidth:380}}>
+      <div style={{textAlign:"center",marginBottom:20}}>
+        <div style={{fontSize:32,marginBottom:8}}>{"\u{1F575}\uFE0F"}</div>
+        <div style={{fontSize:16,fontWeight:900,color:"var(--text-1)",marginBottom:4}}>Undercover</div>
+        <div style={{fontSize:11,color:"var(--text-4)"}}>3 joueurs · 2 reçoivent le même mot · 1 est l'imposteur</div>
+      </div>
+      <div style={{marginBottom:16}}>
+        {players.map((p,i) => (
+          <div key={p} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,
+            padding:"8px 12px",borderRadius:10,
+            background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)"}}>
+            <span style={{fontSize:14}}>{["\u{1F451}","\u{1F3AD}","\u{1F3AA}"][i]}</span>
+            <span style={{fontSize:12,fontWeight:700,color:"var(--text-1)",flex:1}}>{p}</span>
+            {i > 0 && <button onClick={()=>setPlayers(pl=>pl.filter(x=>x!==p))}
+              style={{background:"none",border:"none",color:"var(--text-5)",cursor:"pointer",fontSize:16}}>×</button>}
+          </div>
+        ))}
+        {players.length < 3 && (
+          <div style={{display:"flex",gap:8,marginTop:8}}>
+            <input value={input} onChange={e=>setInput(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&addPlayer()}
+              placeholder="Nom du joueur..."
+              style={{flex:1,padding:"8px 12px",borderRadius:10,fontSize:12,
+                border:"1px solid rgba(255,255,255,0.12)",
+                background:"rgba(255,255,255,0.04)",color:"var(--text-1)"}}/>
+            <button onClick={addPlayer}
+              style={{padding:"8px 14px",borderRadius:10,border:"none",
+                background:"rgba(124,58,237,0.2)",color:"#c084fc",fontWeight:800,cursor:"pointer"}}>+</button>
+          </div>
+        )}
+      </div>
+      <button onClick={startGame} disabled={players.length!==3} style={{
+        width:"100%",padding:"12px",borderRadius:12,border:"none",fontWeight:800,fontSize:13,
+        background:players.length===3?"linear-gradient(135deg,#7c3aed,#4f46e5)":"rgba(255,255,255,0.06)",
+        color:players.length===3?"#fff":"var(--text-4)",
+        cursor:players.length===3?"pointer":"not-allowed"}}>
+        {players.length===3?"Lancer la partie \u{1F680}":"Ajoute "+(3-players.length)+" joueur(s)"}
+      </button>
+    </div>
+  );
+}
+
+export function UndercoverGame({ players, onClose, onAwardPoints }) {
+  const { myUsername } = useApp();
+  const [phase, setPhase]       = useState("play");
+  const [words, setWords]       = useState([]);
+  const [input, setInput]       = useState("");
+  const [turnIdx, setTurnIdx]   = useState(0);
+  const [votes, setVotes]       = useState({});
+  const [guessInput, setGuessInput] = useState("");
+  const [result, setResult]     = useState(null);
+  const [timer, setTimer]       = useState(30);
+  const timerRef = useRef(null);
+
+  const myPlayer    = players.find(p => p.username === myUsername);
+  const totalTurns  = players.length * 2;
+  const currentTurn = players[turnIdx % players.length];
+  const isMyTurn    = currentTurn?.username === myUsername;
+  const impostor    = players.find(p => p.isImpostor);
+  const crewWord    = players.find(p => !p.isImpostor)?.word;
+
+  useEffect(() => {
+    if(phase !== "vote" && phase !== "impostorGuess") return;
+    setTimer(30);
+    timerRef.current = setInterval(() => {
+      setTimer(t => {
+        if(t <= 1) {
+          clearInterval(timerRef.current);
+          if(phase === "vote") computeResult();
+          if(phase === "impostorGuess") finalize(false, true);
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timerRef.current);
+  }, [phase]);
+
+  const submitWord = () => {
+    if(!input.trim()) return;
+    const next = [...words, {username:myUsername, word:input.trim()}];
+    setWords(next);
+    setInput("");
+    const nextIdx = turnIdx + 1;
+    if(nextIdx >= totalTurns) setPhase("vote");
+    else setTurnIdx(nextIdx);
+  };
+
+  const computeResult = () => {
+    clearInterval(timerRef.current);
+    const counts = {};
+    Object.values(votes).forEach(v => { counts[v] = (counts[v]||0)+1; });
+    const max = Math.max(...Object.values(counts), 0);
+    const mostVoted = Object.keys(counts).find(k => counts[k]===max);
+    if(mostVoted === impostor?.username) setPhase("impostorGuess");
+    else finalize(false, false);
+  };
+
+  const finalize = (impostorFound, impostorGuessed) => {
+    clearInterval(timerRef.current);
+    const pts = {};
+    if(!impostorFound) {
+      pts[impostor.username] = 5;
+    } else if(impostorGuessed) {
+      players.filter(p=>!p.isImpostor).forEach(p => { pts[p.username] = 1; });
+      pts[impostor.username] = 2;
+    } else {
+      players.filter(p=>!p.isImpostor).forEach(p => { pts[p.username] = 3; });
+    }
+    setResult({ impostorFound, impostorGuessed, pts });
+    setPhase("result");
+    onAwardPoints?.(pts);
+  };
+
+  const RED   = "#ef4444";
+  const PURP  = "#7c3aed";
+
+  if(phase === "result" && result) return (
+    <div style={{padding:28,textAlign:"center",maxWidth:400}}>
+      <div style={{fontSize:36,marginBottom:8}}>
+        {result.impostorFound ? (result.impostorGuessed ? "\u{1F914}" : "\u{1F389}") : "\u{1F608}"}
+      </div>
+      <div style={{fontSize:17,fontWeight:900,color:"var(--text-1)",marginBottom:4}}>
+        {result.impostorFound ? (result.impostorGuessed ? "Trouvé mais deviné !" : "Imposteur démasqué !") : "L'imposteur a gagné !"}
+      </div>
+      <div style={{fontSize:12,color:"var(--text-4)",marginBottom:16}}>
+        Mot secret : <strong style={{color:"#c084fc"}}>{crewWord}</strong>
+        {" · "}Imposteur : <strong style={{color:RED}}>{impostor?.username}</strong>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:20}}>
+        {Object.entries(result.pts).map(([u,p]) => (
+          <div key={u} style={{display:"flex",justifyContent:"space-between",padding:"6px 12px",
+            borderRadius:8,background:"rgba(255,255,255,0.04)"}}>
+            <span style={{fontSize:12,fontWeight:700,color:"var(--text-1)"}}>{u}</span>
+            <span style={{fontSize:12,fontWeight:900,color:p>0?"#22c55e":"var(--text-4)"}}>+{p} pts</span>
+          </div>
+        ))}
+      </div>
+      <button onClick={onClose} style={{padding:"10px 24px",borderRadius:20,border:"none",
+        background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",fontWeight:800,cursor:"pointer"}}>
+        Fermer
+      </button>
+    </div>
+  );
+
+  if(phase === "impostorGuess") {
+    const isI = myUsername === impostor?.username;
+    return (
+      <div style={{padding:28,textAlign:"center",maxWidth:400}}>
+        <div style={{fontSize:14,fontWeight:900,color:RED,marginBottom:8}}>Imposteur démasqué !</div>
+        <div style={{fontSize:13,color:"var(--text-3)",marginBottom:8}}>
+          <strong style={{color:RED}}>{impostor?.username}</strong> a {timer}s pour deviner le mot secret.
+        </div>
+        <div style={{fontSize:36,fontWeight:900,color:timer<=10?RED:"#fbbf24",marginBottom:16}}>{timer}s</div>
+        {isI ? (
+          <div style={{display:"flex",gap:8}}>
+            <input value={guessInput} onChange={e=>setGuessInput(e.target.value)}
+              onKeyDown={e=>{ if(e.key==="Enter") finalize(true, guessInput.trim().toLowerCase()===crewWord?.toLowerCase()); }}
+              placeholder="Ton mot..."
+              style={{flex:1,padding:"8px 12px",borderRadius:10,border:"1px solid rgba(255,255,255,0.15)",
+                background:"rgba(255,255,255,0.05)",color:"var(--text-1)",fontSize:12}}/>
+            <button onClick={()=>finalize(true, guessInput.trim().toLowerCase()===crewWord?.toLowerCase())}
+              style={{padding:"8px 16px",borderRadius:10,border:"none",
+                background:PURP,color:"#fff",fontWeight:800,cursor:"pointer"}}>OK</button>
+          </div>
+        ) : (
+          <div style={{fontSize:12,color:"var(--text-4)"}}>En attente de {impostor?.username}…</div>
+        )}
+      </div>
+    );
+  }
+
+  if(phase === "vote") return (
+    <div style={{padding:24,maxWidth:400}}>
+      <div style={{textAlign:"center",marginBottom:12}}>
+        <div style={{fontSize:15,fontWeight:900,color:"var(--text-1)"}}>Qui est l'imposteur ?</div>
+        <div style={{fontSize:32,fontWeight:900,color:timer<=10?RED:"#fbbf24",marginTop:4}}>{timer}s</div>
+      </div>
+      <div style={{marginBottom:12}}>
+        {players.map(p => {
+          const pw = words.filter(w=>w.username===p.username);
+          return (
+            <div key={p.username} style={{marginBottom:6,padding:"8px 12px",borderRadius:10,
+              background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)"}}>
+              <div style={{fontSize:11,fontWeight:800,color:"var(--text-3)",marginBottom:4}}>{p.username}</div>
+              <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                {pw.map((w,i) => <span key={i} style={{fontSize:11,padding:"2px 8px",borderRadius:20,
+                  background:"rgba(124,58,237,0.15)",color:"var(--text-1)"}}>{w.word}</span>)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {!votes[myUsername] ? (
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {players.filter(p=>p.username!==myUsername).map(p => (
+            <button key={p.username} onClick={()=>setVotes(v=>({...v,[myUsername]:p.username}))}
+              style={{padding:"10px",borderRadius:10,border:"1px solid rgba(255,255,255,0.1)",
+                background:"rgba(255,255,255,0.04)",color:"var(--text-1)",cursor:"pointer",
+                fontSize:12,fontWeight:700}}>
+              {p.username}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div style={{textAlign:"center",fontSize:12,color:"var(--text-4)"}}>
+          Voté pour <strong style={{color:RED}}>{votes[myUsername]}</strong>
+          {Object.keys(votes).length >= players.length && (
+            <button onClick={computeResult}
+              style={{display:"block",margin:"12px auto 0",padding:"8px 20px",borderRadius:10,
+                border:"none",background:"linear-gradient(135deg,#7c3aed,#4f46e5)",
+                color:"#fff",fontWeight:800,cursor:"pointer"}}>
+              Révéler
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div style={{padding:24,maxWidth:400}}>
+      <div style={{textAlign:"center",marginBottom:12,padding:"10px 14px",borderRadius:12,
+        background:myPlayer?.isImpostor?"rgba(239,68,68,0.1)":"rgba(124,58,237,0.1)",
+        border:`1px solid ${myPlayer?.isImpostor?"rgba(239,68,68,0.3)":"rgba(124,58,237,0.3)"}`}}>
+        {myPlayer?.isImpostor ? (
+          <>
+            <div style={{fontSize:10,fontWeight:800,color:RED,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>Tu es l'imposteur</div>
+            <div style={{fontSize:13,color:"var(--text-3)"}}>Ton indice : <strong style={{color:"#fbbf24"}}>{myPlayer.hint}</strong></div>
+          </>
+        ) : (
+          <>
+            <div style={{fontSize:10,fontWeight:800,color:"#c084fc",letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>Ton mot secret</div>
+            <div style={{fontSize:22,fontWeight:900,color:"var(--text-1)"}}>{myPlayer?.word}</div>
+          </>
+        )}
+      </div>
+      {words.length > 0 && (
+        <div style={{marginBottom:10}}>
+          {players.map(p => {
+            const pw = words.filter(w=>w.username===p.username);
+            if(!pw.length) return null;
+            return (
+              <div key={p.username} style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
+                <span style={{fontSize:10,color:"var(--text-4)",minWidth:70}}>{p.username}</span>
+                <div style={{display:"flex",gap:4}}>
+                  {pw.map((w,i) => <span key={i} style={{fontSize:11,padding:"2px 8px",borderRadius:20,
+                    background:"rgba(255,255,255,0.06)",color:"var(--text-2)"}}>{w.word}</span>)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <div style={{textAlign:"center",fontSize:11,color:"var(--text-4)",marginBottom:10}}>
+        Tour {Math.floor(turnIdx/players.length)+1}/2 · {currentTurn?.username} parle
+      </div>
+      {isMyTurn ? (
+        <div style={{display:"flex",gap:8}}>
+          <input value={input} onChange={e=>setInput(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&submitWord()}
+            placeholder="Ton mot..." autoFocus
+            style={{flex:1,padding:"10px 14px",borderRadius:10,fontSize:13,
+              border:"1px solid rgba(124,58,237,0.4)",
+              background:"rgba(124,58,237,0.08)",color:"var(--text-1)"}}/>
+          <button onClick={submitWord}
+            style={{padding:"10px 18px",borderRadius:10,border:"none",
+              background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",fontWeight:800,cursor:"pointer"}}>
+            OK
+          </button>
+        </div>
+      ) : (
+        <div style={{textAlign:"center",fontSize:12,color:"var(--text-4)",padding:"10px",
+          borderRadius:10,background:"rgba(255,255,255,0.03)"}}>
+          En attente de <strong>{currentTurn?.username}</strong>…
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── TIERLIST ─────────────────────────────────────────────────────────────────
+const DEFAULT_TIERS = [
+  { id:"S", label:"S", color:"#ef4444", items:[] },
+  { id:"A", label:"A", color:"#f97316", items:[] },
+  { id:"B", label:"B", color:"#fbbf24", items:[] },
+  { id:"C", label:"C", color:"#22c55e", items:[] },
+  { id:"D", label:"D", color:"#06b6d4", items:[] },
+  { id:"F", label:"F", color:"#6366f1", items:[] },
+];
+const TIER_COLORS = ["#ef4444","#f97316","#fbbf24","#22c55e","#06b6d4","#6366f1","#a78bfa","#f9a8d4"];
+
+export function TierlistGame({ mode, onClose }) {
+  const [tiers, setTiers]   = useState(DEFAULT_TIERS.map(t=>({...t,items:[]})));
+  const [pool, setPool]     = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [results, setResults] = useState([]);
+  const [dragging, setDragging] = useState(null);
+  const [editTier, setEditTier] = useState(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [tooltip, setTooltip] = useState(null);
+  const boardRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      let rows = [];
+      try {
+        if(mode === "season") {
+          rows = await sb.query("anime_cache?type=eq.TV&status=eq.Currently%20Airing&select=mal_id,title,title_en,image_url,score&order=score.desc.nullslast&limit=100").catch(()=>[]);
+        } else if(mode === "year") {
+          const y = new Date().getFullYear();
+          rows = await sb.query(`anime_cache?type=eq.TV&year=eq.${y}&select=mal_id,title,title_en,image_url,score&order=score.desc.nullslast&limit=200`).catch(()=>[]);
+        }
+      } finally { if(!cancelled) { setPool(rows||[]); setLoading(false); } }
+    })();
+    return () => { cancelled = true; };
+  }, [mode]);
+
+  useEffect(() => {
+    if(mode !== "custom" || search.length < 2) { setResults([]); return; }
+    const t = setTimeout(async () => {
+      const rows = await sb.query(`anime_cache?title=ilike.*${encodeURIComponent(search)}*&select=mal_id,title,title_en,image_url,score&order=score.desc.nullslast&limit=12`).catch(()=>[]);
+      setResults(rows||[]);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search, mode]);
+
+  const addToPool = (anime) => {
+    const exists = pool.some(a=>a.mal_id===anime.mal_id) || tiers.some(t=>t.items.some(a=>a.mal_id===anime.mal_id));
+    if(exists) return;
+    setPool(p=>[...p,anime]); setSearch(""); setResults([]);
+  };
+
+  const onDrop = (toId) => {
+    if(!dragging) return;
+    const {anime, from} = dragging;
+    if(from === "pool") setPool(p=>p.filter(a=>a.mal_id!==anime.mal_id));
+    else setTiers(ts=>ts.map(t=>t.id===from?{...t,items:t.items.filter(a=>a.mal_id!==anime.mal_id)}:t));
+    if(toId === "pool") setPool(p=>[...p,anime]);
+    else setTiers(ts=>ts.map(t=>t.id===toId?{...t,items:[...t.items,anime]}:t));
+    setDragging(null);
+  };
+
+  const saveImage = () => {
+    if(!boardRef.current) return;
+    try {
+      import("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js").then(m => {
+        m.default(boardRef.current, {backgroundColor:"#0f0a1e",scale:2}).then(canvas => {
+          const a = document.createElement("a");
+          a.href = canvas.toDataURL("image/png");
+          a.download = "animood-tierlist.png";
+          a.click();
+        });
+      });
+    } catch { alert("Fais un screenshot manuel (Ctrl+Shift+S)"); }
+  };
+
+  const Card = ({anime, from}) => (
+    <div draggable
+      onDragStart={()=>setDragging({anime,from})}
+      onMouseEnter={e=>{const r=e.currentTarget.getBoundingClientRect();setTooltip({name:anime.title_en||anime.title,x:r.left,y:r.top});}}
+      onMouseLeave={()=>setTooltip(null)}
+      style={{width:48,height:68,borderRadius:5,overflow:"hidden",flexShrink:0,cursor:"grab",
+        border:"1px solid rgba(255,255,255,0.1)",transition:"transform 0.1s"}}
+      onMouseEnter2={e=>e.currentTarget.style.transform="scale(1.1)"}
+      onMouseLeave2={e=>e.currentTarget.style.transform="scale(1)"}>
+      <img src={anime.image_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",pointerEvents:"none"}}
+        onError={e=>{e.target.parentElement.style.background="#1a1030";e.target.style.display="none";}}/>
+    </div>
+  );
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",height:"100%",minHeight:480}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",
+        borderBottom:"1px solid rgba(255,255,255,0.06)",flexShrink:0}}>
+        <div style={{flex:1,fontSize:13,fontWeight:800,color:"var(--text-1)"}}>
+          Tierlist {mode==="season"?"Saison":mode==="year"?"Année "+new Date().getFullYear():"Perso"}
+        </div>
+        <button onClick={saveImage} style={{padding:"5px 12px",borderRadius:8,border:"none",
+          background:"rgba(124,58,237,0.2)",color:"#c084fc",fontWeight:700,cursor:"pointer",fontSize:11}}>
+          Sauvegarder PNG
+        </button>
+      </div>
+
+      {tooltip && (
+        <div style={{position:"fixed",left:tooltip.x,top:tooltip.y-28,zIndex:9999,
+          background:"#1a1030",padding:"3px 8px",borderRadius:6,fontSize:10,
+          color:"var(--text-1)",pointerEvents:"none",whiteSpace:"nowrap",
+          border:"1px solid rgba(255,255,255,0.1)"}}>
+          {tooltip.name}
+        </div>
+      )}
+
+      <div style={{display:"flex",flex:1,overflow:"hidden"}}>
+        <div ref={boardRef} style={{flex:1,overflowY:"auto",padding:"8px 10px",background:"#0f0a1e"}}>
+          {tiers.map(tier => (
+            <div key={tier.id}
+              onDragOver={e=>e.preventDefault()} onDrop={()=>onDrop(tier.id)}
+              style={{display:"flex",alignItems:"stretch",marginBottom:3,borderRadius:7,
+                overflow:"hidden",border:"1px solid rgba(255,255,255,0.06)"}}>
+              <div onClick={()=>{setEditTier(tier.id);setEditLabel(tier.label);}}
+                style={{width:50,minHeight:70,display:"flex",alignItems:"center",justifyContent:"center",
+                  background:tier.color,cursor:"pointer",flexShrink:0,
+                  fontSize:18,fontWeight:900,color:"#fff"}}>
+                {editTier===tier.id ? (
+                  <input value={editLabel} onChange={e=>setEditLabel(e.target.value)}
+                    onBlur={()=>{setTiers(ts=>ts.map(t=>t.id===tier.id?{...t,label:editLabel}:t));setEditTier(null);}}
+                    onKeyDown={e=>e.key==="Enter"&&e.target.blur()}
+                    autoFocus style={{width:36,background:"none",border:"none",textAlign:"center",
+                      fontSize:16,fontWeight:900,color:"#fff",outline:"none"}}/>
+                ) : tier.label}
+              </div>
+              <div style={{flex:1,display:"flex",flexWrap:"wrap",gap:3,padding:5,
+                background:"rgba(255,255,255,0.02)",minHeight:70,alignContent:"flex-start"}}>
+                {tier.items.map(a=><Card key={a.mal_id} anime={a} from={tier.id}/>)}
+              </div>
+            </div>
+          ))}
+          <div style={{display:"flex",gap:6,marginTop:6}}>
+            <button onClick={()=>setTiers(ts=>[...ts,{id:`t${Date.now()}`,label:"?",
+              color:TIER_COLORS[ts.length%TIER_COLORS.length],items:[]}])}
+              style={{padding:"4px 10px",borderRadius:7,border:"1px dashed rgba(255,255,255,0.15)",
+                background:"none",color:"var(--text-5)",cursor:"pointer",fontSize:11}}>
+              + Tier
+            </button>
+            {tiers.length>1&&<button onClick={()=>{
+              const last=tiers[tiers.length-1];
+              setTiers(ts=>ts.slice(0,-1));
+              setPool(p=>[...p,...last.items]);
+            }} style={{padding:"4px 10px",borderRadius:7,border:"1px dashed rgba(255,255,255,0.15)",
+              background:"none",color:"var(--text-5)",cursor:"pointer",fontSize:11}}>
+              - Tier
+            </button>}
+          </div>
+        </div>
+
+        <div style={{width:190,borderLeft:"1px solid rgba(255,255,255,0.06)",
+          display:"flex",flexDirection:"column"}}>
+          {mode==="custom"&&(
+            <div style={{padding:"6px 8px",borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+              <input value={search} onChange={e=>setSearch(e.target.value)}
+                placeholder="Chercher un anime..."
+                style={{width:"100%",padding:"5px 9px",borderRadius:7,fontSize:11,
+                  border:"1px solid rgba(255,255,255,0.1)",
+                  background:"rgba(255,255,255,0.04)",color:"var(--text-1)",boxSizing:"border-box"}}/>
+              {results.length>0&&(
+                <div style={{marginTop:4,maxHeight:140,overflowY:"auto"}}>
+                  {results.map(a=>(
+                    <button key={a.mal_id} onClick={()=>addToPool(a)}
+                      style={{width:"100%",display:"flex",alignItems:"center",gap:5,padding:"3px 5px",
+                        background:"none",border:"none",cursor:"pointer",textAlign:"left",borderRadius:5}}
+                      onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.06)"}
+                      onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                      <img src={a.image_url} alt="" style={{width:22,height:30,objectFit:"cover",borderRadius:3}}
+                        onError={e=>e.target.style.display="none"}/>
+                      <span style={{fontSize:10,color:"var(--text-2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                        {a.title_en||a.title}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <div style={{flex:1,overflowY:"auto",padding:5}}
+            onDragOver={e=>e.preventDefault()} onDrop={()=>onDrop("pool")}>
+            <div style={{fontSize:9,color:"var(--text-6)",textTransform:"uppercase",
+              letterSpacing:1,marginBottom:5,padding:"0 2px"}}>
+              {loading?"Chargement...":pool.length+" anime"}
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
+              {pool.map(a=><Card key={a.mal_id} anime={a} from="pool"/>)}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

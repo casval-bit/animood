@@ -12,7 +12,7 @@ import { NewThreadModal, ThreadModal, TagPill, timeAgo } from "../components/For
 import { Avatar } from "../components/Avatar.jsx";
 import { MoodOctagon } from "../components/MoodOctagon.jsx";
 import { WordleGame, PosterGame, OpQuizGame } from "../components/MiniGames.jsx";
-import { Matchmaking, ChainGame, TimelineGame, CluescaleMatchmaking, CluescaleGame } from "../components/GameSystem.jsx";
+import { Matchmaking, ChainGame, TimelineGame, CluescaleMatchmaking, CluescaleGame, UndercoverLobby, UndercoverGame, TierlistGame } from "../components/GameSystem.jsx";
 import { Modal, GameModal } from "../components/Modal.jsx";
 import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
 import { FORUM_I18N } from "../constants/forumI18n.js";
@@ -379,7 +379,7 @@ function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, profileC
 }
 
 // ── Unified game panel: button + score on same row per game ──────────────────
-function GamePanel({ myUsername, onWordle, onPoster, onOpQuiz, onChain, onTimeline, onCluescale, following }) {
+function GamePanel({ myUsername, onWordle, onPoster, onOpQuiz, onChain, onTimeline, onCluescale, onUndercover, onTierlist, following }) {
   const [elo, setElo]                 = useState(null);
   const [hover, setHover]             = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
@@ -424,7 +424,9 @@ function GamePanel({ myUsername, onWordle, onPoster, onOpQuiz, onChain, onTimeli
     {id:"opening",   emoji:"🎵", label:"Opening",  color:"56,189,248", pts:elo?.pts_opquiz||0,     onClick:onOpQuiz,    type:"solo"},
     {id:"linkup",    emoji:"🔗", label:"LinkUp",   color:"251,191,36", pts:elo?.elo_chain||400,    onClick:onChain,     type:"vs"},
     {id:"timeline",  emoji:"📅", label:"Timeline", color:"34,197,94",  pts:elo?.elo_timeline||400, onClick:onTimeline,  type:"vs"},
-    {id:"cluescale", emoji:"🎭", label:"Cluescale",color:"167,139,250",pts:elo?.pts_cluescale||0,  onClick:onCluescale, type:"multi"},
+    {id:"cluescale",  emoji:"🎭", label:"Cluescale",  color:"167,139,250", pts:elo?.pts_cluescale||0,   onClick:onCluescale,  type:"multi"},
+    {id:"undercover", emoji:"🕵️", label:"Undercover", color:"251,113,133",  pts:elo?.pts_undercover||0,  onClick:onUndercover, type:"multi"},
+    {id:"tierlist",   emoji:"📊", label:"Tierlist",   color:"34,211,238",   pts:null,                    onClick:onTierlist,   type:"tool"},
   ];
 
   return (
@@ -594,7 +596,11 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
   const [showWordle, setShowWordle]       = useState(false);
   const [showPoster, setShowPoster]       = useState(false);
   const [showOpQuiz, setShowOpQuiz]       = useState(false);
-  const [showCluescale, setShowCluescale] = useState(false);
+  const [showCluescale, setShowCluescale]       = useState(false);
+  const [showUndercover, setShowUndercover]     = useState(false);
+  const [undercoverPlayers, setUndercoverPlayers] = useState(null);
+  const [showTierlist, setShowTierlist]           = useState(false);
+  const [tierlistMode, setTierlistMode]           = useState("season");
   const [cluescaleRoom, setCluescaleRoom] = useState(null);
   const [matchmaking, setMatchmaking]     = useState(null);
   const [activeRoom, setActiveRoom]       = useState(null);
@@ -815,6 +821,8 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
                 onChain={()=>setMatchmaking("chain")}
                 onTimeline={()=>setMatchmaking("timeline")}
                 onCluescale={()=>setShowCluescale(true)}
+                onUndercover={()=>setShowUndercover(true)}
+                onTierlist={()=>setShowTierlist(true)}
               />
             </div>
           </aside>
@@ -868,6 +876,59 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
             onClose={async()=>{ await handleGameClose(timelineCloseRef.current); }}
             onReady={(forfaitFn)=>{ timelineCloseRef.current = forfaitFn; }}/>}
         </GameModal>
+      )}
+      {/* Undercover lobby */}
+      {showUndercover && !undercoverPlayers && (
+        <GameModal onClose={()=>setShowUndercover(false)} title="Undercover" maxWidth="440px">
+          {() => <UndercoverLobby onClose={()=>setShowUndercover(false)}
+            onStart={players=>setUndercoverPlayers(players)}/>}
+        </GameModal>
+      )}
+      {/* Undercover game */}
+      {showUndercover && undercoverPlayers && (
+        <GameModal onClose={()=>{setShowUndercover(false);setUndercoverPlayers(null);}} title="Undercover" maxWidth="440px">
+          {() => <UndercoverGame players={undercoverPlayers}
+            onClose={()=>{setShowUndercover(false);setUndercoverPlayers(null);}}
+            onAwardPoints={async(pts)=>{
+              for(const [username,p] of Object.entries(pts)) {
+                if(p<=0) continue;
+                const rows = await sb.query(`game_elo?username=eq.${encodeURIComponent(username)}&limit=1`).catch(()=>[]);
+                const row = rows?.[0];
+                const cur = row?.pts_undercover||0;
+                if(row) await sb.query(`game_elo?username=eq.${encodeURIComponent(username)}`,{
+                  method:"PATCH",headers:{...sb.headers,"Prefer":"return=minimal"},
+                  body:JSON.stringify({pts_undercover:cur+p,updated_at:new Date().toISOString()})
+                }).catch(()=>{});
+              }
+            }}/>}
+        </GameModal>
+      )}
+      {/* Tierlist */}
+      {showTierlist && (
+        <div style={{position:"fixed",inset:0,zIndex:300,background:"rgba(0,0,0,0.75)",
+          display:"flex",flexDirection:"column"}}>
+          <div style={{background:"var(--surface-1-strong)",flex:1,display:"flex",
+            flexDirection:"column",maxHeight:"100vh"}}>
+            <div style={{display:"flex",gap:6,padding:"8px 12px",
+              borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+              {[{id:"season",label:"Saison"},{id:"year",label:"Année"},{id:"custom",label:"Perso"}].map(m=>(
+                <button key={m.id} onClick={()=>setTierlistMode(m.id)} style={{
+                  padding:"5px 12px",borderRadius:8,border:"none",cursor:"pointer",fontSize:11,fontWeight:700,
+                  background:tierlistMode===m.id?"rgba(124,58,237,0.3)":"rgba(255,255,255,0.05)",
+                  color:tierlistMode===m.id?"#c084fc":"var(--text-4)"}}>
+                  {m.label}
+                </button>
+              ))}
+              <div style={{flex:1}}/>
+              <button onClick={()=>setShowTierlist(false)} style={{padding:"5px 10px",borderRadius:8,
+                border:"1px solid rgba(255,255,255,0.1)",background:"none",
+                color:"var(--text-4)",cursor:"pointer",fontSize:11}}>
+                Fermer
+              </button>
+            </div>
+            <TierlistGame key={tierlistMode} mode={tierlistMode} onClose={()=>setShowTierlist(false)}/>
+          </div>
+        </div>
       )}
       {showOpQuiz && (
         <GameModal onClose={()=>setShowOpQuiz(false)} title="🎵 Opening Quiz" subtitle="Reconnais l'animé par son opening" maxWidth="700px">
