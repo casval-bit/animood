@@ -124,7 +124,7 @@ function ThreadRow({ anime, onClick, metaLabel, trailerLink, convLink, statOverr
                 transition:"background 0.15s"}}
               onMouseEnter={e=>e.currentTarget.style.background="rgba(124,58,237,0.22)"}
               onMouseLeave={e=>e.currentTarget.style.background="rgba(124,58,237,0.12)"}>
-              💬 Convo
+              💬 Discussion
             </button>
             {showConvMenu && (
               <div onClick={e=>e.stopPropagation()}
@@ -652,11 +652,13 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchUpcomingAnime(15), fetchNewAnime(15)])
-      .then(([u, n]) => { if(!cancelled) { setUpcoming(u); setNewAnime(n); } })
+    Promise.all([
+      sb.query("anime_cache?type=eq.TV&status=eq.Not%20yet%20aired&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,trailer,broadcast&order=popularity.asc.nullslast&limit=15").catch(()=>[]),
+      fetchNewAnime(15),
+    ]).then(([u, n]) => { if(!cancelled) { setUpcoming(u||[]); setNewAnime(n); } })
       .finally(() => { if(!cancelled) setLoading(false); });
     // Airing TV anime for seasonal section
-    sb.query("anime_cache?type=eq.TV&status=eq.Currently%20Airing&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,trailer_url&order=score.desc.nullslast&limit=24")
+    sb.query("anime_cache?type=eq.TV&status=eq.Currently%20Airing&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,trailer&order=score.desc.nullslast&limit=24")
       .then(rows => { if(!cancelled && rows?.length) setAiringAnime(rows); })
       .catch(()=>{});
     return () => { cancelled = true; };

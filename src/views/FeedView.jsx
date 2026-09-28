@@ -672,7 +672,7 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
   };
   const CHANNELS = [
     { id:"general",   label:t.channelGeneral,   emoji:"🌐" },
-    { id:"recent",    label:t.channelRecent,    emoji:"✨" },
+    { id:"recent",    label:"Saisonnier",    emoji:"✨" },
     { id:"following", label:t.channelFollowing, emoji:"👥" },
   ];
   return (

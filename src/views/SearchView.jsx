@@ -938,7 +938,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
                           display:"flex",alignItems:"center",gap:6,
                         }}>
                           <span style={{fontSize:11,fontWeight:900,color:"var(--text-4)"}}>🎬</span>
-                          <span style={{fontSize:11,fontWeight:900,color:"var(--text-3)"}}>Terminés cette saison</span>
+                          <span style={{fontSize:11,fontWeight:900,color:"var(--text-3)"}}>Terminés récemment</span>
                           <span style={{fontSize:9,color:"var(--text-6)",marginLeft:4}}>{finishedAnime.length} animés</span>
                         </div>
                         {/* Cards — same style as calendar cards */}
