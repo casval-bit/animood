@@ -23,7 +23,7 @@ export const FEED_I18N = {
     bannedWordError: "Ton message contient un mot ou une expression interdite. Merci de le reformuler.",
 
     channelGeneral: "Général",
-    channelRecent: "Récents",
+    channelRecent: "Saisonnier",
     channelFollowing: "Abonnements",
     recentSeasonsNote: (seasons) => `Posts liés aux animés des saisons : ${seasons}`,
 
@@ -59,7 +59,7 @@ export const FEED_I18N = {
     bannedWordError: "Your message contains a forbidden word or phrase. Please rephrase it.",
 
     channelGeneral: "General",
-    channelRecent: "Recent",
+    channelRecent: "Seasonal",
     channelFollowing: "Following",
     recentSeasonsNote: (seasons) => `Posts related to anime from these seasons: ${seasons}`,
 

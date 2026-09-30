@@ -38,6 +38,8 @@ create table if not exists game_elo (
   pts_poster       integer not null default 0,
   pts_opquiz       integer not null default 0,
   pts_cluescale    integer not null default 0,
+  -- New in v.11.00 — Undercover (pass-and-play, signed-in player only).
+  pts_undercover   integer not null default 0,
   updated_at       timestamptz not null default now()
 );
 
@@ -54,6 +56,7 @@ alter table game_elo add column if not exists pts_wordle       integer not null 
 alter table game_elo add column if not exists pts_poster       integer not null default 0;
 alter table game_elo add column if not exists pts_opquiz       integer not null default 0;
 alter table game_elo add column if not exists pts_cluescale    integer not null default 0;
+alter table game_elo add column if not exists pts_undercover   integer not null default 0;
 
 create table if not exists game_rooms (
   id           bigint generated always as identity primary key,
