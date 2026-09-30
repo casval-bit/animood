@@ -24,6 +24,49 @@ export function onAuthChange(callback) {
 }
 
 // ─── REST HELPERS ─────────────────────────────────────────────────────────────
+
+// ─── ANIMOOD SCORE HELPERS ────────────────────────────────────────────────────
+const MAX_SCORED_BY = 3_096_001;
+
+export function calcJikanWeight(scored_by) {
+  if(!scored_by || scored_by <= 0) return 0;
+  const ratio = Math.log10(scored_by + 1) / Math.log10(MAX_SCORED_BY + 1);
+  return Math.round((ratio ** 2 * 1200) / 1.3);
+}
+
+export async function calcAnimoodScore(mal_id, jikan_score, jikan_weight) {
+  if(!jikan_score || jikan_weight == null) return null;
+  try {
+    const votes = await sb.query(
+      `user_votes?mal_id=eq.${mal_id}&select=score&score=not.is.null`
+    ) || [];
+    const validVotes = votes.filter(v => v.score != null);
+    const sumUsers = validVotes.reduce((s, v) => s + parseFloat(v.score), 0);
+    const nbUsers = validVotes.length;
+    const score = (jikan_score * jikan_weight + sumUsers) / (jikan_weight + nbUsers);
+    return Math.round(score * 100) / 100;
+  } catch { return jikan_score; }
+}
+
+export async function updateAnimoodScore(mal_id, jikan_score, scored_by, keepWeight = false) {
+  const weight = keepWeight
+    ? (await sb.query(`anime_cache?mal_id=eq.${mal_id}&select=jikan_weight&limit=1`))?.[0]?.jikan_weight
+    : calcJikanWeight(scored_by);
+  if(weight == null) return;
+  const animood_score = await calcAnimoodScore(mal_id, jikan_score, weight);
+  await sb.query(`anime_cache?mal_id=eq.${mal_id}`, {
+    method: "PATCH",
+    headers: { ...sb.headers, "Prefer": "return=minimal" },
+    body: JSON.stringify({ 
+      jikan_weight: keepWeight ? undefined : weight, 
+      animood_score,
+      score: jikan_score,
+      scored_by,
+    }),
+  }).catch(() => {});
+  return { weight, animood_score };
+}
+
 export const sb = {
   headers: {
     "Content-Type": "application/json",
@@ -310,12 +353,31 @@ export const sb = {
     });
   },
 
-  async upsertUserVote(username, mal_id, moods, ptsAdded) {
-    return this.query("user_votes?on_conflict=username,mal_id", {
+  async upsertUserVote(username, mal_id, moods, ptsAdded, userScore) {
+    const result = await this.query("user_votes?on_conflict=username,mal_id", {
       method: "POST",
       headers: { ...this.headers, "Prefer": "resolution=merge-duplicates" },
-      body: JSON.stringify({ username, mal_id, moods, pts_added: ptsAdded, voted_at: new Date().toISOString() }),
+      body: JSON.stringify({ username, mal_id, moods, pts_added: ptsAdded, score: userScore ?? null, voted_at: new Date().toISOString() }),
     });
+    // Recalculate animood_score after vote
+    try {
+      const [animeRows, votes] = await Promise.all([
+        this.query(`anime_cache?mal_id=eq.${mal_id}&select=score,jikan_weight&limit=1`),
+        this.query(`user_votes?mal_id=eq.${mal_id}&select=score&score=not.is.null`),
+      ]);
+      const anime = animeRows?.[0];
+      if(anime?.score && anime?.jikan_weight) {
+        const validVotes = (votes||[]).filter(v => v.score != null);
+        const sumUsers = validVotes.reduce((s,v) => s + parseFloat(v.score), 0);
+        const nbUsers = validVotes.length;
+        const animood_score = Math.round(((anime.score * anime.jikan_weight + sumUsers) / (anime.jikan_weight + nbUsers)) * 100) / 100;
+        await this.query(`anime_cache?mal_id=eq.${mal_id}`, {
+          method:"PATCH", headers:{...this.headers,"Prefer":"return=minimal"},
+          body: JSON.stringify({ animood_score }),
+        }).catch(()=>{});
+      }
+    } catch {}
+    return result;
   },
 };
 

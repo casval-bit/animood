@@ -50,6 +50,7 @@ export function supabaseRowToAnime(row) {
     mal_id: row.mal_id, title: row.title, title_english: row.title_en,
     title_japanese: row.title_jp, synopsis: row.synopsis, score: row.score,
     scored_by: row.scored_by, rank: row.rank, popularity: row.popularity,
+    animood_score: row.animood_score ?? row.score, jikan_weight: row.jikan_weight,
     year: row.year, episodes: row.episodes, duration: row.duration,
     type: row.type, status: row.status, source: row.source, rating: row.rating,
     images: { jpg: { image_url: row.image_url, large_image_url: row.large_image } },
@@ -63,7 +64,7 @@ export function supabaseRowToAnime(row) {
 function animeToSupabaseRow(a) {
   return {
     mal_id: a.mal_id, title: a.title, title_en: a.title_english, title_jp: a.title_japanese,
-    synopsis: a.synopsis, score: a.score, scored_by: a.scored_by, rank: a.rank,
+    synopsis: a.synopsis, score: a.score, animood_score: a.animood_score ?? a.score, scored_by: a.scored_by, rank: a.rank, jikan_weight: a.jikan_weight,
     popularity: a.popularity, year: a.year || a.aired?.prop?.from?.year,
     episodes: a.episodes, duration: a.duration, type: a.type, status: a.status,
     source: a.source, rating: a.rating, image_url: a.images?.jpg?.image_url,
@@ -166,7 +167,7 @@ export async function fetchTitleSuggestions(q, limit = 10) {
 }
 
 // ─── Forum "actus" feed — new arrivals, upcoming releases, latest trailers ───
-const NEWS_SELECT = "mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,fetched_at,trailer_url,popularity";
+const NEWS_SELECT = "mal_id,title,title_en,synopsis,score,animood_score,jikan_weight,year,episodes,type,image_url,large_image,genres,status,fetched_at,trailer_url,popularity";
 const NEWS_TYPES = "TV,Movie,OVA,ONA,Special"; // excludes CM/Music/etc — junk for a news feed
 
 export async function fetchNewAnime(limit = 12) {

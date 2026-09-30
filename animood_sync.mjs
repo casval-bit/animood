@@ -1,4 +1,4 @@
-﻿// â”€â”€â”€ AniMood Master Sync Script v2 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── AniMood Master Sync Script v2 ────────────────────────────────────────────
 //
 // Jobs:
 //   --job=new-anime     Weekly: add new anime from Jikan to DB (not already there)
@@ -28,8 +28,27 @@ const CFG = {
   OPENROUTER_MODEL:     process.env.OPENROUTER_MODEL     || "google/gemma-3-27b-it",
 };
 
-// mood_pts_v4 columns â€” must match DB exactly
+// mood_pts_v4 columns — must match DB exactly
 const MOOD_COLS = ["emotional","happy","twisted","chill","in_love","hype","dark","thrills"];
+const MAX_SCORED_BY = 3_096_001;
+
+function calcJikanWeight(scored_by) {
+  if(!scored_by || scored_by <= 0) return 0;
+  const ratio = Math.log10(scored_by + 1) / Math.log10(MAX_SCORED_BY + 1);
+  return Math.round((ratio ** 2 * 1200) / 1.3);
+}
+
+async function calcAnimoodScore(supabase, mal_id, jikan_score, jikan_weight) {
+  if(!jikan_score || !jikan_weight) return jikan_score;
+  try {
+    const { data: votes } = await supabase.from("user_votes")
+      .select("score").eq("mal_id", mal_id).not("score","is",null);
+    const valid = (votes||[]).filter(v => v.score != null);
+    const sumUsers = valid.reduce((s,v) => s + parseFloat(v.score), 0);
+    const nbUsers = valid.length;
+    return Math.round(((jikan_score * jikan_weight + sumUsers) / (jikan_weight + nbUsers)) * 100) / 100;
+  } catch { return jikan_score; }
+}
 
 // AniList mood mapping from genres/tags
 const GENRE_MOOD_MAP = {
@@ -61,7 +80,7 @@ const supabase = createClient(CFG.SUPABASE_URL, CFG.SUPABASE_SERVICE_KEY);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const log = (msg, ...a) => console.log(`[${new Date().toISOString().slice(11,19)}] ${msg}`, ...a);
 
-// â”€â”€ MOOD HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── MOOD HELPERS ──────────────────────────────────────────────────────────────
 // Build mood scores from genres (same scale as existing mood_pts_v4 data)
 function moodFromGenres(genres) {
   const scores = {};
@@ -73,7 +92,7 @@ function moodFromGenres(genres) {
       Object.entries(mapping).forEach(([k,v]) => { scores[k] = (scores[k]||0) + v; });
     }
   });
-  // Normalize: dominant ~35, others proportional â€” matching existing data scale
+  // Normalize: dominant ~35, others proportional — matching existing data scale
   const max = Math.max(...Object.values(scores), 1);
   if(max === 0) { scores.chill = 20; return scores; }
   const factor = 35 / max;
@@ -121,7 +140,7 @@ Values should sum roughly to 80-120. Dominant mood 30-40, secondary 15-25, other
   } catch { return null; }
 }
 
-// â”€â”€ ANILIST HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── ANILIST HELPERS ───────────────────────────────────────────────────────────
 async function anilistQuery(query, variables) {
   const r = await fetch("https://graphql.anilist.co", {
     method:"POST", headers:{"Content-Type":"application/json"},
@@ -157,7 +176,7 @@ function anilistToRow(a) {
   };
 }
 
-// â”€â”€ JOB: new-anime â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── JOB: new-anime ────────────────────────────────────────────────────────────
 // Fetches recently added anime from Jikan and inserts new ones only
 async function jobNewAnime() {
   log("=== JOB: new-anime ===");
@@ -175,7 +194,6 @@ async function jobNewAnime() {
   }
   log(`DB has ${existing.size} anime`);
 
-  const newAnime = [];
   // Fetch recently added anime from AniList (sorted by ID desc)
   log("Fetching new anime from AniList (sorted by ID desc)...");
   const maxInDB = Math.max(...[...existing].filter(id => id < 99999));
@@ -183,15 +201,15 @@ async function jobNewAnime() {
   
   const alQuery = `query($page:Int){Page(page:$page,perPage:50){pageInfo{hasNextPage}media(type:ANIME,sort:ID_DESC){idMal title{romaji english}description(asHtml:false)averageScore popularity status startDate{year}episodes format genres coverImage{large}studios(isMain:true){nodes{name}}nextAiringEpisode{airingAt}trailer{id site}}}}`;
   
-  let page = 1, hasNext = true;
-  while(hasNext && page <= 10) {
+  let page = 1, hasNext = true, foundOld = false;
+  while(hasNext && page <= 10 && !foundOld) {
     try {
       const d = await anilistQuery(alQuery, {page});
       const items = d?.data?.Page?.media || [];
       hasNext = d?.data?.Page?.pageInfo?.hasNextPage;
       for(const a of items) {
         if(!a.idMal) continue;
-        if(existing.has(a.idMal)) continue;
+        if(existing.has(a.idMal)) { foundOld = true; break; }
         newAnime.push({
           mal_id: a.idMal,
           title: a.title?.romaji||"",
@@ -261,13 +279,13 @@ async function jobNewAnime() {
     if(!moods) moods = moodFromGenres(row.genres);
     const { error } = await supabase.from("mood_pts_v4")
       .insert({mal_id:row.mal_id, ...moods}, {onConflict:"mal_id", ignoreDuplicates:true});
-    if(!error) log(`  âœ… ${row.title}: moods assigned`);
+    if(!error) log(`  ✅ ${row.title}: moods assigned`);
     await sleep(400);
   }
   log("=== new-anime done ===");
 }
 
-// â”€â”€ JOB: broadcast â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── JOB: broadcast ────────────────────────────────────────────────────────────
 async function jobBroadcast() {
   log("=== JOB: broadcast ===");
   const KNOWN = {21:"Sunday",235:"Saturday",966:"Friday",1560:"Sunday",50250:"Sunday"};
@@ -297,19 +315,19 @@ async function jobBroadcast() {
     }
     if(day) {
       await supabase.from("anime_cache").update({broadcast:{day}}).eq("mal_id",anime.mal_id);
-      log(`  âœ… [${src}] ${anime.title} â†’ ${day}`); patched++;
-    } else { log(`  â¬œ ${anime.title}`); notFound++; }
+      log(`  ✅ [${src}] ${anime.title} → ${day}`); patched++;
+    } else { log(`  ⬜ ${anime.title}`); notFound++; }
   }
   log(`=== broadcast done: ${patched} patched, ${notFound} not found ===`);
 }
 
-// â”€â”€ JOB: streaming â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Uses Jikan /anime/{id}/streaming â€” same format as existing streaming column
+// ── JOB: streaming ──────────────────────────────────────────────────────────────
+// Uses Jikan /anime/{id}/streaming — same format as existing streaming column
 // Safe: merges with existing data, never removes platforms already in streaming
 async function jobStreaming() {
   log("=== JOB: streaming (Jikan) ===");
 
-  // Get all anime â€” prioritize Currently Airing + Not yet aired first
+  // Get all anime — prioritize Currently Airing + Not yet aired first
   let offset = 0, total = 0, updated = 0;
   const statuses = ["Currently Airing", "Not yet aired", "Finished Airing"];
 
@@ -336,12 +354,12 @@ async function jobStreaming() {
           const platforms = (d?.data||[]).map(s=>({name:s.name, url:s.url}));
 
           if(platforms.length) {
-            // Merge with existing â€” keep existing entries, add new ones
+            // Merge with existing — keep existing entries, add new ones
             const existing = Array.isArray(a.streaming) ? a.streaming : [];
             const existingNames = new Set(existing.map(s=>s.name));
             const merged = [...existing, ...platforms.filter(s=>!existingNames.has(s.name))];
             await supabase.from("anime_cache").update({streaming:merged}).eq("mal_id",a.mal_id);
-            log(`  âœ… ${a.title}: ${platforms.map(p=>p.name).join(", ")}`);
+            log(`  ✅ ${a.title}: ${platforms.map(p=>p.name).join(", ")}`);
             updated++;
           }
           await sleep(450); // Jikan rate limit
@@ -356,7 +374,7 @@ async function jobStreaming() {
   log(`=== streaming done: ${total} processed, ${updated} updated ===`);
 }
 
-// â”€â”€ JOB: trailers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── JOB: trailers ─────────────────────────────────────────────────────────────
 async function jobTrailers() {
   log("=== JOB: trailers ===");
 
@@ -366,7 +384,7 @@ async function jobTrailers() {
     .or("trailer.is.null,trailer.eq.{}");
   const { data: rest } = await supabase.from("anime_cache")
     .select("mal_id,title,trailer").neq("status","Not yet aired")
-    .or("trailer.is.null,trailer.eq.{}").limit(5000);
+    .or("trailer.is.null,trailer.eq.{}").limit(500);
 
   const toFetch = [...(upcoming||[]), ...(rest||[])];
   log(`${(upcoming||[]).length} upcoming + ${(rest||[]).length} others = ${toFetch.length} without trailer`);
@@ -384,7 +402,7 @@ async function jobTrailers() {
         if(t?.url || ytId) {
           const trailer = {url:t?.url||(ytId?`https://www.youtube.com/watch?v=${ytId}`:null),youtube_id:ytId};
           await supabase.from("anime_cache").update({trailer}).eq("mal_id",a.mal_id);
-          log(`  âœ… [jikan] ${a.title}`);
+          log(`  ✅ [jikan] ${a.title}`);
           fetched++; found = true;
         }
       }
@@ -402,7 +420,7 @@ async function jobTrailers() {
         if(t2?.id && t2?.site==="youtube") {
           const trailer = {url:`https://www.youtube.com/watch?v=${t2.id}`,youtube_id:t2.id};
           await supabase.from("anime_cache").update({trailer}).eq("mal_id",a.mal_id);
-          log(`  âœ… [anilist] ${a.title}`);
+          log(`  ✅ [anilist] ${a.title}`);
           fetched++; found = true;
         }
       } catch {}
@@ -418,7 +436,7 @@ async function jobTrailers() {
   log(`=== trailers done: ${fetched} found, ${notFound} not found ===`);
 }
 
-// â”€â”€ JOB: new-scores â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── JOB: new-scores ───────────────────────────────────────────────────────────
 // Only touches anime that recently changed from "Not yet aired" to "Currently Airing"
 // Tracks first_fetch_at in a separate log table
 async function jobNewScores() {
@@ -446,7 +464,14 @@ async function jobNewScores() {
         const score = d?.data?.score||null;
         const broadcastDay = d?.data?.broadcast?.day?.replace(/s$/i,"")||null;
         const updates = {};
-        if(score) updates.score = score;
+        if(score) {
+          updates.score = score;
+          const scored_by = d?.data?.scored_by||null;
+          if(scored_by) updates.scored_by = scored_by;
+          const weight = calcJikanWeight(scored_by);
+          updates.jikan_weight = weight;
+          updates.animood_score = await calcAnimoodScore(supabase, a.mal_id, score, weight);
+        }
         if(broadcastDay && !a.broadcast?.day) updates.broadcast = {day:broadcastDay};
         if(Object.keys(updates).length) {
           await supabase.from("anime_cache").update(updates).eq("mal_id",a.mal_id);
@@ -471,12 +496,12 @@ async function jobNewScores() {
       rescored_2w: false,
       rescored_2m: false,
     },{onConflict:"mal_id",ignoreDuplicates:true});
-    log(`  âœ… ${a.title}`);
+    log(`  ✅ ${a.title}`);
   }
   log("=== new-scores done ===");
 }
 
-// â”€â”€ JOB: rescore-2w â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── JOB: rescore-2w ────────────────────────────────────────────────────────────
 async function jobRescore2w() {
   log("=== JOB: rescore-2w ===");
   const twoWeeksAgo = new Date(Date.now() - 14*24*60*60*1000).toISOString();
@@ -497,7 +522,7 @@ async function jobRescore2w() {
   log("=== rescore-2w done ===");
 }
 
-// â”€â”€ JOB: rescore-2m â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── JOB: rescore-2m ────────────────────────────────────────────────────────────
 async function jobRescore2m() {
   log("=== JOB: rescore-2m ===");
   const twoMonthsAgo = new Date(Date.now() - 60*24*60*60*1000).toISOString();
@@ -509,31 +534,46 @@ async function jobRescore2m() {
 
   log(`${toRescore?.length||0} anime to rescore at 2m`);
   for(const row of (toRescore||[])) {
-    await rescoreAnime(row.mal_id);
+    await rescoreAnime(row.mal_id, true); // keepWeight=true at 2m
     await supabase.from("anime_sync_log").update({rescored_2m:true}).eq("mal_id",row.mal_id);
     await sleep(500);
   }
   log("=== rescore-2m done ===");
 }
 
-async function rescoreAnime(malId) {
+async function rescoreAnime(malId, keepWeight=false) {
   try {
     const r = await fetch(`https://api.jikan.moe/v4/anime/${malId}`,{headers:{"Accept":"application/json"}});
     if(!r.ok) return;
     const d = await r.json();
     const score = d?.data?.score||null;
+    const scored_by = d?.data?.scored_by||null;
     const status = d?.data?.status;
     const updates = {};
     if(score) updates.score = score;
+    if(scored_by) updates.scored_by = scored_by;
     if(status) updates.status = status==="Currently Airing"?"Currently Airing":status==="Finished Airing"?"Finished Airing":status;
+
+    // Compute weight
+    let weight;
+    if(keepWeight) {
+      const { data: row } = await supabase.from("anime_cache").select("jikan_weight").eq("mal_id",malId).limit(1);
+      weight = row?.[0]?.jikan_weight || calcJikanWeight(scored_by);
+    } else {
+      weight = calcJikanWeight(scored_by);
+      updates.jikan_weight = weight;
+    }
+    if(score && weight) {
+      updates.animood_score = await calcAnimoodScore(supabase, malId, score, weight);
+    }
     if(Object.keys(updates).length) {
       await supabase.from("anime_cache").update(updates).eq("mal_id",malId);
-      log(`  âœ… rescored mal_id=${malId}: score=${score}`);
+      log(`  ✅ rescored mal_id=${malId}: score=${score} weight=${weight} animood=${updates.animood_score}`);
     }
-  } catch(e) { log(`  âŒ mal_id=${malId}: ${e.message}`); }
+  } catch(e) { log(`  ❌ mal_id=${malId}: ${e.message}`); }
 }
 
-// â”€â”€ SQL to run ONCE in Supabase before using rescore jobs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── SQL to run ONCE in Supabase before using rescore jobs ─────────────────────
 // create table if not exists anime_sync_log (
 //   mal_id bigint primary key,
 //   first_fetch_at timestamptz not null default now(),
@@ -543,13 +583,13 @@ async function rescoreAnime(malId) {
 // alter table anime_cache add column if not exists streaming_platforms jsonb;
 // alter table anime_cache add column if not exists trailer jsonb;
 
-// â”€â”€ MAIN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── MAIN ──────────────────────────────────────────────────────────────────────
 const job = (process.argv.find(a=>a.startsWith("--job="))||"--job=help").split("=")[1];
 log(`Job: ${job}`);
 
 const { error: pingErr } = await supabase.from("anime_cache").select("mal_id").limit(1);
-if(pingErr) { console.error("âŒ Supabase connection failed:", pingErr.message); process.exit(1); }
-log("âœ… Supabase connected");
+if(pingErr) { console.error("❌ Supabase connection failed:", pingErr.message); process.exit(1); }
+log("✅ Supabase connected");
 
 switch(job) {
   case "new-anime":    await jobNewAnime();    break;
@@ -564,16 +604,13 @@ switch(job) {
 Usage: node --env-file=.env animood_sync.mjs --job=<job>
 
 Jobs:
-  new-anime    Weekly  â€” add new anime from Jikan (INSERT only, never updates)
-  broadcast    Weekly  â€” patch missing broadcast days (Jikan + AniList)
-  streaming    Weekly  â€” fetch streaming platforms per anime (AniList)
-  trailers     Monthly â€” fetch missing trailers (Jikan, upcoming first)
-  new-scores   Weekly  â€” score/mood newly airing anime (tracked in sync log)
-  rescore-2w   Weekly  â€” refresh score/status 2 weeks after first airing
-  rescore-2m   Weekly  â€” refresh score/status 2 months after first airing
+  new-anime    Weekly  — add new anime from Jikan (INSERT only, never updates)
+  broadcast    Weekly  — patch missing broadcast days (Jikan + AniList)
+  streaming    Weekly  — fetch streaming platforms per anime (AniList)
+  trailers     Monthly — fetch missing trailers (Jikan, upcoming first)
+  new-scores   Weekly  — score/mood newly airing anime (tracked in sync log)
+  rescore-2w   Weekly  — refresh score/status 2 weeks after first airing
+  rescore-2m   Weekly  — refresh score/status 2 months after first airing
 `);
 }
 log("=== Done ===");
-
-
-

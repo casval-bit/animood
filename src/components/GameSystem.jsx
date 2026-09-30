@@ -2408,33 +2408,33 @@ export function TierlistGame({ mode, onClose }) {
     setDragging(null);
   };
 
-  const saveImage = () => {
+  const saveImage = async () => {
     if(!boardRef.current) return;
     try {
-      import("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js").then(m => {
-        m.default(boardRef.current, {backgroundColor:"#0f0a1e",scale:2}).then(canvas => {
-          const a = document.createElement("a");
-          a.href = canvas.toDataURL("image/png");
-          a.download = "animood-tierlist.png";
-          a.click();
-        });
+      // Use html-to-image via CDN
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+      document.head.appendChild(script);
+      await new Promise((res, rej) => { script.onload=res; script.onerror=rej; });
+      const canvas = await window.html2canvas(boardRef.current, {
+        backgroundColor:"#0f0a1e", scale:2, useCORS:true, allowTaint:true,
       });
-    } catch { alert("Fais un screenshot manuel (Ctrl+Shift+S)"); }
+      const a = document.createElement("a");
+      a.href = canvas.toDataURL("image/png");
+      a.download = "animood-tierlist.png";
+      a.click();
+    } catch(e) {
+      console.error(e);
+      alert("Screenshot: appuie sur Ctrl+Shift+S ou clique droit → Capture d'écran");
+    }
   };
 
-  const Card = ({anime, from}) => (
-    <div draggable
-      onDragStart={()=>setDragging({anime,from})}
-      onMouseEnter={e=>{const r=e.currentTarget.getBoundingClientRect();setTooltip({name:anime.title_en||anime.title,x:r.left,y:r.top});}}
-      onMouseLeave={()=>setTooltip(null)}
-      style={{width:48,height:68,borderRadius:5,overflow:"hidden",flexShrink:0,cursor:"grab",
-        border:"1px solid rgba(255,255,255,0.1)",transition:"transform 0.1s"}}
-      onMouseEnter2={e=>e.currentTarget.style.transform="scale(1.1)"}
-      onMouseLeave2={e=>e.currentTarget.style.transform="scale(1)"}>
-      <img src={anime.image_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",pointerEvents:"none"}}
-        onError={e=>{e.target.parentElement.style.background="#1a1030";e.target.style.display="none";}}/>
-    </div>
-  );
+  const onDragStartCard = useCallback((anime, from) => setDragging({anime, from}), []);
+  const onMouseEnterCard = useCallback((e, anime) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setTooltip({name: anime.title_en||anime.title, x: r.left, y: r.top});
+  }, []);
+  const onMouseLeaveCard = useCallback(() => setTooltip(null), []);
 
   return (
     <div style={{display:"flex",flexDirection:"column",height:"100%",minHeight:480}}>
@@ -2479,7 +2479,17 @@ export function TierlistGame({ mode, onClose }) {
               </div>
               <div style={{flex:1,display:"flex",flexWrap:"wrap",gap:3,padding:5,
                 background:"rgba(255,255,255,0.02)",minHeight:70,alignContent:"flex-start"}}>
-                {tier.items.map(a=><Card key={a.mal_id} anime={a} from={tier.id}/>)}
+                {tier.items.map(a=>(
+                <div key={a.mal_id} draggable
+                  onDragStart={()=>onDragStartCard(a,tier.id)}
+                  onMouseEnter={e=>onMouseEnterCard(e,a)}
+                  onMouseLeave={onMouseLeaveCard}
+                  style={{width:48,height:68,borderRadius:5,overflow:"hidden",flexShrink:0,cursor:"grab",
+                    border:"1px solid rgba(255,255,255,0.1)"}}>
+                  <img src={a.image_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",pointerEvents:"none"}}
+                    onError={e=>{e.target.parentElement.style.background="#1a1030";e.target.style.display="none";}}/>
+                </div>
+              ))}
               </div>
             </div>
           ))}
@@ -2536,7 +2546,17 @@ export function TierlistGame({ mode, onClose }) {
               {loading?"Chargement...":pool.length+" anime"}
             </div>
             <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
-              {pool.map(a=><Card key={a.mal_id} anime={a} from="pool"/>)}
+              {pool.map(a=>(
+              <div key={a.mal_id} draggable
+                onDragStart={()=>onDragStartCard(a,"pool")}
+                onMouseEnter={e=>onMouseEnterCard(e,a)}
+                onMouseLeave={onMouseLeaveCard}
+                style={{width:48,height:68,borderRadius:5,overflow:"hidden",flexShrink:0,cursor:"grab",
+                  border:"1px solid rgba(255,255,255,0.1)"}}>
+                <img src={a.image_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",pointerEvents:"none"}}
+                  onError={e=>{e.target.parentElement.style.background="#1a1030";e.target.style.display="none";}}/>
+              </div>
+            ))}
             </div>
           </div>
         </div>
