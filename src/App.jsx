@@ -99,6 +99,7 @@ function Shell() {
           seedData={detailAnime.seedData}
           onClose={closeDetail}
           onOpenDetail={openDetail}
+          onOpenUser={setOpenUser}
         />
       )}
 

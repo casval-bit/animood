@@ -7,7 +7,7 @@ A mood-driven anime app — moodboard, feed, search, forum, profiles, and messag
 No setup needed — the Supabase key already in the code is the `anon`/publishable key (safe to ship client-side by design; access control lives in RLS policies, not in keeping it secret), and the DB schema is already migrated on the shared Supabase project.
 
 ```bash
-git clone -b animood-v.10.02 https://github.com/casval-bit/animood.git
+git clone -b animood-v.11.00 https://github.com/casval-bit/animood.git
 cd animood
 npm install
 npm run dev
@@ -47,6 +47,21 @@ npm run lint      # eslint across the project
 - **Notifications** — unread-message badge (with count) on the ✉️ icon; a 🔔 bell for activity (new comments on Feed posts and new replies on Forum threads you wrote or took part in, *plus* any post/comment/thread/reply where someone `@mentions` you). The bell and Forum's per-thread unread badge read from the same feed, so they never disagree. Both update automatically in the background — no page refresh needed.
 - **Theme** — selectable light/dark appearance (Settings → 🎨 Apparence). Dark (glass/gradient) stays the default; the light theme is a softer, violet-tinted "social feed" look, not a flat white dashboard.
 - **AniList import** — also pulls a public AniList account's custom (sub-)lists, filterable from Profile → Journal. Re-run the same import anytime (same username, now with a clearly labeled field and a "🔄 Réimporter" button) to resync after updating your list on AniList.
+
+## v.11.00 — repris de v.09.02
+
+Tout ce que la branche `animood-v.09.02` avait en plus, porté sur la base v.10.02 (sans reprendre ses anciennes versions de fichiers, qui auraient effacé la confidentialité de profil, les accusés de lecture, les invitations `game_invites`, etc.) et corrigé au passage :
+
+- **Undercover** 🕵️ (Forum → Mini-jeux) — 3 à 6 joueurs sur le même appareil : chacun découvre son rôle en privé (mot secret, ou indice pour l'imposteur), deux tours d'indices, vote chacun son tour, dernière chance de l'imposteur pour deviner le mot (30 s). Points dans `game_elo.pts_undercover` + `points_total`, pour le compte connecté seulement (les autres places sont de simples noms). La version 09.02 bloquait dès que ce n'était pas le tour du compte connecté, et son minuteur de vote ignorait les votes.
+- **Tierlist** 📊 — Saison / Année / Perso : glisser les affiches dans les rangs S → F (ou toucher une affiche puis un rang, sur mobile), rangs renommables, ajout/retrait de rangs, export PNG (`html2canvas`, chargé à la demande).
+- **Fenêtres de jeu** — tous les mini-jeux s'ouvrent dans une fenêtre cadrée avec barre de titre (`GameModal`), le bouton retour du téléphone la ferme toujours.
+- **Calendrier : filtres plateforme et région** (Recherche → 📅 Saison) — 🇫🇷/🇺🇸/🇯🇵 et une liste des plateformes réellement présentes dans les données (Crunchyroll, Netflix, ADN, Bahamut…), combinables avec "Mon calendrier".
+- **Terminés récemment** — sous le calendrier, les séries TV terminées qui ont commencé dans les ~4 derniers mois.
+- **Boutons trailer des prochaines sorties** — les trailers remplis par le script de sync sont dans la colonne JSON `trailer`, que l'app ne lisait pas (262 des 263 trailers d'animés à venir) ; ils s'affichent maintenant partout (Forum, fiches).
+- **Cadres de profil animés** — nouveaux visuels SVG (dégradés, rotations, halos) pour les 26 cadres, IDs SVG uniques par taille (plusieurs avatars sur une page ne se mélangent plus), cadre "Fondateur" prêt (pas encore attribuable). La logique de déblocage de v.10.02 est gardée : celle de 09.02 ne débloquait plus les cadres jeux ni contribution, et supprimait le cadre "Légende".
+- **Discussions d'une fiche animé** — les fenêtres de sujet s'ouvrent au-dessus de la fiche au lieu d'être coincées dans son contenu défilant ; cliquer un pseudo ouvre son profil.
+- **Forum** — bouton "💬 Discussion" sur les animés de la saison ; salon "✨ Saisonnier" dans le Feed (ex-"Récents").
+- **Script de sync `scripts/animood_sync.mjs`** (clé `service_role` dans `.env`) — jobs `new-anime`, `broadcast`, `streaming`, `trailers`, `new-scores`, `rescore-2w`, `rescore-2m`, `moods`, `weekly` ; raccourcis Windows `run_weekly.bat`, `run_broadcast.bat`, `run_streaming.bat`, `run_trailers.bat`, `run_moods.bat`, ou `npm run sync:weekly`. Corrigé : encodage cassé, nouveaux animés insérés sans image ni titre anglais, lots d'insertion qui échouaient sur un doublon, jobs `moods`/`weekly` appelés par les `.bat` mais absents, chemins `.bat` pointant vers un autre PC.
 
 ## v.10.02 — en comparaison avec v.10.00
 
@@ -95,12 +110,15 @@ All schemas are already applied on the shared project. For a fresh Supabase proj
 | ✅ `supabase/profile_privacy_schema.sql` | Adds `visibility` (`everyone`/`friends`/`custom`, default `everyone`) and `visibility_allowed` (jsonb array of usernames) to `profiles`. Enforced client-side only (`src/utils/profilePrivacy.js`), same access model as the rest of the app. |
 | ✅ `supabase/polls_schema.sql` | `polls` (belongs to either a Feed post or a Forum thread — `options` jsonb `{id, text, votes[]}[]`, `multi` boolean). |
 | ✅ `supabase/posts_schema.sql` | `posts`, `comments` tables with `UPDATE`/`DELETE` RLS policies for liking and deleting posts/comments. |
-| ✅ `supabase/game_schema.sql` | `game_elo`, `game_rooms` tables with columns for solo game points (`streak_wordle`, `last_wordle_date`, etc.) and multiplayer (`player3`/`player4` for Cluescale), plus per-game point breakdowns (`pts_wordle`/`pts_poster`/`pts_opquiz`/`pts_cluescale`). |
+| ✅ `supabase/game_schema.sql` | `game_elo`, `game_rooms` tables with columns for solo game points (`streak_wordle`, `last_wordle_date`, etc.) and multiplayer (`player3`/`player4` for Cluescale), plus per-game point breakdowns (`pts_wordle`/`pts_poster`/`pts_opquiz`/`pts_cluescale`/`pts_undercover`). |
+| ✅ `supabase/anime_sync_log_schema.sql` | `anime_sync_log` (first-scored date + 2-week/2-month rescore flags) and the `anime_cache.trailer`/`streaming` jsonb columns, used by `scripts/animood_sync.mjs`. |
 | ✅ `supabase/badges_schema.sql` | `active_badge` column on `profiles`. Badge unlock conditions are computed client-side (`src/badges/badges.jsx`). |
 | ✅ `supabase/artist_cache_schema.sql` | Creates `artist_cache` (`slug`, `name`, `themes` jsonb), filled by `scripts/sync_artists.mjs`. Caches AnimeThemes data to survive datacenter outages — the Artist tab falls back to the live API if the cache is empty. |
 | ✅ `supabase/opquiz_pool_schema.sql` | Creates `opquiz_pool` (`mal_id`, `difficulty`, `audio_url`, `video_url`), filled by `scripts/sync_opquiz_pool.mjs`. OP Quiz falls back to ~24 hand-picked entries in `src/constants/animeOpenings.js` if empty. |
 | ✅ `supabase/opquiz_stats_schema.sql` | Creates `opquiz_stats` (community-wide per-opening attempts/correct/response-time, with `difficulty_score`) and `opquiz_user_stats` (per-player per-opening history). Enables adaptive difficulty picker — falls back to hand-picked tags if empty. |
 
 Access model: like the rest of the app, these tables use the shared `anon` key with open RLS policies ("anyone can read/insert/update/delete") — not per-user privacy, consistent with `profiles`/`follows`/`user_votes`.
+
+> Heads-up: the app reads moods from `mood_pts_v4`, but `scripts/sync_new_moods.mjs` (the GitHub weekly workflow) still writes to `mood_pts_v2`. `scripts/animood_sync.mjs --job=moods` writes to `mood_pts_v4`.
 
 > `profiles.custom_lists` (manually-created lists, `{id, name, animeIds}[]`) is a separate feature living on the `main` branch — unrelated to `anilist_sub_lists` above.

@@ -21,12 +21,14 @@ import { NewThreadModal, ThreadModal, timeAgo } from "./ForumThreadModal.jsx";
 const FALLBACK = "https://placehold.co/700x300/1a1a2e/818cf8?text=?";
 
 // ─── Anime Discussions ────────────────────────────────────────────────────────
-function AnimeDiscussions({ malId, animeTitle, animeImage, username, onOpenUser }) {
+// The thread modals themselves are rendered by AnimeDetailModal, outside its
+// <Modal>: that panel is transformed (open animation), which would otherwise
+// trap their position:fixed overlay inside the scrolling detail panel.
+// `refreshKey` bumps whenever a thread is created or replied to.
+function AnimeDiscussions({ malId, onOpenThread, onNewThread, refreshKey }) {
   const [threads, setThreads]         = useState([]);
   const [loading, setLoading]         = useState(true);
   const [showAll, setShowAll]         = useState(false);
-  const [showNew, setShowNew]         = useState(false);
-  const [openThread, setOpenThread]   = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,7 +41,7 @@ function AnimeDiscussions({ malId, animeTitle, animeImage, username, onOpenUser 
     setLoading(false);
   }, [malId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   const preview = showAll ? threads : threads.slice(0, 2);
 
@@ -50,7 +52,7 @@ function AnimeDiscussions({ malId, animeTitle, animeImage, username, onOpenUser 
         <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
           💬 Discussions ({threads.length})
         </div>
-        <button onClick={()=>setShowNew(true)}
+        <button onClick={onNewThread}
           className="rounded-lg px-3 py-1 text-[10px] font-bold transition"
           style={{background:"rgba(124,58,237,0.15)",color:"#c084fc",border:"1px solid rgba(124,58,237,0.25)"}}>
           + Nouvelle discussion
@@ -69,7 +71,7 @@ function AnimeDiscussions({ malId, animeTitle, animeImage, username, onOpenUser 
       ) : (
         <div className="flex flex-col gap-2">
           {preview.map(thread => (
-            <button key={thread.id} onClick={()=>setOpenThread(thread)}
+            <button key={thread.id} onClick={()=>onOpenThread(thread)}
               className="w-full text-left rounded-xl border border-white/6 bg-white/3 p-3 transition hover:bg-white/5 hover:border-violet-400/20"
               style={{cursor:"pointer"}}>
               <div className="flex items-start gap-3">
@@ -97,24 +99,6 @@ function AnimeDiscussions({ malId, animeTitle, animeImage, username, onOpenUser 
             </button>
           )}
         </div>
-      )}
-
-      {/* New thread modal */}
-      {showNew && (
-        <NewThreadModal username={username} onClose={()=>setShowNew(false)}
-          animeId={malId} animeTitle={animeTitle} animeImage={animeImage}
-          onCreated={thread=>{
-            setThreads(prev=>[thread,...prev]);
-            setShowNew(false);
-            setOpenThread(thread);
-          }}/>
-      )}
-
-      {/* Thread detail modal */}
-      {openThread && (
-        <ThreadModal thread={openThread} username={username}
-          onClose={()=>setOpenThread(null)} onOpenUser={onOpenUser}
-          onReply={()=>load()}/>
       )}
     </div>
   );
@@ -147,7 +131,7 @@ function calcAnimoodScore(malScore, scoredBy, userScores) {
   return total / count;
 }
 
-export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
+export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpenUser }) {
   const { me, saveMe, myUsername } = useApp();
   const { lang } = useLang();
   const t = ANIME_DETAIL_I18N[lang] || ANIME_DETAIL_I18N.fr;
@@ -165,6 +149,9 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
   });
   const [personModal, setPersonModal] = useState(null);
   const [studioModal, setStudioModal] = useState(null);
+  const [discussionThread, setDiscussionThread]   = useState(null);
+  const [showNewDiscussion, setShowNewDiscussion] = useState(false);
+  const [discussionsVersion, setDiscussionsVersion] = useState(0);
   const [themes, setThemes]           = useState([]);
   const [artistModal, setArtistModal] = useState(null);
   const [artistLoading, setArtistLoading] = useState(null);
@@ -476,10 +463,9 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
                 {/* ── DISCUSSIONS ── */}
                 <AnimeDiscussions
                   malId={malId}
-                  animeTitle={anime?.title || ""}
-                  animeImage={anime?.images?.jpg?.large_image_url || anime?.images?.jpg?.image_url || ""}
-                  username={myUsername}
-                  onOpenUser={null}
+                  refreshKey={discussionsVersion}
+                  onOpenThread={setDiscussionThread}
+                  onNewThread={() => setShowNewDiscussion(true)}
                 />
 
                 {error && <div className="py-3 text-center text-xs text-red-400">{t.errorPrefix(error)}</div>}
@@ -620,6 +606,22 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail }) {
       {artistModal && (
         <ArtistModal artist={artistModal} onClose={() => setArtistModal(null)}
           onOpenDetail={a => { setArtistModal(null); onOpenDetail?.(a); }} />
+      )}
+      {showNewDiscussion && (
+        <NewThreadModal username={myUsername} onClose={() => setShowNewDiscussion(false)}
+          animeId={malId} animeTitle={a?.title || ""}
+          animeImage={a?.images?.jpg?.large_image_url || a?.images?.jpg?.image_url || a?.large_image || a?.image_url || ""}
+          onCreated={thread => {
+            setShowNewDiscussion(false);
+            setDiscussionsVersion(v => v + 1);
+            setDiscussionThread(thread);
+          }}/>
+      )}
+      {discussionThread && (
+        <ThreadModal thread={discussionThread} username={myUsername}
+          onClose={() => setDiscussionThread(null)}
+          onOpenUser={onOpenUser ? (u => { setDiscussionThread(null); onOpenUser(u); }) : null}
+          onReply={() => setDiscussionsVersion(v => v + 1)}/>
       )}
     </>
   );

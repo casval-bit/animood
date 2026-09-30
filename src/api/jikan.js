@@ -53,7 +53,8 @@ export function supabaseRowToAnime(row) {
     year: row.year, episodes: row.episodes, duration: row.duration,
     type: row.type, status: row.status, source: row.source, rating: row.rating,
     images: { jpg: { image_url: row.image_url, large_image_url: row.large_image } },
-    trailer: row.trailer_url ? { url: row.trailer_url } : null,
+    // trailer_url (legacy) or trailer {url, youtube_id} (filled by animood_sync.mjs)
+    trailer: row.trailer_url ? { url: row.trailer_url } : row.trailer?.url ? { url: row.trailer.url } : null,
     genres: row.genres||[], themes: row.themes||[], demographics: row.demographics||[],
     studios: row.studios||[], producers: row.producers||[], streaming: row.streaming||[],
     staff: row.staff||[], characters: row.characters||[], _fromCache: true,
@@ -166,7 +167,7 @@ export async function fetchTitleSuggestions(q, limit = 10) {
 }
 
 // ─── Forum "actus" feed — new arrivals, upcoming releases, latest trailers ───
-const NEWS_SELECT = "mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,fetched_at,trailer_url,popularity";
+const NEWS_SELECT = "mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,fetched_at,trailer_url,trailer,popularity";
 const NEWS_TYPES = "TV,Movie,OVA,ONA,Special"; // excludes CM/Music/etc — junk for a news feed
 
 export async function fetchNewAnime(limit = 12) {
@@ -186,7 +187,7 @@ export async function fetchUpcomingAnime(limit = 12) {
 
 export async function fetchLatestTrailers(limit = 12) {
   try {
-    const rows = await sb.query(`anime_cache?type=in.(${NEWS_TYPES})&trailer_url=not.is.null&order=fetched_at.desc.nullslast&limit=${limit}&select=${NEWS_SELECT}`);
+    const rows = await sb.query(`anime_cache?type=in.(${NEWS_TYPES})&or=(trailer_url.not.is.null,trailer->>url.not.is.null)&order=fetched_at.desc.nullslast&limit=${limit}&select=${NEWS_SELECT}`);
     return (rows||[]).map(supabaseRowToAnime);
   } catch { return []; }
 }

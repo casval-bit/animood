@@ -10,11 +10,13 @@
     "preview": "vite preview",
     "sync:anime": "node scripts/sync_new_anime.mjs",
     "sync:moods": "node scripts/sync_new_moods.mjs",
-    "sync:artists": "node scripts/sync_artists.mjs"
+    "sync:artists": "node scripts/sync_artists.mjs",
+    "sync:weekly": "node --env-file=.env scripts/animood_sync.mjs --job=weekly"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
     "@tailwindcss/vite": "^4.2.4",
+    "html2canvas": "^1.4.1",
     "node-fetch": "^3.3.2",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",

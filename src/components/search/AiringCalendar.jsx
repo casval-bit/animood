@@ -13,7 +13,7 @@ let airingCache = null;
 async function fetchAiringAnime() {
   if(airingCache) return airingCache;
   const rows = await sb.query(
-    "anime_cache?type=eq.TV&status=eq.Currently%20Airing&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,broadcast&order=score.desc.nullslast&limit=200"
+    "anime_cache?type=eq.TV&status=eq.Currently%20Airing&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,broadcast,streaming&order=score.desc.nullslast&limit=200"
   ).catch(()=>[]);
   if(rows?.length) {
     airingCache = rows.filter(a => a.type === "TV");
@@ -23,6 +23,60 @@ async function fetchAiringAnime() {
     airingCache = (data?.data || []).filter(a => a.type === "TV");
   }
   return airingCache;
+}
+
+// Recently finished TV anime — started within the last ~4 months (one season
+// plus margin) and already marked finished. aired_from is capped at today
+// because a few MAL rows carry bogus far-future dates.
+let finishedCache = null;
+async function fetchFinishedAnime() {
+  if(finishedCache) return finishedCache;
+  const day = (offset) => new Date(Date.now() + offset).toISOString().slice(0, 10);
+  const rows = await sb.query(
+    `anime_cache?type=eq.TV&status=eq.Finished%20Airing&aired_from=gte.${day(-120*86400000)}&aired_from=lte.${day(0)}` +
+    "&select=mal_id,title,title_en,score,year,episodes,type,image_url,large_image,genres&order=score.desc.nullslast&limit=30"
+  ).catch(()=>[]);
+  finishedCache = rows || [];
+  return finishedCache;
+}
+
+// Streaming platforms shown in the filter — `names` are the labels Jikan uses
+// in anime_cache.streaming; fr/us/jp flag where the service is available.
+const PLATFORMS = [
+  { id:"crunchyroll", label:"Crunchyroll", names:["Crunchyroll"],                  color:"#f47521", fr:true,  us:true,  jp:true  },
+  { id:"netflix",     label:"Netflix",     names:["Netflix"],                      color:"#e50914", fr:true,  us:true,  jp:true  },
+  { id:"amazon",      label:"Prime Video", names:["Amazon Prime Video"],           color:"#00a8e0", fr:true,  us:true,  jp:true  },
+  { id:"disney",      label:"Disney+",     names:["Disney Plus","Disney+"],        color:"#113ccf", fr:true,  us:true,  jp:true  },
+  { id:"adn",         label:"ADN",         names:["Anime Digital Network","ADN"],  color:"#0090d0", fr:true,  us:false, jp:false },
+  { id:"hidive",      label:"HIDIVE",      names:["HIDIVE"],                       color:"#00aeef", fr:false, us:true,  jp:false },
+  { id:"hulu",        label:"Hulu",        names:["Hulu"],                         color:"#1ce783", fr:false, us:true,  jp:false },
+  { id:"max",         label:"Max",         names:["Max"],                          color:"#0030ff", fr:true,  us:true,  jp:false },
+  { id:"bilibili",    label:"Bilibili",    names:["Bilibili","Bilibili Global"],   color:"#00a1d6", fr:false, us:false, jp:false },
+  { id:"muse",        label:"Muse Asia",   names:["Muse Asia"],                    color:"#e4007c", fr:false, us:false, jp:false },
+  { id:"anione",      label:"Ani-One",     names:["Ani-One Asia"],                 color:"#ff6600", fr:false, us:false, jp:false },
+  { id:"bahamut",     label:"Bahamut",     names:["Bahamut Anime Crazy"],          color:"#1ba7b4", fr:false, us:false, jp:false },
+  { id:"aniplus",     label:"Aniplus",     names:["Aniplus TV","Aniplus Asia"],    color:"#e11d48", fr:false, us:false, jp:false },
+];
+const REGIONS = [
+  { id:"fr", label:"🇫🇷 FR" },
+  { id:"us", label:"🇺🇸 US" },
+  { id:"jp", label:"🇯🇵 JP" },
+];
+
+function platformIds(anime) {
+  const names = Array.isArray(anime.streaming) ? anime.streaming.map(s => s?.name) : [];
+  return new Set(PLATFORMS.filter(p => p.names.some(n => names.includes(n))).map(p => p.id));
+}
+
+// Selected platforms: the anime must be on at least one of them (and, with a
+// region, one available there). Region alone: on any platform available there.
+function matchesPlatforms(anime, platformFilters, region) {
+  if(!platformFilters.size && !region) return true;
+  const ids = platformIds(anime);
+  const candidates = PLATFORMS.filter(p => ids.has(p.id)
+    && (!platformFilters.size || platformFilters.has(p.id))
+    && (!region || p[region]));
+  return candidates.length > 0;
 }
 
 function getBroadcastDay(anime) {
@@ -178,11 +232,29 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
   const [anime, setAnime]     = useState(airingCache || []);
   const [loading, setLoading] = useState(!airingCache);
   const [myOnly, setMyOnly]   = useState(false);
+  const [platformFilters, setPlatformFilters] = useState(() => new Set());
+  const [region, setRegion]   = useState(null); // "fr" | "us" | "jp" | null
+  const [showPlatforms, setShowPlatforms] = useState(false);
+  const [finished, setFinished] = useState(finishedCache || []);
   const todayIdx    = (new Date().getDay() + 6) % 7; // 0=Mon … 6=Sun
   const currentYear = new Date().getFullYear();
   const [view, setView]       = useState(readSavedView);
   const [dayIdx, setDayIdx]   = useState(todayIdx);
   const changeView = (v) => { setView(v); saveView(v); };
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchFinishedAnime().then(rows => { if(!cancelled) setFinished(rows); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // Close the platform dropdown on any outside click
+  useEffect(() => {
+    if(!showPlatforms) return;
+    const close = () => setShowPlatforms(false);
+    const id = setTimeout(() => document.addEventListener("click", close), 0);
+    return () => { clearTimeout(id); document.removeEventListener("click", close); };
+  }, [showPlatforms]);
 
   useEffect(() => {
     if(airingCache) return;
@@ -217,7 +289,117 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
     return myBaseTitles.has(bt) || (bte && myBaseTitles.has(bte));
   }
 
-  const displayed = myOnly ? anime.filter(isMyAnime) : anime;
+  const displayed = anime.filter(a => (!myOnly || isMyAnime(a)) && matchesPlatforms(a, platformFilters, region));
+  const filtersActive = platformFilters.size > 0 || !!region;
+  // Only offer platforms that at least one airing anime is actually on
+  const availablePlatforms = PLATFORMS.filter(p => (!region || p[region]) && anime.some(a => platformIds(a).has(p.id)));
+  const togglePlatform = (id) => setPlatformFilters(prev => {
+    const next = new Set(prev);
+    if(next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  const filterBar = (
+    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",width:"100%"}}>
+      {REGIONS.map(r => (
+        <button key={r.id} onClick={()=>setRegion(region===r.id?null:r.id)} aria-pressed={region===r.id}
+          title={t.regionTitle(r.id.toUpperCase())} style={{
+          padding:"4px 10px",borderRadius:20,fontSize:9,fontWeight:800,cursor:"pointer",transition:"all 0.15s",
+          background: region===r.id ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.03)",
+          color: region===r.id ? "var(--text-1)" : "var(--text-5)",
+          border: region===r.id ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.07)",
+        }}>{r.label}</button>
+      ))}
+      <div style={{position:"relative"}}>
+        <button onClick={()=>setShowPlatforms(p=>!p)} aria-expanded={showPlatforms} style={{
+          display:"flex",alignItems:"center",gap:6,
+          padding:"4px 12px",borderRadius:20,fontSize:10,fontWeight:700,cursor:"pointer",transition:"all 0.15s",
+          background: platformFilters.size ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.03)",
+          color: platformFilters.size ? "var(--text-1)" : "var(--text-4)",
+          border: platformFilters.size ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.07)",
+        }}>
+          {t.platformsBtn}
+          {platformFilters.size > 0 && (
+            <span style={{background:"rgba(255,255,255,0.2)",color:"var(--text-1)",fontSize:9,padding:"1px 5px",borderRadius:8}}>{platformFilters.size}</span>
+          )}
+        </button>
+        {showPlatforms && (
+          <div onClick={e=>e.stopPropagation()} style={{
+            position:"absolute",top:"calc(100% + 6px)",left:0,zIndex:50,
+            background:"var(--surface-1-strong)",border:"1px solid rgba(255,255,255,0.1)",
+            borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",padding:8,minWidth:190,
+          }}>
+            <div style={{fontSize:9,fontWeight:700,color:"var(--text-5)",padding:"2px 6px 6px",textTransform:"uppercase",letterSpacing:1}}>
+              {t.filterByPlatform}
+            </div>
+            {availablePlatforms.length === 0 && (
+              <div style={{fontSize:10,color:"var(--text-5)",padding:"4px 6px"}}>{t.noPlatformData}</div>
+            )}
+            {availablePlatforms.map(p => {
+              const checked = platformFilters.has(p.id);
+              return (
+                <button key={p.id} onClick={()=>togglePlatform(p.id)} style={{
+                  display:"flex",alignItems:"center",gap:8,width:"100%",padding:"6px 8px",borderRadius:8,
+                  background:"none",border:"none",cursor:"pointer",textAlign:"left",
+                }}
+                onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
+                onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                  <div style={{width:14,height:14,borderRadius:3,flexShrink:0,
+                    background: checked ? p.color : "rgba(255,255,255,0.08)",
+                    border: checked ? "none" : "1px solid rgba(255,255,255,0.15)",
+                    display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    {checked && <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+                      <path d="M1.5 4.5L3.5 6.5L7.5 2.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>}
+                  </div>
+                  <span style={{fontSize:10,fontWeight:600,color: checked ? p.color : "var(--text-3)"}}>{p.label}</span>
+                </button>
+              );
+            })}
+            {filtersActive && (
+              <button onClick={()=>{ setPlatformFilters(new Set()); setRegion(null); }} style={{
+                width:"100%",marginTop:4,padding:"5px 8px",borderRadius:8,background:"none",border:"none",
+                cursor:"pointer",fontSize:9,color:"var(--text-5)",textAlign:"center"}}>
+                {t.resetFilters}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const finishedSection = finished.length > 0 && (
+    <div style={{marginTop:24}}>
+      <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 4px",marginBottom:6,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+        <span style={{fontSize:11}}>🎬</span>
+        <span style={{fontSize:12,fontWeight:900,color:"var(--text-2)"}}>{t.finishedTitle}</span>
+        <span style={{fontSize:9,color:"var(--text-5)",marginLeft:4}}>{t.finishedCount(finished.length)}</span>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(150px, 1fr))",gap:4}}>
+        {finished.map(a => (
+          <button key={a.mal_id} onClick={()=>onOpenDetail(a)} style={{
+            display:"flex",gap:7,alignItems:"center",background:"none",border:"none",cursor:"pointer",
+            textAlign:"left",padding:4,borderRadius:8,transition:"background 0.12s",width:"100%",
+          }}
+          onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.06)";}}
+          onMouseLeave={e=>{e.currentTarget.style.background="none";}}>
+            <img src={a.image_url||a.large_image} alt="" style={{
+              width:32,height:44,objectFit:"cover",borderRadius:5,flexShrink:0,
+              border:`${statusDot(myStatuses[a.mal_id]) ? "2px" : "1px"} solid ${statusDot(myStatuses[a.mal_id]) || "rgba(255,255,255,0.1)"}`,display:"block",
+            }} onError={e=>{e.target.style.display="none";}}/>
+            <div style={{minWidth:0,flex:1}}>
+              <div style={{fontSize:10,fontWeight:700,color:"var(--text-1)",overflow:"hidden",textOverflow:"ellipsis",
+                display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",lineHeight:1.3,marginBottom:2}}>
+                {a.title_en||a.title}
+              </div>
+              {a.score && <span style={{fontSize:8,color:"#fbbf24",fontWeight:700}}>★ {a.score}</span>}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
   const myCount   = anime.filter(isMyAnime).length;
 
   const byDay = {};
@@ -230,13 +412,16 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
   });
   DAYS_EN.forEach(d => byDay[d].sort(byLocalTime));
 
-  const hasDayData = Object.values(byDay).some(arr => arr.length > 0);
+  // Judged on the unfiltered list, so a filter that empties the week keeps
+  // the normal layout (and its filter bar) instead of the fallback grid.
+  const hasDayData = anime.some(a => broadcastLocal(a));
   const totalWithDay = Object.values(byDay).reduce((s, arr) => s + arr.length, 0);
 
   // Fallback grid when no broadcast data
   if(!hasDayData) {
     return (
       <div>
+        <div style={{marginBottom:12}}>{filterBar}</div>
         <div style={{marginBottom:12,fontSize:11,color:"var(--text-5)",textAlign:"center"}}>
           {t.noBroadcastData}
         </div>
@@ -260,6 +445,7 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
             </button>
           ))}
         </div>
+        {finishedSection}
       </div>
     );
   }
@@ -275,6 +461,7 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
       }}>
         <div style={{fontSize:11,color:"var(--text-4)"}}>
           <span style={{fontWeight:700,color:"var(--text-2)"}}>{totalWithDay}</span> {t.scheduledWord(totalWithDay)}
+          {filtersActive && <span style={{marginLeft:6,color:"#c084fc"}}>{t.filteredTag}</span>}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
           <div style={{fontSize:10,color:"var(--text-5)"}}>
@@ -320,6 +507,7 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
             )}
           </button>
         </div>
+        {filterBar}
       </div>
 
       <div style={{fontSize:9,color:"var(--text-5)",margin:"-8px 0 12px 2px"}}>🕒 {t.localTimeNote}</div>
@@ -465,6 +653,8 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
           </div>
         </div>
       )}
+
+      {finishedSection}
     </div>
   );
 }
