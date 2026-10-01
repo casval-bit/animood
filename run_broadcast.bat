@@ -1,5 +1,3 @@
 @echo off
-rem AniMood sync - broadcast job. Needs SUPABASE_SERVICE_KEY in .env (see scripts/animood_sync.mjs)
-cd /d "%~dp0"
-node --env-file=.env scripts\animood_sync.mjs --job=broadcast
-pause
+cd /d "C:\Users\brice maillard\animoodv08"
+node --env-file=.env animood_sync.mjs --job=broadcast
