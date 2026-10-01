@@ -599,3 +599,12 @@ export const comments = {
     });
   },
 };
+
+// ─── ANIMOOD SCORE HELPERS ────────────────────────────────────────────────────
+const MAX_SCORED_BY = 3_096_001;
+
+export function calcJikanWeight(scored_by) {
+  if(!scored_by || scored_by <= 0) return 0;
+  const ratio = Math.log10(scored_by + 1) / Math.log10(MAX_SCORED_BY + 1);
+  return Math.round((ratio ** 2 * 1200) / 1.3);
+}

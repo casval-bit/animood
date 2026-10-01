@@ -952,38 +952,6 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
               <span className="text-[13px] font-black text-slate-100">{followingCount}</span>
               <span className="text-[11px] text-slate-500">{t.followingLabel(followingCount)}</span>
             </button>
-            <div className="w-px h-3 bg-white/10"/>
-            <GamePtsDisplay myUsername={myUsername}/>
-          </div>
-
-          {/* Stats + lien vers badges */}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {[
-              { emoji:"📺", label:t.statVus, value: me.watched.length, color:"#7c3aed" },
-              { emoji:"⭐", label:t.statNotes, value: rated.length, color:"#f59e0b" },
-              { emoji:"🎯", label:t.statMoy, value: rated.length ? (rated.reduce((a,id)=>a+(me.ratings[id]?.score||0),0)/rated.length).toFixed(1) : "—", color:"#22c55e" },
-            ].map((s, i) => (
-              <div key={i}
-                className="flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold"
-                style={{
-                  background: `${s.color}18`,
-                  border: `1px solid ${s.color}30`,
-                  color: s.color,
-                }}>
-                <span className="text-[10px]">{s.emoji}</span>
-                <span>{s.value}</span>
-                <span className="font-normal opacity-60">{s.label}</span>
-              </div>
-            ))}
-
-            {unlockedBadges.length > 0 && (
-              <button onClick={() => setShowBadgePicker(true)}
-                className="flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-bold transition hover:bg-white/5"
-                style={{ border: "1px solid rgba(251,191,36,0.3)", color: "#fbbf24" }}>
-                <span>🏆</span>
-                <span>{unlockedBadges.length} badge{unlockedBadges.length > 1 ? "s" : ""}</span>
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -1071,8 +1039,34 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
             )}
           </div>
 
-          {/* RIGHT — Distribution + MoodRadar */}
+          {/* RIGHT — 3 stats + Distribution + MoodRadar */}
           <div className="flex flex-col gap-8">
+            <div className="grid grid-cols-4 gap-3">
+              {[
+                {l:t.statVus, v:me.watched.length},
+                {l:t.statNotes, v:rated.length},
+                {l:t.statMoy, v:rated.length?(rated.reduce((a,id)=>a+(me.ratings[id]?.score||0),0)/rated.length).toFixed(1):"—"},
+              ].map(s=>(
+                <div key={s.l} className="rounded-xl border border-white/6 bg-white/3 p-3 text-center">
+                  <div className="text-xl font-black text-violet-400">{s.v}</div>
+                  <div className="mt-0.5 text-[9px] text-slate-500">{s.l}</div>
+                </div>
+              ))}
+              {/* 4th cell — double: pts jeux + badges */}
+              <div className="flex flex-col gap-1.5">
+                <div className="rounded-xl border border-white/6 bg-white/3 p-2.5 text-center flex-1">
+                  <GamePtsDisplay myUsername={myUsername} compact/>
+                </div>
+                {unlockedBadges.length > 0 && (
+                  <button onClick={() => setShowBadgePicker(true)}
+                    className="rounded-xl border p-2.5 text-center flex-1 transition hover:bg-white/5"
+                    style={{border:"1px solid rgba(251,191,36,0.25)",background:"rgba(251,191,36,0.06)"}}>
+                    <div className="text-xl font-black" style={{color:"#fbbf24"}}>{unlockedBadges.length}</div>
+                    <div className="mt-0.5 text-[9px] text-slate-500">{t.badges||"badges"}</div>
+                  </button>
+                )}
+              </div>
+            </div>
             <div>
               <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.ratingDistribution}</div>
               <div className="rounded-2xl border border-white/6 bg-white/3 p-4">
@@ -1080,11 +1074,10 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
               </div>
             </div>
             <PersonalMoodRadar ratings={me.ratings} watched={me.watched}/>
-            <TopGenres watched={me.watched}/>
           </div>
         </div>
       )}
-      {/* ── JOURNAL TAB ── */}
+            {/* ── JOURNAL TAB ── */}
       {tab === "journal" && (
         <div>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
