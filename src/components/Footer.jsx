@@ -20,20 +20,21 @@ export function Footer({ onOpenPage }) {
           <span className={`text-sm font-black tracking-tight ${GRADIENT_TEXT}`}>AniMood</span>
         </div>
         <p className="text-xs text-slate-500">{t.tagline}</p>
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[11px] text-slate-500">
-          <button onClick={() => onOpenPage?.("about")} className="underline-offset-2 hover:underline">{t.aboutLink}</button>
-          <span className="text-slate-700">·</span>
-          <button onClick={() => setInfoModal("categories")} className="underline-offset-2 hover:underline">{t.categoriesLink}</button>
-          <span className="text-slate-700">·</span>
-          <button onClick={() => onOpenPage?.("contact")} className="underline-offset-2 hover:underline">{t.contactLink}</button>
-          <span className="text-slate-700">·</span>
-          <button onClick={() => onOpenPage?.("faq")} className="underline-offset-2 hover:underline">{t.faqLink}</button>
-          <span className="text-slate-700">·</span>
-          <button onClick={() => setInfoModal("moderation")} className="underline-offset-2 hover:underline">{t.moderationLink}</button>
-          <span className="text-slate-700">·</span>
-          <button onClick={() => setLegalModal("legal")} className="underline-offset-2 hover:underline">{t.legalLink}</button>
-          <span className="text-slate-700">·</span>
-          <button onClick={() => setLegalModal("privacy")} className="underline-offset-2 hover:underline">{t.privacyLink}</button>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {[
+            {label:t.aboutLink,      onClick:()=>onOpenPage?.("about")},
+            {label:t.categoriesLink, onClick:()=>setInfoModal("categories")},
+            {label:t.contactLink,    onClick:()=>onOpenPage?.("contact")},
+            {label:t.faqLink,        onClick:()=>onOpenPage?.("faq")},
+            {label:t.moderationLink, onClick:()=>setInfoModal("moderation")},
+            {label:t.legalLink,      onClick:()=>setLegalModal("legal")},
+            {label:t.privacyLink,    onClick:()=>setLegalModal("privacy")},
+          ].map(btn => (
+            <button key={btn.label} onClick={btn.onClick}
+              className="rounded-full border border-white/10 bg-white/4 px-3 py-1 text-[11px] text-slate-400 transition hover:border-white/20 hover:bg-white/8 hover:text-slate-200">
+              {btn.label}
+            </button>
+          ))}
         </div>
         <p className="text-[11px] text-slate-600">{t.rights(year)}</p>
       </div>
