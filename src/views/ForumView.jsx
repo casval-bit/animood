@@ -80,21 +80,26 @@ function ThreadRow({ anime, onClick, metaLabel, trailerLink, convLink, statOverr
             )}
           </div>
         </div>
-        <div className="hidden shrink-0 flex-col items-end gap-0.5 text-right sm:flex">
-          <div className="text-[12px] font-black text-amber-400">{stat.primary}</div>
-          <div className="text-[10px] text-slate-600">{stat.secondary}</div>
-        </div>
-        <div className="hidden w-40 shrink-0 items-center gap-2 border-l border-white/6 pl-3 md:flex">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/6 text-xs">
-            {TYPE_EMOJI[anime.type] || "🎬"}
-          </span>
-          <div className="min-w-0">
-            {!(trailerLink && anime.trailer?.url) && (
-              <div className="truncate text-[11px] font-semibold text-slate-300">{metaLabel(anime)}</div>
-            )}
-            <div className="truncate text-[10px] text-slate-600">{anime.year || "?"} · {anime.type || "?"}</div>
+        {stat.primary && (
+          <div className="hidden shrink-0 flex-col items-end gap-0.5 text-right sm:flex">
+            <div className="text-[12px] font-black text-amber-400">{stat.primary}</div>
+            {stat.secondary && <div className="text-[10px] text-slate-600">{stat.secondary}</div>}
           </div>
-        </div>
+        )}
+        {(anime.year || anime.type) && (
+          <div className="hidden w-32 shrink-0 items-center gap-2 border-l border-white/6 pl-3 md:flex">
+            <div className="min-w-0">
+              {!(trailerLink && anime.trailer?.url) && metaLabel && (
+                <div className="truncate text-[11px] font-semibold text-slate-300">{metaLabel(anime)}</div>
+              )}
+              {(anime.year || anime.type) && (
+                <div className="truncate text-[10px] text-slate-600">
+                  {[anime.year, anime.type].filter(Boolean).join(" · ")}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </button>
       <div className="flex shrink-0 items-center gap-2">
         {trailerLink && anime.trailer?.url && (
@@ -165,12 +170,14 @@ function ForumCategory({ emoji, title, subtitle, items, onOpenDetail, metaLabel,
 
   return (
     <div className={`mb-6 overflow-hidden ${GLASS}`} style={GLASS_STYLE}>
-      <div className="flex items-center justify-between px-5 py-3.5" style={{ background: GRADIENT_PRIMARY }}>
+      <div className="flex items-center justify-between px-5 py-3.5" style={{
+        background:"rgba(255,255,255,0.03)",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
         <div>
-          <div className="text-[13px] font-black uppercase tracking-wide text-white">{emoji} {title}</div>
-          {subtitle && <div className="text-[10.5px] text-white/70">{subtitle}</div>}
+          <div className="text-[13px] font-black tracking-wide" style={{color:"var(--text-1)"}}>{title}</div>
+          {subtitle && <div className="text-[10.5px]" style={{color:"var(--text-4)"}}>{subtitle}</div>}
         </div>
-        <div className="shrink-0 rounded-full bg-black/20 px-2.5 py-1 text-[10px] font-bold text-white/90">
+        <div className="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold"
+          style={{background:"rgba(124,58,237,0.15)",color:"#c084fc",border:"1px solid rgba(124,58,237,0.2)"}}>
           {t.topicCount(items.length)}
         </div>
       </div>
@@ -351,12 +358,16 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
     // points_total is the server-maintained aggregate (kept in sync by
     // awardSoloPoints.js, updateElo and the Cluescale award in GameSystem.jsx),
     // so ranking by it directly avoids re-deriving a total client-side.
-    sb.query("game_elo?select=username,points_total&order=points_total.desc&limit=200")
+    sb.query("game_elo?select=username,elo_chain,elo_timeline,pts_wordle,pts_poster,pts_opquiz,pts_cluescale,pts_undercover&limit=200")
       .then(rows => {
         if(!rows?.length) return;
-        setLeaderboard(rows.slice(0,20));
-        const pos = rows.findIndex(r=>r.username===myUsername);
-        setMyRank(pos>=0 ? {rank:pos+1, points_total:rows[pos].points_total} : null);
+        const ranked = rows.map(r => ({
+          username: r.username,
+          total: (r.elo_chain||400)+(r.elo_timeline||400)+(r.pts_wordle||0)+(r.pts_poster||0)+(r.pts_opquiz||0)+(r.pts_cluescale||0)+(r.pts_undercover||0),
+        })).sort((a,b)=>b.total-a.total);
+        setLeaderboard(ranked.slice(0,20));
+        const pos = ranked.findIndex(r => r.username === myUsername);
+        setMyRank(pos>=0 ? {rank:pos+1, points_total:ranked[pos].total} : null);
       }).catch(()=>{});
   }, [myUsername]);
 
@@ -380,7 +391,7 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
 
   return (
     <div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,width:"100%",minWidth:0}}>
         {GAMES.map(g => {
           const isHover = hover===g.id, rgb=g.color;
           return (
@@ -409,7 +420,7 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
         <div style={{marginTop:7,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",borderRadius:9,
           background:"linear-gradient(90deg,rgba(124,58,237,0.08),rgba(56,189,248,0.05))",border:"1px solid rgba(255,255,255,0.06)"}}>
           <div style={{fontSize:9,color:"var(--text-5)",fontWeight:700}}>{t.unlocksFramesLabel}</div>
-          <div style={{fontSize:13,fontWeight:900,color:"var(--text-1)"}}>{elo.points_total||0}</div>
+          <div style={{fontSize:13,fontWeight:900,color:"var(--text-1)"}}>{elo ? (elo.elo_chain||400)+(elo.elo_timeline||400)+(elo.pts_wordle||0)+(elo.pts_poster||0)+(elo.pts_opquiz||0)+(elo.pts_cluescale||0)+(elo.pts_undercover||0)+(elo.pts_undercover||0) : 0}</div>
         </div>
       )}
 
@@ -428,7 +439,7 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
                   <div style={{flex:1,fontSize:10,fontWeight:isMe||isFriend?800:500,color:usernameColor(r.username),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                     {r.username}{isMe && <span style={{marginLeft:4,fontSize:9,color:"#c084fc"}}>({t.youLabel})</span>}
                   </div>
-                  <div style={{fontSize:10,fontWeight:800,color:"var(--text-2)",flexShrink:0}}>{r.points_total}</div>
+                  <div style={{fontSize:10,fontWeight:800,color:"var(--text-2)",flexShrink:0}}>{r.total}</div>
                 </div>
               );
             })}
@@ -643,11 +654,13 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchUpcomingAnime(30), fetchNewAnime(15)])
-      .then(([u, n]) => { if(!cancelled) { setUpcoming(u); setNewAnime(n); } })
+    Promise.all([
+      sb.query("anime_cache?type=eq.TV&status=eq.Not%20yet%20aired&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,trailer,broadcast&order=popularity.asc.nullslast&limit=30").catch(()=>[]),
+      fetchNewAnime(15),
+    ]).then(([u, n]) => { if(!cancelled) { setUpcoming(u||[]); setNewAnime(n); } })
       .finally(() => { if(!cancelled) setLoading(false); });
     // Airing TV anime for seasonal section
-    sb.query("anime_cache?type=eq.TV&status=eq.Currently%20Airing&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,trailer_url,trailer&order=score.desc.nullslast&limit=24")
+    sb.query("anime_cache?type=eq.TV&status=eq.Currently%20Airing&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,trailer&order=score.desc.nullslast&limit=24")
       .then(rows => { if(!cancelled && rows?.length) setAiringAnime(rows); })
       .catch(()=>{});
     return () => { cancelled = true; };

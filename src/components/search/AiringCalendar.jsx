@@ -31,10 +31,10 @@ async function fetchAiringAnime() {
 let finishedCache = null;
 async function fetchFinishedAnime() {
   if(finishedCache) return finishedCache;
-  const day = (offset) => new Date(Date.now() + offset).toISOString().slice(0, 10);
+  const threeMonthsAgo = new Date(Date.now() - 90*24*60*60*1000).toISOString().slice(0,10);
   const rows = await sb.query(
-    `anime_cache?type=eq.TV&status=eq.Finished%20Airing&aired_from=gte.${day(-120*86400000)}&aired_from=lte.${day(0)}` +
-    "&select=mal_id,title,title_en,score,year,episodes,type,image_url,large_image,genres&order=score.desc.nullslast&limit=30"
+    `anime_cache?type=eq.TV&status=eq.Finished%20Airing&aired_from=gte.${threeMonthsAgo}` +
+    "&select=mal_id,title,title_en,score,year,episodes,type,image_url,large_image,genres,aired_from&order=score.desc.nullslast&limit=30"
   ).catch(()=>[]);
   finishedCache = rows || [];
   return finishedCache;
@@ -637,22 +637,7 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
       </div>
       )}
 
-      {unknownDay.length > 0 && (
-        <div style={{marginTop:10}}>
-          <div style={{fontSize:9,color:"var(--text-5)",marginBottom:5}}>{t.unknownDay(unknownDay.length)}</div>
-          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-            {unknownDay.map(a => (
-              <button key={a.mal_id} onClick={()=>onOpenDetail(a)}
-                style={{display:"flex",gap:4,alignItems:"center",background:"rgba(255,255,255,0.03)",
-                  border:"1px solid rgba(255,255,255,0.06)",borderRadius:8,padding:"3px 7px",cursor:"pointer"}}>
-                <img src={a.image_url} alt="" style={{width:14,height:20,objectFit:"cover",borderRadius:2}}
-                  onError={e=>{e.target.style.display="none";}}/>
-                <span style={{fontSize:9,color:"var(--text-2)"}}>{a.title_en||a.title}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+
 
       {finishedSection}
     </div>

@@ -5,7 +5,7 @@ import { FOOTER_I18N } from "../constants/footerI18n.js";
 import { LegalModal } from "./LegalModal.jsx";
 import { InfoModal } from "./InfoModal.jsx";
 
-export function Footer() {
+export function Footer({ onOpenPage }) {
   const { lang } = useLang();
   const t = FOOTER_I18N[lang] || FOOTER_I18N.fr;
   const year = new Date().getFullYear();
@@ -21,13 +21,13 @@ export function Footer() {
         </div>
         <p className="text-xs text-slate-500">{t.tagline}</p>
         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[11px] text-slate-500">
-          <button onClick={() => setInfoModal("about")} className="underline-offset-2 hover:underline">{t.aboutLink}</button>
+          <button onClick={() => onOpenPage?.("about")} className="underline-offset-2 hover:underline">{t.aboutLink}</button>
           <span className="text-slate-700">·</span>
           <button onClick={() => setInfoModal("categories")} className="underline-offset-2 hover:underline">{t.categoriesLink}</button>
           <span className="text-slate-700">·</span>
-          <button onClick={() => setInfoModal("contact")} className="underline-offset-2 hover:underline">{t.contactLink}</button>
+          <button onClick={() => onOpenPage?.("contact")} className="underline-offset-2 hover:underline">{t.contactLink}</button>
           <span className="text-slate-700">·</span>
-          <button onClick={() => setInfoModal("faq")} className="underline-offset-2 hover:underline">{t.faqLink}</button>
+          <button onClick={() => onOpenPage?.("faq")} className="underline-offset-2 hover:underline">{t.faqLink}</button>
           <span className="text-slate-700">·</span>
           <button onClick={() => setInfoModal("moderation")} className="underline-offset-2 hover:underline">{t.moderationLink}</button>
           <span className="text-slate-700">·</span>
