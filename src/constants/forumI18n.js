@@ -1,7 +1,7 @@
 export const FORUM_I18N = {
   fr: {
     title: "💬 Forum",
-    subtitle: "Le pouls de la communauté — humeur du moment, sorties à venir, nouveautés et derniers trailers.",
+    subtitle: "Le pouls de la communauté — discussions, mini-jeux, animés de la saison et sorties à venir.",
     loadingNews: "Chargement des actus…",
     emptyTitle: "Rien pour l'instant",
     emptySubtitle: "Reviens bientôt pour les dernières actus.",
@@ -9,6 +9,7 @@ export const FORUM_I18N = {
     // ThreadRow
     animeFallback: "Anime",
     trailerBtn: "▶ Trailer",
+    searchTrailer: "▶ Chercher le trailer",
 
     // ForumCategory
     topicCount: (n) => `${n} sujet${n !== 1 ? "s" : ""}`,
@@ -87,11 +88,13 @@ export const FORUM_I18N = {
     leaderboardEmpty: "Personne n'a encore joué !",
     youLabel: "toi",
     eloLeaderboardTitle: (gameLabel) => `🏆 Classement ${gameLabel}`,
+    confirmForfeit: "Êtes-vous sûr de vouloir quitter ? Cela comptera comme un abandon.",
+    tabs: { discussions: "💬 Discussions", airing: "📡 Saison", upcoming: "📅 À venir", popular: "❤️ Populaires" },
   },
 
   en: {
     title: "💬 Forum",
-    subtitle: "The pulse of the community — the mood right now, upcoming releases, new arrivals and the latest trailers.",
+    subtitle: "The pulse of the community — discussions, mini-games, this season's anime and upcoming releases.",
     loadingNews: "Loading news…",
     emptyTitle: "Nothing yet",
     emptySubtitle: "Come back soon for the latest news.",
@@ -99,6 +102,7 @@ export const FORUM_I18N = {
     // ThreadRow
     animeFallback: "Anime",
     trailerBtn: "▶ Trailer",
+    searchTrailer: "▶ Search trailer",
 
     // ForumCategory
     topicCount: (n) => `${n} topic${n !== 1 ? "s" : ""}`,
@@ -177,5 +181,7 @@ export const FORUM_I18N = {
     leaderboardEmpty: "No one has played yet!",
     youLabel: "you",
     eloLeaderboardTitle: (gameLabel) => `🏆 ${gameLabel} leaderboard`,
+    confirmForfeit: "Are you sure you want to leave? This will count as a forfeit.",
+    tabs: { discussions: "💬 Discussions", airing: "📡 Season", upcoming: "📅 Upcoming", popular: "❤️ Popular" },
   },
 };

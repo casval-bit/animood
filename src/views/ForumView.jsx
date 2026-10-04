@@ -20,7 +20,12 @@ import { GAME_SYSTEM_I18N } from "../constants/gameSystemI18n.js";
 
 const FALLBACK_IMG = "https://placehold.co/64x92/1a1a2e/818cf8?text=?";
 const TYPE_EMOJI = { TV:"📺", Movie:"🎬", OVA:"💿", ONA:"🌐", Special:"✨" };
-const NEW_ANIME_PREVIEW = 5;
+// Rows shown per section before the "Voir plus" toggle.
+const SECTION_PREVIEW = 8;
+const DISCUSSIONS_PREVIEW = 6;
+const LEADERBOARD_SIZE = 10;
+const TAB_KEY = "animood_forum_tab";
+const TABS = ["discussions", "airing", "upcoming", "popular"];
 
 function posterUrl(anime) {
   return anime.large_image || anime.image_url || anime.images?.jpg?.large_image_url || anime.images?.jpg?.image_url;
@@ -49,17 +54,19 @@ function ThreadRow({ anime, onClick, metaLabel, trailerLink, convLink, statOverr
   const img = posterUrl(anime);
   const genres = (anime.genres || []).map(g => g.name || g).slice(0, 3).join(" · ");
   const stat = (statOverride || defaultStat)(anime);
-  const [convThreads, setConvThreads] = useState([]);
+  const [convThreads, setConvThreads] = useState(null);
   const [showConvMenu, setShowConvMenu] = useState(false);
   const [openThread, setOpenThread] = useState(null);
   const { myUsername } = useApp();
 
+  // Fetched on first open of the menu rather than on mount — a section of 24
+  // airing rows would otherwise fire 24 queries just to render the page.
   useEffect(() => {
-    if(!convLink || !anime.mal_id) return;
+    if(!showConvMenu || convThreads || !anime.mal_id) return;
     sb.query(`forum_threads?anime_id=eq.${anime.mal_id}&order=created_at.desc&limit=2`)
-      .then(rows => { if(rows?.length) setConvThreads(rows); })
-      .catch(()=>{});
-  }, [convLink, anime.mal_id]);
+      .then(rows => setConvThreads(rows || []))
+      .catch(() => setConvThreads([]));
+  }, [showConvMenu, convThreads, anime.mal_id]);
 
   return (
     <div className="flex w-full items-center gap-3.5 border-b border-white/6 px-4 py-3 transition last:border-b-0 hover:bg-white/5 sm:gap-4 sm:px-5">
@@ -102,13 +109,14 @@ function ThreadRow({ anime, onClick, metaLabel, trailerLink, convLink, statOverr
         )}
       </button>
       <div className="flex shrink-0 items-center gap-2">
-        {trailerLink && anime.trailer?.url && (
+        {trailerLink && (
           <a
-            href={anime.trailer.url} target="_blank" rel="noopener noreferrer"
+            href={anime.trailer?.url || `https://youtube.com/results?search_query=${encodeURIComponent(anime.title + " trailer")}`}
+            target="_blank" rel="noopener noreferrer"
             onClick={e => e.stopPropagation()}
             className="shrink-0 rounded-full bg-white/8 px-3 py-1.5 text-[11px] font-bold text-slate-100 transition hover:bg-white/15"
           >
-            {t.trailerBtn}
+            {anime.trailer?.url ? t.trailerBtn : t.searchTrailer}
           </a>
         )}
         {convLink && (
@@ -120,12 +128,17 @@ function ThreadRow({ anime, onClick, metaLabel, trailerLink, convLink, statOverr
               {t.convBtn}
             </button>
             {showConvMenu && (
+              <div className="fixed inset-0 z-40" onClick={e=>{e.stopPropagation();setShowConvMenu(false);}} />
+            )}
+            {showConvMenu && (
               <div onClick={e=>e.stopPropagation()}
                 style={{position:"absolute",right:0,top:"calc(100% + 6px)",zIndex:50,
                   background:"#161226",border:"1px solid rgba(255,255,255,0.1)",
                   borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",
                   minWidth:220,padding:8}}>
-                {convThreads.length > 0 ? convThreads.map(th => (
+                {!convThreads ? (
+                  <div style={{fontSize:10,color:"var(--text-4)",padding:"6px 10px"}}>{t.loading}</div>
+                ) : convThreads.length > 0 ? convThreads.map(th => (
                   <button key={th.id} onClick={()=>{setOpenThread(th);setShowConvMenu(false);}}
                     style={{display:"block",width:"100%",textAlign:"left",padding:"8px 10px",
                       borderRadius:8,background:"none",border:"none",cursor:"pointer",
@@ -226,15 +239,14 @@ function AnticipatedCard({ anime, airedDates, onOpenDetail, t }) {
           </div>
         </div>
       </button>
-      {hasTrailer && (
-        <a
-          href={anime.trailer.url} target="_blank" rel="noopener noreferrer"
-          onClick={e => e.stopPropagation()}
-          className="shrink-0 rounded-full bg-white px-4 py-2 text-[12px] font-black text-violet-700 shadow-md transition hover:scale-105 hover:shadow-lg"
-        >
-          {t.trailerBtn}
-        </a>
-      )}
+      <a
+        href={anime.trailer?.url || `https://youtube.com/results?search_query=${encodeURIComponent(anime.title + " trailer")}`}
+        target="_blank" rel="noopener noreferrer"
+        onClick={e => e.stopPropagation()}
+        className="shrink-0 rounded-full bg-white px-4 py-2 text-[12px] font-black text-violet-700 shadow-md transition hover:scale-105 hover:shadow-lg"
+      >
+        {hasTrailer ? t.trailerBtn : t.searchTrailer}
+      </a>
     </div>
   );
 }
@@ -276,6 +288,8 @@ function CommunityMoodBlock({ loaded, counts, total, t }) {
 
 // ─── Real discussions — threads + reply counts, no reactions/pagination ───────
 function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, profileCache, onOpenThread, onNewThread, t, lang }) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? threads : threads.slice(0, DISCUSSIONS_PREVIEW);
   return (
     <div className={`mb-6 overflow-hidden ${GLASS}`} style={GLASS_STYLE}>
       <div className="flex items-center justify-between px-5 py-3.5" style={{ background: GRADIENT_PRIMARY }}>
@@ -296,7 +310,7 @@ function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, profileC
         </div>
       ) : (
         <div>
-          {threads.map(th => {
+          {visible.map(th => {
             const unread = unreadCounts[th.id] || 0;
             const profile = profileCache[th.username];
             return (
@@ -332,15 +346,48 @@ function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, profileC
               </button>
             );
           })}
+          {threads.length > DISCUSSIONS_PREVIEW && (
+            <button
+              onClick={() => setExpanded(e => !e)}
+              className="w-full border-t border-white/6 px-5 py-2.5 text-center text-[11px] font-bold text-violet-300 transition hover:bg-white/5"
+            >
+              {expanded ? t.seeLess : t.seeMore(threads.length - DISCUSSIONS_PREVIEW)}
+            </button>
+          )}
         </div>
       )}
     </div>
   );
 }
 
+// Section switcher — one section at a time instead of one endless column.
+function ForumTabs({ tab, onChange, badges, t }) {
+  return (
+    <div className="mb-5 flex gap-1.5 overflow-x-auto rounded-2xl border border-white/8 bg-white/3 p-1.5">
+      {TABS.map(id => {
+        const active = tab === id;
+        return (
+          <button
+            key={id} onClick={() => onChange(id)}
+            className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-bold transition sm:flex-1 sm:justify-center ${active ? "text-white shadow-md" : "text-slate-400 hover:bg-white/5 hover:text-slate-200"}`}
+            style={active ? { background: GRADIENT_PRIMARY } : undefined}
+          >
+            {t.tabs[id]}
+            {badges[id] > 0 && (
+              <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full px-[3px] text-[9px] font-black leading-none text-white" style={{ background: "#f43f5e" }}>
+                {badges[id] > 9 ? "9+" : badges[id]}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // Unified game panel: a 2-column grid of buttons (each showing the player's own
-// score for that game) plus an inline top-20 leaderboard ranked by points_total,
-// with the player's own rank shown below it when they're outside the top 20.
+// score for that game) plus an inline top-10 leaderboard ranked by points_total,
+// with the player's own rank shown below it when they're outside the top 10.
 function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChain, onTimeline, onCluescale, onUndercover, onTierlist, t }) {
   const [elo, setElo]                 = useState(null);
   const [hover, setHover]             = useState(null);
@@ -355,9 +402,8 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
   }, [myUsername]);
 
   useEffect(() => {
-    // points_total is the server-maintained aggregate (kept in sync by
-    // awardSoloPoints.js, updateElo and the Cluescale award in GameSystem.jsx),
-    // so ranking by it directly avoids re-deriving a total client-side.
+    // Total recomputed client-side from the per-game columns so Undercover
+    // points count even where the server-side points_total lags behind.
     sb.query("game_elo?select=username,elo_chain,elo_timeline,pts_wordle,pts_poster,pts_opquiz,pts_cluescale,pts_undercover&limit=200")
       .then(rows => {
         if(!rows?.length) return;
@@ -365,7 +411,7 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
           username: r.username,
           total: (r.elo_chain||400)+(r.elo_timeline||400)+(r.pts_wordle||0)+(r.pts_poster||0)+(r.pts_opquiz||0)+(r.pts_cluescale||0)+(r.pts_undercover||0),
         })).sort((a,b)=>b.total-a.total);
-        setLeaderboard(ranked.slice(0,20));
+        setLeaderboard(ranked.slice(0,LEADERBOARD_SIZE));
         const pos = ranked.findIndex(r => r.username === myUsername);
         setMyRank(pos>=0 ? {rank:pos+1, points_total:ranked[pos].total} : null);
       }).catch(()=>{});
@@ -391,26 +437,33 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
 
   return (
     <div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,width:"100%",minWidth:0}}>
+      {/* Vertical tiles of equal height: in a 280px sidebar a horizontal
+          emoji/label/score row left the label ~50px and misaligned the
+          score-less Tierlist tile. */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:6}}>
         {GAMES.map(g => {
           const isHover = hover===g.id, rgb=g.color;
           return (
             <button key={g.id} onClick={g.onClick}
               onMouseEnter={()=>setHover(g.id)} onMouseLeave={()=>setHover(null)}
-              style={{display:"flex",alignItems:"center",gap:7,padding:"7px 9px",borderRadius:10,cursor:"pointer",
+              style={{display:"flex",flexDirection:"column",gap:6,padding:"9px 10px",borderRadius:11,cursor:"pointer",minWidth:0,
                 border:`1px solid rgba(${rgb},${isHover?0.45:0.22})`,
                 background:isHover?`rgba(${rgb},0.15)`:`rgba(${rgb},0.07)`,
+                transform:isHover?"translateY(-1px)":"none",
                 transition:"all 0.15s",textAlign:"left"}}>
-              <span style={{fontSize:16,flexShrink:0,lineHeight:1}}>{g.emoji}</span>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:10,fontWeight:800,color:`rgb(${rgb})`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{g.label}</div>
-                <div style={{fontSize:8,color:"var(--text-5)",marginTop:1}}>{g.type==="vs"?"elo":g.type==="multi"?"multi":g.type==="tool"?t.gameTypeTool:"solo · pts"}</div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,width:"100%"}}>
+                <span style={{fontSize:18,lineHeight:1,width:22,textAlign:"center",flexShrink:0}}>{g.emoji}</span>
+                <span style={{fontSize:11,fontWeight:900,color:`rgb(${rgb})`,background:`rgba(${rgb},0.14)`,borderRadius:6,
+                  padding:"2px 7px",minWidth:30,textAlign:"center",fontVariantNumeric:"tabular-nums"}}>
+                  {g.pts === null ? "→" : elo ? g.pts : "—"}
+                </span>
               </div>
-              {g.pts !== null && (
-                <div style={{fontSize:11,fontWeight:900,color:`rgb(${rgb})`,background:`rgba(${rgb},0.12)`,borderRadius:6,padding:"2px 7px",flexShrink:0,minWidth:28,textAlign:"center"}}>
-                  {elo?g.pts:"—"}
+              <div style={{minWidth:0,width:"100%"}}>
+                <div style={{fontSize:11.5,fontWeight:800,color:`rgb(${rgb})`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{g.label}</div>
+                <div style={{fontSize:9,fontWeight:600,color:"var(--text-5)",marginTop:1,textTransform:"uppercase",letterSpacing:0.4}}>
+                  {g.type==="vs"?"1v1 · elo":g.type==="multi"?"multi":g.type==="tool"?t.gameTypeTool:"solo · pts"}
                 </div>
-              )}
+              </div>
             </button>
           );
         })}
@@ -420,7 +473,7 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
         <div style={{marginTop:7,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",borderRadius:9,
           background:"linear-gradient(90deg,rgba(124,58,237,0.08),rgba(56,189,248,0.05))",border:"1px solid rgba(255,255,255,0.06)"}}>
           <div style={{fontSize:9,color:"var(--text-5)",fontWeight:700}}>{t.unlocksFramesLabel}</div>
-          <div style={{fontSize:13,fontWeight:900,color:"var(--text-1)"}}>{elo ? (elo.elo_chain||400)+(elo.elo_timeline||400)+(elo.pts_wordle||0)+(elo.pts_poster||0)+(elo.pts_opquiz||0)+(elo.pts_cluescale||0)+(elo.pts_undercover||0)+(elo.pts_undercover||0) : 0}</div>
+          <div style={{fontSize:13,fontWeight:900,color:"var(--text-1)"}}>{elo ? (elo.elo_chain||400)+(elo.elo_timeline||400)+(elo.pts_wordle||0)+(elo.pts_poster||0)+(elo.pts_opquiz||0)+(elo.pts_cluescale||0)+(elo.pts_undercover||0) : 0}</div>
         </div>
       )}
 
@@ -443,7 +496,7 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
                 </div>
               );
             })}
-            {myRank && myRank.rank>20 && (
+            {myRank && myRank.rank>LEADERBOARD_SIZE && (
               <>
                 <div style={{padding:"3px 8px",textAlign:"center",fontSize:9,color:"var(--text-6)"}}>·  ·  ·</div>
                 <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:7,background:"rgba(124,58,237,0.1)",border:"1px solid rgba(124,58,237,0.2)"}}>
@@ -578,6 +631,11 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
   const [profileCache, setProfileCache] = useState({});
   const [showNewThread, setShowNewThread] = useState(false);
   const [openThread, setOpenThread]       = useState(null);
+  const [tab, setTab] = useState(() => {
+    try { const saved = localStorage.getItem(TAB_KEY); return TABS.includes(saved) ? saved : "discussions"; }
+    catch { return "discussions"; }
+  });
+  const changeTab = (id) => { setTab(id); try { localStorage.setItem(TAB_KEY, id); } catch { /* storage unavailable */ } };
   const [showWordle, setShowWordle]       = useState(false);
   const [showPoster, setShowPoster]       = useState(false);
   const [showOpQuiz, setShowOpQuiz]       = useState(false);
@@ -635,7 +693,7 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
 
   const handleGameClose = async (gameRef) => {
     if(gameRef) {
-      const confirmed = window.confirm("Êtes-vous sûr de vouloir quitter ? Cela comptera comme un abandon.");
+      const confirmed = window.confirm(t.confirmForfeit);
       if(!confirmed) return;
       await gameRef();
     }
@@ -677,7 +735,7 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
 
   // Dominant mood per visible anime — one batched query for every row on the page.
   useEffect(() => {
-    const ids = [...new Set([...upcoming, ...newAnime, ...favorites.map(f => f.anime)].map(a => a.mal_id))];
+    const ids = [...new Set([...airingAnime, ...upcoming, ...newAnime, ...favorites.map(f => f.anime)].map(a => a.mal_id))];
     if(!ids.length) return;
     let cancelled = false;
     sb.getMoodPtsBatch(ids).then(rows => {
@@ -690,7 +748,7 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
       setDominantMoods(out);
     });
     return () => { cancelled = true; };
-  }, [upcoming, newAnime, favorites]);
+  }, [airingAnime, upcoming, newAnime, favorites]);
 
   useEffect(() => {
     let cancelled = false;
@@ -747,7 +805,6 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
     return () => { cancelled = true; };
   }, [myUsername, blockedUsers]);
 
-  const empty = !loading && !upcoming.length && !newAnime.length;
   const mostAnticipated = upcoming.reduce((best, a) => {
     if(a.popularity == null) return best;
     if(!best || a.popularity < best.popularity) return a;
@@ -761,79 +818,97 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
         <p className="text-sm text-slate-500">{t.subtitle}</p>
       </div>
 
-      {loading && <Spinner label={t.loadingNews} />}
-      {empty && <EmptyState emoji="💬" title={t.emptyTitle} subtitle={t.emptySubtitle} />}
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+        <div className="min-w-0 flex-1">
+          <ForumTabs
+            tab={tab} onChange={changeTab} t={t}
+            badges={{ discussions: Object.values(unreadCounts).reduce((a, b) => a + b, 0) }}
+          />
 
-      {!loading && (
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-          <div className="min-w-0 flex-1">
+          {tab === "discussions" && (
             <DiscussionsBlock
               threads={threads} replyCounts={replyCounts} unreadCounts={unreadCounts} loaded={threadsLoaded}
               profileCache={profileCache} onOpenThread={openThreadRead} onNewThread={() => setShowNewThread(true)}
               t={t} lang={lang}
             />
-            <AnticipatedCard anime={mostAnticipated} airedDates={airedDates} onOpenDetail={onOpenDetail} t={t} />
+          )}
 
-            {/* 1. Animés saisonniers en cours — avec bouton 💬 discussion */}
-            {airingAnime.length > 0 && (
+          {/* Animés saisonniers en cours — avec bouton 💬 discussion */}
+          {tab === "airing" && (
+            airingAnime.length > 0 ? (
               <ForumCategory
                 emoji="📡" title={t.airingTitle} subtitle={t.airingSubtitle}
                 items={airingAnime} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
-                metaLabel={a => a.score ? `★ ${a.score}` : t.metaAiring} convLink t={t}
+                metaLabel={a => a.score ? `★ ${a.score}` : t.metaAiring} convLink maxVisible={SECTION_PREVIEW} t={t}
               />
-            )}
+            ) : loading ? <Spinner label={t.loadingNews} /> : <EmptyState emoji="📡" title={t.emptyTitle} subtitle={t.emptySubtitle} />
+          )}
 
-            {/* 2. Prochaines sorties — avec bouton trailer si dispo */}
-            <ForumCategory
-              emoji="📅" title={t.upcomingTitle} subtitle={t.upcomingSubtitle}
-              items={upcoming} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
-              metaLabel={a => countdownLabel(a, airedDates, t)} trailerLink t={t}
+          {(tab === "upcoming" || tab === "popular") && loading && <Spinner label={t.loadingNews} />}
+
+          {/* Prochaines sorties — le plus attendu en tête, puis la liste */}
+          {tab === "upcoming" && !loading && (
+            upcoming.length > 0 ? (
+              <>
+                <AnticipatedCard anime={mostAnticipated} airedDates={airedDates} onOpenDetail={onOpenDetail} t={t} />
+                <ForumCategory
+                  emoji="📅" title={t.upcomingTitle} subtitle={t.upcomingSubtitle}
+                  items={upcoming} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
+                  metaLabel={a => countdownLabel(a, airedDates, t)} trailerLink maxVisible={SECTION_PREVIEW} t={t}
+                />
+              </>
+            ) : <EmptyState emoji="📅" title={t.emptyTitle} subtitle={t.emptySubtitle} />
+          )}
+
+          {/* Les + favoris, puis les derniers ajouts à la base */}
+          {tab === "popular" && !loading && (
+            !newAnime.length && !favorites.length ? (
+              <EmptyState emoji="❤️" title={t.emptyTitle} subtitle={t.emptySubtitle} />
+            ) : (
+              <>
+                {favoritesLoaded && favorites.length > 0 && (
+                  <ForumCategory
+                    emoji="❤️" title={t.favoritesTitle} subtitle={t.favoritesSubtitle}
+                    items={favorites.map(f => f.anime)} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
+                    metaLabel={() => t.metaFavorite} t={t}
+                    statOverride={a => {
+                      const f = favorites.find(x => x.anime.mal_id === a.mal_id);
+                      return { primary: `❤️ ${f?.count ?? 0}`, secondary: t.favoritesUnit(f?.count ?? 0) };
+                    }}
+                  />
+                )}
+                <ForumCategory
+                  emoji="🆕" title={t.newAnimeTitle} subtitle={t.newAnimeSubtitle}
+                  items={newAnime} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
+                  metaLabel={() => t.metaNew} maxVisible={5} t={t}
+                />
+              </>
+            )
+          )}
+        </div>
+
+        <aside className="flex w-full shrink-0 flex-col gap-4 lg:sticky lg:top-6 lg:w-[280px]">
+          {/* Mini-jeux + classement — en premier : c'est la partie interactive */}
+          <div className="rounded-2xl border border-white/8 bg-white/3 p-4">
+            <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.miniGamesTitle}</div>
+            <GamePanel
+              myUsername={myUsername}
+              following={followingList}
+              onWordle={()=>setShowWordle(true)}
+              onPoster={()=>setShowPoster(true)}
+              onOpQuiz={()=>setShowOpQuiz(true)}
+              onChain={()=>setMatchmaking("chain")}
+              onTimeline={()=>setMatchmaking("timeline")}
+              onCluescale={()=>setShowCluescale(true)}
+              onUndercover={()=>setShowUndercover(true)}
+              onTierlist={()=>setShowTierlist(true)}
+              t={t}
             />
-
-            {/* 3. Nouveaux animés ajoutés — sans trailer ni convo, plus compact */}
-            <ForumCategory
-              emoji="🆕" title={t.newAnimeTitle} subtitle={t.newAnimeSubtitle}
-              items={newAnime} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
-              metaLabel={() => t.metaNew} maxVisible={NEW_ANIME_PREVIEW} t={t}
-            />
-
-            {/* 4. Les + favoris — sans trailer ni convo */}
-            {favoritesLoaded && favorites.length > 0 && (
-              <ForumCategory
-                emoji="❤️" title={t.favoritesTitle} subtitle={t.favoritesSubtitle}
-                items={favorites.map(f => f.anime)} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
-                metaLabel={() => t.metaFavorite} t={t}
-                statOverride={a => {
-                  const f = favorites.find(x => x.anime.mal_id === a.mal_id);
-                  return { primary: `❤️ ${f?.count ?? 0}`, secondary: t.favoritesUnit(f?.count ?? 0) };
-                }}
-              />
-            )}
           </div>
 
-          <aside className="w-full shrink-0 lg:sticky lg:top-6 lg:w-[280px]">
-            <CommunityMoodBlock loaded={moodLoaded} counts={moodCounts} total={moodTotal} t={t} />
-
-            {/* Mini-jeux + classement */}
-            <div className="mt-4 rounded-2xl border border-white/8 bg-white/3 p-4">
-              <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.miniGamesTitle}</div>
-              <GamePanel
-                myUsername={myUsername}
-                following={followingList}
-                onWordle={()=>setShowWordle(true)}
-                onPoster={()=>setShowPoster(true)}
-                onOpQuiz={()=>setShowOpQuiz(true)}
-                onChain={()=>setMatchmaking("chain")}
-                onTimeline={()=>setMatchmaking("timeline")}
-                onCluescale={()=>setShowCluescale(true)}
-                onUndercover={()=>setShowUndercover(true)}
-                onTierlist={()=>setShowTierlist(true)}
-                t={t}
-              />
-            </div>
-          </aside>
-        </div>
-      )}
+          <CommunityMoodBlock loaded={moodLoaded} counts={moodCounts} total={moodTotal} t={t} />
+        </aside>
+      </div>
 
       {showNewThread && (
         <NewThreadModal

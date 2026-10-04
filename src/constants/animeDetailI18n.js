@@ -27,6 +27,7 @@ export const ANIME_DETAIL_I18N = {
     watchedBadge: "✓ Vu",
     markWatched: "Marquer vu",
     watchTrailer: "▶ Voir le trailer",
+    searchTrailer: "▶ Chercher le trailer",
   },
 
   en: {
@@ -57,5 +58,6 @@ export const ANIME_DETAIL_I18N = {
     watchedBadge: "✓ Watched",
     markWatched: "Mark watched",
     watchTrailer: "▶ Watch trailer",
+    searchTrailer: "▶ Search trailer",
   },
 };
