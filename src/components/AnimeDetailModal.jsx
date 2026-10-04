@@ -404,6 +404,18 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                 <div className="mb-4 flex flex-wrap gap-1.5">
                   {genres.map(g => <span key={g} className="rounded-md bg-indigo-400/12 px-2 py-1 text-[11px] font-semibold text-indigo-300">{g}</span>)}
                 </div>
+
+                {(() => {
+                  const url = trailer || `https://youtube.com/results?search_query=${encodeURIComponent(title + " trailer")}`;
+                  const label = trailer ? t.watchTrailer : t.searchTrailer;
+                  return (
+                    <a href={url} target="_blank" rel="noopener noreferrer"
+                      className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/3 py-2.5 text-[13px] font-bold text-slate-400">
+                      {label}
+                    </a>
+                  );
+                })()}
+
                 {synopsis && (
                   <div className="mb-4">
                     <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{t.synopsis}</div>
@@ -583,13 +595,6 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                     </button>
                   </div>
                 </div>
-
-                {trailer && (
-                  <a href={trailer} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/3 py-2.5 text-[13px] font-bold text-slate-400">
-                    {t.watchTrailer}
-                  </a>
-                )}
               </div>
             </div>
           </>

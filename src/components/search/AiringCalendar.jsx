@@ -41,42 +41,32 @@ async function fetchFinishedAnime() {
 }
 
 // Streaming platforms shown in the filter — `names` are the labels Jikan uses
-// in anime_cache.streaming; fr/us/jp flag where the service is available.
+// in anime_cache.streaming.
 const PLATFORMS = [
-  { id:"crunchyroll", label:"Crunchyroll", names:["Crunchyroll"],                  color:"#f47521", fr:true,  us:true,  jp:true  },
-  { id:"netflix",     label:"Netflix",     names:["Netflix"],                      color:"#e50914", fr:true,  us:true,  jp:true  },
-  { id:"amazon",      label:"Prime Video", names:["Amazon Prime Video"],           color:"#00a8e0", fr:true,  us:true,  jp:true  },
-  { id:"disney",      label:"Disney+",     names:["Disney Plus","Disney+"],        color:"#113ccf", fr:true,  us:true,  jp:true  },
-  { id:"adn",         label:"ADN",         names:["Anime Digital Network","ADN"],  color:"#0090d0", fr:true,  us:false, jp:false },
-  { id:"hidive",      label:"HIDIVE",      names:["HIDIVE"],                       color:"#00aeef", fr:false, us:true,  jp:false },
-  { id:"hulu",        label:"Hulu",        names:["Hulu"],                         color:"#1ce783", fr:false, us:true,  jp:false },
-  { id:"max",         label:"Max",         names:["Max"],                          color:"#0030ff", fr:true,  us:true,  jp:false },
-  { id:"bilibili",    label:"Bilibili",    names:["Bilibili","Bilibili Global"],   color:"#00a1d6", fr:false, us:false, jp:false },
-  { id:"muse",        label:"Muse Asia",   names:["Muse Asia"],                    color:"#e4007c", fr:false, us:false, jp:false },
-  { id:"anione",      label:"Ani-One",     names:["Ani-One Asia"],                 color:"#ff6600", fr:false, us:false, jp:false },
-  { id:"bahamut",     label:"Bahamut",     names:["Bahamut Anime Crazy"],          color:"#1ba7b4", fr:false, us:false, jp:false },
-  { id:"aniplus",     label:"Aniplus",     names:["Aniplus TV","Aniplus Asia"],    color:"#e11d48", fr:false, us:false, jp:false },
+  { id:"crunchyroll", label:"Crunchyroll", names:["Crunchyroll"],                  color:"#f47521" },
+  { id:"netflix",     label:"Netflix",     names:["Netflix"],                      color:"#e50914" },
+  { id:"amazon",      label:"Prime Video", names:["Amazon Prime Video"],           color:"#00a8e0" },
+  { id:"disney",      label:"Disney+",     names:["Disney Plus","Disney+"],        color:"#113ccf" },
+  { id:"adn",         label:"ADN",         names:["Anime Digital Network","ADN"],  color:"#0090d0" },
+  { id:"hidive",      label:"HIDIVE",      names:["HIDIVE"],                       color:"#00aeef" },
+  { id:"hulu",        label:"Hulu",        names:["Hulu"],                         color:"#1ce783" },
+  { id:"max",         label:"Max",         names:["Max"],                          color:"#0030ff" },
+  { id:"bilibili",    label:"Bilibili",    names:["Bilibili","Bilibili Global"],   color:"#00a1d6" },
+  { id:"muse",        label:"Muse Asia",   names:["Muse Asia"],                    color:"#e4007c" },
+  { id:"anione",      label:"Ani-One",     names:["Ani-One Asia"],                 color:"#ff6600" },
+  { id:"bahamut",     label:"Bahamut",     names:["Bahamut Anime Crazy"],          color:"#1ba7b4" },
+  { id:"aniplus",     label:"Aniplus",     names:["Aniplus TV","Aniplus Asia"],    color:"#e11d48" },
 ];
-const REGIONS = [
-  { id:"fr", label:"🇫🇷 FR" },
-  { id:"us", label:"🇺🇸 US" },
-  { id:"jp", label:"🇯🇵 JP" },
-];
-
 function platformIds(anime) {
   const names = Array.isArray(anime.streaming) ? anime.streaming.map(s => s?.name) : [];
   return new Set(PLATFORMS.filter(p => p.names.some(n => names.includes(n))).map(p => p.id));
 }
 
-// Selected platforms: the anime must be on at least one of them (and, with a
-// region, one available there). Region alone: on any platform available there.
-function matchesPlatforms(anime, platformFilters, region) {
-  if(!platformFilters.size && !region) return true;
+// Selected platforms: the anime must be on at least one of them.
+function matchesPlatforms(anime, platformFilters) {
+  if(!platformFilters.size) return true;
   const ids = platformIds(anime);
-  const candidates = PLATFORMS.filter(p => ids.has(p.id)
-    && (!platformFilters.size || platformFilters.has(p.id))
-    && (!region || p[region]));
-  return candidates.length > 0;
+  return [...platformFilters].some(id => ids.has(id));
 }
 
 function getBroadcastDay(anime) {
@@ -233,7 +223,6 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
   const [loading, setLoading] = useState(!airingCache);
   const [myOnly, setMyOnly]   = useState(false);
   const [platformFilters, setPlatformFilters] = useState(() => new Set());
-  const [region, setRegion]   = useState(null); // "fr" | "us" | "jp" | null
   const [showPlatforms, setShowPlatforms] = useState(false);
   const [finished, setFinished] = useState(finishedCache || []);
   const todayIdx    = (new Date().getDay() + 6) % 7; // 0=Mon … 6=Sun
@@ -289,10 +278,10 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
     return myBaseTitles.has(bt) || (bte && myBaseTitles.has(bte));
   }
 
-  const displayed = anime.filter(a => (!myOnly || isMyAnime(a)) && matchesPlatforms(a, platformFilters, region));
-  const filtersActive = platformFilters.size > 0 || !!region;
+  const displayed = anime.filter(a => (!myOnly || isMyAnime(a)) && matchesPlatforms(a, platformFilters));
+  const filtersActive = platformFilters.size > 0;
   // Only offer platforms that at least one airing anime is actually on
-  const availablePlatforms = PLATFORMS.filter(p => (!region || p[region]) && anime.some(a => platformIds(a).has(p.id)));
+  const availablePlatforms = PLATFORMS.filter(p => anime.some(a => platformIds(a).has(p.id)));
   const togglePlatform = (id) => setPlatformFilters(prev => {
     const next = new Set(prev);
     if(next.has(id)) next.delete(id); else next.add(id);
@@ -301,15 +290,6 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
 
   const filterBar = (
     <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",width:"100%"}}>
-      {REGIONS.map(r => (
-        <button key={r.id} onClick={()=>setRegion(region===r.id?null:r.id)} aria-pressed={region===r.id}
-          title={t.regionTitle(r.id.toUpperCase())} style={{
-          padding:"4px 10px",borderRadius:20,fontSize:9,fontWeight:800,cursor:"pointer",transition:"all 0.15s",
-          background: region===r.id ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.03)",
-          color: region===r.id ? "var(--text-1)" : "var(--text-5)",
-          border: region===r.id ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.07)",
-        }}>{r.label}</button>
-      ))}
       <div style={{position:"relative"}}>
         <button onClick={()=>setShowPlatforms(p=>!p)} aria-expanded={showPlatforms} style={{
           display:"flex",alignItems:"center",gap:6,
@@ -357,7 +337,7 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
               );
             })}
             {filtersActive && (
-              <button onClick={()=>{ setPlatformFilters(new Set()); setRegion(null); }} style={{
+              <button onClick={()=>{ setPlatformFilters(new Set()); }} style={{
                 width:"100%",marginTop:4,padding:"5px 8px",borderRadius:8,background:"none",border:"none",
                 cursor:"pointer",fontSize:9,color:"var(--text-5)",textAlign:"center"}}>
                 {t.resetFilters}
