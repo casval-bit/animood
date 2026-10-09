@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useApp } from "../context/useApp.js";
 import { useLang } from "../context/useLang.js";
+import { useSound } from "../context/SoundContext.jsx";
 import { MOODS } from "../constants/moods.js";
 import { STREAMING_COLORS } from "../constants/filters.js";
 import { ANIME_DETAIL_I18N } from "../constants/animeDetailI18n.js";
@@ -17,6 +18,8 @@ import { StudioModal } from "./StudioModal.jsx";
 import { ArtistModal } from "./ArtistModal.jsx";
 import { GradientButton } from "./ui.jsx";
 import { NewThreadModal, ThreadModal, timeAgo } from "./ForumThreadModal.jsx";
+import { StreamingBarDesktop } from "./StreamingBarDesktop.jsx";
+import { isDesktopApp } from "../utils/streamingLinks.js";
 
 const FALLBACK = "https://placehold.co/700x300/1a1a2e/818cf8?text=?";
 
@@ -134,6 +137,7 @@ function calcAnimoodScore(malScore, scoredBy, userScores) {
 export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpenUser }) {
   const { me, saveMe, myUsername } = useApp();
   const { lang } = useLang();
+  const { playSound } = useSound();
   const t = ANIME_DETAIL_I18N[lang] || ANIME_DETAIL_I18N.fr;
   const [anime, setAnime]           = useState(null);
   const [staff, setStaff]           = useState([]);
@@ -161,6 +165,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
   const [friendScores, setFriendScores]     = useState([]); // [{username, score}]
   const [allUserScores, setAllUserScores]   = useState([]); // all user scores for this anime
 
+  const desktop = isDesktopApp();
   const isWatched = me.watched.includes(malId);
   const a = anime || seedData;
 
@@ -234,6 +239,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
 
   const save = async () => {
     if(!rating) return;
+    playSound("vote");
     setSaveState("saving");
     if(selMoods.length > 0 && animePts) {
       const newPts = await addUserVote(myUsername, malId, selMoods);
@@ -262,14 +268,19 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
       ratings: { ...me.ratings, [malId]: { score: rating, moods: selMoods } },
     });
     setSaveState("saved");
+    playSound("confirm");
     setTimeout(() => setSaveState(s => s === "saved" ? "idle" : s), 2000);
   };
 
-  const toggleWatched = () => saveMe({ ...me, watched: isWatched ? me.watched.filter(id => id !== malId) : [...me.watched, malId] });
+  const toggleWatched = () => {
+    playSound("click");
+    saveMe({ ...me, watched: isWatched ? me.watched.filter(id => id !== malId) : [...me.watched, malId] });
+  };
 
   const favorites = me.favorites || [null,null,null,null,null];
   const isFavorite = favorites.includes(malId);
   const toggleFavorite = () => {
+    playSound("click");
     const favs = [...favorites];
     const idx = favs.indexOf(malId);
     if(idx !== -1) { favs[idx] = null; }
@@ -279,6 +290,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
 
   const isOnWatchlist = (me.statuses||{})[malId] === "watchlist";
   const toggleWatchlist = () => {
+    playSound("click");
     const newStatuses = { ...(me.statuses||{}) };
     if(isOnWatchlist) delete newStatuses[malId]; else newStatuses[malId] = "watchlist";
     saveMe({ ...me, statuses: newStatuses });
@@ -303,7 +315,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
 
   return (
     <>
-      <Modal onClose={onClose} maxWidth="max-w-4xl">
+      <Modal onClose={onClose} maxWidth={desktop ? "max-w-5xl" : "max-w-4xl"}>
         {close => (
           <>
             <div className="relative h-64 w-full overflow-hidden rounded-t-3xl">
@@ -324,7 +336,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                 const amSize = animoodScore ? scoreToSize(animoodScore) : baseSize;
                 const frSize = friendAvg    ? scoreToSize(parseFloat(friendAvg)) : 0;
                 return (
-                  <div style={{position:"absolute",top:36,right:12,display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{position:"absolute",top:desktop?58:36,right:12,display:"flex",alignItems:"center",gap:8}}>
                     {/* AniMood score circle */}
                     {animoodScore && (
                       <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
@@ -371,6 +383,32 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
               </div>
             </div>
 
+            {desktop && (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/6 px-6 py-3.5">
+                <StreamingBarDesktop anime={a} streamingNames={streaming.map(s => s.name || s)} lang={lang} />
+                <div className="flex items-center gap-2">
+                  {trailer && (
+                    <a href={trailer} target="_blank" rel="noopener noreferrer"
+                      className="flex h-9 items-center gap-1.5 rounded-xl border border-white/10 px-3 text-[12px] font-bold text-slate-300 transition hover:border-white/25 hover:bg-white/5">
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[7px] text-white">▶</span>Trailer
+                    </a>
+                  )}
+                  <button onClick={toggleWatched}
+                    className={`h-9 rounded-xl px-3.5 text-[12px] font-bold transition ${isWatched ? "border border-emerald-400 bg-emerald-400/10 text-emerald-400" : "border border-white/10 text-slate-400 hover:bg-white/5"}`}>
+                    {isWatched ? t.watchedBadge : t.markWatched}
+                  </button>
+                  <button onClick={toggleFavorite} title={lang === "en" ? "Favorite" : "Favori"}
+                    className={`h-9 w-9 rounded-xl text-sm transition ${isFavorite ? "border border-pink-400 bg-pink-400/10 text-pink-400" : "border border-white/10 text-slate-500 hover:bg-white/5"}`}>
+                    {isFavorite ? "❤️" : "🤍"}
+                  </button>
+                  <button onClick={toggleWatchlist} title="Watchlist"
+                    className={`flex h-9 w-9 items-center justify-center rounded-xl transition ${isOnWatchlist ? "border border-emerald-400/60 bg-emerald-400/12" : "border border-white/10 hover:bg-white/5"}`}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill={isOnWatchlist ? "#22c55e" : "none"} stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="grid gap-6 p-6 md:grid-cols-[1fr_300px]">
               <div className="min-w-0">
                 {loading && <Spinner small label={t.loading} />}
@@ -384,7 +422,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                     ))}
                   </div>
                 )}
-                {themes.length > 0 && (
+                {themes.length > 0 && !desktop && (
                   <div className="mb-3">
                     <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{t.openings}</div>
                     <div className="flex flex-wrap gap-1.5">
@@ -422,7 +460,39 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                     <p className="text-[13px] leading-relaxed text-slate-400">{synopsis.length > 420 ? synopsis.slice(0,420)+"…" : synopsis}</p>
                   </div>
                 )}
-                {streaming.length > 0 && (
+                {desktop && (
+                  <div className="mb-5 rounded-2xl border border-white/8 bg-white/3 p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="h-3.5 w-1 rounded-full" style={{ background: "linear-gradient(135deg,#6D5BFF,#8B5CF6,#EC4899)" }} />
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{t.myRating}</span>
+                      <div className="ml-auto"><StarRating value={rating} onChange={setRating} /></div>
+                    </div>
+                    <div className="mb-2 text-[10px] text-slate-500">{t.moodPrompt}</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {MOODS.map(m => {
+                        const sel = selMoods.includes(m.id);
+                        return (
+                          <button key={m.id}
+                            onClick={() => { playSound("click"); setSelMoods(p => p.includes(m.id) ? p.filter(x=>x!==m.id) : p.length<3 ? [...p,m.id] : p); }}
+                            style={{ border: sel ? `1.5px solid ${m.color}` : "1.5px solid rgba(255,255,255,0.08)", background: sel ? `${m.color}22` : "rgba(255,255,255,0.03)", color: sel ? m.color : "var(--text-3)",
+                              borderRadius: 99, padding: "5px 11px", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, transition: "all .15s" }}>
+                            <span style={{fontSize:14}}>{m.emoji}</span><span>{m.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-3.5 flex justify-end">
+                      <GradientButton onClick={save} disabled={!rating || saveState==="saving"} className="px-7 py-2 text-[13px]">
+                        {saveState === "saving" ? (
+                          <span className="flex items-center justify-center gap-1.5"><span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />{t.saving}</span>
+                        ) : saveState === "saved" ? (
+                          <span className="flex items-center justify-center gap-1.5 animate-mood-pop">{t.saved}</span>
+                        ) : t.save}
+                      </GradientButton>
+                    </div>
+                  </div>
+                )}
+                {!desktop && streaming.length > 0 && (
                   <div className="mb-4">
                     <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{t.availableOn}</div>
                     <div className="flex flex-wrap gap-1.5">
@@ -485,15 +555,17 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
 
               {/* RIGHT COLUMN */}
               <div className="flex flex-col gap-4">
+                <div className={desktop ? "order-2" : ""}>
                 {animePts
                   ? <MoodOctagon pts={animePts} />
                   : <div className="flex items-center justify-center rounded-2xl border border-white/8 bg-white/3 p-8">
                       <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/20 border-t-violet-400"/>
                     </div>
                 }
+                </div>
 
                 {/* AniMood Score */}
-                <div className="rounded-2xl border border-violet-400/20 bg-violet-400/6 p-4">
+                <div className={`rounded-2xl border border-violet-400/20 bg-violet-400/6 p-4 ${desktop ? "order-1" : ""}`}>
                   <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-violet-400/70">{t.animoodScore}</div>
                   {animoodScore ? (
                     <div className="flex items-baseline gap-2 mb-3">
@@ -535,8 +607,30 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                   )}
                 </div>
 
+                {desktop && themes.length > 0 && (
+                  <div className="order-3 rounded-2xl border border-white/8 bg-white/3 p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="h-3.5 w-1 rounded-full" style={{ background: "linear-gradient(135deg,#6D5BFF,#8B5CF6,#EC4899)" }} />
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{t.openings}</span>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      {themes.map(th => {
+                        const artistNames = th.artists.map(ar => ar.name).join(" × ");
+                        return (
+                          <button key={th.slug} disabled={artistLoading === th.artists[0]?.name}
+                            onClick={() => openArtist(th.artists[0]?.name)}
+                            className="flex items-center gap-2 rounded-lg border border-white/6 bg-white/3 px-2.5 py-1.5 text-left transition hover:bg-white/6 disabled:opacity-50">
+                            <span className="flex h-6 min-w-8 items-center justify-center rounded-md bg-fuchsia-400/12 px-1.5 text-[10px] font-black text-fuchsia-300">{th.slug}</span>
+                            <span className="min-w-0 truncate text-[11px] font-semibold text-slate-300">{artistNames}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Rating + Moods */}
-                <div className="rounded-2xl bg-white/3 p-4">
+                {!desktop && <div className="rounded-2xl bg-white/3 p-4">
                   <div className="mb-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{t.myRating}</div>
                   <StarRating value={rating} onChange={setRating} />
 
@@ -548,7 +642,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                       const sel = selMoods.includes(m.id);
                       return (
                         <button key={m.id}
-                          onClick={() => setSelMoods(p => p.includes(m.id) ? p.filter(x=>x!==m.id) : p.length<3 ? [...p,m.id] : p)}
+                          onClick={() => { playSound("click"); setSelMoods(p => p.includes(m.id) ? p.filter(x=>x!==m.id) : p.length<3 ? [...p,m.id] : p); }}
                           style={{
                             border: sel ? `1.5px solid ${m.color}` : "1.5px solid rgba(255,255,255,0.08)",
                             background: sel ? `${m.color}22` : "rgba(255,255,255,0.03)",
@@ -594,7 +688,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                       🎯
                     </button>
                   </div>
-                </div>
+                </div>}
               </div>
             </div>
           </>

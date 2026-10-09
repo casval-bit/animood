@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { useModalBack } from "../hooks/useModalBack.js";
+import { useSound } from "../context/SoundContext.jsx";
 
 export function Modal({ onClose, children, maxWidth = "max-w-lg", bodyClassName = "" }) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
+  const { playSound } = useSound();
   useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
 
   // Pushes a history entry on mount so the browser/device back button
@@ -12,6 +14,7 @@ export function Modal({ onClose, children, maxWidth = "max-w-lg", bodyClassName 
 
   const close = () => {
     if(closing) return;
+    playSound("back");
     setClosing(true);
     setVisible(false);
     requestClose();
@@ -39,12 +42,14 @@ export function Modal({ onClose, children, maxWidth = "max-w-lg", bodyClassName 
 export function GameModal({ onClose, children, title, subtitle, maxWidth = "920px", fullHeight = false }) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
+  const { playSound } = useSound();
   useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
 
   const requestClose = useModalBack(onClose);
 
   const close = () => {
     if(closing) return;
+    playSound("back");
     setClosing(true);
     setVisible(false);
     requestClose();

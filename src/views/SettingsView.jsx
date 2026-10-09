@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useApp } from "../context/useApp.js";
 import { useTheme } from "../context/useTheme.js";
 import { useLang } from "../context/useLang.js";
+import { useSound } from "../context/SoundContext.jsx";
 import { parseMALXml } from "../constants/mal-import.js";
 import { importAniListUser } from "../api/anilist.js";
 import { GradientButton, TabBar } from "../components/ui.jsx";
@@ -10,9 +11,12 @@ import { uploadToCloudinary } from "../api/cloudinary.js";
 import { UserPickerModal } from "../components/UserPickerModal.jsx";
 import { GRADIENT_PRIMARY } from "../constants/theme.js";
 import { SETTINGS_I18N } from "../constants/settingsI18n.js";
-import { getFrameLabel } from "../frames/frames.js";
+import { getFrameLabel, getFrameDesc } from "../frames/frames.js";
+import { getFrameSvg, getDesktopExtraFrames, noteNightOwl } from "../frames/framesDesktop.js";
 import { BADGES, getUnlockedBadges, getBestBadge, getBadgeLabel } from "../badges/badges.jsx";
 import { useModalBack } from "../hooks/useModalBack.js";
+import { isDesktopApp } from "../utils/streamingLinks.js";
+import { StreamingSettingsDesktop } from "../components/StreamingSettingsDesktop.jsx";
 
 const LANG_OPTIONS = [
   { id: "fr", label: "Français", flag: "🇫🇷" },
@@ -54,12 +58,23 @@ export function SettingsView({ onClose }) {
   const { me, saveMe, logout, myUsername, blockedUsers, unblockUser, notificationsEnabled, setNotificationsEnabled } = useApp();
   const { theme, setTheme } = useTheme();
   const { lang, setLang } = useLang();
+  const { playSound, soundEnabled, setSoundEnabled, volume, setVolume, pack, setPack, packs } = useSound();
   const t = SETTINGS_I18N[lang] || SETTINGS_I18N.fr;
   const fileRef   = useRef(null);
   const avatarRef = useRef(null);
 
+  const desktop = isDesktopApp();
   const [category, setCategory] = useState("preferences");
-  const CATEGORY_TABS = [
+  const CATEGORY_TABS = desktop ? [
+    { id: "preferences",   label: t.catPreferences },
+    { id: "profile",       label: t.catProfile },
+    { id: "sound",         label: t.catSound },
+    { id: "notifications", label: t.catNotifications },
+    { id: "streaming",     label: t.catStreaming },
+    { id: "data",          label: t.catData },
+    { id: "account",       label: t.catAccount },
+  ] : [
+    // Site web : liste d'origine, inchangée
     { id: "preferences", label: t.catPreferences },
     { id: "profile",     label: t.catProfile },
     { id: "data",        label: t.catData },
@@ -109,10 +124,11 @@ export function SettingsView({ onClose }) {
     (async () => {
       try {
         const { FRAMES, getUnlockedFrames, getBestFrame } = await import("../frames/frames.js");
-        const [followerRows, voteRows, gameEloRows] = await Promise.all([
+        const [followerRows, voteRows, gameEloRows, followingRows] = await Promise.all([
           follows.getFollowers(myUsername).catch(()=>[]),
           sb.query(`user_votes?username=eq.${encodeURIComponent(myUsername)}&select=pts_added&limit=1000`).catch(()=>[]),
           sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&select=points_total&limit=1`).catch(()=>[]),
+          isDesktopApp() ? follows.getFollowing(myUsername).catch(()=>[]) : Promise.resolve([]),
         ]);
         const gamePoints = gameEloRows?.[0]?.points_total || 0;
         const genreCounts = {};
@@ -124,7 +140,11 @@ export function SettingsView({ onClose }) {
             (rows||[]).forEach(r => { (r.genres||[]).forEach(g => { const n=g.name||g; genreCounts[n]=(genreCounts[n]||0)+1; }); });
           } catch {}
         }
-        const unlocked = getUnlockedFrames({ watchedCount:me.watched.length, genreCounts, followerCount:(followerRows||[]).length, userVotes:voteRows||[], gamePoints });
+        noteNightOwl(myUsername);
+        const unlocked = [
+          ...getUnlockedFrames({ watchedCount:me.watched.length, genreCounts, followerCount:(followerRows||[]).length, userVotes:voteRows||[], gamePoints }),
+          ...getDesktopExtraFrames({ me, followerCount:(followerRows||[]).length, followingCount:(followingRows||[]).length, username:myUsername }), // desktop uniquement
+        ];
         setUnlockedFrames(unlocked);
         // Also store all frames for display
         setAllFrames(Object.values(FRAMES));
@@ -178,11 +198,13 @@ export function SettingsView({ onClose }) {
   }, []);
 
   const applyFrame = async (frame) => {
+    playSound("click");
     setActiveFrame(frame);
     saveMe({ ...me, activeFrame: frame?.id || null });
   };
 
   const applyBadge = (badge) => {
+    playSound("click");
     setActiveBadge(badge);
     saveMe({ ...me, activeBadge: badge?.id || null });
   };
@@ -209,6 +231,7 @@ export function SettingsView({ onClose }) {
   const handleSaveUsername = () => {
     const name = usernameInput.trim();
     if(!name || name === me.name) return;
+    playSound("confirm");
     saveMe({ ...me, name });
     setUsernameSaved(true);
     setTimeout(() => setUsernameSaved(false), 2000);
@@ -280,7 +303,7 @@ export function SettingsView({ onClose }) {
 
       <div className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto px-6 py-6">
 
-        <TabBar tabs={CATEGORY_TABS} active={category} onChange={setCategory} className="mb-6" />
+        <TabBar tabs={CATEGORY_TABS} active={category} onChange={id => { playSound("tab"); setCategory(id); }} className="mb-6" />
 
         {/* ─── PRÉFÉRENCES ─── */}
         {category === "preferences" && <>
@@ -291,7 +314,7 @@ export function SettingsView({ onClose }) {
               const label = id === "dark" ? t.themeDark : t.themeLight;
               const desc  = id === "dark" ? t.themeDarkDesc : t.themeLightDesc;
               return (
-                <button key={id} onClick={() => setTheme(id)}
+                <button key={id} onClick={() => { playSound("click"); setTheme(id); }}
                   className="flex flex-col items-center gap-2 rounded-xl p-2.5 text-center transition"
                   style={{ border: active ? "2px solid #7c3aed" : "2px solid transparent", background: active ? "rgba(124,58,237,0.1)" : "rgba(var(--fg-rgb),0.03)" }}>
                   <ThemePreview id={id} />
@@ -310,7 +333,7 @@ export function SettingsView({ onClose }) {
             {LANG_OPTIONS.map(opt => {
               const active = lang === opt.id;
               return (
-                <button key={opt.id} onClick={() => setLang(opt.id)}
+                <button key={opt.id} onClick={() => { playSound("click"); setLang(opt.id); }}
                   className="flex items-center justify-center gap-2 rounded-xl p-3 text-center transition"
                   style={{ border: active ? "2px solid #7c3aed" : "2px solid transparent", background: active ? "rgba(124,58,237,0.1)" : "rgba(var(--fg-rgb),0.03)" }}>
                   <span className="text-xl">{opt.flag}</span>
@@ -386,10 +409,10 @@ export function SettingsView({ onClose }) {
                   <div className="text-[10px] text-slate-500">{t.frameNoneDesc}</div>
                 </div>
               </button>
-              {["watched","contribution","followers","genre","games"].map(cat => {
+              {["watched","contribution","followers","genre","games", ...(desktop ? ["fun"] : [])].map(cat => {
                 const catAllFrames = allFrames.filter(f=>f.category===cat);
                 if(!catAllFrames.length) return null;
-                const catLabels = {watched:t.frameCatWatched,contribution:t.frameCatContribution,followers:t.frameCatFollowers,genre:t.frameCatGenre,games:t.frameCatGames};
+                const catLabels = {watched:t.frameCatWatched,contribution:t.frameCatContribution,followers:t.frameCatFollowers,genre:t.frameCatGenre,games:t.frameCatGames,fun:lang==="en"?"Effects & special":"Effets & spéciaux"};
                 return (
                   <div key={cat} className="mb-4">
                     <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-600">{catLabels[cat]}</div>
@@ -401,7 +424,7 @@ export function SettingsView({ onClose }) {
                         return (
                           <button key={frame.id}
                             onClick={()=>isUnlocked && applyFrame(frame)}
-                            title={isUnlocked ? getFrameLabel(frame, lang) : t.frameLocked(getFrameLabel(frame, lang))}
+                            title={(isUnlocked ? getFrameLabel(frame, lang) : t.frameLocked(getFrameLabel(frame, lang))) + (desktop ? " — " + getFrameDesc(frame, lang) : "")}
                             style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:8,borderRadius:12,
                               cursor:isUnlocked?"pointer":"not-allowed",
                               border:isActive?"2px solid #7c3aed":"2px solid transparent",
@@ -414,7 +437,7 @@ export function SettingsView({ onClose }) {
                                 {currentAvatar ? <img src={currentAvatar} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : "👤"}
                               </div>
                               <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",overflow:"visible",pointerEvents:"none"}}
-                                viewBox={`0 0 ${sz} ${sz}`} dangerouslySetInnerHTML={{__html:frame.svg(sz)}}/>
+                                viewBox={`0 0 ${sz} ${sz}`} dangerouslySetInnerHTML={{__html:getFrameSvg(frame,sz)}}/>
                               {!isUnlocked && (
                                 <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",
                                   fontSize:16,background:"rgba(0,0,0,0.3)",borderRadius:"50%"}}>🔒</div>
@@ -643,6 +666,82 @@ export function SettingsView({ onClose }) {
             </div>
           )}
         </Section>
+        </>}
+
+        {/* ─── SONS ─── */}
+        {category === "sound" && desktop && <>
+        <Section title={t.soundTitle}>
+          <p className="mb-3 text-xs leading-relaxed text-slate-500">{t.soundDesc}</p>
+          {!desktop && (
+            <div className="mb-3 rounded-xl border border-violet-500/20 bg-violet-500/8 px-4 py-3 text-[11px] text-violet-400">
+              🎵 Les sons UI sont disponibles uniquement dans l'application desktop AniMood.
+            </div>
+          )}
+          {/* Enable / Disable toggle */}
+          <button onClick={() => { const v = !soundEnabled; setSoundEnabled(v); if(v) setTimeout(()=>playSound("confirm"),80); }}
+            className="flex w-full items-center justify-between rounded-xl border border-white/7 bg-white/4 px-4 py-3.5 text-left transition hover:bg-white/6 mb-3">
+            <div>
+              <div className="text-xs font-bold text-slate-100">
+                {soundEnabled ? t.soundEnabledLabel : t.soundDisabledLabel}
+              </div>
+              <div className="text-[10px] text-slate-500">
+                {soundEnabled ? t.soundEnabledDesc : t.soundDisabledDesc}
+              </div>
+            </div>
+            <div className="relative h-6 w-11 shrink-0 rounded-full transition"
+              style={{ background: soundEnabled ? GRADIENT_PRIMARY : "rgba(255,255,255,0.12)" }}>
+              <div className="absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all"
+                style={{ left: soundEnabled ? "22px" : "2px" }} />
+            </div>
+          </button>
+
+          {/* Volume slider */}
+          <div className="mb-4">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="text-[11px] font-bold text-slate-400">{t.soundVolume}</div>
+              <div className="text-[11px] font-bold text-violet-300">{Math.round(volume * 100)}%</div>
+            </div>
+            <input type="range" min="0" max="1" step="0.05" value={volume}
+              onChange={e => setVolume(Number(e.target.value))}
+              className="w-full accent-violet-500"
+              disabled={!soundEnabled}
+            />
+          </div>
+
+          {/* Sound pack picker */}
+          <div>
+            <div className="mb-2 text-[11px] font-bold text-slate-400">{t.soundPack}</div>
+            <div className="flex flex-col gap-2">
+              {packs.map(p => {
+                const active = pack === p.id;
+                return (
+                  <button key={p.id} onClick={() => { setPack(p.id); setTimeout(()=>playSound("tab"),40); }}
+                    className="flex items-center justify-between rounded-xl p-3 text-left transition"
+                    style={{ border: active ? "2px solid #7c3aed" : "2px solid transparent", background: active ? "rgba(124,58,237,0.1)" : "rgba(var(--fg-rgb),0.03)", opacity: soundEnabled ? 1 : 0.5 }}
+                    disabled={!soundEnabled}>
+                    <div>
+                      <div className="text-xs font-bold text-slate-100">{p.label[lang] || p.label.en}</div>
+                      <div className="text-[10px] text-slate-500">{p.desc[lang] || p.desc.en}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {active && <span className="text-violet-400">✓</span>}
+                      <button onClick={e => { e.stopPropagation(); playSound("confirm"); }}
+                        className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] font-bold text-slate-400 hover:bg-white/8 transition"
+                        disabled={!soundEnabled}>
+                        {t.soundTestBtn}
+                      </button>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </Section>
+        </>}
+
+        {/* ─── STREAMING (desktop uniquement) ─── */}
+        {category === "streaming" && desktop && <>
+        <StreamingSettingsDesktop lang={lang} Section={Section} playSound={playSound} />
         </>}
 
         {/* ─── NOTIFICATIONS ─── */}

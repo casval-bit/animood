@@ -1,0 +1,65 @@
+# electron-builder configuration for AniMood Desktop
+# https://www.electron.build/configuration/configuration
+
+appId: com.animood.desktop
+productName: AniMood
+copyright: "Copyright © 2025 AniMood"
+
+# Source of the compiled web app
+directories:
+  buildResources: public
+  output: dist-electron
+
+files:
+  - dist/**/*           # Vite build output
+  - electron/**/*       # Main process & preload
+  - package.json
+
+# macOS
+mac:
+  category: public.app-category.entertainment
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  icon: public/logo-mark.png
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+
+dmg:
+  sign: false
+
+# Windows
+win:
+  target:
+    - target: nsis
+      arch: [x64, ia32]
+  icon: public/logo-mark.png
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+# Linux
+linux:
+  target:
+    - AppImage
+    - deb
+  icon: public/logo-mark.png
+  category: Network
+
+# Auto-updater — publish to GitHub releases
+publish:
+  provider: github
+  owner: YOUR_GITHUB_USERNAME          # ← change this
+  repo: animood                        # ← change this
+  releaseType: release
+
+# Deep-link protocol (animood://)
+protocols:
+  name: AniMood
+  schemes:
+    - animood

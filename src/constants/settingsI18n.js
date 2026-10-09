@@ -7,6 +7,8 @@ export const SETTINGS_I18N = {
     catData: "Données",
     catAccount: "Compte",
     catNotifications: "Notifications",
+    catSound: "Sons",
+    catStreaming: "Streaming",
 
     appearance: "🎨 Apparence",
     themeDark: "Sombre",
@@ -102,6 +104,16 @@ export const SETTINGS_I18N = {
     notificationsEnabledDesc: "Tu reçois les alertes en temps réel.",
     notificationsDisabledLabel: "Notifications désactivées",
     notificationsDisabledDesc: "Plus aucune alerte ne s'affichera.",
+
+    soundTitle: "🔊 Effets sonores",
+    soundDesc: "Sons à l'opération GX — changements d'onglet, clics, confirmations.",
+    soundEnabledLabel: "Sons activés",
+    soundEnabledDesc: "Sons joués sur les interactions principales.",
+    soundDisabledLabel: "Sons désactivés",
+    soundDisabledDesc: "Toutes les interactions restent silencieuses.",
+    soundVolume: "Volume",
+    soundPack: "Pack de sons",
+    soundTestBtn: "Tester",
   },
 
   en: {
@@ -112,6 +124,8 @@ export const SETTINGS_I18N = {
     catData: "Data",
     catAccount: "Account",
     catNotifications: "Notifications",
+    catSound: "Sound",
+    catStreaming: "Streaming",
 
     appearance: "🎨 Appearance",
     themeDark: "Dark",
@@ -207,5 +221,15 @@ export const SETTINGS_I18N = {
     notificationsEnabledDesc: "You'll receive alerts in real time.",
     notificationsDisabledLabel: "Notifications disabled",
     notificationsDisabledDesc: "No more alerts will be shown.",
+
+    soundTitle: "🔊 Sound Effects",
+    soundDesc: "Opera GX-style sounds — tab changes, clicks, confirmations.",
+    soundEnabledLabel: "Sounds enabled",
+    soundEnabledDesc: "Sounds play on main interactions.",
+    soundDisabledLabel: "Sounds disabled",
+    soundDisabledDesc: "All interactions remain silent.",
+    soundVolume: "Volume",
+    soundPack: "Sound pack",
+    soundTestBtn: "Test",
   },
 };

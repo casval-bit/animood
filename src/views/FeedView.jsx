@@ -8,6 +8,8 @@ import { MentionText, useMentionAutocomplete, MentionSuggestions } from "../comp
 import { useLang } from "../context/useLang.js";
 import { FEED_I18N } from "../constants/feedI18n.js";
 import { findBannedWord } from "../utils/contentFilter.js";
+import { isDesktopApp } from "../utils/streamingLinks.js";
+import { GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function timeAgo(ts, lang) {
   const t = FEED_I18N[lang] || FEED_I18N.fr;
@@ -102,6 +104,7 @@ function AnimeSearchPicker({ onSelect, onClose }) {
 }
 // ─── PostComposer ─────────────────────────────────────────────────────────────
 function PostComposer({ onPost }) {
+  const desktop = isDesktopApp();
   const { me, myUsername } = useApp();
   const { lang } = useLang();
   const t = FEED_I18N[lang] || FEED_I18N.fr;
@@ -181,14 +184,16 @@ function PostComposer({ onPost }) {
     setPosting(false);
   };
   return (
-    <div style={{background:"rgba(var(--fg-rgb),0.03)",borderRadius:16,border:"1px solid rgba(var(--fg-rgb),0.07)",padding:14,marginBottom:16}}>
-      <div style={{display:"flex",gap:10}}>
-        <Avatar profile={profile} size={38}/>
+    <div style={desktop
+      ? {background:"var(--surface-1)",borderRadius:22,border:"1px solid rgba(var(--fg-rgb),0.07)",padding:18,marginBottom:0,boxShadow:"var(--shadow-card)",backdropFilter:"blur(18px)"}
+      : {background:"rgba(var(--fg-rgb),0.03)",borderRadius:16,border:"1px solid rgba(var(--fg-rgb),0.07)",padding:14,marginBottom:16}}>
+      <div style={{display:"flex",gap:desktop?14:10}}>
+        <Avatar profile={profile} size={desktop?46:38}/>
         <div style={{flex:1,position:"relative"}}>
           <textarea value={content} onChange={e=>{setContent(e.target.value.slice(0,280));setFilterError(null);}}
             placeholder={t.composerPlaceholder}
             style={{width:"100%",boxSizing:"border-box",background:"none",border:"none",
-              color:"var(--text-1)",fontSize:14,resize:"none",outline:"none",minHeight:70,
+              color:"var(--text-1)",fontSize:desktop?15:14,resize:"none",outline:"none",minHeight:desktop?84:70,
               fontFamily:"inherit",lineHeight:1.5}}/>
           <MentionSuggestions suggestions={mention.suggestions}
             onPick={username => setContent(mention.applyMention(content, username))}/>
@@ -286,7 +291,8 @@ function PostComposer({ onPost }) {
               <span style={{fontSize:11,color:remaining<20?"#ef4444":"var(--text-3)",fontWeight:600}}>{remaining}</span>
               <button onClick={handlePost} disabled={!canPost}
                 style={{padding:"7px 16px",borderRadius:10,border:"none",
-                  background:canPost?"linear-gradient(135deg,#7c3aed,#4f46e5)":"rgba(var(--fg-rgb),0.05)",
+                  background:canPost?(desktop?GRADIENT_PRIMARY:"linear-gradient(135deg,#7c3aed,#4f46e5)"):"rgba(var(--fg-rgb),0.05)",
+                  ...(desktop?{boxShadow:canPost?"0 8px 22px rgba(109,91,255,.35)":"none"}:{}),
                   color:canPost?"#fff":"var(--text-4)",fontWeight:800,fontSize:13,cursor:canPost?"pointer":"not-allowed"}}>
                 {posting ? t.posting : t.post}
               </button>
@@ -501,6 +507,7 @@ function PollDisplay({ postId, myUsername }) {
 
 // ─── PostCard ─────────────────────────────────────────────────────────────────
 function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoadProfiles }) {
+  const desktop = isDesktopApp();
   const { lang } = useLang();
   const t = FEED_I18N[lang] || FEED_I18N.fr;
   const [liked, setLiked] = useState((post.likes||[]).includes(myUsername));
@@ -533,13 +540,20 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
   const hasComments = commentCount > 0;
 
   return (
-    <div style={{background:"rgba(var(--fg-rgb),0.03)",borderRadius:16,
+    <div style={desktop
+      ? {background:"var(--surface-1)",borderRadius:20,
+         border:`1px solid ${hasComments?"rgba(139,92,246,0.22)":"rgba(var(--fg-rgb),0.07)"}`,
+         padding:18,marginBottom:0,animation:"fadeIn 0.25s ease",boxShadow:"var(--shadow-card)",
+         transition:"border-color .2s, transform .2s"}
+      : {background:"rgba(var(--fg-rgb),0.03)",borderRadius:16,
       border:`1px solid ${hasComments?"rgba(129,140,248,0.15)":"rgba(var(--fg-rgb),0.06)"}`,
-      padding:14,marginBottom:10,animation:"fadeIn 0.2s ease"}}>
+      padding:14,marginBottom:10,animation:"fadeIn 0.2s ease"}}
+      onMouseEnter={desktop?(e=>{e.currentTarget.style.borderColor="rgba(139,92,246,0.35)";}):undefined}
+      onMouseLeave={desktop?(e=>{e.currentTarget.style.borderColor=hasComments?"rgba(139,92,246,0.22)":"rgba(var(--fg-rgb),0.07)";}):undefined}>
       {/* Header */}
       <div style={{display:"flex",gap:10,marginBottom:10}}>
         <div onClick={()=>onOpenUser?.(post.username)} style={{cursor:onOpenUser?"pointer":"default"}}>
-          <Avatar profile={profile} size={36}/>
+          <Avatar profile={profile} size={desktop?44:36}/>
         </div>
         <div style={{flex:1}}>
           <div style={{display:"flex",alignItems:"baseline",gap:6,flexWrap:"wrap"}}>
@@ -578,7 +592,7 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
         </button>
       ) : (
         <>
-          <p style={{fontSize:14,color:"var(--text-1)",lineHeight:1.6,margin:"0 0 10px",whiteSpace:"pre-wrap"}}><MentionText text={post.content} onOpenUser={onOpenUser}/></p>
+          <p style={{fontSize:desktop?15:14,color:"var(--text-1)",lineHeight:desktop?1.65:1.6,margin:"0 0 10px",whiteSpace:"pre-wrap"}}><MentionText text={post.content} onOpenUser={onOpenUser}/></p>
           {post.image_url && (
             <div style={{borderRadius:10,overflow:"hidden",marginBottom:10,maxHeight:400}}>
               <img src={post.image_url} alt="" style={{width:"100%",objectFit:"cover",maxHeight:400,display:"block",cursor:"pointer"}}
@@ -687,6 +701,134 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
     { id:"recent",    label:t.channelRecent,    emoji:"✨" },
     { id:"following", label:t.channelFollowing, emoji:"👥" },
   ];
+  const desktop = isDesktopApp();
+  if(desktop) {
+    const fr = lang !== "en";
+    const L = fr
+      ? { title:"Fil d'actu", sub:"Ce que la communauté regarde, pense et recommande.", channels:"Canaux", talk:"Animés dont on parle", active:"Membres actifs", posts:"posts chargés", empty:"Rien pour l'instant", mention:n=>`${n} post${n>1?"s":""}` }
+      : { title:"Feed", sub:"What the community is watching, thinking and recommending.", channels:"Channels", talk:"Trending anime", active:"Active members", posts:"posts loaded", empty:"Nothing yet", mention:n=>`${n} post${n>1?"s":""}` };
+    // Derived from the loaded posts only — no extra request.
+    const animeMap = new Map();
+    const userMap = new Map();
+    feed.forEach(p => {
+      if(p.anime_id && p.anime_title) {
+        const e = animeMap.get(p.anime_id) || { id:p.anime_id, title:p.anime_title, image:p.anime_image, n:0 };
+        e.n++; animeMap.set(p.anime_id, e);
+      }
+      userMap.set(p.username, (userMap.get(p.username)||0) + 1);
+    });
+    const topAnime = [...animeMap.values()].sort((a,b)=>b.n-a.n).slice(0,5);
+    const topUsers = [...userMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5);
+    const sideCard = {background:"var(--surface-1)",border:"1px solid rgba(var(--fg-rgb),0.07)",borderRadius:20,padding:16,boxShadow:"var(--shadow-card)"};
+    const sideHead = (txt) => (
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+        <span style={{width:4,height:14,borderRadius:4,background:GRADIENT_PRIMARY}}/>
+        <span style={{fontSize:11,fontWeight:800,letterSpacing:".08em",textTransform:"uppercase",color:"var(--text-3)"}}>{txt}</span>
+      </div>
+    );
+    return (
+      <div className="mx-auto w-full max-w-6xl px-6 pb-20 pt-8 md:px-10">
+        <div className="mb-7 animate-slide-up">
+          <div className="mb-1.5 flex items-center gap-3">
+            <span className="text-4xl">📰</span>
+            <h1 className={`text-[36px] font-bold leading-tight tracking-tight md:text-[44px] ${GRADIENT_TEXT}`}>{L.title}</h1>
+          </div>
+          <p className="text-base text-slate-400">{L.sub}</p>
+        </div>
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+          {/* MAIN — composer + posts */}
+          <div style={{display:"flex",flexDirection:"column",gap:14,minWidth:0}}>
+            <PostComposer onPost={handlePost}/>
+            {channel==="recent" && (
+              <div style={{fontSize:11,color:"var(--text-4)",textAlign:"center"}}>{t.recentSeasonsNote(RECENT_SEASONS.join(", "))}</div>
+            )}
+            {loading && feed.length===0 && (
+              <div style={{textAlign:"center",padding:"40px 0",color:"var(--text-4)"}}>
+                <div style={{fontSize:32,marginBottom:8}}>🌀</div>
+                <p style={{fontSize:12}}>{t.loading}</p>
+              </div>
+            )}
+            {!loading && feed.length===0 && (
+              <div style={{...sideCard,textAlign:"center",padding:"44px 0",color:"var(--text-4)"}}>
+                <div style={{fontSize:40,marginBottom:12}}>📭</div>
+                <p style={{fontWeight:700,color:"var(--text-3)"}}>{t.emptyTitle}</p>
+                <p style={{fontSize:12,marginTop:4}}>{t.emptyDesc}</p>
+              </div>
+            )}
+            {feed.map(post => (
+              <PostCard key={post.id||post.created_at} post={post} myUsername={myUsername}
+                profileCache={profileCache} onDelete={handleDelete} onOpenUser={onOpenUser} onLoadProfiles={loadProfiles}/>
+            ))}
+            {hasMore && feed.length>0 && (
+              <button onClick={()=>loadFeed(false)} disabled={loading}
+                style={{width:"100%",padding:"13px",borderRadius:16,border:"1px solid rgba(var(--fg-rgb),0.08)",
+                  background:"rgba(var(--fg-rgb),0.03)",color:"var(--text-2)",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                {loading?t.loading:t.loadMore}
+              </button>
+            )}
+          </div>
+          {/* SIDE — channels, trending anime, active members */}
+          <aside style={{display:"flex",flexDirection:"column",gap:14,position:"sticky",top:96}}>
+            <div style={sideCard}>
+              {sideHead(L.channels)}
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {CHANNELS.map(c => {
+                  const on = channel===c.id;
+                  return (
+                    <button key={c.id} onClick={()=>setChannel(c.id)}
+                      style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:14,cursor:"pointer",textAlign:"left",
+                        border:on?"1px solid transparent":"1px solid rgba(var(--fg-rgb),0.07)",
+                        background:on?GRADIENT_PRIMARY:"rgba(var(--fg-rgb),0.035)",
+                        boxShadow:on?"0 8px 22px rgba(109,91,255,.32)":"none",
+                        color:on?"#fff":"var(--text-2)",fontSize:13,fontWeight:700,transition:"all .2s"}}>
+                      <span style={{fontSize:17}}>{c.emoji}</span><span>{c.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{marginTop:12,fontSize:10,color:"var(--text-4)"}}>{feed.length} {L.posts}</div>
+            </div>
+            <div style={sideCard}>
+              {sideHead(L.talk)}
+              {topAnime.length===0 ? <p style={{fontSize:12,color:"var(--text-4)",margin:0}}>{L.empty}</p> : (
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {topAnime.map((a,i) => (
+                    <div key={a.id} onClick={()=>onOpenDetail?.({mal_id:a.id,title:a.title,images:{jpg:{large_image_url:a.image,image_url:a.image}}})}
+                      style={{display:"flex",alignItems:"center",gap:10,cursor:onOpenDetail?"pointer":"default"}}>
+                      <span style={{width:16,fontSize:11,fontWeight:800,color:"var(--text-4)",textAlign:"center"}}>{i+1}</span>
+                      {a.image ? <img src={a.image} alt="" style={{width:30,height:42,objectFit:"cover",borderRadius:6,flexShrink:0}} onError={e=>{e.target.style.visibility="hidden";}}/> : <div style={{width:30,height:42,borderRadius:6,background:"rgba(var(--fg-rgb),0.06)"}}/>}
+                      <div style={{minWidth:0,flex:1}}>
+                        <div style={{fontSize:12,fontWeight:700,color:"var(--text-1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.title}</div>
+                        <div style={{fontSize:10,color:"var(--text-4)"}}>{L.mention(a.n)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={sideCard}>
+              {sideHead(L.active)}
+              {topUsers.length===0 ? <p style={{fontSize:12,color:"var(--text-4)",margin:0}}>{L.empty}</p> : (
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {topUsers.map(([u,n]) => (
+                    <div key={u} onClick={()=>onOpenUser?.(u)} style={{display:"flex",alignItems:"center",gap:10,cursor:onOpenUser?"pointer":"default"}}>
+                      <Avatar profile={profileCache[u]||{avatar:"👤"}} size={30}/>
+                      <div style={{minWidth:0,flex:1}}>
+                        <div style={{fontSize:12,fontWeight:700,color:"var(--text-1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{profileCache[u]?.name||u}</div>
+                        <div style={{fontSize:10,color:"#c084fc"}}>@{u}</div>
+                      </div>
+                      <span style={{fontSize:10,color:"var(--text-4)"}}>{L.mention(n)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </aside>
+        </div>
+        <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      </div>
+    );
+  }
   return (
     <div style={{maxWidth:600,margin:"0 auto",padding:"0 16px 80px"}}>
       <PostComposer onPost={handlePost}/>

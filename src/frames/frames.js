@@ -806,11 +806,11 @@ const FRAME_DESCS_EN = {
 export function getFrameLabel(frameOrId, lang = "fr") {
   const frame = typeof frameOrId === "string" ? FRAMES[frameOrId] : frameOrId;
   if(!frame) return "";
-  return lang === "en" ? (FRAME_LABELS_EN[frame.id] || frame.label) : frame.label;
+  return lang === "en" ? (FRAME_LABELS_EN[frame.id] || frame.labelEn || frame.label) : frame.label;
 }
 
 export function getFrameDesc(frameOrId, lang = "fr") {
   const frame = typeof frameOrId === "string" ? FRAMES[frameOrId] : frameOrId;
   if(!frame) return "";
-  return lang === "en" ? (FRAME_DESCS_EN[frame.id] || frame.desc) : frame.desc;
+  return lang === "en" ? (FRAME_DESCS_EN[frame.id] || frame.descEn || frame.desc) : frame.desc;
 }

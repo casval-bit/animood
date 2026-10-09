@@ -4,10 +4,17 @@ import { FAVORITE_SEARCH_I18N } from "../constants/favoriteSearchI18n.js";
 import { jikan } from "../api/jikan.js";
 import { Spinner } from "./Spinner.jsx";
 import { Modal } from "./Modal.jsx";
+import { isDesktopApp } from "../utils/streamingLinks.js";
+import { DesktopAnimeSearchModal } from "./DesktopAnimeSearch.jsx";
 
 const FALLBACK = "https://placehold.co/64x92/1a1a2e/818cf8?text=?";
 
-export function FavoriteSearchModal({ onSelect, onClose }) {
+// Appli de bureau : recherche tolérante multi-sources (DesktopAnimeSearch.jsx). Site web : version d'origine ci-dessous.
+export function FavoriteSearchModal(props) {
+  return isDesktopApp() ? <DesktopAnimeSearchModal {...props} /> : <WebFavoriteSearchModal {...props} />;
+}
+
+function WebFavoriteSearchModal({ onSelect, onClose }) {
   const { lang } = useLang();
   const t = FAVORITE_SEARCH_I18N[lang] || FAVORITE_SEARCH_I18N.fr;
   const [q, setQ]             = useState("");
