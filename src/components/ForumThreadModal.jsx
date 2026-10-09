@@ -10,6 +10,7 @@ import { useApp } from "../context/useApp.js";
 import { useLang } from "../context/useLang.js";
 import { GRADIENT_TEXT } from "../constants/theme.js";
 import { FORUM_THREAD_I18N } from "../constants/forumThreadI18n.js";
+import { useSound } from "../context/SoundContext.jsx";
 
 export function timeAgo(iso, lang = "fr") {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -46,6 +47,7 @@ export function TagPill({ id }) {
 // ─── Create a new discussion — title + body + optional tags ───────────────────
 export function NewThreadModal({ username, onClose, onCreated, animeId, animeTitle, animeImage }) {
   const { lang } = useLang();
+  const { playSound } = useSound();
   const t = FORUM_THREAD_I18N[lang] || FORUM_THREAD_I18N.fr;
   const [title, setTitle]     = useState("");
   const [body, setBody]       = useState("");
@@ -81,6 +83,7 @@ export function NewThreadModal({ username, onClose, onCreated, animeId, animeTit
   const submit = async () => {
     const ttl = title.trim(), b = body.trim();
     if(!ttl || !b) { setError(t.errRequired); return; }
+    playSound("confirm");
     setSubmitting(true); setError(null);
     try {
       const rows = await sb.createThread(username, ttl, b, tags, imageUrl, animeId||null, animeTitle||null, animeImage||null);
@@ -296,6 +299,7 @@ function ForumPollDisplay({ threadId, username }) {
 export function ThreadModal({ thread, username, onClose, onOpenUser, onReply }) {
   const { blockedUsers } = useApp();
   const { lang } = useLang();
+  const { playSound } = useSound();
   const t = FORUM_THREAD_I18N[lang] || FORUM_THREAD_I18N.fr;
   const [replies, setReplies]   = useState([]);
   const [profileCache, setProfileCache] = useState({});
@@ -345,6 +349,7 @@ export function ThreadModal({ thread, username, onClose, onOpenUser, onReply }) 
   const submitReply = async () => {
     const b = reply.trim();
     if(!b) return;
+    playSound("confirm");
     setSubmitting(true); setError(null);
     try {
       const rows = await sb.createReply(thread.id, username, b);
@@ -356,6 +361,7 @@ export function ThreadModal({ thread, username, onClose, onOpenUser, onReply }) 
   };
 
   const toggleThreadLike = async () => {
+    playSound("click");
     const newLiked = !threadLiked;
     setThreadLikes(prev => newLiked ? [...prev, username] : prev.filter(u=>u!==username));
     const result = await sb.toggleThreadLike(thread.id, username).catch(()=>null);

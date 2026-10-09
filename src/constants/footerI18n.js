@@ -1,25 +1,27 @@
+// ─── ANIMOOD — Footer i18n ────────────────────────────────────────────────────
+// Labels des boutons du footer (FR / EN)
+
 export const FOOTER_I18N = {
   fr: {
-    tagline: "Ton mood, ton anime.",
-    rights: (year) => `© ${year} AniMood — Tous droits réservés`,
-    legalLink: "Mentions légales",
-    privacyLink: "Confidentialité",
-    aboutLink: "À propos",
-    contactLink: "Contact",
-    faqLink: "FAQ",
-    categoriesLink: "Catégories",
-    moderationLink: "Contenu à revoir",
+    tagline:        "Découvre des animés selon ton humeur.",
+    aboutLink:      "À propos",
+    contactLink:    "Contact",
+    faqLink:        "FAQ",
+    categoriesLink: "Les Moods",
+    moderationLink: "Signaler un problème",
+    legalLink:      "Mentions légales",
+    privacyLink:    "Confidentialité",
+    rights: (y) => `© ${y} AniMood — Tous droits réservés`,
   },
-
   en: {
-    tagline: "Your mood, your anime.",
-    rights: (year) => `© ${year} AniMood — All rights reserved`,
-    legalLink: "Legal notice",
-    privacyLink: "Privacy",
-    aboutLink: "About",
-    contactLink: "Contact",
-    faqLink: "FAQ",
-    categoriesLink: "Categories",
-    moderationLink: "Content under review",
+    tagline:        "Discover anime based on your mood.",
+    aboutLink:      "About",
+    contactLink:    "Contact",
+    faqLink:        "FAQ",
+    categoriesLink: "Moods Guide",
+    moderationLink: "Report an Issue",
+    legalLink:      "Legal Notice",
+    privacyLink:    "Privacy Policy",
+    rights: (y) => `© ${y} AniMood — All rights reserved`,
   },
 };

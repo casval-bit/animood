@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
+import { MoodFilters } from "../components/MoodFilters.jsx";
 import { useApp } from "../context/useApp.js";
 import { useLang } from "../context/useLang.js";
+import { useSound } from "../context/SoundContext.jsx";
 import { MOODS, getMoodObj } from "../constants/moods.js";
 import { getDurations, getMediaTypes, getCountries } from "../constants/filters.js";
 import { fetchMoodboardCandidates } from "../api/moodboard.js";
@@ -11,6 +13,8 @@ import { Modal } from "../components/Modal.jsx";
 import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
 import { ChipGroup, StatPill, StarRatingDisplay, GradientButton, QuickActionIcons } from "../components/ui.jsx";
 import { MOODBOARD_I18N } from "../constants/moodboardI18n.js";
+import { isDesktopApp } from "../utils/streamingLinks.js";
+import { MoodStage } from "../components/MoodStage.jsx";
 
 const MOOD_GENRES = {
   emotional: ["Drama", "Romance", "Slice of Life"],
@@ -45,7 +49,91 @@ function whyThisPick(anime, selectedMoods, t) {
   return t.alignedWithMood(pct[top]||0, m);
 }
 
-function MoodCard({ mood, selected, onClick }) {
+// Desktop only — very light "pop" on click: one soft ring + a few tiny sparks in the mood colour.
+function ClickBurst({ color, strong }) {
+  const run = (el) => {
+    if (!el || el.__ran || !el.animate) return;
+    el.__ran = true;
+    el.animate(
+      [{ transform: "scale(.55)", opacity: strong ? 0.75 : 0.5 }, { transform: "scale(1.28)", opacity: 0 }],
+      { duration: 560, easing: "cubic-bezier(.2,.7,.3,1)", fill: "forwards" }
+    );
+  };
+  const spark = (el, i) => {
+    if (!el || el.__ran || !el.animate) return;
+    el.__ran = true;
+    const a = (i / 6) * Math.PI * 2 + 0.4;
+    el.animate(
+      [{ transform: "translate(-50%,-50%) scale(1)", opacity: 0.9 },
+       { transform: `translate(calc(-50% + ${Math.cos(a) * 34}px), calc(-50% + ${Math.sin(a) * 34}px)) scale(.2)`, opacity: 0 }],
+      { duration: 520, easing: "ease-out", fill: "forwards" }
+    );
+  };
+  return (
+    <span className="pointer-events-none absolute inset-0" aria-hidden="true">
+      <span ref={run} className="absolute inset-0 rounded-2xl" style={{ border: `2px solid ${color}`, boxShadow: `0 0 14px ${color}80`, opacity: 0 }} />
+      {strong && [0, 1, 2, 3, 4, 5].map(i => (
+        <span key={i} ref={el => spark(el, i)} className="absolute left-1/2 top-1/2 h-1 w-1 rounded-full"
+          style={{ background: color, boxShadow: `0 0 6px ${color}`, opacity: 0 }} />
+      ))}
+    </span>
+  );
+}
+
+function DesktopMoodCard({ mood, selected, onClick }) {
+  const desktop = isDesktopApp();
+  const [burst, setBurst] = useState(0);
+  const handle = (e) => {
+    if (desktop) setBurst(k => k + 1);
+    onClick?.(e);
+  };
+  return (
+    <button onClick={handle}
+      className={`group relative flex aspect-square flex-col items-center justify-center gap-1.5 rounded-2xl px-1.5 text-center transition-all duration-300 ${selected ? "animate-mood-pop" : "hover:-translate-y-1 hover:scale-[1.03]"}`}
+      style={{
+        background: selected
+          ? `linear-gradient(135deg, ${mood.color}30 0%, ${mood.color}15 50%, ${mood.color}25 100%)`
+          : "rgba(var(--fg-rgb),0.03)",
+        border: selected ? `2px solid ${mood.color}cc` : "1.5px solid rgba(var(--fg-rgb),0.07)",
+        boxShadow: selected
+          ? `0 0 20px ${mood.color}60, 0 0 40px ${mood.color}25, inset 0 1px 0 rgba(255,255,255,0.15)`
+          : `0 0 0px ${mood.color}00`,
+        transition: "all 0.3s cubic-bezier(.34,1.56,.64,1)",
+      }}>
+      {/* shimmer overlay when selected */}
+      {selected && (
+        <div style={{
+          position:"absolute",inset:0,borderRadius:"inherit",
+          background:`linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 50%, rgba(255,255,255,0.04) 100%)`,
+          pointerEvents:"none",
+        }}/>
+      )}
+      {/* checkmark badge */}
+      {selected && (
+        <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black text-white"
+          style={{ background: mood.color, boxShadow: `0 0 12px ${mood.color}cc, 0 2px 4px rgba(0,0,0,0.3)` }}>✓</span>
+      )}
+      {/* emoji — larger + float on hover/selected */}
+      <div className={`transition-transform duration-300 ${selected ? "scale-110" : "group-hover:scale-110 group-hover:-translate-y-0.5"}`}
+        style={{fontSize: selected ? "2rem" : "1.75rem", filter: selected ? `drop-shadow(0 0 8px ${mood.color}aa)` : "none"}}>
+        {mood.emoji}
+      </div>
+      {/* label */}
+      <div className="text-[11px] font-bold tracking-wide transition-colors duration-200"
+        style={{ color: selected ? mood.color : "var(--text-3)", textShadow: selected ? `0 0 12px ${mood.color}80` : "none" }}>
+        {mood.label}
+      </div>
+      {desktop && burst > 0 && <ClickBurst key={burst} color={mood.color} strong={selected} />}
+      {/* hover glow ring */}
+      {!selected && (
+        <div className="absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+          style={{boxShadow:`inset 0 0 0 1.5px ${mood.color}40, 0 4px 20px ${mood.color}20`}}/>
+      )}
+    </button>
+  );
+}
+
+function WebMoodCard({ mood, selected, onClick }) {
   return (
     <button onClick={onClick}
       className={`group relative flex aspect-square flex-col items-center justify-center gap-1.5 rounded-2xl px-1.5 text-center transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_10px_30px_rgba(139,92,246,.25)] ${selected ? "animate-mood-pop" : ""}`}
@@ -61,6 +149,11 @@ function MoodCard({ mood, selected, onClick }) {
       <div className="text-[11px] font-bold" style={{ color: selected ? mood.color : "var(--text-1)" }}>{mood.label}</div>
     </button>
   );
+}
+
+// Site web : carte d'origine (inchangée). Appli de bureau : carte animée.
+function MoodCard(props) {
+  return isDesktopApp() ? <DesktopMoodCard {...props} /> : <WebMoodCard {...props} />;
 }
 
 function MoodGuideTile({ onClick, t }) {
@@ -125,6 +218,7 @@ function MoodResultCard({ anime, selectedMoods, onClick, friendUsers, t }) {
 export function MoodboardView({ onOpenDetail }) {
   const { me, myUsername } = useApp();
   const { lang } = useLang();
+  const { playSound } = useSound();
   const t = MOODBOARD_I18N[lang] || MOODBOARD_I18N.fr;
   const [selectedMoods, setSelectedMoods] = useState([]);
   const [showMoodInfo, setShowMoodInfo]   = useState(false);
@@ -138,7 +232,9 @@ export function MoodboardView({ onOpenDetail }) {
   const [rerollCount, setRerollCount]     = useState(0);
   const [generating, setGenerating]       = useState(false);
   const [hasSearched, setHasSearched]     = useState(false);
+  const [burst, setBurst]               = useState(false); // desktop : POOF de fin d'invocation
   const resultsRef = useRef(null);
+  const stageRef   = useRef(null);
 
   // Load friend highlights on mount
   useEffect(() => {
@@ -161,6 +257,7 @@ export function MoodboardView({ onOpenDetail }) {
   }, [myUsername]);
 
   const toggleMood = id => {
+    playSound("click");
     setHasSearched(false);
     setCursor(null);
     setRerollCount(0);
@@ -176,8 +273,11 @@ export function MoodboardView({ onOpenDetail }) {
   };
 
   const generate = async (reroll=false) => {
+    playSound(reroll ? "click" : "confirm");
     setGenerating(true); setHasSearched(true);
-    resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const desktop = isDesktopApp();
+    const startedAt = Date.now();
+    (desktop ? stageRef.current : resultsRef.current)?.scrollIntoView({ behavior: "smooth", block: "start" });
     try {
       const { results: picked, cursor: nextCursor } = await fetchMoodboardCandidates(
         selectedMoods, duration, mediaTypes, countries, me,
@@ -190,17 +290,232 @@ export function MoodboardView({ onOpenDetail }) {
     } catch(e) {
       console.error(e);
       setResults([]);
-    } finally { setGenerating(false); }
+    } finally {
+      if (desktop) {
+        // Desktop : l'invocation dure au moins 2,6 s, puis flash + nuage (POOF) avant les résultats
+        const wait = Math.max(0, 2600 - (Date.now() - startedAt));
+        if (wait) await new Promise(r => setTimeout(r, wait));
+        setBurst(true);
+        await new Promise(r => setTimeout(r, 650));
+        setBurst(false);
+      }
+      setGenerating(false);
+    }
   };
 
   const excludedCount = Object.keys(me.statuses||{}).filter(id => ["completed","watching","dropped"].includes((me.statuses||{})[id])).length;
   const compat = computeCompatibility(selectedMoods);
 
+  // ── MOOD GUIDE MODAL (shared between web & desktop) ──────────────────────────
+  const MoodInfoModal = showMoodInfo && (
+    <Modal onClose={() => setShowMoodInfo(false)} maxWidth="max-w-lg">
+      {close => (
+        <div className="p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="text-[15px] font-black text-slate-100">{t.guideTitle}</div>
+            <button onClick={close} className="flex h-7 w-7 items-center justify-center rounded-full bg-white/8 text-sm text-slate-400">✕</button>
+          </div>
+          <div className="flex flex-col gap-3">
+            {MOODS.map(m => (
+              <div key={m.id} className="flex items-start gap-3 rounded-xl p-2.5" style={{ background:`${m.color}08`, border:`1px solid ${m.color}22` }}>
+                <span className="shrink-0 text-xl">{m.emoji}</span>
+                <div>
+                  <div className="mb-0.5 text-xs font-black" style={{ color:m.color }}>{m.label}</div>
+                  <div className="text-[11px] leading-relaxed text-slate-400">{t.moodDescriptions[m.id]}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+
+  // ── RESULTS PANEL (shared between web & desktop) ─────────────────────────────
+  const ResultsPanel = (
+    <div ref={resultsRef} className="min-h-[420px] animate-slide-up" style={{ scrollMarginTop: "96px" }}>
+      {generating && (
+        <div className={`flex min-h-[420px] items-center justify-center p-10 ${GLASS}`} style={GLASS_STYLE}>
+          <Spinner label={t.analyzing} />
+        </div>
+      )}
+
+      {!generating && hasSearched && (
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap gap-1.5">
+              {selectedMoods.map(mid => { const m = getMoodObj(mid); return m && (
+                <span key={mid} className="rounded-full px-2.5 py-1 text-xs font-bold" style={{ background:`${m.color}22`, border:`1px solid ${m.color}44`, color:m.color }}>{m.emoji} {m.label}</span>
+              ); })}
+            </div>
+            {results.length > 0 && (() => {
+              const locked = rerollCount >= 3;
+              const label = rerollCount <= 1 ? t.otherSuggestions
+                          : rerollCount === 2 ? t.moreSuggestions
+                          : t.lockedSuggestions;
+              return locked ? (
+                <div className="flex flex-col items-end gap-1">
+                  <button disabled className="cursor-not-allowed rounded-full border-2 border-white/8 px-4 py-2 text-xs font-extrabold text-slate-600">{label}</button>
+                  <span className="text-[10px] text-slate-600">{t.lockedHint}</span>
+                </div>
+              ) : (
+                <button onClick={() => generate(true)} className="rounded-full border-2 border-indigo-400/30 px-4 py-2 text-xs font-extrabold text-indigo-400 transition hover:border-indigo-400/60">{label}</button>
+              );
+            })()}
+          </div>
+          {results.length > 0 ? (
+            <div className="grid grid-cols-2 gap-5 sm:grid-cols-3">
+              {results.map(a => (
+                <MoodResultCard key={a.mal_id} anime={a} selectedMoods={selectedMoods} onClick={onOpenDetail}
+                  friendUsers={showFriendHighlights ? (friendHighlights[a.mal_id]||[]) : []} t={t}/>
+              ))}
+            </div>
+          ) : (
+            <div className={`flex flex-col items-center gap-2 py-16 text-center ${GLASS}`} style={GLASS_STYLE}>
+              <div className="text-4xl">😶</div>
+              <p className="font-bold text-slate-400">{t.noResultsTitle}</p>
+              <p className="text-xs text-slate-600">{t.noResultsSubtitle}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!generating && !hasSearched && selectedMoods.length === 0 && (
+        <div className={`flex min-h-[420px] flex-col items-center justify-center gap-6 p-10 text-center ${GLASS}`} style={GLASS_STYLE}>
+          <div className="text-7xl">🎭</div>
+          <div>
+            <p className="text-lg font-bold text-slate-100">{t.emptyTitle}</p>
+            <p className="text-sm text-slate-500">{t.emptySubtitle}</p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-3">
+            <StatPill label={t.statMoods} />
+            <StatPill label={t.statAiRecs} />
+            <StatPill label={t.statFriends} />
+          </div>
+        </div>
+      )}
+
+      {!generating && !hasSearched && selectedMoods.length > 0 && (
+        <div className={`flex min-h-[420px] flex-col gap-8 p-8 ${GLASS}`} style={GLASS_STYLE}>
+          <div>
+            <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.currentMood}</p>
+            <div className="flex flex-wrap gap-2">
+              {selectedMoods.map(mid => { const m = getMoodObj(mid); return m && (
+                <span key={mid} className="rounded-full px-3 py-1.5 text-sm font-bold" style={{ background:`${m.color}18`, border:`1px solid ${m.color}55`, color:m.color }}>{m.emoji} {m.label}</span>
+              ); })}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.dominantGenres}</p>
+            <div className="flex flex-wrap gap-2">
+              {dominantGenres(selectedMoods).map(g => (
+                <span key={g} className="rounded-full border border-white/8 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-300">{g}</span>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.compatibility}</p>
+            <div className="flex items-center gap-3">
+              <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/5">
+                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${compat}%`, background: GRADIENT_PRIMARY }} />
+              </div>
+              <span className="text-sm font-extrabold text-violet-300">{compat}%</span>
+            </div>
+          </div>
+          <p className="mt-auto text-xs text-slate-600">{t.previewHint}</p>
+        </div>
+      )}
+    </div>
+  );
+
+  // ── WEB VERSION — unchanged ───────────────────────────────────────────────────
+  if (!isDesktopApp()) {
+    return (
+      <div className="min-h-screen w-full px-6 py-10 md:px-10">
+        <div className="mx-auto max-w-7xl">
+          {/* ── HEADER ── */}
+          <div className="mb-10 animate-slide-up">
+            <div className="mb-2 flex items-center gap-3">
+              <span className="text-5xl">🎭</span>
+              <div>
+                <h1 className={`text-[40px] font-bold leading-tight tracking-tight md:text-[48px] ${GRADIENT_TEXT}`}>
+                  {t.title}
+                </h1>
+              </div>
+            </div>
+            <p className="text-lg text-slate-400">{t.subtitle}</p>
+            <p className="mt-1.5 text-sm text-slate-600">{t.tagline}</p>
+          </div>
+
+          {/* ── DASHBOARD ── */}
+          <div className="grid gap-8 lg:grid-cols-[420px_1fr] lg:items-start">
+            {/* LEFT — controls */}
+            <div className={`flex flex-col gap-8 p-5 ${GLASS}`} style={GLASS_STYLE}>
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.moodLabel} <span className="font-normal normal-case text-slate-600">{t.moodMax}</span></p>
+                  <button onClick={() => setShowMoodInfo(true)} className="flex h-5.5 w-5.5 items-center justify-center rounded-full border border-white/15 bg-white/6 text-xs font-black text-slate-400 transition hover:bg-white/12">?</button>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {[...MOODS.slice(0,4), null, ...MOODS.slice(4)].map(m => m
+                    ? <MoodCard key={m.id} mood={m} selected={selectedMoods.includes(m.id)} onClick={() => toggleMood(m.id)} />
+                    : <MoodGuideTile key="guide" onClick={() => setShowMoodInfo(true)} t={t} />
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.duration}</p>
+                <ChipGroup items={getDurations(lang)} value={[duration]} onToggle={setDuration} />
+              </div>
+              <div>
+                <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.country}</p>
+                <ChipGroup items={getCountries(lang)} value={countries} onToggle={v => toggleMulti(v, countries, setCountries)} />
+              </div>
+              <div>
+                <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.type}</p>
+                <ChipGroup items={getMediaTypes(lang)} value={mediaTypes} onToggle={v => toggleMulti(v, mediaTypes, setMediaTypes)} />
+              </div>
+
+              <div>
+                <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.friendRecs}</p>
+                <button onClick={()=>setShowFriendHighlights(p=>!p)}
+                  className="flex items-center justify-between w-full rounded-xl px-3 py-2 text-[11px] font-bold transition border border-white/8 bg-white/3">
+                  <span className="text-slate-300">{t.friendToggle}</span>
+                  <div className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${showFriendHighlights ? "bg-violet-500" : "bg-white/15"}`}>
+                    <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${showFriendHighlights ? "translate-x-4" : "translate-x-0.5"}`}/>
+                  </div>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-1.5 rounded-xl border border-emerald-400/15 bg-emerald-400/6 px-3 py-2 text-[11px] text-emerald-400">
+                {t.excludedCount(excludedCount)}
+              </div>
+            </div>
+
+            {/* RIGHT — preview / results */}
+            {ResultsPanel}
+          </div>
+
+          {/* ── CTA ── */}
+          <div className="mt-10 flex justify-center">
+            <GradientButton onClick={() => generate(false)} disabled={selectedMoods.length===0} className="px-10 py-4 text-base">
+              {selectedMoods.length>0 ? t.findBtn : t.pickMoodBtn}
+            </GradientButton>
+          </div>
+        </div>
+
+        {MoodInfoModal}
+      </div>
+    );
+  }
+
+  // ── DESKTOP VERSION — grille 3×3 d'origine + scène de tarot à droite ──────────
   return (
-    <div className="min-h-screen w-full px-6 py-10 md:px-10">
+    <div className="min-h-screen w-full px-6 py-8 md:px-10">
       <div className="mx-auto max-w-7xl">
         {/* ── HEADER ── */}
-        <div className="mb-10 animate-slide-up">
+        <div className="mb-8 animate-slide-up">
           <div className="mb-2 flex items-center gap-3">
             <span className="text-5xl">🎭</span>
             <div>
@@ -215,7 +530,7 @@ export function MoodboardView({ onOpenDetail }) {
 
         {/* ── DASHBOARD ── */}
         <div className="grid gap-8 lg:grid-cols-[420px_1fr] lg:items-start">
-          {/* LEFT — controls */}
+          {/* LEFT — grille 3×3 + filtres */}
           <div className={`flex flex-col gap-8 p-5 ${GLASS}`} style={GLASS_STYLE}>
             <div>
               <div className="mb-3 flex items-center justify-between">
@@ -230,162 +545,42 @@ export function MoodboardView({ onOpenDetail }) {
               </div>
             </div>
 
-            <div>
-              <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.duration}</p>
-              <ChipGroup items={getDurations(lang)} value={[duration]} onToggle={setDuration} />
-            </div>
-            <div>
-              <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.country}</p>
-              <ChipGroup items={getCountries(lang)} value={countries} onToggle={v => toggleMulti(v, countries, setCountries)} />
-            </div>
-            <div>
-              <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.type}</p>
-              <ChipGroup items={getMediaTypes(lang)} value={mediaTypes} onToggle={v => toggleMulti(v, mediaTypes, setMediaTypes)} />
-            </div>
-
-            <div>
-              <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.friendRecs}</p>
-              <button onClick={()=>setShowFriendHighlights(p=>!p)}
-                className="flex items-center justify-between w-full rounded-xl px-3 py-2 text-[11px] font-bold transition border border-white/8 bg-white/3">
-                <span className="text-slate-300">{t.friendToggle}</span>
-                <div className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${showFriendHighlights ? "bg-violet-500" : "bg-white/15"}`}>
-                  <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${showFriendHighlights ? "translate-x-4" : "translate-x-0.5"}`}/>
-                </div>
-              </button>
-            </div>
-
-            <div className="flex items-center gap-1.5 rounded-xl border border-emerald-400/15 bg-emerald-400/6 px-3 py-2 text-[11px] text-emerald-400">
-              {t.excludedCount(excludedCount)}
-            </div>
+            <MoodFilters
+              lang={lang} t={t}
+              durations={getDurations(lang)} countries={getCountries(lang)} mediaTypes={getMediaTypes(lang)}
+              duration={duration} onDuration={setDuration}
+              selCountries={countries} onCountry={v => toggleMulti(v, countries, setCountries)}
+              selTypes={mediaTypes} onType={v => toggleMulti(v, mediaTypes, setMediaTypes)}
+              friendOn={showFriendHighlights} onFriendToggle={() => setShowFriendHighlights(p=>!p)}
+              excludedCount={excludedCount}
+            />
           </div>
 
-          {/* RIGHT — preview / results */}
-          <div ref={resultsRef} className="min-h-[420px] animate-slide-up" style={{ scrollMarginTop: "96px" }}>
-            {generating && (
-              <div className={`flex min-h-[420px] items-center justify-center p-10 ${GLASS}`} style={GLASS_STYLE}>
-                <Spinner label={t.analyzing} />
-              </div>
-            )}
+          {/* RIGHT — scène : moods choisis → invocation → résultats */}
+          <div className="flex flex-col gap-6">
+            <MoodStage
+              selectedMoods={selectedMoods}
+              generating={generating}
+              burst={burst}
+              hasSearched={hasSearched}
+              onToggle={toggleMood}
+              lang={lang}
+              t={t}
+              stageRef={stageRef}
+            >
+              {ResultsPanel}
+            </MoodStage>
 
-            {!generating && hasSearched && (
-              <div className="flex flex-col gap-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedMoods.map(mid => { const m = getMoodObj(mid); return m && (
-                      <span key={mid} className="rounded-full px-2.5 py-1 text-xs font-bold" style={{ background:`${m.color}22`, border:`1px solid ${m.color}44`, color:m.color }}>{m.emoji} {m.label}</span>
-                    ); })}
-                  </div>
-                  {results.length > 0 && (() => {
-                    const locked = rerollCount >= 3;
-                    const label = rerollCount <= 1 ? t.otherSuggestions
-                                : rerollCount === 2 ? t.moreSuggestions
-                                : t.lockedSuggestions;
-                    return locked ? (
-                      <div className="flex flex-col items-end gap-1">
-                        <button disabled className="cursor-not-allowed rounded-full border-2 border-white/8 px-4 py-2 text-xs font-extrabold text-slate-600">{label}</button>
-                        <span className="text-[10px] text-slate-600">{t.lockedHint}</span>
-                      </div>
-                    ) : (
-                      <button onClick={() => generate(true)} className="rounded-full border-2 border-indigo-400/30 px-4 py-2 text-xs font-extrabold text-indigo-400 transition hover:border-indigo-400/60">{label}</button>
-                    );
-                  })()}
-                </div>
-                {results.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-5 sm:grid-cols-3">
-                    {results.map(a => (
-                      <MoodResultCard key={a.mal_id} anime={a} selectedMoods={selectedMoods} onClick={onOpenDetail}
-                        friendUsers={showFriendHighlights ? (friendHighlights[a.mal_id]||[]) : []} t={t}/>
-                    ))}
-                  </div>
-                ) : (
-                  <div className={`flex flex-col items-center gap-2 py-16 text-center ${GLASS}`} style={GLASS_STYLE}>
-                    <div className="text-4xl">😶</div>
-                    <p className="font-bold text-slate-400">{t.noResultsTitle}</p>
-                    <p className="text-xs text-slate-600">{t.noResultsSubtitle}</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {!generating && !hasSearched && selectedMoods.length === 0 && (
-              <div className={`flex min-h-[420px] flex-col items-center justify-center gap-6 p-10 text-center ${GLASS}`} style={GLASS_STYLE}>
-                <div className="text-7xl">🎭</div>
-                <div>
-                  <p className="text-lg font-bold text-slate-100">{t.emptyTitle}</p>
-                  <p className="text-sm text-slate-500">{t.emptySubtitle}</p>
-                </div>
-                <div className="flex flex-wrap justify-center gap-3">
-                  <StatPill label={t.statMoods} />
-                  <StatPill label={t.statAiRecs} />
-                  <StatPill label={t.statFriends} />
-                </div>
-              </div>
-            )}
-
-            {!generating && !hasSearched && selectedMoods.length > 0 && (
-              <div className={`flex min-h-[420px] flex-col gap-8 p-8 ${GLASS}`} style={GLASS_STYLE}>
-                <div>
-                  <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.currentMood}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedMoods.map(mid => { const m = getMoodObj(mid); return m && (
-                      <span key={mid} className="rounded-full px-3 py-1.5 text-sm font-bold" style={{ background:`${m.color}18`, border:`1px solid ${m.color}55`, color:m.color }}>{m.emoji} {m.label}</span>
-                    ); })}
-                  </div>
-                </div>
-                <div>
-                  <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.dominantGenres}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {dominantGenres(selectedMoods).map(g => (
-                      <span key={g} className="rounded-full border border-white/8 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-300">{g}</span>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.compatibility}</p>
-                  <div className="flex items-center gap-3">
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/5">
-                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${compat}%`, background: GRADIENT_PRIMARY }} />
-                    </div>
-                    <span className="text-sm font-extrabold text-violet-300">{compat}%</span>
-                  </div>
-                </div>
-                <p className="mt-auto text-xs text-slate-600">{t.previewHint}</p>
-              </div>
-            )}
+            <div className="flex justify-center">
+              <GradientButton onClick={() => generate(false)} disabled={selectedMoods.length===0 || generating} className="px-10 py-4 text-base">
+                {selectedMoods.length>0 ? t.findBtn : t.pickMoodBtn}
+              </GradientButton>
+            </div>
           </div>
-        </div>
-
-        {/* ── CTA ── */}
-        <div className="mt-10 flex justify-center">
-          <GradientButton onClick={() => generate(false)} disabled={selectedMoods.length===0} className="px-10 py-4 text-base">
-            {selectedMoods.length>0 ? t.findBtn : t.pickMoodBtn}
-          </GradientButton>
         </div>
       </div>
 
-      {showMoodInfo && (
-        <Modal onClose={() => setShowMoodInfo(false)} maxWidth="max-w-lg">
-          {close => (
-            <div className="p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="text-[15px] font-black text-slate-100">{t.guideTitle}</div>
-                <button onClick={close} className="flex h-7 w-7 items-center justify-center rounded-full bg-white/8 text-sm text-slate-400">✕</button>
-              </div>
-              <div className="flex flex-col gap-3">
-                {MOODS.map(m => (
-                  <div key={m.id} className="flex items-start gap-3 rounded-xl p-2.5" style={{ background:`${m.color}08`, border:`1px solid ${m.color}22` }}>
-                    <span className="shrink-0 text-xl">{m.emoji}</span>
-                    <div>
-                      <div className="mb-0.5 text-xs font-black" style={{ color:m.color }}>{m.label}</div>
-                      <div className="text-[11px] leading-relaxed text-slate-400">{t.moodDescriptions[m.id]}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </Modal>
-      )}
+      {MoodInfoModal}
     </div>
   );
 }

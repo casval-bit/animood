@@ -17,12 +17,15 @@ import { GameModal } from "../components/Modal.jsx";
 import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
 import { FORUM_I18N } from "../constants/forumI18n.js";
 import { GAME_SYSTEM_I18N } from "../constants/gameSystemI18n.js";
+import { isDesktopApp } from "../utils/streamingLinks.js";
+import { ForumExplorer } from "../components/ForumExplorer.jsx";
 
 const FALLBACK_IMG = "https://placehold.co/64x92/1a1a2e/818cf8?text=?";
 const TYPE_EMOJI = { TV:"📺", Movie:"🎬", OVA:"💿", ONA:"🌐", Special:"✨" };
 // Rows shown per section before the "Voir plus" toggle.
 const SECTION_PREVIEW = 8;
 const DISCUSSIONS_PREVIEW = 6;
+const NEW_ANIME_PREVIEW = 5; // desktop : nouveautés visibles dans la grille
 const LEADERBOARD_SIZE = 10;
 const TAB_KEY = "animood_forum_tab";
 const TABS = ["discussions", "airing", "upcoming", "popular"];
@@ -50,7 +53,7 @@ function defaultStat(anime) {
 }
 
 // ─── One row = one "sujet" — thumbnail, title, blurb, stats, type/year ─────────
-function ThreadRow({ anime, onClick, metaLabel, trailerLink, convLink, statOverride, dominantMood, t }) {
+function ThreadRow({ anime, onClick, metaLabel, trailerLink, convLink, statOverride, dominantMood, t, compact = false }) {
   const img = posterUrl(anime);
   const genres = (anime.genres || []).map(g => g.name || g).slice(0, 3).join(" · ");
   const stat = (statOverride || defaultStat)(anime);
@@ -94,7 +97,7 @@ function ThreadRow({ anime, onClick, metaLabel, trailerLink, convLink, statOverr
           </div>
         )}
         {(anime.year || anime.type) && (
-          <div className="hidden w-32 shrink-0 items-center gap-2 border-l border-white/6 pl-3 md:flex">
+          <div className={`hidden w-32 shrink-0 items-center gap-2 border-l border-white/6 pl-3 ${compact ? "" : "md:flex"}`}>
             <div className="min-w-0">
               {!(trailerLink && anime.trailer?.url) && metaLabel && (
                 <div className="truncate text-[11px] font-semibold text-slate-300">{metaLabel(anime)}</div>
@@ -176,13 +179,13 @@ function ThreadRow({ anime, onClick, metaLabel, trailerLink, convLink, statOverr
 // ─── One category = banner header + list of rows, à la forum sub-section ──────
 // `maxVisible` trims long lists (e.g. "Nouveaux animes") behind a "Voir plus" toggle
 // so obscure/low-interest entries don't dominate the page by default.
-function ForumCategory({ emoji, title, subtitle, items, onOpenDetail, metaLabel, trailerLink, convLink, statOverride, dominantMoods, maxVisible, t }) {
+function ForumCategory({ emoji, title, subtitle, items, onOpenDetail, metaLabel, trailerLink, convLink, statOverride, dominantMoods, maxVisible, t, compact = false }) {
   const [expanded, setExpanded] = useState(false);
   if(!items.length) return null;
   const visible = maxVisible && !expanded ? items.slice(0, maxVisible) : items;
 
   return (
-    <div className={`mb-6 overflow-hidden ${GLASS}`} style={GLASS_STYLE}>
+    <div className={`${compact ? "" : "mb-6"} overflow-hidden ${GLASS}`} style={GLASS_STYLE}>
       <div className="flex items-center justify-between px-5 py-3.5" style={{
         background:"rgba(255,255,255,0.03)",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
         <div>
@@ -199,7 +202,7 @@ function ForumCategory({ emoji, title, subtitle, items, onOpenDetail, metaLabel,
           <ThreadRow
             key={a.mal_id} anime={a} onClick={onOpenDetail} metaLabel={metaLabel}
             trailerLink={trailerLink} convLink={convLink} statOverride={statOverride}
-            dominantMood={dominantMoods?.[a.mal_id]} t={t}
+            dominantMood={dominantMoods?.[a.mal_id]} t={t} compact={compact}
           />
         ))}
       </div>
@@ -216,14 +219,14 @@ function ForumCategory({ emoji, title, subtitle, items, onOpenDetail, metaLabel,
 }
 
 // ─── Hero card — the single upcoming anime with the best real MAL popularity rank ──
-function AnticipatedCard({ anime, airedDates, onOpenDetail, t }) {
+function AnticipatedCard({ anime, airedDates, onOpenDetail, t, flush = false }) {
   if(!anime) return null;
   const img = posterUrl(anime);
   const genres = (anime.genres || []).map(g => g.name || g).slice(0, 3).join(" · ");
   const hasTrailer = !!anime.trailer?.url;
   return (
     <div
-      className={`mb-6 flex w-full items-center gap-5 overflow-hidden p-5 text-left ${GLASS}`}
+      className={`${flush ? "h-full" : "mb-6"} flex w-full items-center gap-5 overflow-hidden p-5 text-left ${GLASS}`}
       style={{ background: `linear-gradient(135deg, rgba(139,92,246,.22), rgba(236,72,153,.14)), ${GLASS_STYLE.background}`, boxShadow: GLASS_STYLE.boxShadow }}
     >
       <button onClick={() => onOpenDetail?.(anime)} className="flex min-w-0 flex-1 items-center gap-5 text-left">
@@ -286,7 +289,117 @@ function CommunityMoodBlock({ loaded, counts, total, t }) {
   );
 }
 
-// ─── Real discussions — threads + reply counts, no reactions/pagination ───────
+// ─── Humeur de la communauté — version large (desktop) ─────────────────────────
+// Trois lectures des mêmes votes (7 derniers jours) : classement, tendance du jour, moment de la journée.
+const SLOTS = [
+  { id: "morning", fr: "Matin", en: "Morning", icon: "🌅", from: 6, to: 12 },
+  { id: "afternoon", fr: "Après-midi", en: "Afternoon", icon: "☀️", from: 12, to: 18 },
+  { id: "evening", fr: "Soir", en: "Evening", icon: "🌆", from: 18, to: 24 },
+  { id: "night", fr: "Nuit", en: "Night", icon: "🌙", from: 0, to: 6 },
+];
+function CommunityMoodWide({ loaded, counts, total, rows = [], lang = "fr", t }) {
+  const [view, setView] = useState("ranking");
+  if(!loaded) return null;
+  const en = lang === "en";
+  const ranked = MOODS.map(m => ({ ...m, count: counts[m.id] || 0, pct: total ? Math.round(((counts[m.id] || 0) / total) * 100) : 0 })).sort((a, b) => b.count - a.count);
+  const top = ranked[0];
+  const max = Math.max(1, ...ranked.map(m => m.count));
+
+  // Tendance : part de chaque mood dans les dernières 24 h comparée à celle des 6 jours précédents.
+  const dayAgo = Date.now() - 86400000;
+  const tally = (list) => { const c = {}; let n = 0; list.forEach(r => (r.moods || []).forEach(m => { c[m] = (c[m] || 0) + 1; n++; })); return { c, n }; };
+  const recent = tally(rows.filter(r => r.voted_at && new Date(r.voted_at).getTime() >= dayAgo));
+  const before = tally(rows.filter(r => r.voted_at && new Date(r.voted_at).getTime() < dayAgo));
+  const trend = MOODS.map(m => {
+    const a = recent.n ? (recent.c[m.id] || 0) / recent.n : 0, b = before.n ? (before.c[m.id] || 0) / before.n : 0;
+    return { ...m, delta: Math.round((a - b) * 100), today: recent.c[m.id] || 0 };
+  }).sort((x, y) => y.delta - x.delta);
+  const tmax = Math.max(1, ...trend.map(m => Math.abs(m.delta)));
+
+  // Moment de la journée
+  const slots = SLOTS.map(s => {
+    const c = {}; let n = 0;
+    rows.forEach(r => { if(!r.voted_at) return; const h = new Date(r.voted_at).getHours(); if(h >= s.from && h < s.to) (r.moods || []).forEach(m => { c[m] = (c[m] || 0) + 1; n++; }); });
+    const lead = MOODS.map(m => ({ ...m, c: c[m.id] || 0 })).sort((x, y) => y.c - x.c)[0];
+    return { ...s, c, n, lead: n ? lead : null };
+  });
+  const smax = Math.max(1, ...slots.map(s => s.n));
+
+  const tabs = [["ranking", en ? "Ranking" : "Classement"], ["trend", en ? "Today" : "Aujourd'hui"], ["day", en ? "Time of day" : "Moment"]];
+
+  return (
+    <div className={`flex h-full flex-col p-5 ${GLASS}`} style={{ ...GLASS_STYLE, minHeight: 290 }}>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[13px] font-black text-slate-100">{t.communityMood}</div>
+          <div className="text-[10.5px] text-slate-500">{total === 0 ? t.communityMoodEmpty : t.communityMoodSubtitle(total)}</div>
+        </div>
+        {total > 0 && (
+          <div className="flex shrink-0 gap-0.5 rounded-lg border border-white/8 bg-white/3 p-0.5">
+            {tabs.map(([id, label]) => (
+              <button key={id} onClick={() => setView(id)} className="rounded-md px-2.5 py-1 text-[10.5px] font-bold transition"
+                style={view === id ? { background: "rgba(124,58,237,.28)", color: "#e9e5ff" } : { color: "rgb(148,163,184)" }}>{label}</button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {total > 0 && view === "ranking" && (
+        <>
+          <div className="mb-3 flex items-center gap-3 rounded-xl border px-3.5 py-2.5" style={{ borderColor: top.color + "44", background: `linear-gradient(90deg, ${top.color}1c, transparent)` }}>
+            <span className="text-[28px] leading-none" style={{ filter: `drop-shadow(0 0 10px ${top.color})` }}>{top.emoji}</span>
+            <div>
+              <div className="text-[9.5px] font-bold uppercase tracking-widest text-slate-500">{en ? "The community mostly feels" : "La communauté ressent surtout"}</div>
+              <div className="text-[15px] font-extrabold" style={{ color: top.color }}>{top.label} <span className="text-[12px] font-bold text-slate-400">· {top.pct}%</span></div>
+            </div>
+          </div>
+          <div className="grid flex-1 grid-cols-2 content-between gap-x-5 gap-y-2">
+            {ranked.map(m => (
+              <div key={m.id} className="min-w-0">
+                <div className="mb-1 flex items-center justify-between text-[11px] font-semibold text-slate-300"><span className="truncate">{m.emoji} {m.label}</span><span className="text-slate-500">{m.pct}%</span></div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-white/6"><div className="h-full rounded-full" style={{ width: `${(m.count / max) * 100}%`, background: `linear-gradient(90deg, ${m.color}88, ${m.color})`, boxShadow: `0 0 8px ${m.color}66`, transition: "width .6s" }} /></div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {total > 0 && view === "trend" && (
+        <div className="flex flex-1 flex-col justify-between gap-1.5">
+          <div className="mb-1 text-[10.5px] text-slate-500">{en ? "Share of votes in the last 24 h vs the days before" : "Part des votes sur les dernières 24 h comparée aux jours d'avant"}</div>
+          {trend.map(m => (
+            <div key={m.id} className="flex items-center gap-2">
+              <span className="w-22 shrink-0 truncate text-[11px] font-semibold text-slate-300">{m.emoji} {m.label}</span>
+              <div className="relative h-2 flex-1 rounded-full bg-white/5">
+                <span className="absolute left-1/2 top-[-2px] h-3 w-px bg-white/20" />
+                <div className="absolute top-0 h-full rounded-full" style={{ width: `${(Math.abs(m.delta) / tmax) * 50}%`, [m.delta >= 0 ? "left" : "right"]: "50%", background: m.delta >= 0 ? m.color : "rgba(148,163,184,.55)", boxShadow: m.delta >= 0 ? `0 0 8px ${m.color}77` : "none" }} />
+              </div>
+              <span className="w-10 shrink-0 text-right text-[11px] font-bold" style={{ color: m.delta > 0 ? "#34d399" : m.delta < 0 ? "#f87171" : "rgb(100,116,139)" }}>{m.delta > 0 ? "▲" : m.delta < 0 ? "▼" : "•"} {Math.abs(m.delta)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {total > 0 && view === "day" && (
+        <div className="grid flex-1 grid-cols-4 gap-3">
+          {slots.map(s => (
+            <div key={s.id} className="flex min-w-0 flex-col items-center">
+              <div className="mb-1 h-6 text-[18px] leading-6" title={s.lead ? s.lead.label : ""}>{s.lead ? s.lead.emoji : "·"}</div>
+              <div className="flex w-full max-w-14 flex-1 flex-col-reverse overflow-hidden rounded-lg bg-white/4" style={{ minHeight: 96 }}>
+                <div className="flex flex-col-reverse overflow-hidden rounded-lg" style={{ height: `${(s.n / smax) * 100}%`, transition: "height .6s" }}>
+                  {MOODS.map(m => s.c[m.id] ? <div key={m.id} title={`${m.label} ${s.c[m.id]}`} style={{ flex: s.c[m.id], background: m.color, opacity: m === s.lead ? 1 : 0.62 }} /> : null)}
+                </div>
+              </div>
+              <div className="mt-1.5 text-[10.5px] font-bold text-slate-300">{s.icon} {en ? s.en : s.fr}</div>
+              <div className="text-[9.5px] text-slate-500">{s.lead ? s.lead.label : "—"}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, profileCache, onOpenThread, onNewThread, t, lang }) {
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? threads : threads.slice(0, DISCUSSIONS_PREVIEW);
@@ -294,17 +407,20 @@ function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, profileC
     <div className={`mb-6 overflow-hidden ${GLASS}`} style={GLASS_STYLE}>
       <div className="flex items-center justify-between px-5 py-3.5" style={{ background: GRADIENT_PRIMARY }}>
         <div className="text-[13px] font-black uppercase tracking-wide text-white">{t.discussions}</div>
-        <button onClick={onNewThread} className="shrink-0 rounded-full bg-white px-3.5 py-2 text-[12px] font-black text-violet-700 shadow-md transition hover:scale-105 hover:shadow-lg">
+        <button onClick={onNewThread}
+          className="shrink-0 rounded-full bg-white px-3.5 py-2 text-[12px] font-black text-violet-700 shadow-md transition hover:scale-105 hover:shadow-lg">
           {t.newTopicBtn}
         </button>
       </div>
+
       {!loaded ? (
-        <div className="p-5"><Spinner small label={t.loading} /></div>
+        <div className="p-4"><Spinner small label={t.loading} /></div>
       ) : threads.length === 0 ? (
         <div className="p-6 text-center">
           <div className="mb-1 text-sm font-bold text-slate-300">{t.noDiscussions}</div>
           <div className="mb-4 text-[11px] text-slate-500">{t.noDiscussionsSub}</div>
-          <button onClick={onNewThread} className="rounded-xl bg-linear-to-r from-violet-600 to-fuchsia-500 px-4 py-2 text-sm font-bold text-white">
+          <button onClick={onNewThread}
+            className="rounded-xl bg-linear-to-r from-violet-600 to-fuchsia-500 px-4 py-2 text-sm font-bold text-white">
             {t.createTopicBtn}
           </button>
         </div>
@@ -620,6 +736,7 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
 
   const [moodCounts, setMoodCounts] = useState({});
   const [moodTotal, setMoodTotal]   = useState(0);
+  const [moodRows, setMoodRows]     = useState([]); // desktop : votes bruts (tendance / moment de la journée)
   const [moodLoaded, setMoodLoaded] = useState(false);
 
   const [favorites, setFavorites]         = useState([]); // [{anime, count}]
@@ -630,6 +747,7 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
   const [threadsLoaded, setThreadsLoaded] = useState(false);
   const [profileCache, setProfileCache] = useState({});
   const [showNewThread, setShowNewThread] = useState(false);
+  const [explorerKey, setExplorerKey] = useState(0); // desktop : relance l'explorateur après création d'un sujet
   const [openThread, setOpenThread]       = useState(null);
   const [tab, setTab] = useState(() => {
     try { const saved = localStorage.getItem(TAB_KEY); return TABS.includes(saved) ? saved : "discussions"; }
@@ -760,6 +878,7 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
       rows.forEach(r => (r.moods || []).forEach(m => { counts[m] = (counts[m] || 0) + 1; total++; }));
       setMoodCounts(counts);
       setMoodTotal(total);
+      setMoodRows(rows);
     }).finally(() => { if(!cancelled) setMoodLoaded(true); });
     return () => { cancelled = true; };
   }, []);
@@ -811,8 +930,72 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
     return best;
   }, null);
 
+  const desktop = isDesktopApp();
+
+  // ── DESKTOP : pas de barre latérale, pas de mini-jeux (onglet Jeux dédié),
+  // humeur communautaire en bandeau, recherche avancée, catégories en grille large.
+  const empty = !loading && !upcoming.length && !newAnime.length;
+  const desktopBody = (
+    <>
+      <div className="mb-6 animate-slide-up">
+        <h1 className="mb-1 text-[28px] font-bold tracking-tight text-slate-50 md:text-[32px]">{t.title}</h1>
+        <p className="text-sm text-slate-500">{t.subtitle}</p>
+      </div>
+
+      {loading && <Spinner label={t.loadingNews} />}
+      {empty && <EmptyState emoji="💬" title={t.emptyTitle} subtitle={t.emptySubtitle} />}
+
+      {!loading && (
+        <>
+          <div className={`mb-8 grid items-stretch gap-6 ${mostAnticipated ? "lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]" : ""}`}>
+            {mostAnticipated && <AnticipatedCard flush anime={mostAnticipated} airedDates={airedDates} onOpenDetail={onOpenDetail} t={t} />}
+            <CommunityMoodWide loaded={moodLoaded} counts={moodCounts} total={moodTotal} rows={moodRows} lang={lang} t={t} />
+          </div>
+
+          <ForumExplorer
+            lang={lang} unreadCounts={unreadCounts} blockedUsers={blockedUsers}
+            onOpenThread={openThreadRead} onNewThread={() => setShowNewThread(true)} refreshKey={explorerKey}
+          />
+
+          <div className="grid items-start gap-6 lg:grid-cols-2">
+            {airingAnime.length > 0 && (
+              <ForumCategory compact maxVisible={6}
+                emoji="📡" title={t.airingTitle} subtitle={t.airingSubtitle}
+                items={airingAnime} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
+                metaLabel={a => a.score ? `★ ${a.score}` : t.metaAiring} convLink t={t}
+              />
+            )}
+            <ForumCategory compact maxVisible={6}
+              emoji="📅" title={t.upcomingTitle} subtitle={t.upcomingSubtitle}
+              items={upcoming} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
+              metaLabel={a => countdownLabel(a, airedDates, t)} trailerLink t={t}
+            />
+            <ForumCategory compact maxVisible={NEW_ANIME_PREVIEW}
+              emoji="🆕" title={t.newAnimeTitle} subtitle={t.newAnimeSubtitle}
+              items={newAnime} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
+              metaLabel={() => t.metaNew} t={t}
+            />
+            {favoritesLoaded && favorites.length > 0 && (
+              <ForumCategory compact
+                emoji="❤️" title={t.favoritesTitle} subtitle={t.favoritesSubtitle}
+                items={favorites.map(f => f.anime)} onOpenDetail={onOpenDetail} dominantMoods={dominantMoods}
+                metaLabel={() => t.metaFavorite} t={t}
+                statOverride={a => {
+                  const f = favorites.find(x => x.anime.mal_id === a.mal_id);
+                  return { primary: `❤️ ${f?.count ?? 0}`, secondary: t.favoritesUnit(f?.count ?? 0) };
+                }}
+              />
+            )}
+          </div>
+        </>
+      )}
+    </>
+  );
+
   return (
-    <div className="mx-auto max-w-6xl px-6 py-8">
+    <div className={desktop ? "mx-auto max-w-7xl px-6 py-8" : "mx-auto max-w-6xl px-6 py-8"}>
+      {desktop ? desktopBody : (
+        <>
       <div className="mb-8 animate-slide-up">
         <h1 className="mb-1 text-[28px] font-bold tracking-tight text-slate-50 md:text-[32px]">{t.title}</h1>
         <p className="text-sm text-slate-500">{t.subtitle}</p>
@@ -910,11 +1093,14 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
         </aside>
       </div>
 
+        </>
+      )}
+
       {showNewThread && (
         <NewThreadModal
           username={myUsername}
           onClose={() => setShowNewThread(false)}
-          onCreated={t => { setShowNewThread(false); setThreads(list => [t, ...list]); }}
+          onCreated={t => { setShowNewThread(false); setThreads(list => [t, ...list]); setExplorerKey(k => k + 1); }}
         />
       )}
       {openThread && (

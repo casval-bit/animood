@@ -39,6 +39,7 @@ export const PROFILE_I18N = {
     // Header
     bioPlaceholder: "Ton style d'anime…",
     addBioPlaceholder: "✏️ Ajoute une bio…",
+    bioSaved: "Sauvegardé !",
     followerLabel: (n) => `abonné${n!==1?"s":""}`,
     followingLabel: (n) => `abonnement${n!==1?"s":""}`,
 
@@ -131,6 +132,11 @@ export const PROFILE_I18N = {
 
     // Avatar picker modal
     chooseAvatarTitle: "Choisir un avatar",
+    avatarUrlDesc: "Colle l'URL d'une image (JPG, PNG, WebP)",
+    avatarUrlPreviewBtn: "Aperçu",
+    avatarUrlError: "Image non chargeable. Vérifie l'URL.",
+    avatarUrlApply: "Utiliser cette image",
+    avatarCurrentUrl: "Image actuelle",
   },
 
   en: {
@@ -173,6 +179,7 @@ export const PROFILE_I18N = {
     // Header
     bioPlaceholder: "Your anime style…",
     addBioPlaceholder: "✏️ Add a bio…",
+    bioSaved: "Saved!",
     followerLabel: (n) => `follower${n!==1?"s":""}`,
     followingLabel: () => "following",
 
@@ -250,6 +257,11 @@ export const PROFILE_I18N = {
 
     // Avatar picker modal
     chooseAvatarTitle: "Choose an avatar",
+    avatarUrlDesc: "Paste an image URL (JPG, PNG, WebP)",
+    avatarUrlPreviewBtn: "Preview",
+    avatarUrlError: "Cannot load image. Check the URL.",
+    avatarUrlApply: "Use this image",
+    avatarCurrentUrl: "Current image",
 
     // Badges
     badgeSectionTitle: "🏆 Badges",

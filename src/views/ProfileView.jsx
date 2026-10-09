@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/useApp.js";
 import { useLang } from "../context/useLang.js";
+import { useSound } from "../context/SoundContext.jsx";
 import { STATUS_COLORS, STATUS_PRIORITY, getStatusLabel } from "../constants/statuses.js";
 import { PROFILE_I18N } from "../constants/profileI18n.js";
 import { AVATAR_EMOJIS } from "../constants/avatars.js";
@@ -11,6 +12,7 @@ import { dispatchPostEvent, addPostEventListener } from "../utils/postEvents.js"
 import { FRAMES, getUnlockedFrames, getBestFrame, getFrameLabel } from "../frames/frames.js";
 import { BADGES, getUnlockedBadges, getBestBadge, getBadgeLabel, BadgeDisplay } from "../badges/badges.jsx";
 import { FrameSVG } from "../frames/FrameSVG.jsx";
+import { getFrameSvg, getDesktopExtraFrames, noteNightOwl } from "../frames/framesDesktop.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { ScoreChart } from "../components/ScoreChart.jsx";
 import { MoodOctagon } from "../components/MoodOctagon.jsx";
@@ -20,10 +22,11 @@ import { Modal } from "../components/Modal.jsx";
 import { FavoriteSearchModal } from "../components/FavoriteSearchModal.jsx";
 import { FollowListModal } from "../components/FollowListModal.jsx";
 import { TabBar } from "../components/ui.jsx";
-import { GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
+import { isDesktopApp } from "../utils/streamingLinks.js";
+import { GRADIENT_PRIMARY, GRADIENT_TEXT, GLASS, GLASS_STYLE } from "../constants/theme.js";
 
 // ─── PERSONAL MOOD RADAR ──────────────────────────────────────────────────────
-function PersonalMoodRadar({ ratings, watched }) {
+function PersonalMoodRadar({ ratings, watched, bare = false }) {
   const { lang } = useLang();
   const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
   const [avg, setAvg] = useState(null);
@@ -66,7 +69,7 @@ function PersonalMoodRadar({ ratings, watched }) {
     <div>
       <div className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.moodProfileTitle}</div>
       <div className="mb-2 text-[10px] text-slate-600">{t.basedOn(count, allIds.length)}</div>
-      <MoodOctagon pts={avg} />
+      <MoodOctagon pts={avg} size={bare ? 226 : 340} className={bare ? "" : undefined} />
     </div>
   );
 }
@@ -516,10 +519,370 @@ function GamePtsDisplay({ myUsername }) {
   );
 }
 
+// ─── DESKTOP : points de jeu totaux ───────────────────────────────────────────
+function useGamePoints(myUsername) {
+  const [pts, setPts] = useState(null);
+  useEffect(() => {
+    if(!myUsername) return;
+    let cancelled = false;
+    // Même total que le classement des jeux : ELO chaîne + ELO timeline + points de chaque mini-jeu
+    sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&select=elo_chain,elo_timeline,pts_wordle,pts_poster,pts_opquiz,pts_cluescale,pts_undercover&limit=1`)
+      .then(r => {
+        const e = r?.[0];
+        const total = e ? (e.elo_chain||400)+(e.elo_timeline||400)+(e.pts_wordle||0)+(e.pts_poster||0)+(e.pts_opquiz||0)+(e.pts_cluescale||0)+(e.pts_undercover||0) : 0;
+        if(!cancelled) setPts(total);
+      })
+      .catch(()=>{ if(!cancelled) setPts(0); });
+    return () => { cancelled = true; };
+  }, [myUsername]);
+  return pts;
+}
+
+// 1011 → "1.0K", 1450 → "1.4K", 20300 → "20.3K" ; en dessous de 1000 on garde le nombre exact
+function fmtPoints(n) {
+  if(n === null || n === undefined) return "—";
+  if(n < 1000) return String(n);
+  if(n < 1_000_000) return (Math.floor(n / 100) / 10).toFixed(1) + "K";
+  return (Math.floor(n / 100_000) / 10).toFixed(1) + "M";
+}
+
+// ─── DESKTOP : « En boucle » — UN animé mis en avant dans un cercle cadré ─────
+const SPOTLIGHT_CSS = `
+@keyframes sp-ring-rot { to { transform: rotate(360deg); } }
+@keyframes sp-badge-spin { to { transform: rotate(360deg); } }
+.sp-wrap:hover .sp-actions { opacity: 1; }
+`;
+
+function SpotlightCircle({ anime, lang, onOpen, onPick, onClear }) {
+  const en = lang === "en";
+  const label = en ? "On repeat" : "En boucle";
+  const img = anime?.images?.jpg?.large_image_url || anime?.images?.jpg?.image_url || anime?.image_url;
+  const SIZE = 132;
+
+  return (
+    <div className="sp-wrap" style={{ width: 168, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 9 }}>
+      <style>{SPOTLIGHT_CSS}</style>
+      <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.3em", paddingLeft: "0.3em", textTransform: "uppercase", color: "rgba(167,139,250,.85)" }}>
+        {label}
+      </div>
+
+      <div style={{ position: "relative", width: SIZE, height: SIZE }}>
+        {/* halo */}
+        <div style={{ position: "absolute", inset: -14, borderRadius: "50%", background: "radial-gradient(circle, rgba(109,91,255,.32) 0%, rgba(236,72,153,.1) 55%, transparent 72%)", filter: "blur(6px)", pointerEvents: "none" }} />
+        {/* anneau dégradé de marque qui tourne */}
+        <div style={{
+          position: "absolute", inset: 0, borderRadius: "50%",
+          background: "conic-gradient(from 0deg, #6D5BFF, #8B5CF6, #EC4899, #8B5CF6, #6D5BFF)",
+          animation: "sp-ring-rot 9s linear infinite",
+          opacity: anime ? 1 : 0.35,
+        }} />
+        {/* écrin sombre */}
+        <div style={{ position: "absolute", inset: 4, borderRadius: "50%", background: "#070816" }} />
+        {/* contenu */}
+        <button type="button"
+          onClick={anime ? onOpen : onPick}
+          onContextMenu={(e) => { e.preventDefault(); onPick(); }}
+          title={anime ? anime.title : (en ? "Pick an anime" : "Choisir un animé")}
+          style={{
+            position: "absolute", inset: 7, borderRadius: "50%", overflow: "hidden", border: "none", padding: 0, cursor: "pointer",
+            background: anime ? "#0b0c1c" : "repeating-linear-gradient(45deg, rgba(148,163,184,.06) 0 7px, rgba(8,10,22,.7) 7px 14px)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+          {anime && img
+            ? <img src={img} alt={anime.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            : <span style={{ fontSize: 34, lineHeight: 1, color: "rgba(148,163,184,.7)", fontWeight: 300 }}>＋</span>}
+        </button>
+
+        {/* actions au survol */}
+        {anime && (
+          <div className="sp-actions" style={{ position: "absolute", inset: 7, borderRadius: "50%", display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 6, paddingBottom: 10, opacity: 0, transition: "opacity .2s", pointerEvents: "none", background: "linear-gradient(180deg, transparent 45%, rgba(4,5,14,.82) 100%)" }}>
+            <button type="button" onClick={onPick} style={{ pointerEvents: "auto", fontSize: 10, fontWeight: 800, color: "#e2e8f0", background: "rgba(255,255,255,.14)", border: "none", borderRadius: 999, padding: "3px 9px", cursor: "pointer" }}>
+              {en ? "Change" : "Changer"}
+            </button>
+            <button type="button" onClick={onClear} style={{ pointerEvents: "auto", fontSize: 10, fontWeight: 800, color: "#fca5a5", background: "rgba(255,255,255,.1)", border: "none", borderRadius: 999, padding: "3px 7px", cursor: "pointer" }}>✕</button>
+          </div>
+        )}
+
+        {/* pastille « boucle » */}
+        <div style={{
+          position: "absolute", right: -2, bottom: 6, width: 28, height: 28, borderRadius: "50%",
+          background: GRADIENT_PRIMARY, border: "2px solid #070816", display: "flex", alignItems: "center", justifyContent: "center",
+          boxShadow: "0 0 12px rgba(139,92,246,.6)", pointerEvents: "none",
+        }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ animation: "sp-badge-spin 6s linear infinite" }}>
+            <path d="M21 12a9 9 0 0 1-15.5 6.2M3 12a9 9 0 0 1 15.5-6.2" />
+            <path d="M18.5 2v4h-4M5.5 22v-4h4" />
+          </svg>
+        </div>
+      </div>
+
+      <div style={{ minHeight: 30, textAlign: "center", fontSize: 11.5, fontWeight: 700, lineHeight: 1.3, color: anime ? "#e2e8f0" : "rgba(148,163,184,.7)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+        {anime ? anime.title : (en ? "Pin an anime" : "Épingle un animé")}
+      </div>
+      {anime && (
+        <div style={{ display: "flex", gap: 6, marginTop: -2 }}>
+          <button type="button" onClick={onPick}
+            style={{ fontSize: 10.5, fontWeight: 800, color: "#c4b5fd", background: "rgba(139,92,246,.14)", border: "1px solid rgba(139,92,246,.35)", borderRadius: 999, padding: "3px 11px", cursor: "pointer" }}>
+            ✎ {en ? "Change" : "Changer"}
+          </button>
+          <button type="button" onClick={onClear} title={en ? "Remove" : "Retirer"}
+            style={{ fontSize: 10.5, fontWeight: 800, color: "#fca5a5", background: "rgba(248,113,113,.1)", border: "1px solid rgba(248,113,113,.28)", borderRadius: 999, padding: "3px 9px", cursor: "pointer" }}>✕</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── HUD PANEL — dashboard high-tech style tablette holographique ─────────────
+const HUD_CSS = `
+@keyframes hud-scan {
+  0%   { transform: translateY(-100%); opacity: 0; }
+  10%  { opacity: 0.6; }
+  90%  { opacity: 0.6; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
+@keyframes hud-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+@keyframes hud-glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(139,92,246,0); }
+  50%       { box-shadow: 0 0 0 6px rgba(139,92,246,0.08); }
+}
+@keyframes counter-up {
+  0%   { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes bar-fill {
+  0%   { width: 0; }
+}
+@keyframes hud-flicker {
+  0%, 95%, 100% { opacity: 1; }
+  96% { opacity: 0.85; }
+  97% { opacity: 0.95; }
+  98% { opacity: 0.8; }
+}
+@keyframes hud-corner-pulse {
+  0%, 100% { opacity: 0.5; width: 12px; height: 12px; }
+  50% { opacity: 1; width: 16px; height: 16px; box-shadow: 0 0 6px rgba(139,92,246,0.6); }
+}
+@keyframes hud-data-stream {
+  0% { transform: translateY(0); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(-100%); opacity: 0; }
+}
+@keyframes counter-cascade {
+  0% { opacity: 0; transform: translateY(14px) scale(0.8); filter: blur(4px); }
+  60% { filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes bd-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2.5px); }
+}
+@keyframes bd-shine {
+  0%, 70%, 100% { opacity: 0; transform: translateX(-120%) skewX(-20deg); }
+  85%           { opacity: .9; }
+  95%           { opacity: 0; transform: translateX(220%) skewX(-20deg); }
+}
+@keyframes bd-halo {
+  0%, 100% { opacity: .55; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.12); }
+}
+@keyframes border-glow-sweep {
+  0% { box-shadow: 0 0 0 0 transparent, 0 0 15px rgba(139,92,246,0); }
+  25% { box-shadow: 0 -1px 0 0 rgba(168,85,247,0.6), 0 0 20px rgba(139,92,246,0.15); }
+  75% { box-shadow: 0 0 0 0 transparent, 0 0 10px rgba(139,92,246,0.08); }
+  100% { box-shadow: 0 0 0 0 transparent, 0 0 15px rgba(139,92,246,0); }
+}
+`;
+
+function HudPanel({ me, rated, myUsername, unlockedBadges, activeBadge, onOpenBadges, t, lang = "fr", tilesOnly = false, noTiles = false }) {
+  const gamePts = useGamePoints(myUsername);
+  const avgScore = rated.length
+    ? (rated.reduce((a, id) => a + (me.ratings[id]?.score || 0), 0) / rated.length).toFixed(1)
+    : null;
+
+  // Inject CSS once
+  useEffect(() => {
+    const id = "animood-hud-css";
+    if (!document.getElementById(id)) {
+      const style = document.createElement("style");
+      style.id = id;
+      style.textContent = HUD_CSS;
+      document.head.appendChild(style);
+    }
+  }, []);
+
+  const hudCard = {
+    borderRadius: 16,
+    border: "1px solid rgba(139,92,246,0.18)",
+    background: "linear-gradient(135deg, rgba(10,6,30,0.85) 0%, rgba(15,9,40,0.75) 100%)",
+    backdropFilter: "blur(12px)",
+    padding: "14px 16px",
+    position: "relative",
+    overflow: "hidden",
+  };
+
+  const scanLine = {
+    position: "absolute",
+    left: 0, right: 0,
+    height: 40,
+    background: "linear-gradient(180deg, transparent 0%, rgba(139,92,246,0.05) 50%, transparent 100%)",
+    animation: "hud-scan 5s linear infinite",
+    pointerEvents: "none",
+  };
+
+  const cornerDeco = (pos) => ({
+    position: "absolute",
+    [pos.includes("t") ? "top" : "bottom"]: 0,
+    [pos.includes("l") ? "left" : "right"]: 0,
+    width: 12, height: 12,
+    borderTop: pos.includes("t") ? "2px solid rgba(139,92,246,0.5)" : "none",
+    borderBottom: pos.includes("b") ? "2px solid rgba(139,92,246,0.5)" : "none",
+    borderLeft: pos.includes("l") ? "2px solid rgba(139,92,246,0.5)" : "none",
+    borderRight: pos.includes("r") ? "2px solid rgba(139,92,246,0.5)" : "none",
+  });
+
+  // Histogramme des notes 1-10
+  const histoData = [];
+  for (let s = 1; s <= 10; s++) {
+    histoData.push({ score: s, count: Object.values(me.ratings || {}).filter(r => r.score === s).length });
+  }
+  const histoMax = Math.max(...histoData.map(d => d.count), 1);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, height: tilesOnly ? "auto" : "100%", animation: "hud-flicker 8s ease-in-out infinite" }}>
+
+      {/* ── ROW 1 — métriques (affichées dans le bandeau du profil sur desktop) ── */}
+      {!noTiles && <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+        {[
+          { icon: "▶", label: t.statVus || "Vus",   value: me.watched.length, color: "#a855f7", delay: "0ms" },
+          { icon: "★", label: t.statNotes || "Notes", value: rated.length,      color: "#6366f1", delay: "100ms" },
+          { icon: "⌀", label: t.statMoy || "Moy.",   value: avgScore ?? "—",   color: "#e879f9", delay: "200ms" },
+          { icon: "🏆", label: t.badges || "Badges",  value: unlockedBadges.length, color: "#fbbf24", onClick: onOpenBadges, delay: "300ms" },
+          { icon: "🎮", label: t.statPoints || "Points", value: fmtPoints(gamePts), hover: gamePts === null ? undefined : `${gamePts.toLocaleString()} pts`, color: "#ec4899", delay: "400ms" },
+        ].map(({ icon, label, value, color, onClick, delay, hover }) => (
+          <div key={label}
+            onClick={onClick}
+            title={hover}
+            style={{
+              ...hudCard,
+              cursor: onClick ? "pointer" : "default",
+              textAlign: "center",
+              padding: "12px 8px",
+              animation: `hud-glow-pulse 4s ease-in-out infinite, border-glow-sweep 3s ease-in-out infinite`,
+            }}
+          >
+            <div style={scanLine} />
+            <div style={{ position: "absolute", ...cornerDeco("tl") }} />
+            <div style={{ position: "absolute", ...cornerDeco("br") }} />
+            <div style={{ fontSize: 11, color, marginBottom: 4, filter: `drop-shadow(0 0 6px ${color}88)` }}>{icon}</div>
+            <div style={{
+              fontSize: 22, fontWeight: 900,
+              color: "#fff",
+              letterSpacing: -1,
+              animation: `counter-cascade 0.6s cubic-bezier(.34,1.56,.64,1) ${delay} both`,
+              textShadow: `0 0 12px ${color}66`,
+            }}>{value}</div>
+            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: "rgba(148,163,184,0.55)", marginTop: 3 }}>{label}</div>
+          </div>
+        ))}
+      </div>}
+
+      {!tilesOnly && <>
+      {/* ── ROW 2 — Histogramme des notes ───────────────────────────────── */}
+      <div style={{ ...hudCard, animation: "border-glow-sweep 3s ease-in-out infinite" }}>
+        <div style={scanLine} />
+        <div style={{ position: "absolute", ...cornerDeco("tl") }} />
+        <div style={{ position: "absolute", ...cornerDeco("tr") }} />
+        <div style={{ position: "absolute", ...cornerDeco("bl") }} />
+        <div style={{ position: "absolute", ...cornerDeco("br") }} />
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase", color: "rgba(139,92,246,0.7)" }}>
+            DISTRIBUTION DES NOTES
+          </div>
+          <div style={{ fontSize: 8, color: "rgba(100,116,139,0.5)", fontWeight: 600 }}>
+            {rated.length} notés
+          </div>
+        </div>
+
+        {rated.length > 0 ? (
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 80, position: "relative" }}>
+            {/* Data stream scanner */}
+            <div style={{
+              position: "absolute", top: 0, bottom: 0, width: 1,
+              background: "linear-gradient(180deg, transparent, rgba(139,92,246,0.4), transparent)",
+              animation: "hud-data-stream 4s linear infinite",
+              pointerEvents: "none",
+              left: "50%",
+            }} />
+            {histoData.map(({ score, count }) => {
+              const heightPx = count > 0 ? Math.max(Math.round((count / histoMax) * 76), 4) : 0;
+              const isHigh = score >= 8;
+              const isMid = score >= 5 && score < 8;
+              const barColor = isHigh
+                ? "linear-gradient(180deg, #a855f7, #6366f1)"
+                : isMid
+                  ? "linear-gradient(180deg, #4f46e5, #3730a3)"
+                  : "linear-gradient(180deg, #374151, #1f2937)";
+              return (
+                <div key={score} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                  {count > 0 && (
+                    <div style={{ fontSize: 7, fontWeight: 700, color: isHigh ? "#c4b5fd" : "rgba(100,116,139,0.6)" }}>
+                      {count}
+                    </div>
+                  )}
+                  <div style={{
+                    flex: 1, width: "100%",
+                    display: "flex", alignItems: "flex-end",
+                  }}>
+                    <div style={{
+                      width: "100%",
+                      height: heightPx,
+                      background: barColor,
+                      borderRadius: "3px 3px 2px 2px",
+                      boxShadow: isHigh && count > 0 ? "0 0 6px rgba(168,85,247,0.5)" : "none",
+                      animation: "bar-fill 0.8s ease-out",
+                      transition: "height 0.5s ease",
+                    }} />
+                  </div>
+                  <div style={{ fontSize: 7, fontWeight: 600, color: "rgba(100,116,139,0.4)" }}>{score}</div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ height: 80, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(100,116,139,0.4)", fontSize: 11 }}>
+            — notes vides —
+          </div>
+        )}
+      </div>
+
+      {/* ── ROW 3 — MoodOctagon full width ──────────────────────────────── */}
+      <div style={{ ...hudCard, minHeight: 180, flex: 1, animation: "border-glow-sweep 3s ease-in-out infinite" }}>
+        <div style={scanLine} />
+        <div style={{ position: "absolute", ...cornerDeco("tl") }} />
+        <div style={{ position: "absolute", ...cornerDeco("br") }} />
+        <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase", color: "rgba(139,92,246,0.7)", marginBottom: 8 }}>
+          MOOD RADAR
+        </div>
+        <PersonalMoodRadar ratings={me.ratings} watched={me.watched} />
+      </div>
+      </>}
+
+    </div>
+  );
+}
+
 export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
   const { me, saveMe, myUsername } = useApp();
   const { lang } = useLang();
+  const { playSound } = useSound();
   const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
+  const desktop = isDesktopApp();
   const [tab, setTab] = useState("profile");
   const [journalFilter, setJournalFilter] = useState(null);
   const [customListFilter, setCustomListFilter] = useState(null);
@@ -528,6 +891,10 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
   const [animeCache, setAnimeCache] = useState({});
   const [favPopup, setFavPopup] = useState(null);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [avatarPickerTab, setAvatarPickerTab] = useState("emoji"); // "emoji" | "url"
+  const [avatarUrlInput, setAvatarUrlInput] = useState("");
+  const [avatarUrlPreview, setAvatarUrlPreview] = useState(null);
+  const [avatarUrlError, setAvatarUrlError] = useState(false);
   const [showFramePicker, setShowFramePicker] = useState(false);
   const [showBadgePicker, setShowBadgePicker] = useState(false);
   const [unlockedFrames, setUnlockedFrames] = useState([]);
@@ -539,6 +906,8 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
   const [followListMode, setFollowListMode] = useState(null); // "followers" | "following" | null
   const [editingBio, setEditingBio] = useState(false);
   const [bioInput, setBioInput] = useState(me.bio||"");
+  const [bioSaved, setBioSaved] = useState(false);
+  const bioInputRef = useRef(null);
   const [openList, setOpenList] = useState(null);
   const [editingList, setEditingList] = useState(null);
   const [newListName, setNewListName] = useState("");
@@ -559,6 +928,34 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
     if(!id || animeCache[id]) return;
     try { const r = await jikan.getAnime(id); setAnimeCache(p => ({...p,[id]:r.data})); } catch {}
   };
+
+  // ── DESKTOP : « En boucle » (UN animé épinglé dans un cercle cadré) ──────────
+  const spotKey = `animood_spotlight_${myUsername}`;
+  const [spotlightId, setSpotlightId] = useState(() => {
+    if(!desktop) return null;
+    try { const v = localStorage.getItem(spotKey); return v ? parseInt(v) : (me.spotlight ? parseInt(me.spotlight) : null); } catch { return me.spotlight ? parseInt(me.spotlight) : null; }
+  });
+  const [showSpotlightPicker, setShowSpotlightPicker] = useState(false);
+  const persistSpotlight = (id) => {
+    setSpotlightId(id);
+    try { id ? localStorage.setItem(spotKey, String(id)) : localStorage.removeItem(spotKey); } catch {}
+    // synchro multi-appareils : best-effort (nécessite la colonne profiles.spotlight, cf. supabase/profile_spotlight.sql)
+    sb.query(`profiles?username=eq.${encodeURIComponent(myUsername)}`, {
+      method: "PATCH",
+      headers: { ...sb.headers, "Prefer": "return=minimal" },
+      body: JSON.stringify({ spotlight: id || null }),
+    }).catch(()=>{});
+  };
+  useEffect(() => {
+    if(!desktop || !myUsername) return;
+    // si la colonne existe côté serveur, on la reprend (autre appareil)
+    sb.query(`profiles?username=eq.${encodeURIComponent(myUsername)}&select=spotlight&limit=1`)
+      .then(r => {
+        const v = r?.[0]?.spotlight;
+        if(v) { setSpotlightId(parseInt(v)); try { localStorage.setItem(spotKey, String(v)); } catch {} }
+      }).catch(()=>{});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if(desktop && spotlightId) fetchAnime(spotlightId); }, [spotlightId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const priority = [
@@ -767,7 +1164,11 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
           } catch {}
         }
         const gamePoints = gameEloRows?.[0]?.points_total || 0;
-        const unlockedF = getUnlockedFrames({ watchedCount: me.watched.length, genreCounts, followerCount: (followerRows||[]).length, userVotes: voteRows||[], gamePoints });
+        noteNightOwl(myUsername);
+        const unlockedF = [
+          ...getUnlockedFrames({ watchedCount: me.watched.length, genreCounts, followerCount: (followerRows||[]).length, userVotes: voteRows||[], gamePoints }),
+          ...getDesktopExtraFrames({ me, followerCount: (followerRows||[]).length, followingCount: (followingRows||[]).length, username: myUsername }), // desktop uniquement (vide sur le site)
+        ];
         setUnlockedFrames(unlockedF);
         const savedFrameId = me.activeFrame;
         const saved = savedFrameId ? FRAMES[savedFrameId] : null;
@@ -804,17 +1205,42 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
     .filter(id => !customListFilter || (me.anilistSubLists||{})[id]?.includes(customListFilter))
     .sort((a,b) => (STATUS_PRIORITY[(me.statuses||{})[a]||"completed"]??5) - (STATUS_PRIORITY[(me.statuses||{})[b]||"completed"]??5));
 
-  const saveBio = () => saveMe({ ...me, bio: bioInput });
-  const setAvatar = (e) => { saveMe({ ...me, avatar: e }); setShowAvatarPicker(false); };
-  const setFrame = (frame) => { setActiveFrame(frame); saveMe({ ...me, activeFrame: frame?.id||null }); setShowFramePicker(false); };
+  const saveBio = () => {
+    playSound("confirm");
+    saveMe({ ...me, bio: bioInput });
+    setBioSaved(true);
+    setTimeout(() => setBioSaved(false), 2000);
+  };
+  const setAvatar = (e) => {
+    playSound("unlock");
+    saveMe({ ...me, avatar: e });
+    setShowAvatarPicker(false);
+  };
+  const setAvatarUrl = (url) => {
+    playSound("unlock");
+    saveMe({ ...me, avatar: url });
+    setShowAvatarPicker(false);
+    setAvatarUrlInput("");
+    setAvatarUrlPreview(null);
+  };
+  const setFrame = (frame) => {
+    playSound("unlock");
+    setActiveFrame(frame);
+    saveMe({ ...me, activeFrame: frame?.id||null });
+    setShowFramePicker(false);
+  };
   const selectFavorite = (a) => {
+    playSound("confirm");
     const newFavs = [...(me.favorites||[null,null,null,null,null])];
     newFavs[favPopup] = a.mal_id;
     saveMe({ ...me, favorites: newFavs });
     setAnimeCache(p => ({...p,[a.mal_id]:a}));
     setFavPopup(null);
   };
-  const removeFavorite = (idx) => { const f=[...(me.favorites||[null,null,null,null,null])]; f[idx]=null; saveMe({...me,favorites:f}); };
+  const removeFavorite = (idx) => {
+    playSound("click");
+    const f=[...(me.favorites||[null,null,null,null,null])]; f[idx]=null; saveMe({...me,favorites:f});
+  };
 
   const handleDragStart = (idx) => setDragging(idx);
   const handleDragOver  = (e, idx) => { e.preventDefault(); setDragOver(idx); };
@@ -832,6 +1258,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
 
   const createList = () => {
     if(!newListName.trim()) return;
+    playSound("confirm");
     const id = `list_${Date.now()}`;
     const newList = { id, name: newListName.trim(), animeIds: [] };
     saveMe({ ...me, customLists: [...customLists, newList] });
@@ -840,11 +1267,13 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
   };
 
   const deleteList = (id) => {
+    playSound("click");
     saveMe({ ...me, customLists: customLists.filter(l=>l.id!==id),
       pinnedList: pinnedListId===id ? null : pinnedListId });
   };
 
   const pinList = (id) => {
+    playSound("click");
     saveMe({ ...me, pinnedList: pinnedListId===id ? null : id });
   };
 
@@ -874,6 +1303,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
   };
 
   const pinnedList = customLists.find(l=>l.id===pinnedListId)||null;
+  // Desktop : chaque bloc de la colonne gauche est une carte ; les cartes s'étirent pour que le bas
+  // de la colonne tombe pile au niveau du bas du Mood Radar.
+  const leftCard = desktop ? "flex-auto rounded-2xl border border-white/6 bg-white/3 p-4" : "";
   const openListData = customLists.find(l=>l.id===openList)||null;
 
   return (
@@ -889,7 +1321,10 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
       )}
 
       {/* Header */}
-      <div className="mb-6 flex flex-col gap-6 sm:flex-row sm:items-start">
+      <div className={desktop
+        ? `${GLASS} mb-6 flex flex-col gap-6 p-6 sm:flex-row sm:items-center`
+        : "mb-6 flex flex-col gap-6 sm:flex-row sm:items-start"}
+        style={desktop ? GLASS_STYLE : undefined}>
         <div className="relative shrink-0">
           <FrameSVG frame={activeFrame} size={112}>
             <button onClick={() => setShowAvatarPicker(true)}
@@ -905,7 +1340,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
           )}
         </div>
 
-        <div className="flex-1">
+        <div className={desktop ? "sm:w-[290px] sm:flex-none" : "flex-1"}>
           <div className="mb-1 flex items-center justify-between">
             <div>
               <div className={`text-2xl font-black tracking-tight ${GRADIENT_TEXT}`}>
@@ -913,63 +1348,92 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
               </div>
               <div className="text-xs text-slate-500">@{myUsername} · AniMood</div>
             </div>
-            <button onClick={onOpenSettings} className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs font-bold text-slate-400">⚙️</button>
+            {!desktop && <button onClick={() => { playSound("click"); onOpenSettings(); }} className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs font-bold text-slate-400">⚙️</button>}
           </div>
 
           {editingBio ? (
-            <div className="flex max-w-md gap-2 items-center">
-              <input value={bioInput} onChange={e => setBioInput(e.target.value)} maxLength={80} placeholder={t.bioPlaceholder}
-                className="flex-1 rounded-lg border border-violet-600/40 bg-white/7 px-2.5 py-1.5 text-xs text-slate-100 outline-none"
-                onKeyDown={e => { if(e.key==="Enter"){saveBio();setEditingBio(false);} if(e.key==="Escape")setEditingBio(false); }} />
-              {activeBadge && (
-                <span className="inline-flex align-middle" title={`${activeBadge.label} — ${activeBadge.desc}`}>
-                  <BadgeDisplay badge={activeBadge} size={20} />
-                </span>
-              )}
-              <button onClick={() => { saveBio(); setEditingBio(false); }} className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-bold text-white">✓</button>
+            <div className="max-w-md">
+              <div className="flex gap-2 items-center">
+                <input ref={bioInputRef} value={bioInput} onChange={e => setBioInput(e.target.value)} maxLength={80} placeholder={t.bioPlaceholder}
+                  autoFocus
+                  className="flex-1 rounded-lg border border-violet-500/50 bg-white/7 px-2.5 py-1.5 text-xs text-slate-100 outline-none focus:border-violet-400/70 transition-colors"
+                  onKeyDown={e => { if(e.key==="Enter"){saveBio();setEditingBio(false);} if(e.key==="Escape"){setEditingBio(false);} }} />
+                {activeBadge && (
+                  <span className="inline-flex align-middle" title={`${activeBadge.label} — ${activeBadge.desc}`}>
+                    <BadgeDisplay badge={activeBadge} size={20} />
+                  </span>
+                )}
+                <button onClick={() => { saveBio(); setEditingBio(false); }}
+                  className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-violet-500 transition-colors">✓</button>
+                <button onClick={() => setEditingBio(false)}
+                  className="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors">✕</button>
+              </div>
+              <div className="mt-1 text-right text-[9px] text-slate-600">{bioInput.length}/80</div>
             </div>
           ) : (
-            <button onClick={() => { setBioInput(me.bio||""); setEditingBio(true); }} className="group relative rounded-lg border border-dashed border-white/10 px-2.5 py-1.5 text-left text-[11px] text-slate-500">
+            <button onClick={() => { setBioInput(me.bio||""); setEditingBio(true); }}
+              className="group relative rounded-lg border border-dashed border-white/10 px-2.5 py-1.5 text-left text-[11px] text-slate-500">
               <span className="inline-flex items-center gap-1.5">
-                <span>{me.bio || t.addBioPlaceholder}</span>
+                <span>{bioSaved ? (
+                  <span className="text-violet-400 font-medium">✓ {t.bioSaved || "Sauvegardé !"}</span>
+                ) : (me.bio || t.addBioPlaceholder)}</span>
                 {activeBadge && (
                   <span className="inline-flex align-middle" title={`${activeBadge.label} — ${activeBadge.desc}`}>
                     <BadgeDisplay badge={activeBadge} size={16} />
                   </span>
                 )}
               </span>
+              {desktop && <span className="ml-1.5 opacity-0 group-hover:opacity-100 transition-opacity text-[9px] text-violet-400">✏️</span>}
             </button>
           )}
 
           {/* Followers / Following / Stats */}
           <div className="flex items-center gap-4 mt-2 flex-wrap">
-            <button onClick={() => setFollowListMode("followers")} className="flex items-center gap-1.5 transition hover:opacity-75">
+            <button onClick={() => { playSound("click"); setFollowListMode("followers"); }} className="flex items-center gap-1.5 transition hover:opacity-75">
               <span className="text-[13px] font-black text-slate-100">{followerCount}</span>
               <span className="text-[11px] text-slate-500">{t.followerLabel(followerCount)}</span>
             </button>
             <div className="w-px h-3 bg-white/10"/>
-            <button onClick={() => setFollowListMode("following")} className="flex items-center gap-1.5 transition hover:opacity-75">
+            <button onClick={() => { playSound("click"); setFollowListMode("following"); }} className="flex items-center gap-1.5 transition hover:opacity-75">
               <span className="text-[13px] font-black text-slate-100">{followingCount}</span>
               <span className="text-[11px] text-slate-500">{t.followingLabel(followingCount)}</span>
             </button>
           </div>
         </div>
+
+        {desktop && (
+          <>
+            <div className="min-w-0 flex-1">
+              <HudPanel tilesOnly me={me} rated={rated} myUsername={myUsername} unlockedBadges={unlockedBadges} onOpenBadges={() => setShowBadgePicker(true)} t={t} />
+            </div>
+            <div className="hidden self-stretch sm:block" style={{ width: 1, background: "linear-gradient(180deg, transparent, rgba(255,255,255,.12), transparent)" }} />
+            <SpotlightCircle
+              anime={spotlightId ? animeCache[spotlightId] : null}
+              lang={lang}
+              onOpen={() => animeCache[spotlightId] && onOpenDetail(animeCache[spotlightId])}
+              onPick={() => setShowSpotlightPicker(true)}
+              onClear={() => persistSpotlight(null)}
+            />
+          </>
+        )}
       </div>
 
       {/* Tabs */}
-      <TabBar tabs={getTabs(t)} active={tab} onChange={setTab} className="mb-6" />
+      <TabBar tabs={getTabs(t)} active={tab} onChange={id => { playSound("tab"); setTab(id); }} className="mb-6" />
 
       {/* ── PROFIL TAB ── */}
       {tab === "profile" && (
-        <div className="grid gap-8 lg:grid-cols-2">
+        <div className={desktop ? "grid gap-6 lg:grid-cols-2 lg:items-stretch" : "grid gap-8 lg:grid-cols-2"}>
 
-          {/* LEFT — Favoris + Derniers vus + Liste épinglée */}
-          <div className="flex flex-col gap-8">
+          {/* LEFT — Favoris + Derniers vus + Liste épinglée
+              Desktop : la colonne s'étire sur toute la hauteur et répartit ses 3 blocs,
+              pour que le bas de la liste épinglée tombe au niveau du bas du Mood Radar. */}
+          <div className={desktop ? "flex flex-col gap-4" : "flex flex-col gap-8"}>
             {/* Favoris — toujours en premier */}
-            <div>
+            <div className={leftCard}>
               <div className="mb-2.5 flex items-center justify-between">
                 <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.favoritesTitle}</div>
-                <button onClick={()=>setEditingFavs(e=>!e)}
+                <button onClick={()=>{ playSound("click"); setEditingFavs(e=>!e); }}
                   className="text-[10px] font-bold text-slate-500 hover:text-slate-300 transition">
                   {editingFavs ? t.editDone : t.editBtn}
                 </button>
@@ -1006,7 +1470,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
             </div>
 
             {/* Derniers vus */}
-            <div>
+            <div className={leftCard}>
               <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.recentlyWatchedTitle}</div>
               <div className="grid grid-cols-5 gap-2.5">
                 {completed.slice(0,5).map(id => <AnimePoster key={id} anime={getAnime(id)} onClick={onOpenDetail} loading />)}
@@ -1016,7 +1480,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
 
             {/* Liste épinglée */}
             {pinnedList ? (
-              <div>
+              <div className={leftCard}>
                 <div className="mb-2.5 flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     <span>📌</span><span>{pinnedList.name}</span>
@@ -1039,7 +1503,21 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
             )}
           </div>
 
-          {/* RIGHT — 3 stats + Distribution + MoodRadar */}
+          {desktop ? (
+          /* RIGHT (desktop) — HUD tablet high-tech stats */
+          <HudPanel
+            noTiles
+            lang={lang}
+            activeBadge={activeBadge}
+            me={me}
+            rated={rated}
+            myUsername={myUsername}
+            unlockedBadges={unlockedBadges}
+            onOpenBadges={() => setShowBadgePicker(true)}
+            t={t}
+          />
+          ) : (
+          /* RIGHT (web) — 3 stats + Distribution + MoodRadar */
           <div className="flex flex-col gap-8">
             <div className="grid grid-cols-4 gap-3">
               {[
@@ -1075,6 +1553,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
             </div>
             <PersonalMoodRadar ratings={me.ratings} watched={me.watched}/>
           </div>
+          )}
         </div>
       )}
             {/* ── JOURNAL TAB ── */}
@@ -1414,17 +1893,17 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
           <div className="p-6">
             <div className="mb-1 text-center text-sm font-black text-slate-100">{t.framesUnlockedTitle}</div>
             <div className="mb-4 text-center text-[11px] text-slate-500">{t.frameCount(unlockedFrames.length)}</div>
-            <button onClick={() => setFrame(null)}
+            <button onClick={() => { playSound("click"); setFrame(null); }}
               className="mb-2.5 flex w-full items-center gap-3 rounded-xl p-2.5 text-left"
               style={{ border: !activeFrame ? "2px solid #7c3aed" : "2px solid transparent", background: !activeFrame ? "rgba(124,58,237,0.1)" : "transparent" }}>
               <div className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-white/15 bg-white/5 text-lg">🚫</div>
               <div><div className="text-xs font-bold text-slate-100">{t.noFrameTitle}</div><div className="text-[10px] text-slate-500">{t.noFrameDesc}</div></div>
             </button>
             <div className="flex flex-col gap-2">
-              {["watched","contribution","followers","genre"].map(cat => {
+              {["watched","contribution","followers","genre",...(desktop?["fun"]:[])].map(cat => {
                 const catFrames = unlockedFrames.filter(f=>f.category===cat);
                 if(!catFrames.length) return null;
-                const catLabels = {watched:t.frameCatWatched,contribution:t.frameCatContribution,followers:t.frameCatFollowers,genre:t.frameCatGenre};
+                const catLabels = {watched:t.frameCatWatched,contribution:t.frameCatContribution,followers:t.frameCatFollowers,genre:t.frameCatGenre,fun:lang==="en"?"Effects & special":"Effets & spéciaux"};
                 return (
                   <div key={cat}>
                     <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{catLabels[cat]}</div>
@@ -1437,7 +1916,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                             style={{ border: isActive?"2px solid #7c3aed":"2px solid transparent", background: isActive?"rgba(124,58,237,0.1)":"rgba(var(--fg-rgb),0.03)" }}>
                             <div className="relative h-11 w-11">
                               <div className="flex h-11 w-11 items-center justify-center rounded-full text-lg" style={{ background: GRADIENT_PRIMARY }}>👤</div>
-                              <svg className="absolute inset-0" viewBox="0 0 44 44" dangerouslySetInnerHTML={{ __html: frame.svg(44) }} />
+                              <svg className="absolute inset-0" viewBox="0 0 44 44" style={desktop ? { overflow: "visible" } : undefined} dangerouslySetInnerHTML={{ __html: getFrameSvg(frame, 44) }} />
                             </div>
                             <div className="max-w-13 text-center text-[9px] font-bold leading-tight" style={{ color:frame.color }}>{getFrameLabel(frame, lang)}</div>
                           </button>
@@ -1454,18 +1933,87 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
 
       {/* Avatar picker */}
       {showAvatarPicker && (
-        <Modal onClose={() => setShowAvatarPicker(false)} maxWidth="max-w-md">
+        <Modal onClose={() => { setShowAvatarPicker(false); setAvatarUrlInput(""); setAvatarUrlPreview(null); setAvatarUrlError(false); }} maxWidth="max-w-md">
           <div className="p-6">
             <div className="mb-4 text-center text-sm font-black text-slate-100">{t.chooseAvatarTitle}</div>
-            <div className="flex flex-wrap justify-center gap-2.5">
-              {AVATAR_EMOJIS.map(e => (
-                <button key={e} onClick={() => setAvatar(e)}
-                  className="flex h-12.5 w-12.5 items-center justify-center rounded-xl text-2xl"
-                  style={{ background: me.avatar===e?"rgba(124,58,237,0.3)":"rgba(var(--fg-rgb),0.05)", border: me.avatar===e?"2px solid #7c3aed":"2px solid transparent" }}>
-                  {e}
+            {/* Tab switcher */}
+            <div className="mb-4 flex rounded-xl overflow-hidden border border-white/8 bg-white/3">
+              {[{id:"emoji",label:"Emoji"},{id:"url",label:"URL / Image"}].map(tab => (
+                <button key={tab.id} onClick={() => { playSound("click"); setAvatarPickerTab(tab.id); }}
+                  className="flex-1 py-2 text-[12px] font-bold transition"
+                  style={{ background: avatarPickerTab===tab.id ? GRADIENT_PRIMARY : "transparent", color: avatarPickerTab===tab.id ? "#fff" : "var(--text-3)" }}>
+                  {tab.label}
                 </button>
               ))}
             </div>
+
+            {avatarPickerTab === "emoji" && (
+              <div className="flex flex-wrap justify-center gap-2.5">
+                {AVATAR_EMOJIS.map(e => (
+                  <button key={e} onClick={() => setAvatar(e)}
+                    className="flex h-12.5 w-12.5 items-center justify-center rounded-xl text-2xl transition hover:scale-110"
+                    style={{ background: me.avatar===e?"rgba(124,58,237,0.3)":"rgba(var(--fg-rgb),0.05)", border: me.avatar===e?"2px solid #7c3aed":"2px solid transparent" }}>
+                    {e}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {avatarPickerTab === "url" && (
+              <div>
+                <p className="mb-3 text-center text-[11px] text-slate-500">{t.avatarUrlDesc || "Colle l'URL d'une image (JPG, PNG, WebP)"}</p>
+                <div className="mb-3 flex gap-2">
+                  <input
+                    autoFocus
+                    value={avatarUrlInput}
+                    onChange={e => {
+                      setAvatarUrlInput(e.target.value);
+                      setAvatarUrlError(false);
+                      setAvatarUrlPreview(null);
+                    }}
+                    placeholder="https://..."
+                    className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[12px] text-slate-100 outline-none focus:border-violet-400/40 placeholder:text-slate-600"
+                    onKeyDown={e => {
+                      if(e.key === "Enter" && avatarUrlInput.trim()) {
+                        setAvatarUrlPreview(avatarUrlInput.trim());
+                      }
+                    }}
+                  />
+                  <button onClick={() => { if(avatarUrlInput.trim()) setAvatarUrlPreview(avatarUrlInput.trim()); }}
+                    className="rounded-lg bg-white/8 px-3 py-2 text-[12px] font-bold text-slate-300 hover:bg-white/14 transition">
+                    {t.avatarUrlPreviewBtn || "Aperçu"}
+                  </button>
+                </div>
+                {avatarUrlPreview && (
+                  <div className="mb-3 flex flex-col items-center gap-3">
+                    <div className="h-20 w-20 rounded-full overflow-hidden border-2 border-violet-500/50 bg-white/5">
+                      <img src={avatarUrlPreview} alt="preview"
+                        className="h-full w-full object-cover"
+                        onError={() => setAvatarUrlError(true)}
+                        onLoad={() => setAvatarUrlError(false)} />
+                    </div>
+                    {avatarUrlError ? (
+                      <p className="text-[11px] text-red-400">{t.avatarUrlError || "Image non chargeable. Vérifie l'URL."}</p>
+                    ) : (
+                      <button onClick={() => setAvatarUrl(avatarUrlPreview)}
+                        className="rounded-xl px-5 py-2 text-[13px] font-bold text-white transition hover:opacity-90"
+                        style={{ background: GRADIENT_PRIMARY }}>
+                        {t.avatarUrlApply || "Utiliser cette image"}
+                      </button>
+                    )}
+                  </div>
+                )}
+                {me.avatar?.startsWith?.("http") && (
+                  <div className="mt-2 border-t border-white/6 pt-3">
+                    <p className="mb-2 text-[10px] text-slate-600">{t.avatarCurrentUrl || "Image actuelle"}</p>
+                    <div className="flex items-center gap-2">
+                      <img src={me.avatar} alt="current" className="h-8 w-8 rounded-full object-cover border border-white/10" />
+                      <span className="flex-1 truncate text-[10px] text-slate-500">{me.avatar}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </Modal>
       )}
@@ -1476,7 +2024,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
           <div className="p-6">
             <div className="mb-1 text-center text-sm font-black text-slate-100">{t.badgeSectionTitle}</div>
             <div className="mb-4 text-center text-[11px] text-slate-500">{unlockedBadges.length} débloqué{unlockedBadges.length!==1?"s":""}</div>
-            <button onClick={() => { setActiveBadge(null); saveMe({...me, activeBadge: null}); setShowBadgePicker(false); }}
+            <button onClick={() => { playSound("click"); setActiveBadge(null); saveMe({...me, activeBadge: null}); setShowBadgePicker(false); }}
               className="mb-2.5 flex w-full items-center gap-3 rounded-xl p-2.5 text-left"
               style={{ border: !activeBadge ? "2px solid #7c3aed" : "2px solid transparent", background: !activeBadge ? "rgba(124,58,237,0.1)" : "transparent" }}>
               <div className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-white/15 bg-white/5 text-lg">🚫</div>
@@ -1494,7 +2042,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                       {catBadges.map(badge => {
                         const isActive = activeBadge?.id===badge.id;
                         return (
-                          <button key={badge.id} onClick={() => { setActiveBadge(badge); saveMe({...me, activeBadge: badge.id}); setShowBadgePicker(false); }}
+                          <button key={badge.id} onClick={() => { playSound("unlock"); setActiveBadge(badge); saveMe({...me, activeBadge: badge.id}); setShowBadgePicker(false); }}
                             className="flex flex-col items-center gap-1 rounded-xl p-2"
                             style={{ border: isActive?"2px solid #7c3aed":"2px solid transparent", background: isActive?"rgba(124,58,237,0.1)":"rgba(var(--fg-rgb),0.03)" }}>
                             <span style={{fontSize:28,filter:`drop-shadow(0 0 6px ${badge.color}60)`}}>{badge.emoji}</span>
@@ -1512,6 +2060,11 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
       )}
 
       {favPopup !== null && <FavoriteSearchModal onSelect={selectFavorite} onClose={() => setFavPopup(null)} />}
+      {desktop && showSpotlightPicker && (
+        <FavoriteSearchModal
+          onSelect={(a) => { playSound("confirm"); setAnimeCache(p => ({...p,[a.mal_id]:a})); persistSpotlight(a.mal_id); setShowSpotlightPicker(false); }}
+          onClose={() => setShowSpotlightPicker(false)} />
+      )}
       {followListMode && (
         <FollowListModal username={myUsername} mode={followListMode} onClose={() => setFollowListMode(null)} onOpenUser={onOpenUser} />
       )}

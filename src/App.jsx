@@ -2,8 +2,10 @@ import React, { useState, useEffect } from "react";
 import { ThemeProvider } from "./context/ThemeProvider.jsx";
 import { LangProvider } from "./context/LangProvider.jsx";
 import { AppProvider } from "./context/AppProvider.jsx";
+import { SoundProvider, useSound } from "./context/SoundContext.jsx";
 import { useApp } from "./context/useApp.js";
 import { useLang } from "./context/useLang.js";
+import { isDesktopApp } from "./utils/streamingLinks.js";
 import { Header } from "./components/Header.jsx";
 import { Footer } from "./components/Footer.jsx";
 import { Spinner } from "./components/Spinner.jsx";
@@ -14,10 +16,12 @@ import { FeedView } from "./views/FeedView.jsx";
 import { MoodboardView } from "./views/MoodboardView.jsx";
 import { SearchView } from "./views/SearchView.jsx";
 import { ForumView } from "./views/ForumView.jsx";
+import { GamesView } from "./views/GamesView.jsx";
 import { MessagesView } from "./views/MessagesView.jsx";
 import { ProfileView } from "./views/ProfileView.jsx";
 import { UserProfileModal } from "./views/UserProfileModal.jsx";
 import { SettingsView } from "./views/SettingsView.jsx";
+import { DesktopUpdateBanner } from "./components/DesktopUpdateBanner.jsx";
 
 // ── Static Pages ──────────────────────────────────────────────────────────────
 function PageWrapper({ title, onClose, children }) {
@@ -286,15 +290,98 @@ function Section({ title, children }) {
   );
 }
 
+
+function CategoriesPage({ onClose }) {
+  const { lang } = useLang();
+  return (
+    <PageWrapper title="Catégories & Moods" onClose={onClose}>
+      <p style={{fontSize:12,color:"var(--text-4)",marginBottom:20,lineHeight:1.7}}>
+        AniMood classe chaque animé selon 8 émotions. Plus tu votes, plus les recommandations s'affinent.
+      </p>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        {[
+          {emoji:"💔",label:"Emotional",color:"#A78BFA",desc:"Drames, larmes, histoires qui touchent"},
+          {emoji:"✨",label:"Happy",color:"#FFD93D",desc:"Comédie, feel-good, sourires garantis"},
+          {emoji:"⚡",label:"Hype",color:"#F97316",desc:"Action, combats, adrénaline"},
+          {emoji:"🩸",label:"Dark",color:"#EF4444",desc:"Horreur, psychologique, atmosphère lourde"},
+          {emoji:"🌿",label:"Chill",color:"#34D399",desc:"Slice of life, détente, rien de stressant"},
+          {emoji:"🌀",label:"Twisted",color:"#06B6D4",desc:"Mindfuck, retournements, imprévisible"},
+          {emoji:"🌸",label:"In Love",color:"#F9A8D4",desc:"Romance, shojo, histoires d'amour"},
+          {emoji:"🎢",label:"Thrills",color:"#FB923C",desc:"Suspense, tension, mystère"},
+        ].map(m => (
+          <div key={m.label} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",
+            borderRadius:12,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)"}}>
+            <span style={{fontSize:22,flexShrink:0}}>{m.emoji}</span>
+            <div>
+              <div style={{fontSize:12,fontWeight:800,color:m.color,marginBottom:2}}>{m.label}</div>
+              <div style={{fontSize:10,color:"var(--text-5)",lineHeight:1.5}}>{m.desc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </PageWrapper>
+  );
+}
+
+function ModerationPage({ onClose }) {
+  return (
+    <PageWrapper title="Modération" onClose={onClose}>
+      {[
+        {h:"Signalement de contenu",p:"Utilise le bouton de signalement sur les fils de discussion ou commentaires pour alerter les modérateurs. Chaque signalement est examiné sous 48h."},
+        {h:"Règles de la communauté",p:"Pas de harcèlement, pas de spam, pas de contenu hors-sujet. Les discussions doivent rester en lien avec l'anime ou la plateforme."},
+        {h:"Sanctions",p:"En cas de violation des règles, le compte peut être suspendu temporairement ou définitivement selon la gravité."},
+        {h:"Contact modération",p:"Pour toute question relative à la modération, utilise la page Contact."},
+      ].map(s => (
+        <div key={s.h} style={{marginBottom:20}}>
+          <div style={{fontSize:13,fontWeight:800,color:"var(--text-1)",marginBottom:6}}>{s.h}</div>
+          <p style={{fontSize:12,color:"var(--text-4)",lineHeight:1.7}}>{s.p}</p>
+        </div>
+      ))}
+    </PageWrapper>
+  );
+}
+
+function LegalPage({ type, onClose }) {
+  const sections = type === "privacy" ? [
+    {h:"Données collectées",p:"Nom d'utilisateur, avatar, liste des animés vus, notes et votes de moods. Aucune donnée bancaire ou sensible n'est collectée."},
+    {h:"Utilisation des données",p:"Tes données sont utilisées uniquement pour personnaliser tes recommandations et afficher ton profil public."},
+    {h:"Stockage",p:"Les données sont stockées sur Supabase (EU). Tu peux demander la suppression de ton compte à tout moment via la page Contact."},
+    {h:"Cookies",p:"AniMood utilise uniquement les cookies nécessaires à l'authentification. Aucun cookie publicitaire."},
+  ] : [
+    {h:"Éditeur",p:"AniMood est un projet indépendant open-source. Dépôt GitHub : github.com/casval-bit/animood"},
+    {h:"Hébergement",p:"L'application est hébergée sur des services cloud tiers (Vercel, Supabase)."},
+    {h:"Propriété intellectuelle",p:"Les données d'animés proviennent de MAL via l'API Jikan et AniList. Les images et titres restent la propriété de leurs ayants droit respectifs."},
+    {h:"Responsabilité",p:"AniMood est fourni tel quel, sans garantie. L'éditeur ne peut être tenu responsable des contenus publiés par les utilisateurs."},
+  ];
+  return (
+    <PageWrapper title={type === "privacy" ? "Politique de confidentialité" : "Mentions légales"} onClose={onClose}>
+      <div style={{padding:"10px 14px",borderRadius:10,background:"rgba(251,191,36,0.08)",
+        border:"1px solid rgba(251,191,36,0.2)",marginBottom:20,
+        fontSize:11,color:"#fbbf24",lineHeight:1.6}}>
+        ⚠️ Ces informations sont données à titre indicatif et seront mises à jour lors du lancement officiel.
+      </div>
+      {sections.map(s => (
+        <div key={s.h} style={{marginBottom:20}}>
+          <div style={{fontSize:13,fontWeight:800,color:"var(--text-1)",marginBottom:6}}>{s.h}</div>
+          <p style={{fontSize:12,color:"var(--text-4)",lineHeight:1.7}}>{s.p}</p>
+        </div>
+      ))}
+    </PageWrapper>
+  );
+}
+
 function Shell() {
   const { session, profileReady } = useApp();
   const { lang } = useLang();
-  const [activeTab, setActiveTab]   = useState(() => window.history.state?.tab || "moodboard");
+  const { playSound } = useSound();
+  // Desktop démarre sur le profil, web sur moodboard
+  const [activeTab, setActiveTab]   = useState(() => window.history.state?.tab || (isDesktopApp() ? "profile" : "moodboard"));
   const [showSettings, setShowSettings] = useState(false);
   const [detailAnime, setDetailAnime]   = useState(null);
   const [openUser, setOpenUser]         = useState(null);
   const [pendingJoinGame, setPendingJoinGame] = useState(null);
   const [activePage, setActivePage] = useState(null);
+  const [legalPage, setLegalPage]     = useState(null);
 
   // Seed the very first history entry with the current tab so the first
   // back press has a well-defined page to land on instead of leaving the app.
@@ -316,6 +403,7 @@ function Shell() {
 
   const changeTab = (tab) => {
     if (tab === activeTab) return;
+    playSound("tab");
     window.history.pushState({ tab }, "");
     setActiveTab(tab);
   };
@@ -338,13 +426,18 @@ function Shell() {
     search:    <SearchView onOpenDetail={openDetail} onOpenUser={setOpenUser} />,
     forum:     <ForumView onOpenDetail={openDetail} onOpenUser={setOpenUser}
                  pendingJoinGame={pendingJoinGame} onClearPendingJoin={() => setPendingJoinGame(null)} />,
+    // Onglet JEUX : appli de bureau uniquement (le site garde les jeux dans le forum)
+    ...(isDesktopApp() ? { games: <GamesView
+                 pendingJoinGame={pendingJoinGame} onClearPendingJoin={() => setPendingJoinGame(null)} /> } : {}),
     messages:  <MessagesView />,
   };
 
+  const desktop = isDesktopApp();
+
   return (
-    <div className="min-h-screen">
-      <Header activeTab={activeTab} onChangeTab={changeTab}
-        onJoinGame={payload => { changeTab("forum"); setPendingJoinGame(payload); }} />
+    <div className="min-h-screen" style={desktop ? { paddingTop: 80 } : {}}>
+      <Header activeTab={activeTab} onChangeTab={changeTab} onOpenSettings={() => setShowSettings(true)}
+        onJoinGame={payload => { changeTab(desktop ? "games" : "forum"); setPendingJoinGame(payload); }} />
       <main>
         {/* Feed and Profile stay mounted for cross-sync */}
         <div style={{display: activeTab==="feed" ? "block" : "none"}}>
@@ -356,7 +449,7 @@ function Shell() {
         {/* Other pages unmount when hidden — no sync needed */}
         {pages[activeTab]}
       </main>
-      <Footer onOpenPage={setActivePage}/>
+      <Footer onOpenPage={(p) => { if(p==="legal"||p==="privacy") setLegalPage(p); else setActivePage(p); }}/>
       <ChatBubble hidden={activeTab === "messages"} />
 
       {showSettings && <SettingsView onClose={() => setShowSettings(false)} />}
@@ -371,13 +464,17 @@ function Shell() {
         />
       )}
 
-      {activePage === "about"   && <AboutPage   onClose={()=>setActivePage(null)}/>}
-      {activePage === "contact" && <ContactPage onClose={()=>setActivePage(null)}/>}
-      {activePage === "faq"     && <FAQPage     onClose={()=>setActivePage(null)}/>}
+      {activePage === "about"      && <AboutPage      onClose={()=>setActivePage(null)}/>}
+      {activePage === "contact"   && <ContactPage   onClose={()=>setActivePage(null)}/>}
+      {activePage === "faq"       && <FAQPage       onClose={()=>setActivePage(null)}/>}
+      {activePage === "categories" && <CategoriesPage onClose={()=>setActivePage(null)}/>}
+      {activePage === "moderation" && <ModerationPage onClose={()=>setActivePage(null)}/>}
+      {legalPage && <LegalPage type={legalPage} onClose={()=>setLegalPage(null)}/>}
 
       {openUser && (
         <UserProfileModal username={openUser} onClose={() => setOpenUser(null)} onOpenDetail={openDetail} onOpenUser={setOpenUser} />
       )}
+      <DesktopUpdateBanner />
     </div>
   );
 }
@@ -386,9 +483,11 @@ export default function App() {
   return (
     <ThemeProvider>
       <LangProvider>
-        <AppProvider>
-          <Shell />
-        </AppProvider>
+        <SoundProvider>
+          <AppProvider>
+            <Shell />
+          </AppProvider>
+        </SoundProvider>
       </LangProvider>
     </ThemeProvider>
   );

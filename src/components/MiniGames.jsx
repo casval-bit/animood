@@ -5,6 +5,7 @@ import { MOOD_KEYS } from "../constants/moods.js";
 import { useLang } from "../context/useLang.js";
 import { MINI_GAMES_I18N } from "../constants/miniGamesI18n.js";
 import { awardSoloPoints, awardOpQuizPoints } from "../utils/awardSoloPoints.js";
+import { bumpDesktopStat } from "../frames/framesDesktop.js";
 import { ANIME_OPENINGS } from "../constants/animeOpenings.js";
 import { attachCommunityDifficulty, getUserStats, recordOpQuizAttempt, pickAdaptiveRounds, hashSeed } from "../utils/opquizStats.js";
 
@@ -223,6 +224,7 @@ export function WordleGame({ onClose }) {
     if(newStatus === "won") {
       awardSoloPoints(myUsername, "wordle", newGuesses.length, true).catch(()=>{});
     }
+    if(newStatus === "lost") bumpDesktopStat(myUsername, "wordle_lost"); // desktop uniquement (cadre « Mot de trop »)
   };
 
   const tryGuess = async (anime) => {
@@ -441,6 +443,7 @@ export function PosterGame({ onClose }) {
     if(newStatus === "won") {
       awardSoloPoints(myUsername, "poster", newGuesses.length, true).catch(()=>{});
     }
+    if(newStatus === "lost") bumpDesktopStat(myUsername, "poster_lost"); // desktop uniquement (cadre « Poster nul »)
   };
 
   if(loading) return (
