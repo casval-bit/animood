@@ -639,7 +639,7 @@ function WebNotificationBell({ onChangeTab, onJoinGame }) {
   );
 }
 
-function WebHeader({ activeTab, onChangeTab, onJoinGame }) {
+function WebHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
   const { me, session, unreadPeers } = useApp();
   const { lang } = useLang();
   const t = HEADER_I18N[lang] || HEADER_I18N.fr;
@@ -685,6 +685,18 @@ function WebHeader({ activeTab, onChangeTab, onJoinGame }) {
         </nav>
 
         <WebNotificationBell onChangeTab={onChangeTab} onJoinGame={onJoinGame} />
+
+        {onOpenSettings && (
+          <button
+            onClick={onOpenSettings}
+            title={lang === "en" ? "Settings" : "Paramètres"}
+            aria-label={lang === "en" ? "Settings" : "Paramètres"}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[15px] transition hover:scale-110"
+            style={{ background: "rgba(var(--fg-rgb),.06)" }}
+          >
+            ⚙️
+          </button>
+        )}
 
         <button
           onClick={() => onChangeTab("messages")}
@@ -1055,5 +1067,5 @@ export function Header({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
   if (isDesktopApp()) {
     return <DesktopHeader activeTab={activeTab} onChangeTab={onChangeTab} onJoinGame={onJoinGame} onOpenSettings={onOpenSettings} />;
   }
-  return <WebHeader activeTab={activeTab} onChangeTab={onChangeTab} onJoinGame={onJoinGame} />;
+  return <WebHeader activeTab={activeTab} onChangeTab={onChangeTab} onJoinGame={onJoinGame} onOpenSettings={onOpenSettings} />;
 }

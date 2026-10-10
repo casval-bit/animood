@@ -1350,7 +1350,6 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
               </div>
               <div className="text-xs text-slate-500">@{myUsername} · AniMood</div>
             </div>
-            {!desktop && <button onClick={() => { playSound("click"); onOpenSettings(); }} className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs font-bold text-slate-400">⚙️</button>}
           </div>
 
           {editingBio ? (
