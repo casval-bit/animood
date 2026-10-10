@@ -4,15 +4,14 @@ import { useLang } from "../context/useLang.js";
 import { useSound } from "../context/SoundContext.jsx";
 import { STATUS_COLORS, STATUS_PRIORITY, getStatusLabel } from "../constants/statuses.js";
 import { PROFILE_I18N } from "../constants/profileI18n.js";
-import { AVATAR_EMOJIS } from "../constants/avatars.js";
 import { MOOD_KEYS } from "../constants/moods.js";
 import { jikan } from "../api/jikan.js";
 import { follows, sb, posts as postsApi, comments as commentsApi } from "../api/supabase.js";
 import { dispatchPostEvent, addPostEventListener } from "../utils/postEvents.js";
-import { FRAMES, getUnlockedFrames, getBestFrame, getFrameLabel } from "../frames/frames.js";
-import { BADGES, getUnlockedBadges, getBestBadge, getBadgeLabel, BadgeDisplay } from "../badges/badges.jsx";
+import { FRAMES, getUnlockedFrames, getBestFrame } from "../frames/frames.js";
+import { BADGES, getUnlockedBadges, getBestBadge, BadgeDisplay } from "../badges/badges.jsx";
 import { FrameSVG } from "../frames/FrameSVG.jsx";
-import { getFrameSvg, getDesktopExtraFrames, noteNightOwl } from "../frames/framesDesktop.js";
+import { getFrameSvg, getExtraFrames, loadFrameFlags, noteNightOwl } from "../frames/framesDesktop.js";
 import { Spinner } from "../components/Spinner.jsx";
 import { ScoreChart } from "../components/ScoreChart.jsx";
 import { MoodOctagon } from "../components/MoodOctagon.jsx";
@@ -555,7 +554,8 @@ const SPOTLIGHT_CSS = `
 .sp-wrap:hover .sp-actions { opacity: 1; }
 `;
 
-function SpotlightCircle({ anime, lang, onOpen, onPick, onClear, size = 132 }) {
+// compact (site web) : aucun bouton sous le cercle — modification via la pastille ✎ et, au survol, « Changer » / ✕
+function SpotlightCircle({ anime, lang, onOpen, onPick, onClear, size = 132, compact = false }) {
   const en = lang === "en";
   const label = en ? "On repeat" : "En boucle";
   const img = anime?.images?.jpg?.large_image_url || anime?.images?.jpg?.image_url || anime?.image_url;
@@ -605,6 +605,14 @@ function SpotlightCircle({ anime, lang, onOpen, onPick, onClear, size = 132 }) {
           </div>
         )}
 
+        {/* site web : pastille ✎ discrète (toujours visible, utile sans survol) */}
+        {compact && (
+          <button type="button" onClick={onPick} title={en ? (anime ? "Change" : "Pick an anime") : (anime ? "Changer" : "Choisir un animé")}
+            style={{ position: "absolute", right: 0, top: 2, width: 24, height: 24, borderRadius: "50%", background: "#1e1b4b", border: "2px solid #070816", color: "#c4b5fd", fontSize: 11, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+            ✎
+          </button>
+        )}
+
         {/* pastille « boucle » */}
         <div style={{
           position: "absolute", right: -2, bottom: 6, width: 28, height: 28, borderRadius: "50%",
@@ -621,7 +629,7 @@ function SpotlightCircle({ anime, lang, onOpen, onPick, onClear, size = 132 }) {
       <div style={{ minHeight: 30, textAlign: "center", fontSize: 11.5, fontWeight: 700, lineHeight: 1.3, color: anime ? "#e2e8f0" : "rgba(148,163,184,.7)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
         {anime ? anime.title : (en ? "Pin an anime" : "Épingle un animé")}
       </div>
-      {anime && (
+      {anime && !compact && (
         <div style={{ display: "flex", gap: 6, marginTop: -2 }}>
           <button type="button" onClick={onPick}
             style={{ fontSize: 10.5, fontWeight: 800, color: "#c4b5fd", background: "rgba(139,92,246,.14)", border: "1px solid rgba(139,92,246,.35)", borderRadius: 999, padding: "3px 11px", cursor: "pointer" }}>
@@ -892,13 +900,6 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
   const [watchlistPage, setWatchlistPage] = useState(0);
   const [animeCache, setAnimeCache] = useState({});
   const [favPopup, setFavPopup] = useState(null);
-  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
-  const [avatarPickerTab, setAvatarPickerTab] = useState("emoji"); // "emoji" | "url"
-  const [avatarUrlInput, setAvatarUrlInput] = useState("");
-  const [avatarUrlPreview, setAvatarUrlPreview] = useState(null);
-  const [avatarUrlError, setAvatarUrlError] = useState(false);
-  const [showFramePicker, setShowFramePicker] = useState(false);
-  const [showBadgePicker, setShowBadgePicker] = useState(false);
   const [unlockedFrames, setUnlockedFrames] = useState([]);
   const [activeFrame, setActiveFrame] = useState(null);
   const [unlockedBadges, setUnlockedBadges] = useState([]);
@@ -1171,11 +1172,13 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
   useEffect(() => {
     (async () => {
       try {
-        const [followerRows, followingRows, voteRows, gameEloRows] = await Promise.all([
+        noteNightOwl(myUsername); // avant la lecture des drapeaux : l'ouverture de nuit compte tout de suite
+        const [followerRows, followingRows, voteRows, gameEloRows, frameFlags] = await Promise.all([
           follows.getFollowers(myUsername),
           follows.getFollowing(myUsername).catch(()=>[]),
           sb.query(`user_votes?username=eq.${myUsername}&select=pts_added&limit=1000`),
           sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&select=points_total&limit=1`).catch(()=>[]),
+          loadFrameFlags(myUsername).catch(()=>({})),
         ]);
         setFollowerCount((followerRows||[]).length);
         setFollowingCount((followingRows||[]).length);
@@ -1189,10 +1192,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
           } catch {}
         }
         const gamePoints = gameEloRows?.[0]?.points_total || 0;
-        noteNightOwl(myUsername);
         const unlockedF = [
           ...getUnlockedFrames({ watchedCount: me.watched.length, genreCounts, followerCount: (followerRows||[]).length, userVotes: voteRows||[], gamePoints }),
-          ...getDesktopExtraFrames({ me, followerCount: (followerRows||[]).length, followingCount: (followingRows||[]).length, username: myUsername }), // desktop uniquement (vide sur le site)
+          ...getExtraFrames({ me, followerCount: (followerRows||[]).length, followingCount: (followingRows||[]).length, flags: frameFlags }),
         ];
         setUnlockedFrames(unlockedF);
         const savedFrameId = me.activeFrame;
@@ -1235,24 +1237,6 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
     saveMe({ ...me, bio: bioInput });
     setBioSaved(true);
     setTimeout(() => setBioSaved(false), 2000);
-  };
-  const setAvatar = (e) => {
-    playSound("unlock");
-    saveMe({ ...me, avatar: e });
-    setShowAvatarPicker(false);
-  };
-  const setAvatarUrl = (url) => {
-    playSound("unlock");
-    saveMe({ ...me, avatar: url });
-    setShowAvatarPicker(false);
-    setAvatarUrlInput("");
-    setAvatarUrlPreview(null);
-  };
-  const setFrame = (frame) => {
-    playSound("unlock");
-    setActiveFrame(frame);
-    saveMe({ ...me, activeFrame: frame?.id||null });
-    setShowFramePicker(false);
   };
   const selectFavorite = (a) => {
     playSound("confirm");
@@ -1351,18 +1335,14 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
         : "mb-6 flex flex-col gap-6 sm:flex-row sm:items-start"}
         style={desktop ? GLASS_STYLE : undefined}>
         <div className="relative shrink-0">
+          {/* La photo, le cadre et le badge se changent uniquement dans Paramètres → Profil */}
           <FrameSVG frame={activeFrame} size={112}>
-            <button onClick={() => setShowAvatarPicker(true)}
-              className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full text-5xl transition hover:scale-105" style={{ background: GRADIENT_PRIMARY }}>
+            <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full text-5xl" style={{ background: GRADIENT_PRIMARY }}>
               {(me.avatar_base64 || (me.avatar?.startsWith?.("http") ? me.avatar : null))
                 ? <img src={me.avatar_base64 || me.avatar} alt="avatar" className="h-full w-full object-cover" />
                 : (me.avatar || "👤")}
-            </button>
+            </div>
           </FrameSVG>
-          <div onClick={() => setShowAvatarPicker(true)} className="absolute bottom-0 right-0 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-2 border-slate-950 bg-violet-600 text-[10px]">✏️</div>
-          {unlockedFrames.length > 0 && (
-            <div onClick={() => setShowFramePicker(true)} className="absolute right-0 top-0 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-2 border-slate-950 bg-indigo-600 text-[10px]">🖼</div>
-          )}
         </div>
 
         <div className={desktop ? "sm:w-[290px] sm:flex-none" : "flex-1"}>
@@ -1434,10 +1414,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                 title={lang === "en" ? "Total game points" : "Points de jeu totaux"} />
               <StatCircle size={80} icon="🏆" value={unlockedBadges.length} label={t.badges || "Badges"}
                 ring="conic-gradient(from 0deg, #f59e0b, #fbbf24, #fde68a, #fbbf24, #f59e0b)" glow="rgba(251,191,36,.22)"
-                onClick={() => { playSound("click"); setShowBadgePicker(true); }}
                 title={t.badges || "Badges"} />
             </div>
-            <SpotlightCircle size={112}
+            <SpotlightCircle size={112} compact
               anime={spotlightId ? animeCache[spotlightId] : null}
               lang={lang}
               onOpen={() => animeCache[spotlightId] && onOpenDetail(animeCache[spotlightId])}
@@ -1450,7 +1429,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
         {desktop && (
           <>
             <div className="min-w-0 flex-1">
-              <HudPanel tilesOnly me={me} rated={rated} myUsername={myUsername} unlockedBadges={unlockedBadges} onOpenBadges={() => setShowBadgePicker(true)} t={t} />
+              <HudPanel tilesOnly me={me} rated={rated} myUsername={myUsername} unlockedBadges={unlockedBadges} t={t} />
             </div>
             <div className="hidden self-stretch sm:block" style={{ width: 1, background: "linear-gradient(180deg, transparent, rgba(255,255,255,.12), transparent)" }} />
             <SpotlightCircle
@@ -1559,7 +1538,6 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
             rated={rated}
             myUsername={myUsername}
             unlockedBadges={unlockedBadges}
-            onOpenBadges={() => setShowBadgePicker(true)}
             t={t}
           />
           ) : (
@@ -1917,178 +1895,6 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
         ) : (
           <StatsTab statsData={statsData} ratings={me.ratings} watched={me.watched}/>
         )
-      )}
-
-      {/* Frame picker */}
-      {showFramePicker && (
-        <Modal onClose={() => setShowFramePicker(false)} maxWidth="max-w-lg">
-          <div className="p-6">
-            <div className="mb-1 text-center text-sm font-black text-slate-100">{t.framesUnlockedTitle}</div>
-            <div className="mb-4 text-center text-[11px] text-slate-500">{t.frameCount(unlockedFrames.length)}</div>
-            <button onClick={() => { playSound("click"); setFrame(null); }}
-              className="mb-2.5 flex w-full items-center gap-3 rounded-xl p-2.5 text-left"
-              style={{ border: !activeFrame ? "2px solid #7c3aed" : "2px solid transparent", background: !activeFrame ? "rgba(124,58,237,0.1)" : "transparent" }}>
-              <div className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-white/15 bg-white/5 text-lg">🚫</div>
-              <div><div className="text-xs font-bold text-slate-100">{t.noFrameTitle}</div><div className="text-[10px] text-slate-500">{t.noFrameDesc}</div></div>
-            </button>
-            <div className="flex flex-col gap-2">
-              {["watched","contribution","followers","genre",...(desktop?["fun"]:[])].map(cat => {
-                const catFrames = unlockedFrames.filter(f=>f.category===cat);
-                if(!catFrames.length) return null;
-                const catLabels = {watched:t.frameCatWatched,contribution:t.frameCatContribution,followers:t.frameCatFollowers,genre:t.frameCatGenre,fun:lang==="en"?"Effects & special":"Effets & spéciaux"};
-                return (
-                  <div key={cat}>
-                    <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{catLabels[cat]}</div>
-                    <div className="flex flex-wrap gap-2">
-                      {catFrames.map(frame => {
-                        const isActive = activeFrame?.id===frame.id;
-                        return (
-                          <button key={frame.id} onClick={() => setFrame(frame)}
-                            className="flex flex-col items-center gap-1 rounded-xl p-2"
-                            style={{ border: isActive?"2px solid #7c3aed":"2px solid transparent", background: isActive?"rgba(124,58,237,0.1)":"rgba(var(--fg-rgb),0.03)" }}>
-                            <div className="relative h-11 w-11">
-                              <div className="flex h-11 w-11 items-center justify-center rounded-full text-lg" style={{ background: GRADIENT_PRIMARY }}>👤</div>
-                              <svg className="absolute inset-0" viewBox="0 0 44 44" style={desktop ? { overflow: "visible" } : undefined} dangerouslySetInnerHTML={{ __html: getFrameSvg(frame, 44) }} />
-                            </div>
-                            <div className="max-w-13 text-center text-[9px] font-bold leading-tight" style={{ color:frame.color }}>{getFrameLabel(frame, lang)}</div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* Avatar picker */}
-      {showAvatarPicker && (
-        <Modal onClose={() => { setShowAvatarPicker(false); setAvatarUrlInput(""); setAvatarUrlPreview(null); setAvatarUrlError(false); }} maxWidth="max-w-md">
-          <div className="p-6">
-            <div className="mb-4 text-center text-sm font-black text-slate-100">{t.chooseAvatarTitle}</div>
-            {/* Tab switcher */}
-            <div className="mb-4 flex rounded-xl overflow-hidden border border-white/8 bg-white/3">
-              {[{id:"emoji",label:"Emoji"},{id:"url",label:"URL / Image"}].map(tab => (
-                <button key={tab.id} onClick={() => { playSound("click"); setAvatarPickerTab(tab.id); }}
-                  className="flex-1 py-2 text-[12px] font-bold transition"
-                  style={{ background: avatarPickerTab===tab.id ? GRADIENT_PRIMARY : "transparent", color: avatarPickerTab===tab.id ? "#fff" : "var(--text-3)" }}>
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            {avatarPickerTab === "emoji" && (
-              <div className="flex flex-wrap justify-center gap-2.5">
-                {AVATAR_EMOJIS.map(e => (
-                  <button key={e} onClick={() => setAvatar(e)}
-                    className="flex h-12.5 w-12.5 items-center justify-center rounded-xl text-2xl transition hover:scale-110"
-                    style={{ background: me.avatar===e?"rgba(124,58,237,0.3)":"rgba(var(--fg-rgb),0.05)", border: me.avatar===e?"2px solid #7c3aed":"2px solid transparent" }}>
-                    {e}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {avatarPickerTab === "url" && (
-              <div>
-                <p className="mb-3 text-center text-[11px] text-slate-500">{t.avatarUrlDesc || "Colle l'URL d'une image (JPG, PNG, WebP)"}</p>
-                <div className="mb-3 flex gap-2">
-                  <input
-                    autoFocus
-                    value={avatarUrlInput}
-                    onChange={e => {
-                      setAvatarUrlInput(e.target.value);
-                      setAvatarUrlError(false);
-                      setAvatarUrlPreview(null);
-                    }}
-                    placeholder="https://..."
-                    className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[12px] text-slate-100 outline-none focus:border-violet-400/40 placeholder:text-slate-600"
-                    onKeyDown={e => {
-                      if(e.key === "Enter" && avatarUrlInput.trim()) {
-                        setAvatarUrlPreview(avatarUrlInput.trim());
-                      }
-                    }}
-                  />
-                  <button onClick={() => { if(avatarUrlInput.trim()) setAvatarUrlPreview(avatarUrlInput.trim()); }}
-                    className="rounded-lg bg-white/8 px-3 py-2 text-[12px] font-bold text-slate-300 hover:bg-white/14 transition">
-                    {t.avatarUrlPreviewBtn || "Aperçu"}
-                  </button>
-                </div>
-                {avatarUrlPreview && (
-                  <div className="mb-3 flex flex-col items-center gap-3">
-                    <div className="h-20 w-20 rounded-full overflow-hidden border-2 border-violet-500/50 bg-white/5">
-                      <img src={avatarUrlPreview} alt="preview"
-                        className="h-full w-full object-cover"
-                        onError={() => setAvatarUrlError(true)}
-                        onLoad={() => setAvatarUrlError(false)} />
-                    </div>
-                    {avatarUrlError ? (
-                      <p className="text-[11px] text-red-400">{t.avatarUrlError || "Image non chargeable. Vérifie l'URL."}</p>
-                    ) : (
-                      <button onClick={() => setAvatarUrl(avatarUrlPreview)}
-                        className="rounded-xl px-5 py-2 text-[13px] font-bold text-white transition hover:opacity-90"
-                        style={{ background: GRADIENT_PRIMARY }}>
-                        {t.avatarUrlApply || "Utiliser cette image"}
-                      </button>
-                    )}
-                  </div>
-                )}
-                {me.avatar?.startsWith?.("http") && (
-                  <div className="mt-2 border-t border-white/6 pt-3">
-                    <p className="mb-2 text-[10px] text-slate-600">{t.avatarCurrentUrl || "Image actuelle"}</p>
-                    <div className="flex items-center gap-2">
-                      <img src={me.avatar} alt="current" className="h-8 w-8 rounded-full object-cover border border-white/10" />
-                      <span className="flex-1 truncate text-[10px] text-slate-500">{me.avatar}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </Modal>
-      )}
-
-      {/* Badge picker */}
-      {showBadgePicker && (
-        <Modal onClose={() => setShowBadgePicker(false)} maxWidth="max-w-lg">
-          <div className="p-6">
-            <div className="mb-1 text-center text-sm font-black text-slate-100">{t.badgeSectionTitle}</div>
-            <div className="mb-4 text-center text-[11px] text-slate-500">{unlockedBadges.length} débloqué{unlockedBadges.length!==1?"s":""}</div>
-            <button onClick={() => { playSound("click"); setActiveBadge(null); saveMe({...me, activeBadge: null}); setShowBadgePicker(false); }}
-              className="mb-2.5 flex w-full items-center gap-3 rounded-xl p-2.5 text-left"
-              style={{ border: !activeBadge ? "2px solid #7c3aed" : "2px solid transparent", background: !activeBadge ? "rgba(124,58,237,0.1)" : "transparent" }}>
-              <div className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-white/15 bg-white/5 text-lg">🚫</div>
-              <div><div className="text-xs font-bold text-slate-100">{t.badgeNone}</div><div className="text-[10px] text-slate-500">{t.badgeNoneDesc}</div></div>
-            </button>
-            <div className="flex flex-col gap-2">
-              {["watched","contribution","followers","genre","games","rated"].map(cat => {
-                const catBadges = unlockedBadges.filter(b=>b.category===cat);
-                if(!catBadges.length) return null;
-                const catLabels = {watched:t.badgeCatWatched,contribution:t.badgeCatContribution,followers:t.badgeCatFollowers,genre:t.badgeCatGenre,games:t.badgeCatGames,rated:t.badgeCatRated};
-                return (
-                  <div key={cat}>
-                    <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{catLabels[cat]}</div>
-                    <div className="flex flex-wrap gap-2">
-                      {catBadges.map(badge => {
-                        const isActive = activeBadge?.id===badge.id;
-                        return (
-                          <button key={badge.id} onClick={() => { playSound("unlock"); setActiveBadge(badge); saveMe({...me, activeBadge: badge.id}); setShowBadgePicker(false); }}
-                            className="flex flex-col items-center gap-1 rounded-xl p-2"
-                            style={{ border: isActive?"2px solid #7c3aed":"2px solid transparent", background: isActive?"rgba(124,58,237,0.1)":"rgba(var(--fg-rgb),0.03)" }}>
-                            <span style={{fontSize:28,filter:`drop-shadow(0 0 6px ${badge.color}60)`}}>{badge.emoji}</span>
-                            <div className="max-w-13 text-center text-[9px] font-bold leading-tight" style={{ color:badge.color }}>{getBadgeLabel(badge, lang)}</div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </Modal>
       )}
 
       {favPopup !== null && <FavoriteSearchModal onSelect={selectFavorite} onClose={() => setFavPopup(null)} />}

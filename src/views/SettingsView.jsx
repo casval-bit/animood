@@ -7,12 +7,13 @@ import { parseMALXml } from "../constants/mal-import.js";
 import { importAniListUser } from "../api/anilist.js";
 import { GradientButton, TabBar } from "../components/ui.jsx";
 import { sb, follows } from "../api/supabase.js";
+import { AVATAR_EMOJIS } from "../constants/avatars.js";
 import { uploadToCloudinary } from "../api/cloudinary.js";
 import { UserPickerModal } from "../components/UserPickerModal.jsx";
 import { GRADIENT_PRIMARY } from "../constants/theme.js";
 import { SETTINGS_I18N } from "../constants/settingsI18n.js";
 import { getFrameLabel, getFrameDesc } from "../frames/frames.js";
-import { getFrameSvg, getDesktopExtraFrames, noteNightOwl } from "../frames/framesDesktop.js";
+import { getFrameSvg, getExtraFrames, loadFrameFlags, noteNightOwl } from "../frames/framesDesktop.js";
 import { BADGES, getUnlockedBadges, getBestBadge, getBadgeLabel } from "../badges/badges.jsx";
 import { useModalBack } from "../hooks/useModalBack.js";
 import { isDesktopApp } from "../utils/streamingLinks.js";
@@ -103,6 +104,7 @@ export function SettingsView({ onClose }) {
   const [alError,    setAlError]    = useState(null);
 
   const [avatarError,     setAvatarError]     = useState(null);
+  const [avatarUrlInput,  setAvatarUrlInput]  = useState("");
   const [avatarUploading, setAvatarUploading] = useState(false);
 
   const [unlockedFrames, setUnlockedFrames] = useState([]);
@@ -124,11 +126,13 @@ export function SettingsView({ onClose }) {
     (async () => {
       try {
         const { FRAMES, getUnlockedFrames, getBestFrame } = await import("../frames/frames.js");
-        const [followerRows, voteRows, gameEloRows, followingRows] = await Promise.all([
+        noteNightOwl(myUsername); // avant de lire les drapeaux : l'ouverture de nuit compte tout de suite
+        const [followerRows, voteRows, gameEloRows, followingRows, frameFlags] = await Promise.all([
           follows.getFollowers(myUsername).catch(()=>[]),
           sb.query(`user_votes?username=eq.${encodeURIComponent(myUsername)}&select=pts_added&limit=1000`).catch(()=>[]),
           sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&select=points_total&limit=1`).catch(()=>[]),
-          isDesktopApp() ? follows.getFollowing(myUsername).catch(()=>[]) : Promise.resolve([]),
+          follows.getFollowing(myUsername).catch(()=>[]),
+          loadFrameFlags(myUsername).catch(()=>({})),
         ]);
         const gamePoints = gameEloRows?.[0]?.points_total || 0;
         const genreCounts = {};
@@ -140,10 +144,9 @@ export function SettingsView({ onClose }) {
             (rows||[]).forEach(r => { (r.genres||[]).forEach(g => { const n=g.name||g; genreCounts[n]=(genreCounts[n]||0)+1; }); });
           } catch {}
         }
-        noteNightOwl(myUsername);
         const unlocked = [
           ...getUnlockedFrames({ watchedCount:me.watched.length, genreCounts, followerCount:(followerRows||[]).length, userVotes:voteRows||[], gamePoints }),
-          ...getDesktopExtraFrames({ me, followerCount:(followerRows||[]).length, followingCount:(followingRows||[]).length, username:myUsername }), // desktop uniquement
+          ...getExtraFrames({ me, followerCount:(followerRows||[]).length, followingCount:(followingRows||[]).length, flags:frameFlags }),
         ];
         setUnlockedFrames(unlocked);
         // Also store all frames for display
@@ -374,6 +377,31 @@ export function SettingsView({ onClose }) {
             </div>
           </div>
           {avatarError && <p className="text-xs text-red-400">{avatarError}</p>}
+
+          {/* Emoji / URL : auparavant dans le sélecteur du profil, désormais ici uniquement */}
+          <div className="mt-4 border-t border-white/6 pt-4">
+            <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-600">{lang==="en" ? "Or pick an emoji" : "Ou choisis un emoji"}</div>
+            <div className="flex flex-wrap gap-2">
+              {AVATAR_EMOJIS.map(e => (
+                <button key={e} onClick={()=>{ playSound("click"); saveMe({...me, avatar:e}); }}
+                  className="flex h-10 w-10 items-center justify-center rounded-xl text-xl transition hover:scale-110"
+                  style={{background: me.avatar===e?"rgba(124,58,237,0.3)":"rgba(255,255,255,0.05)", border: me.avatar===e?"2px solid #7c3aed":"2px solid transparent"}}>
+                  {e}
+                </button>
+              ))}
+            </div>
+            <div className="mb-2 mt-4 text-[10px] font-bold uppercase tracking-wider text-slate-600">{lang==="en" ? "Or paste an image URL" : "Ou colle l'URL d'une image"}</div>
+            <div className="flex gap-2">
+              <input value={avatarUrlInput} onChange={e=>setAvatarUrlInput(e.target.value)} placeholder="https://..."
+                onKeyDown={e=>{ if(e.key==="Enter" && /^https?:\/\//i.test(avatarUrlInput.trim())) { saveMe({...me, avatar:avatarUrlInput.trim()}); setAvatarUrlInput(""); } }}
+                className="flex-1 rounded-xl border border-white/10 bg-white/6 px-3.5 py-2.5 text-[12px] text-slate-100 outline-none placeholder:text-slate-600"/>
+              <button disabled={!/^https?:\/\//i.test(avatarUrlInput.trim())}
+                onClick={()=>{ playSound("unlock"); saveMe({...me, avatar:avatarUrlInput.trim()}); setAvatarUrlInput(""); }}
+                className="shrink-0 rounded-xl bg-white/8 px-4 py-2.5 text-[12px] font-bold text-slate-200 transition hover:bg-white/14 disabled:opacity-40">
+                {lang==="en" ? "Use" : "Utiliser"}
+              </button>
+            </div>
+          </div>
         </Section>
 
         <Section title={t.username}>
@@ -409,14 +437,14 @@ export function SettingsView({ onClose }) {
                   <div className="text-[10px] text-slate-500">{t.frameNoneDesc}</div>
                 </div>
               </button>
-              {["watched","contribution","followers","genre","games", ...(desktop ? ["fun"] : [])].map(cat => {
+              {["watched","contribution","followers","genre","games","fun"].map(cat => {
                 const catAllFrames = allFrames.filter(f=>f.category===cat);
                 if(!catAllFrames.length) return null;
                 const catLabels = {watched:t.frameCatWatched,contribution:t.frameCatContribution,followers:t.frameCatFollowers,genre:t.frameCatGenre,games:t.frameCatGames,fun:lang==="en"?"Effects & special":"Effets & spéciaux"};
                 return (
                   <div key={cat} className="mb-4">
                     <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-600">{catLabels[cat]}</div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-x-3 gap-y-2">
                       {catAllFrames.map(frame => {
                         const isUnlocked = unlockedFrames.some(f=>f.id===frame.id);
                         const isActive = activeFrame?.id === frame.id;
@@ -424,7 +452,7 @@ export function SettingsView({ onClose }) {
                         return (
                           <button key={frame.id}
                             onClick={()=>isUnlocked && applyFrame(frame)}
-                            title={(isUnlocked ? getFrameLabel(frame, lang) : t.frameLocked(getFrameLabel(frame, lang))) + (desktop ? " — " + getFrameDesc(frame, lang) : "")}
+                            title={(isUnlocked ? getFrameLabel(frame, lang) : t.frameLocked(getFrameLabel(frame, lang))) + " — " + getFrameDesc(frame, lang)}
                             style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:8,borderRadius:12,
                               cursor:isUnlocked?"pointer":"not-allowed",
                               border:isActive?"2px solid #7c3aed":"2px solid transparent",
@@ -446,6 +474,7 @@ export function SettingsView({ onClose }) {
                             <span style={{fontSize:9,fontWeight:700,color:isUnlocked?frame.color:"rgba(148,163,184,0.5)",textAlign:"center",maxWidth:56,lineHeight:1.2}}>
                               {getFrameLabel(frame, lang)}
                             </span>
+                            {!isUnlocked && <span style={{fontSize:8,color:"rgba(148,163,184,0.7)",textAlign:"center",maxWidth:72,lineHeight:1.2}}>{getFrameDesc(frame, lang)}</span>}
                           </button>
                         );
                       })}

@@ -473,3 +473,177 @@ Object.assign(ART, {
       star(4, 14, 0.8, "#fff7d6", 2.1) + star(96, 14, 0.8, "#fff7d6", 2.1, 0.7) + star(50, 110, 0.7, "#fde68a", 2.1, 1.3));
   },
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// FORMES VARIÉES — mêmes principes que les 11 cadres « effets » (silhouettes qui dépassent, lumière qui court,
+// particules). Remplace les anneaux simples de certains cadres d'origine et ajoute 5 nouveaux cadres.
+// ═════════════════════════════════════════════════════════════════════════════
+const OUT_CLIP = (id) => `<clipPath id="${id}"><path clip-rule="evenodd" d="M-60,-60H160V160H-60Z M0,50a50,50 0 1,0 100,0a50,50 0 1,0 -100,0Z"/></clipPath>`;
+const pixelRing = (R, g) => {
+  const pts = [];
+  for (let i = 0; i < 96; i++) { const a = (i / 96) * 2 * Math.PI; pts.push([Math.round((50 + R * Math.cos(a)) / g) * g, Math.round((50 + R * Math.sin(a)) / g) * g]); }
+  const out = []; let prev = null;
+  for (const p of pts) { if (prev && p[0] !== prev[0] && p[1] !== prev[1]) out.push([p[0], prev[1]]); if (!prev || p[0] !== prev[0] || p[1] !== prev[1]) out.push(p); prev = p; }
+  const f = out[0], l = out[out.length - 1]; if (f[0] !== l[0] && f[1] !== l[1]) out.push([f[0], l[1]]);
+  return out.map((p) => p.join(",")).join(" ");
+};
+const wavy = (r, amp, n, steps = 144) => {
+  let d = "";
+  for (let i = 0; i <= steps; i++) { const a = (i / steps) * 2 * Math.PI, rr = r + amp * Math.sin(n * a); d += `${i ? "L" : "M"}${P(50 + rr * Math.cos(a))},${P(50 + rr * Math.sin(a))}`; }
+  return d + "Z";
+};
+
+Object.assign(ART, {
+  // ═══ RECONNU — cadre arrondi bleu glacé, lumière qui court sur le contour ═══
+  followers_10: (s) => wrap(s, rgd("n10", "#e2e8f0", "#7dd3fc", 1.2),
+    `<rect x="-3" y="-3" width="106" height="106" rx="34" fill="none" stroke="url(#n10)" stroke-width="2.6" filter="url(#n10g)"/>` +
+    `<rect x="-8" y="-8" width="116" height="116" rx="40" fill="none" stroke="#bae6fd" stroke-width=".7" stroke-dasharray="2 4" opacity=".55"/>` +
+    `<rect x="-3" y="-3" width="106" height="106" rx="34" pathLength="100" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="10 90" filter="url(#n10g)">${an("stroke-dashoffset", "100;0", 3.6)}</rect>` +
+    [[2, 2], [98, 2], [98, 98], [2, 98]].map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="2" fill="#e0f2fe">${an("opacity", ".3;1;.3", 2.4, i * 0.6)}</circle>`).join("") +
+    star(10, -6, 0.5, "#e0f2fe", 2.6) + star(94, 106, 0.5, "#e0f2fe", 2.6, 1.3)),
+
+  // ═══ POPULAIRE — couronne de pétales festonnés, cœurs qui battent ═══
+  followers_50: (s) => {
+    let sc = "", h = "";
+    for (let i = 0; i < 10; i++) {
+      const [x, y] = ptc(59, i * 36);
+      sc += `<circle cx="${x}" cy="${y}" r="9" fill="none" stroke="url(#n50)" stroke-width="1.8">${an("opacity", ".65;1;.65", 2.6, i * 0.26)}</circle>`;
+      h += heart(x, y, 1.15, i % 2 ? "#fda4af" : "#fcd34d", tr("scale", "1;1.45;1", 2, i * 0.2));
+    }
+    return wrap(s, rgd("n50", "#fcd34d", "#f472b6", 1.5),
+      `<g filter="url(#n50g)">${spin(60)}${sc}</g><g>${spin(60)}${h}</g>` +
+      `<circle cx="50" cy="50" r="50.8" fill="none" stroke="url(#n50)" stroke-width="2.2" filter="url(#n50g)"/>` +
+      ripple("#f9a8d4", 3, 0, 51, 66) + star(2, 10, 0.6, "#fff7d6", 2.2) + star(98, 90, 0.6, "#ffe4e6", 2.2, 1.1));
+  },
+
+  // ═══ CONTRIBUTEUR — viseur à angles, point qui parcourt le carré ═══
+  contrib_10: (s) => {
+    const br = (x, y, sx, sy) => `<path d="M${x},${y + sy * 18}V${y}H${x + sx * 18}" fill="none" stroke="url(#n1c)" stroke-width="3" stroke-linecap="square" filter="url(#n1cg)"/>`;
+    return wrap(s, rgd("n1c", "#bef264", "#4ade80", 1.2),
+      `<rect x="-3" y="-3" width="106" height="106" rx="4" fill="none" stroke="#86efac" stroke-width=".7" stroke-dasharray="1.5 3" opacity=".6"/>` +
+      br(-4, -4, 1, 1) + br(104, -4, -1, 1) + br(104, 104, -1, -1) + br(-4, 104, 1, -1) +
+      `<g filter="url(#n1cg)"><circle r="2.2" fill="#fff"><animateMotion dur="5s" repeatCount="indefinite" path="M-3,-3H103V103H-3Z"/></circle></g>` +
+      [[50, -8], [108, 50], [50, 108], [-8, 50]].map(([x, y], i) => `<g transform="translate(${x} ${y})"><path d="M-3,0H3M0,-3V3" stroke="#bef264" stroke-width="1.2">${an("opacity", ".3;1;.3", 2, i * 0.5)}</path></g>`).join("") +
+      `<circle cx="50" cy="50" r="50.8" fill="none" stroke="url(#n1c)" stroke-width="1.2" opacity=".6"/>`);
+  },
+
+  // ═══ DÉBUTANT (jeux) — anneau pixel en escalier, LED qui clignotent ═══
+  games_rookie: (s) => {
+    const poly = pixelRing(56, 6);
+    const leds = Array.from({ length: 8 }, (_, i) => { const [x, y] = ptc(63, i * 45 + 22.5); return `<rect x="${P(x - 1.8)}" y="${P(y - 1.8)}" width="3.6" height="3.6" fill="${i % 2 ? "#bef264" : "#4ade80"}">${an("opacity", ".2;1;.2", 1.6, i * 0.2, 'calcMode="discrete"')}</rect>`; }).join("");
+    const up = (x, b) => `<g>${tr("translate", "0 8;0 -6", 2.4, b)}<g>${an("opacity", "0;1;0", 2.4, b)}<path d="M${x - 3},4L${x},1L${x + 3},4M${x - 3},8L${x},5L${x + 3},8" fill="none" stroke="#86efac" stroke-width="1.3"/></g></g>`;
+    return wrap(s, rgd("n1g", "#bbf7d0", "#22c55e", 1.2),
+      `<polygon points="${poly}" fill="none" stroke="url(#n1g)" stroke-width="2.8" stroke-linejoin="miter" filter="url(#n1gg)"/>` +
+      `<polygon points="${poly}" pathLength="100" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="7 93" stroke-linejoin="miter">${an("stroke-dashoffset", "100;0", 3.2)}</polygon>` +
+      leds + up(50, 0) + up(50, 1.2));
+  },
+
+  // ═══ DÉBUTANT (vus) — pellicule de film qui défile ═══
+  watched_50: (s) => {
+    let perf = "";
+    for (let i = 0; i < 28; i++) perf += radial(i * (360 / 28), 56, `<rect x="-1.9" y="-2.5" width="3.8" height="5" rx="1" fill="#e0f2fe"/>`);
+    return wrap(s, rgd("n5w", "#7dd3fc", "#38bdf8", 1.1),
+      `<circle cx="50" cy="50" r="56" fill="none" stroke="#0b1a2e" stroke-width="9.6" opacity=".92"/>` +
+      `<circle cx="50" cy="50" r="51.2" fill="none" stroke="url(#n5w)" stroke-width="1.2" filter="url(#n5wg)"/><circle cx="50" cy="50" r="60.8" fill="none" stroke="url(#n5w)" stroke-width="1.2" opacity=".8"/>` +
+      `<g>${spin(40)}${perf}</g>` +
+      `<g filter="url(#n5wg)"><path d="${arcD(56, -30, 25)}" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".8">${tr("rotate", "0 50 50;360 50 50", 5)}</path></g>` +
+      star(96, 12, 0.5, "#e0f2fe", 2.4) + star(6, 92, 0.5, "#e0f2fe", 2.4, 1));
+  },
+
+  // ═══ VÉTÉRAN — orbites d'atome qui passent derrière l'avatar ═══
+  watched_1000: (s) => {
+    const orb = [0, 60, 120].map((rot, i) => `<g transform="rotate(${rot} 50 50)"><ellipse cx="50" cy="50" rx="64" ry="23" fill="none" stroke="url(#n1k)" stroke-width="1.5" opacity=".9"/>` +
+      `<circle r="3" fill="#fff" stroke="#c4b5fd" stroke-width="1"><animateMotion dur="${4 + i * 0.9}s" repeatCount="indefinite" path="M-14,50A64,23 0 1,1 114,50A64,23 0 1,1 -14,50Z"/></circle></g>`).join("");
+    return wrap(s, rgd("n1k", "#c4b5fd", "#f0abfc", 1.4) + OUT_CLIP("n1kc"),
+      `<g clip-path="url(#n1kc)" filter="url(#n1kg)">${orb}</g>` +
+      `<circle cx="50" cy="50" r="50.8" fill="none" stroke="url(#n1k)" stroke-width="2.2" filter="url(#n1kg)"/>` +
+      star(6, 8, 0.6, "#f5d0fe", 2.4) + star(96, 94, 0.6, "#ddd6fe", 2.4, 1.2));
+  },
+
+  // ═══ COMIQUE — anneau qui ondule + confettis ═══
+  genre_comedy: (s) => {
+    const cols = ["#f43f5e", "#22d3ee", "#a3e635", "#f472b6", "#fbbf24"];
+    const conf = Array.from({ length: 12 }, (_, i) => { const [x, y] = ptc(60 + (i % 3) * 2, i * 30 + 10); return `<g transform="translate(${x} ${y})"><g>${tr("rotate", `0;${i % 2 ? 360 : -360}`, 3 + (i % 4) * 0.7, i * 0.2)}${an("opacity", ".4;1;.4", 2.2, i * 0.15)}<rect x="-1.6" y="-0.9" width="3.2" height="1.8" fill="${cols[i % 5]}"/></g></g>`; }).join("");
+    return wrap(s, lg("n1m", [[0, "#fde047"], [1, "#fb923c"]]) + fGlow("n1mg", 1.2),
+      `<g filter="url(#n1mg)">${spin(16)}<path d="${wavy(52.4, 2.6, 12)}" fill="none" stroke="url(#n1m)" stroke-width="2.6" stroke-linejoin="round"/></g>` +
+      `<g>${spin(24, -1)}<path d="${wavy(56.5, 1.6, 18)}" fill="none" stroke="#fef08a" stroke-width=".8" opacity=".6"/></g>` + conf);
+  },
+
+  // ═══ SPORTIF — piste à damier qui défile + lignes de vitesse ═══
+  genre_sports: (s) => {
+    const chev = (y, b) => `<g>${tr("translate", `-16 ${y};16 ${y}`, 1.6, b)}<g>${an("opacity", "0;1;0", 1.6, b)}<path d="M-14,-3L-11,0L-14,3M-9,-3L-6,0L-9,3" fill="none" stroke="#86efac" stroke-width="1.2" stroke-linecap="round"/></g></g>`;
+    return wrap(s, rgd("n1s", "#86efac", "#16a34a", 1.2),
+      `<circle cx="50" cy="50" r="53.5" fill="none" stroke="#0b1d12" stroke-width="7.4"/>` +
+      `<circle cx="50" cy="50" r="51.8" pathLength="100" fill="none" stroke="#f8fafc" stroke-width="3.4" stroke-dasharray="2.5 2.5">${an("stroke-dashoffset", "0;-5", 1.2)}</circle>` +
+      `<circle cx="50" cy="50" r="55.2" pathLength="100" fill="none" stroke="#f8fafc" stroke-width="3.4" stroke-dasharray="2.5 2.5" stroke-dashoffset="2.5">${an("stroke-dashoffset", "2.5;-2.5", 1.2)}</circle>` +
+      `<circle cx="50" cy="50" r="58.4" fill="none" stroke="url(#n1s)" stroke-width="1.6" filter="url(#n1sg)"/>` +
+      `<g transform="translate(60 8)">${chev(0, 0)}</g><g transform="translate(78 92)">${chev(0, 0.5)}</g><g transform="translate(24 98)">${chev(0, 1)}</g>` +
+      comet(58.4, 3.6, 1, 0, "#bbf7d0", 1.7));
+  },
+
+  // ═══ QUOTIDIEN — fleur de pétales douce qui se balance ═══
+  genre_sliceoflife: (s) => {
+    let pet = "", pol = "";
+    for (let i = 0; i < 8; i++) {
+      pet += `<g transform="rotate(${i * 45} 50 50)"><ellipse cx="50" cy="-10" rx="8.2" ry="10.5" fill="url(#n1p)" stroke="#22c55e" stroke-width="1" opacity=".92">${an("ry", "10.5;12;10.5", 3, i * 0.3)}</ellipse></g>`;
+      const [x, y] = ptc(52, i * 45 + 22.5); pol += `<circle cx="${x}" cy="${y}" r="1.5" fill="#fde047">${an("opacity", ".3;1;.3", 2.4, i * 0.3)}</circle>`;
+    }
+    return wrap(s, `<radialGradient id="n1p" cx=".5" cy=".5" r=".6"><stop offset="0" stop-color="#fef9c3"/><stop offset="1" stop-color="#86efac"/></radialGradient>` + fGlow("n1pg", 1.1),
+      `<g filter="url(#n1pg)">${tr("rotate", "-6 50 50;6 50 50;-6 50 50", 7)}${pet}</g>` + pol +
+      `<circle cx="50" cy="50" r="50.8" fill="none" stroke="#bbf7d0" stroke-width="1.6"/>` +
+      drift(10, 0, 30, 24, 4.4, 0, `<circle cx="0" cy="0" r="1.5" fill="#fde047"/>`) + drift(80, 4, 66, 22, 5, 1.8, `<circle cx="0" cy="0" r="1.3" fill="#fda4af"/>`));
+  },
+
+  // ═══════ NOUVEAUX CADRES ═══════
+  // BUREAU — écran d'ordinateur avec pied, curseur qui clignote
+  ds_desktop: (s) => wrap(s, lg("ndk", "#38bdf8", "#818cf8") + fGlow("ndkg", 1.2),
+    `<rect x="-4" y="-4" width="108" height="108" rx="15" fill="none" stroke="url(#ndk)" stroke-width="2.8" filter="url(#ndkg)"/>` +
+    `<rect x="-9" y="-9" width="118" height="118" rx="20" fill="none" stroke="#7dd3fc" stroke-width=".7" stroke-dasharray="3 3.4" opacity=".5"/>` +
+    `<rect x="-4" y="-4" width="108" height="108" rx="15" pathLength="100" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="9 91" filter="url(#ndkg)">${an("stroke-dashoffset", "100;0", 3.4)}</rect>` +
+    `<path d="M38,104L34,117H66L62,104" fill="#0b1226" stroke="url(#ndk)" stroke-width="1.6" stroke-linejoin="round"/><path d="M28,118H72" stroke="url(#ndk)" stroke-width="2.4" stroke-linecap="round"/>` +
+    [0, 1, 2].map((i) => `<circle cx="${6 + i * 7}" cy="-9" r="1.7" fill="${["#fb7185", "#fbbf24", "#4ade80"][i]}"/>`).join("") +
+    `<rect x="82" y="106" width="9" height="2.6" fill="#7dd3fc">${an("opacity", "1;0;1", 1.1, 0, 'calcMode="discrete"')}</rect>` +
+    star(104, -4, 0.6, "#e0f2fe", 2.6)),
+
+  // SAKURA — couronne de pétales + pétales qui tombent
+  ds_sakura: (s) => {
+    let pet = "";
+    for (let i = 0; i < 12; i++) pet += radial(i * 30, 51, `<g>${tr("rotate", `${i % 2 ? -5 : 5};${i % 2 ? 5 : -5};${i % 2 ? -5 : 5}`, 3.4, i * 0.2)}<path d="M0,0C-5.4,-3 -5.4,-12 0,-15C5.4,-12 5.4,-3 0,0Z" fill="url(#nsk)" stroke="#ec4899" stroke-width=".6"/><path d="M0,-1V-9" stroke="#fbcfe8" stroke-width=".5"/></g>`);
+    const fall = (x, b, d) => `<g transform="translate(${x} 0)"><g>${tr("translate", "0 -6;8 112", d, b)}${an("opacity", "0;1;1;0", d, b, 'keyTimes="0;.1;.8;1"')}<g>${tr("rotate", "0;360", d * 0.7, b)}<path d="M0,0C-2.4,-1.4 -2.4,-5 0,-6.4C2.4,-5 2.4,-1.4 0,0Z" fill="#fbcfe8"/></g></g></g>`;
+    return wrap(s, `<radialGradient id="nsk" cx=".5" cy=".9" r="1"><stop offset="0" stop-color="#f472b6"/><stop offset="1" stop-color="#fce7f3"/></radialGradient>` + fGlow("nskg", 1),
+      `<circle cx="50" cy="50" r="50.8" fill="none" stroke="#f9a8d4" stroke-width="1.6"/><g filter="url(#nskg)">${pet}</g>` +
+      fall(-10, 0, 6) + fall(108, 2.4, 6.6) + fall(30, 4, 7) + fall(80, 1.2, 6.2));
+  },
+
+  // ÉTOILE — shuriken doré à pointes, qui tourne
+  ds_star: (s) => {
+    const pts = (ro, ri, n, a0 = -90) => Array.from({ length: n * 2 }, (_, i) => ptc(i % 2 ? ri : ro, a0 + (i * 180) / n).join(",")).join(" ");
+    return wrap(s, lg("nst", "#fef3c7", "#f59e0b") + fGlow("nstg", 1.4),
+      `<g>${spin(26)}<polygon points="${pts(68, 52, 8)}" fill="none" stroke="url(#nst)" stroke-width="2" stroke-linejoin="round" filter="url(#nstg)"/></g>` +
+      `<g>${spin(18, -1)}<polygon points="${pts(60, 51.5, 8, -67.5)}" fill="none" stroke="#fde68a" stroke-width=".9" stroke-linejoin="round" opacity=".7"/></g>` +
+      `<circle cx="50" cy="50" r="50.8" fill="none" stroke="url(#nst)" stroke-width="1.8" filter="url(#nstg)"/>` +
+      comet(51, 2.8, 1, 0, "#fff", 1.6) + star(0, 0, 0.7, "#fff", 2.4) + star(100, 100, 0.7, "#fff", 2.4, 1.2));
+  },
+
+  // GIVRE — flocon de cristal
+  ds_ice: (s) => {
+    let arms = "";
+    for (let i = 0; i < 6; i++) {
+      const a = i * 60, [x1, y1] = ptc(51, a), [x2, y2] = ptc(70, a), [bx, by] = ptc(61, a);
+      const [l1x, l1y] = ptc(70, a - 14), [r1x, r1y] = ptc(70, a + 14);
+      arms += `<g><path d="M${x1},${y1}L${x2},${y2}M${bx},${by}L${P(bx + (l1x - 50) * 0.25)},${P(by + (l1y - 50) * 0.25)}M${bx},${by}L${P(bx + (r1x - 50) * 0.25)},${P(by + (r1y - 50) * 0.25)}" stroke="url(#nic)" stroke-width="1.6" stroke-linecap="round"/><circle cx="${x2}" cy="${y2}" r="2" fill="#fff">${an("opacity", ".4;1;.4", 2.4, i * 0.4)}</circle></g>`;
+    }
+    return wrap(s, lg("nic", "#ecfeff", "#22d3ee") + fGlow("nicg", 1.3),
+      `<g filter="url(#nicg)">${spin(40)}${arms}</g>` +
+      `<circle cx="50" cy="50" r="50.8" fill="none" stroke="url(#nic)" stroke-width="2.2" filter="url(#nicg)"/>` +
+      `<circle cx="50" cy="50" r="55" fill="none" stroke="#a5f3fc" stroke-width=".7" stroke-dasharray="1 3" opacity=".7"/>` +
+      drift(20, 100, 14, 70, 4, 0, `<circle r="1.2" fill="#fff"/>`) + drift(86, 104, 92, 72, 4.6, 1.6, `<circle r="1.2" fill="#e0f2fe"/>`) + star(4, 6, 0.6, "#fff", 2.2) + star(98, 94, 0.6, "#cffafe", 2.2, 1));
+  },
+
+  // LUNE — croissant de lune + étoiles
+  ds_moon: (s) => wrap(s, lg("nmn", "#fef9c3", "#fcd34d") + fGlow("nmng", 2) +
+    `<mask id="nmm" maskUnits="userSpaceOnUse" x="-40" y="-40" width="180" height="180"><rect x="-40" y="-40" width="180" height="180" fill="#fff"/><circle cx="59" cy="59" r="62" fill="#000"/></mask>`,
+    `<g filter="url(#nmng)"><g mask="url(#nmm)"><circle cx="50" cy="50" r="62" fill="url(#nmn)">${an("opacity", ".85;1;.85", 4)}</circle></g></g>` +
+    `<circle cx="50" cy="50" r="50.8" fill="none" stroke="#fde68a" stroke-width="1.4" opacity=".75"/>` +
+    star(14, 90, 0.9, "#fef9c3", 2.2) + star(92, 92, 0.6, "#fff", 2.6, 0.8) + star(102, 40, 0.7, "#fde68a", 2.4, 1.4) + star(84, 104, 0.5, "#fff", 2.8, 0.3) + star(36, 4, 0.6, "#fff", 2.5, 1)),
+});
