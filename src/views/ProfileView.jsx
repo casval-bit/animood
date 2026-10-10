@@ -938,25 +938,48 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
   });
   const [showSpotlightPicker, setShowSpotlightPicker] = useState(false);
   const gamePts = useGamePoints(desktop ? null : myUsername); // desktop : le total est déjà lu par le HudPanel
+  // « En boucle » est synchronisé site <-> appli de bureau via la colonne profiles.spotlight
+  // (supabase/profile_spotlight.sql, à exécuter une fois). Sans la colonne : mémorisation locale seulement.
+  const spotSyncKey = `animood_spotlight_synced_${myUsername}`;
   const persistSpotlight = (id) => {
     setSpotlightId(id);
     try { id ? localStorage.setItem(spotKey, String(id)) : localStorage.removeItem(spotKey); } catch {}
-    // synchro multi-appareils : best-effort (nécessite la colonne profiles.spotlight, cf. supabase/profile_spotlight.sql)
     sb.query(`profiles?username=eq.${encodeURIComponent(myUsername)}`, {
       method: "PATCH",
       headers: { ...sb.headers, "Prefer": "return=minimal" },
       body: JSON.stringify({ spotlight: id || null }),
-    }).catch(()=>{});
+    }).then(() => { try { localStorage.setItem(spotSyncKey, "1"); } catch {} }).catch(()=>{});
   };
   useEffect(() => {
     if(!myUsername) return;
-    // si la colonne existe côté serveur, on la reprend (autre appareil)
-    sb.query(`profiles?username=eq.${encodeURIComponent(myUsername)}&select=spotlight&limit=1`)
-      .then(r => {
-        const v = r?.[0]?.spotlight;
-        if(v) { setSpotlightId(parseInt(v)); try { localStorage.setItem(spotKey, String(v)); } catch {} }
-      }).catch(()=>{});
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // Le serveur fait foi dès que la colonne existe ; on relit à l'ouverture et quand la fenêtre reprend le focus.
+    const pull = () => {
+      sb.query(`profiles?username=eq.${encodeURIComponent(myUsername)}&select=spotlight&limit=1`)
+        .then(r => {
+          const row = r?.[0];
+          if(!row || !("spotlight" in row)) return; // colonne absente : on reste en local
+          const v = row.spotlight ? parseInt(row.spotlight) : null;
+          let local = null, synced = false;
+          try { local = parseInt(localStorage.getItem(spotKey)) || null; synced = localStorage.getItem(spotSyncKey) === "1"; } catch {}
+          if(v) {
+            setSpotlightId(v);
+            try { localStorage.setItem(spotKey, String(v)); localStorage.setItem(spotSyncKey, "1"); } catch {}
+          } else if(local && !synced) {
+            // choix fait avant l'existence de la colonne : on le monte une fois sur le serveur
+            persistSpotlight(local);
+          } else if(!v && synced) {
+            // retiré depuis l'autre appareil
+            setSpotlightId(null);
+            try { localStorage.removeItem(spotKey); } catch {}
+          }
+        }).catch(()=>{});
+    };
+    pull();
+    const onVis = () => { if(document.visibilityState === "visible") pull(); };
+    window.addEventListener("focus", pull);
+    document.addEventListener("visibilitychange", onVis);
+    return () => { window.removeEventListener("focus", pull); document.removeEventListener("visibilitychange", onVis); };
+  }, [myUsername]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if(spotlightId) fetchAnime(spotlightId); }, [spotlightId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
