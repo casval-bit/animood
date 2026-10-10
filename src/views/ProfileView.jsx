@@ -502,24 +502,26 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
   );
 }
 
-function GamePtsDisplay({ myUsername }) {
-  const [pts, setPts] = useState(null);
-  useEffect(() => {
-    if(!myUsername) return;
-    sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&select=points_total&limit=1`)
-      .then(r => { if(r?.[0]) setPts(r[0].points_total||0); })
-      .catch(()=>{});
-  }, [myUsername]);
-  if(pts === null) return null;
+// ─── Profil : petit cercle de stat (Pts jeux / Badges), à gauche de « En boucle » ─
+function StatCircle({ size, value, label, icon, ring, glow, onClick, title }) {
+  const Tag = onClick ? "button" : "div";
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-[13px] font-black text-violet-400">{pts}</span>
-      <span className="text-[11px] text-slate-500">pts jeux 🎮</span>
+    <div style={{ width: size + 20, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 9 }}>
+      <Tag type={onClick ? "button" : undefined} onClick={onClick} title={title}
+        style={{ position: "relative", width: size, height: size, padding: 0, border: "none", background: "none", cursor: onClick ? "pointer" : "default" }}>
+        <div style={{ position: "absolute", inset: -10, borderRadius: "50%", background: `radial-gradient(circle, ${glow} 0%, transparent 70%)`, filter: "blur(5px)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: ring }} />
+        <div style={{ position: "absolute", inset: 4, borderRadius: "50%", background: "#070816", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1 }}>
+          <span style={{ fontSize: Math.round(size * 0.17), lineHeight: 1 }}>{icon}</span>
+          <span style={{ fontSize: Math.round(size * 0.24), fontWeight: 900, lineHeight: 1.1, color: "#f1f5f9", letterSpacing: "-0.02em" }}>{value}</span>
+        </div>
+      </Tag>
+      <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(148,163,184,.85)", textAlign: "center" }}>{label}</div>
     </div>
   );
 }
 
-// ─── DESKTOP : points de jeu totaux ───────────────────────────────────────────
+// ─── Points de jeu totaux (même total que le classement du forum) ───────────────────────────────────────────
 function useGamePoints(myUsername) {
   const [pts, setPts] = useState(null);
   useEffect(() => {
@@ -553,14 +555,14 @@ const SPOTLIGHT_CSS = `
 .sp-wrap:hover .sp-actions { opacity: 1; }
 `;
 
-function SpotlightCircle({ anime, lang, onOpen, onPick, onClear }) {
+function SpotlightCircle({ anime, lang, onOpen, onPick, onClear, size = 132 }) {
   const en = lang === "en";
   const label = en ? "On repeat" : "En boucle";
   const img = anime?.images?.jpg?.large_image_url || anime?.images?.jpg?.image_url || anime?.image_url;
-  const SIZE = 132;
+  const SIZE = size;
 
   return (
-    <div className="sp-wrap" style={{ width: 168, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 9 }}>
+    <div className="sp-wrap" style={{ width: SIZE + 36, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 9 }}>
       <style>{SPOTLIGHT_CSS}</style>
       <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.3em", paddingLeft: "0.3em", textTransform: "uppercase", color: "rgba(167,139,250,.85)" }}>
         {label}
@@ -590,7 +592,7 @@ function SpotlightCircle({ anime, lang, onOpen, onPick, onClear }) {
           }}>
           {anime && img
             ? <img src={img} alt={anime.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            : <span style={{ fontSize: 34, lineHeight: 1, color: "rgba(148,163,184,.7)", fontWeight: 300 }}>＋</span>}
+            : <span style={{ fontSize: Math.round(SIZE * 0.26), lineHeight: 1, color: "rgba(148,163,184,.7)", fontWeight: 300 }}>＋</span>}
         </button>
 
         {/* actions au survol */}
@@ -929,13 +931,13 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
     try { const r = await jikan.getAnime(id); setAnimeCache(p => ({...p,[id]:r.data})); } catch {}
   };
 
-  // ── DESKTOP : « En boucle » (UN animé épinglé dans un cercle cadré) ──────────
+  // ── « En boucle » (UN animé épinglé dans un cercle cadré) — site et bureau ────
   const spotKey = `animood_spotlight_${myUsername}`;
   const [spotlightId, setSpotlightId] = useState(() => {
-    if(!desktop) return null;
     try { const v = localStorage.getItem(spotKey); return v ? parseInt(v) : (me.spotlight ? parseInt(me.spotlight) : null); } catch { return me.spotlight ? parseInt(me.spotlight) : null; }
   });
   const [showSpotlightPicker, setShowSpotlightPicker] = useState(false);
+  const gamePts = useGamePoints(desktop ? null : myUsername); // desktop : le total est déjà lu par le HudPanel
   const persistSpotlight = (id) => {
     setSpotlightId(id);
     try { id ? localStorage.setItem(spotKey, String(id)) : localStorage.removeItem(spotKey); } catch {}
@@ -947,7 +949,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
     }).catch(()=>{});
   };
   useEffect(() => {
-    if(!desktop || !myUsername) return;
+    if(!myUsername) return;
     // si la colonne existe côté serveur, on la reprend (autre appareil)
     sb.query(`profiles?username=eq.${encodeURIComponent(myUsername)}&select=spotlight&limit=1`)
       .then(r => {
@@ -955,7 +957,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
         if(v) { setSpotlightId(parseInt(v)); try { localStorage.setItem(spotKey, String(v)); } catch {} }
       }).catch(()=>{});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if(desktop && spotlightId) fetchAnime(spotlightId); }, [spotlightId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if(spotlightId) fetchAnime(spotlightId); }, [spotlightId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const priority = [
@@ -1305,7 +1307,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
   const pinnedList = customLists.find(l=>l.id===pinnedListId)||null;
   // Desktop : chaque bloc de la colonne gauche est une carte ; les cartes s'étirent pour que le bas
   // de la colonne tombe pile au niveau du bas du Mood Radar.
-  const leftCard = desktop ? "flex-auto rounded-2xl border border-white/6 bg-white/3 p-4" : "";
+  const leftCard = "flex-auto rounded-2xl border border-white/6 bg-white/3 p-4";
   const openListData = customLists.find(l=>l.id===openList)||null;
 
   return (
@@ -1401,6 +1403,28 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
           </div>
         </div>
 
+        {!desktop && (
+          // Site web : Pts jeux + Badges (petits cercles) à gauche de « En boucle »
+          <div className="flex shrink-0 flex-wrap items-start justify-center gap-3 sm:flex-nowrap">
+            <div className="flex items-start gap-1" style={{ marginTop: 20 + (112 - 80) / 2 }}>
+              <StatCircle size={80} icon="🎮" value={fmtPoints(gamePts)} label={lang === "en" ? "Game pts" : "Pts jeux"}
+                ring="conic-gradient(from 0deg, #6D5BFF, #8B5CF6, #EC4899, #8B5CF6, #6D5BFF)" glow="rgba(109,91,255,.28)"
+                title={lang === "en" ? "Total game points" : "Points de jeu totaux"} />
+              <StatCircle size={80} icon="🏆" value={unlockedBadges.length} label={t.badges || "Badges"}
+                ring="conic-gradient(from 0deg, #f59e0b, #fbbf24, #fde68a, #fbbf24, #f59e0b)" glow="rgba(251,191,36,.22)"
+                onClick={() => { playSound("click"); setShowBadgePicker(true); }}
+                title={t.badges || "Badges"} />
+            </div>
+            <SpotlightCircle size={112}
+              anime={spotlightId ? animeCache[spotlightId] : null}
+              lang={lang}
+              onOpen={() => animeCache[spotlightId] && onOpenDetail(animeCache[spotlightId])}
+              onPick={() => setShowSpotlightPicker(true)}
+              onClear={() => persistSpotlight(null)}
+            />
+          </div>
+        )}
+
         {desktop && (
           <>
             <div className="min-w-0 flex-1">
@@ -1423,12 +1447,12 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
 
       {/* ── PROFIL TAB ── */}
       {tab === "profile" && (
-        <div className={desktop ? "grid gap-6 lg:grid-cols-2 lg:items-stretch" : "grid gap-8 lg:grid-cols-2"}>
+        <div className={desktop ? "grid gap-6 lg:grid-cols-2 lg:items-stretch" : "grid gap-8 lg:grid-cols-2 lg:items-stretch"}>
 
           {/* LEFT — Favoris + Derniers vus + Liste épinglée
               Desktop : la colonne s'étire sur toute la hauteur et répartit ses 3 blocs,
               pour que le bas de la liste épinglée tombe au niveau du bas du Mood Radar. */}
-          <div className={desktop ? "flex flex-col gap-4" : "flex flex-col gap-8"}>
+          <div className="flex flex-col gap-4">
             {/* Favoris — toujours en premier */}
             <div className={leftCard}>
               <div className="mb-2.5 flex items-center justify-between">
@@ -1517,9 +1541,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
             t={t}
           />
           ) : (
-          /* RIGHT (web) — 3 stats + Distribution + MoodRadar */
-          <div className="flex flex-col gap-8">
-            <div className="grid grid-cols-4 gap-3">
+          /* RIGHT (web) — 3 stats + Distribution + MoodRadar (le bas s'aligne sur la colonne de gauche) */
+          <div className="flex flex-col gap-8 lg:justify-between">
+            <div className="grid grid-cols-3 gap-3">
               {[
                 {l:t.statVus, v:me.watched.length},
                 {l:t.statNotes, v:rated.length},
@@ -1530,20 +1554,6 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                   <div className="mt-0.5 text-[9px] text-slate-500">{s.l}</div>
                 </div>
               ))}
-              {/* 4th cell — double: pts jeux + badges */}
-              <div className="flex flex-col gap-1.5">
-                <div className="rounded-xl border border-white/6 bg-white/3 p-2.5 text-center flex-1">
-                  <GamePtsDisplay myUsername={myUsername} compact/>
-                </div>
-                {unlockedBadges.length > 0 && (
-                  <button onClick={() => setShowBadgePicker(true)}
-                    className="rounded-xl border p-2.5 text-center flex-1 transition hover:bg-white/5"
-                    style={{border:"1px solid rgba(251,191,36,0.25)",background:"rgba(251,191,36,0.06)"}}>
-                    <div className="text-xl font-black" style={{color:"#fbbf24"}}>{unlockedBadges.length}</div>
-                    <div className="mt-0.5 text-[9px] text-slate-500">{t.badges||"badges"}</div>
-                  </button>
-                )}
-              </div>
             </div>
             <div>
               <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.ratingDistribution}</div>
@@ -2060,7 +2070,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
       )}
 
       {favPopup !== null && <FavoriteSearchModal onSelect={selectFavorite} onClose={() => setFavPopup(null)} />}
-      {desktop && showSpotlightPicker && (
+      {showSpotlightPicker && (
         <FavoriteSearchModal
           onSelect={(a) => { playSound("confirm"); setAnimeCache(p => ({...p,[a.mal_id]:a})); persistSpotlight(a.mal_id); setShowSpotlightPicker(false); }}
           onClose={() => setShowSpotlightPicker(false)} />
