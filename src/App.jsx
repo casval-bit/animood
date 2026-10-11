@@ -377,6 +377,7 @@ function Shell() {
   // Desktop démarre sur le profil, web sur moodboard
   const [activeTab, setActiveTab]   = useState(() => window.history.state?.tab || (isDesktopApp() ? "profile" : "moodboard"));
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsCat, setSettingsCat] = useState(null); // catégorie à ouvrir directement (ex. "profile")
   const [detailAnime, setDetailAnime]   = useState(null);
   const [openUser, setOpenUser]         = useState(null);
   const [pendingJoinGame, setPendingJoinGame] = useState(null);
@@ -436,7 +437,7 @@ function Shell() {
 
   return (
     <div className="min-h-screen" style={desktop ? { paddingTop: 80 } : {}}>
-      <Header activeTab={activeTab} onChangeTab={changeTab} onOpenSettings={() => setShowSettings(true)}
+      <Header activeTab={activeTab} onChangeTab={changeTab} onOpenSettings={() => { setSettingsCat(null); setShowSettings(true); }}
         onJoinGame={payload => { changeTab(desktop ? "games" : "forum"); setPendingJoinGame(payload); }} />
       <main>
         {/* Feed and Profile stay mounted for cross-sync */}
@@ -444,7 +445,7 @@ function Shell() {
           <FeedView onOpenUser={setOpenUser} onOpenDetail={openDetail}/>
         </div>
         <div style={{display: activeTab==="profile" ? "block" : "none"}}>
-          <ProfileView onOpenDetail={openDetail} onOpenSettings={() => setShowSettings(true)} onOpenUser={setOpenUser} />
+          <ProfileView onOpenDetail={openDetail} onOpenSettings={(cat) => { setSettingsCat(typeof cat === "string" ? cat : null); setShowSettings(true); }} onOpenUser={setOpenUser} />
         </div>
         {/* Other pages unmount when hidden — no sync needed */}
         {pages[activeTab]}
@@ -452,7 +453,7 @@ function Shell() {
       <Footer onOpenPage={(p) => { if(p==="legal"||p==="privacy") setLegalPage(p); else setActivePage(p); }}/>
       <ChatBubble hidden={activeTab === "messages"} />
 
-      {showSettings && <SettingsView onClose={() => setShowSettings(false)} />}
+      {showSettings && <SettingsView initialCategory={settingsCat} onClose={() => setShowSettings(false)} />}
 
       {detailAnime && (
         <AnimeDetailModal

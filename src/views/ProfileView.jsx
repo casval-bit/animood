@@ -8,7 +8,7 @@ import { MOOD_KEYS } from "../constants/moods.js";
 import { jikan } from "../api/jikan.js";
 import { follows, sb, posts as postsApi, comments as commentsApi } from "../api/supabase.js";
 import { dispatchPostEvent, addPostEventListener } from "../utils/postEvents.js";
-import { FRAMES, getUnlockedFrames, getBestFrame } from "../frames/frames.js";
+import { FRAMES, getUnlockedFrames, getBestFrame, getFrameLabel, getFrameDesc } from "../frames/frames.js";
 import { BADGES, getUnlockedBadges, getBestBadge, BadgeDisplay } from "../badges/badges.jsx";
 import { FrameSVG } from "../frames/FrameSVG.jsx";
 import { getFrameSvg, getExtraFrames, loadFrameFlags, noteNightOwl } from "../frames/framesDesktop.js";
@@ -887,12 +887,80 @@ function HudPanel({ me, rated, myUsername, unlockedBadges, activeBadge, onOpenBa
   );
 }
 
+// Sélecteur de cadre rapide (ouvert par le petit crayon de l'avatar) — même choix que Paramètres → Profil
+function FramePickerModal({ frames, unlocked, active, avatar, lang, onPick, onClose, onOpenSettings }) {
+  const en = lang === "en";
+  const cats = [["watched", en ? "Watched" : "Visionnage"], ["contribution", en ? "Contribution" : "Contribution"], ["followers", en ? "Followers" : "Abonnés"], ["genre", en ? "Genres" : "Genres"], ["games", en ? "Games" : "Jeux"], ["fun", en ? "Effects & special" : "Effets & spéciaux"]];
+  const sz = 44;
+  return (
+    <Modal onClose={onClose} maxWidth="max-w-xl">
+      {(close) => (
+        <div className="p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-sm font-black text-slate-100">{en ? "Profile frame" : "Cadre de profil"}</div>
+            <button type="button" onClick={close} aria-label="Fermer" style={{ background: "none", border: "none", color: "#94a3b8", fontSize: 16, cursor: "pointer" }}>✕</button>
+          </div>
+          <button type="button" onClick={() => { onPick(null); close(); }}
+            className="mb-3 flex w-full items-center gap-3 rounded-xl p-2 text-left"
+            style={{ border: !active ? "2px solid #7c3aed" : "2px solid transparent", background: !active ? "rgba(124,58,237,0.1)" : "transparent", cursor: "pointer" }}>
+            <div style={{ width: 36, height: 36, borderRadius: "50%", border: "2px dashed rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>🚫</div>
+            <div className="text-xs font-bold text-slate-100">{en ? "No frame" : "Aucun cadre"}</div>
+          </button>
+          {cats.map(([cat, label]) => {
+            const list = frames.filter(f => f.category === cat);
+            if (!list.length) return null;
+            return (
+              <div key={cat} className="mb-3">
+                <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">{label}</div>
+                <div className="flex flex-wrap gap-x-2 gap-y-1">
+                  {list.map(frame => {
+                    const isUnlocked = unlocked.some(f => f.id === frame.id);
+                    const isActive = active?.id === frame.id;
+                    return (
+                      <button key={frame.id} type="button"
+                        onClick={() => { if (isUnlocked) { onPick(frame); close(); } }}
+                        title={getFrameLabel(frame, lang) + " — " + getFrameDesc(frame, lang)}
+                        style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: 8, borderRadius: 12,
+                          cursor: isUnlocked ? "pointer" : "not-allowed",
+                          border: isActive ? "2px solid #7c3aed" : "2px solid transparent",
+                          background: isActive ? "rgba(124,58,237,0.1)" : "rgba(255,255,255,0.03)",
+                          opacity: isUnlocked ? 1 : 0.4, filter: isUnlocked ? "none" : "grayscale(1)" }}>
+                        <div style={{ position: "relative", width: sz, height: sz }}>
+                          <div style={{ width: sz, height: sz, borderRadius: "50%", overflow: "hidden", background: GRADIENT_PRIMARY, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
+                            {avatar?.startsWith?.("http") || avatar?.startsWith?.("data:") ? <img src={avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (avatar || "👤")}
+                          </div>
+                          <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible", pointerEvents: "none" }}
+                            viewBox={`0 0 ${sz} ${sz}`} dangerouslySetInnerHTML={{ __html: getFrameSvg(frame, sz) }} />
+                          {!isUnlocked && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, background: "rgba(0,0,0,0.3)", borderRadius: "50%" }}>🔒</div>}
+                        </div>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: isUnlocked ? frame.color : "rgba(148,163,184,0.5)", textAlign: "center", maxWidth: 56, lineHeight: 1.2 }}>{getFrameLabel(frame, lang)}</span>
+                        {!isUnlocked && <span style={{ fontSize: 8, color: "rgba(148,163,184,0.7)", textAlign: "center", maxWidth: 72, lineHeight: 1.2 }}>{getFrameDesc(frame, lang)}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+          {onOpenSettings && (
+            <button type="button" onClick={() => { close(); onOpenSettings("profile"); }}
+              className="mt-1 text-[11px] text-slate-500 underline" style={{ background: "none", border: "none", cursor: "pointer" }}>
+              {en ? "Change photo & badge in Settings" : "Photo et badge : Paramètres"}
+            </button>
+          )}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
   const { me, saveMe, myUsername } = useApp();
   const { lang } = useLang();
   const { playSound } = useSound();
   const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
   const desktop = isDesktopApp();
+  const AVATAR = 132; // photo de profil (les cadres s'adaptent à cette taille)
   const [tab, setTab] = useState("profile");
   const [journalFilter, setJournalFilter] = useState(null);
   const [customListFilter, setCustomListFilter] = useState(null);
@@ -938,6 +1006,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
     try { const v = localStorage.getItem(spotKey); return v ? parseInt(v) : (me.spotlight ? parseInt(me.spotlight) : null); } catch { return me.spotlight ? parseInt(me.spotlight) : null; }
   });
   const [showSpotlightPicker, setShowSpotlightPicker] = useState(false);
+  const [showFramePicker, setShowFramePicker] = useState(false);
   const gamePts = useGamePoints(desktop ? null : myUsername); // desktop : le total est déjà lu par le HudPanel
   // « En boucle » est synchronisé site <-> appli de bureau via la colonne profiles.spotlight
   // (supabase/profile_spotlight.sql, à exécuter une fois). Sans la colonne : mémorisation locale seulement.
@@ -1334,15 +1403,25 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
         ? `${GLASS} mb-6 flex flex-col gap-6 p-6 sm:flex-row sm:items-center`
         : "mb-6 flex flex-col gap-6 sm:flex-row sm:items-start"}
         style={desktop ? GLASS_STYLE : undefined}>
-        <div className="relative shrink-0">
-          {/* La photo, le cadre et le badge se changent uniquement dans Paramètres → Profil */}
-          <FrameSVG frame={activeFrame} size={112}>
-            <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full text-5xl" style={{ background: GRADIENT_PRIMARY }}>
+        <div className="shrink-0" style={{ padding: 10 }}>{/* marge : les cadres dépassent de l'avatar */}
+         <div className="relative" style={{ width: AVATAR, height: AVATAR }}>
+          {/* Photo et badge : Paramètres → Profil. Le cadre : crayon discret ici (ou Paramètres). */}
+          <FrameSVG frame={activeFrame} size={AVATAR}>
+            <div className="flex items-center justify-center overflow-hidden rounded-full" style={{ width: AVATAR, height: AVATAR, fontSize: Math.round(AVATAR * 0.43), background: GRADIENT_PRIMARY }}>
               {(me.avatar_base64 || (me.avatar?.startsWith?.("http") ? me.avatar : null))
                 ? <img src={me.avatar_base64 || me.avatar} alt="avatar" className="h-full w-full object-cover" />
                 : (me.avatar || "👤")}
             </div>
           </FrameSVG>
+          {(
+            <button type="button" onClick={() => { playSound("click"); setShowFramePicker(true); }}
+              title={lang === "en" ? "Change frame" : "Changer le cadre"}
+              aria-label={lang === "en" ? "Change profile frame" : "Changer le cadre de profil"}
+              style={{ position: "absolute", right: 2, bottom: 2, width: 26, height: 26, borderRadius: "50%", background: "#1e1b4b", border: "2px solid #070816", color: "#c4b5fd", fontSize: 11, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+              ✎
+            </button>
+          )}
+         </div>
         </div>
 
         <div className={desktop ? "sm:w-[290px] sm:flex-none" : "flex-1"}>
@@ -1432,7 +1511,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
               <HudPanel tilesOnly me={me} rated={rated} myUsername={myUsername} unlockedBadges={unlockedBadges} t={t} />
             </div>
             <div className="hidden self-stretch sm:block" style={{ width: 1, background: "linear-gradient(180deg, transparent, rgba(255,255,255,.12), transparent)" }} />
-            <SpotlightCircle
+            <SpotlightCircle compact
               anime={spotlightId ? animeCache[spotlightId] : null}
               lang={lang}
               onOpen={() => animeCache[spotlightId] && onOpenDetail(animeCache[spotlightId])}
@@ -1902,6 +1981,12 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
         <FavoriteSearchModal
           onSelect={(a) => { playSound("confirm"); setAnimeCache(p => ({...p,[a.mal_id]:a})); persistSpotlight(a.mal_id); setShowSpotlightPicker(false); }}
           onClose={() => setShowSpotlightPicker(false)} />
+      )}
+      {showFramePicker && (
+        <FramePickerModal frames={Object.values(FRAMES)} unlocked={unlockedFrames} active={activeFrame}
+          avatar={me.avatar_base64 || me.avatar} lang={lang} onOpenSettings={onOpenSettings}
+          onPick={(f) => { playSound("click"); setActiveFrame(f); saveMe({ ...me, activeFrame: f?.id || null }); }}
+          onClose={() => setShowFramePicker(false)} />
       )}
       {followListMode && (
         <FollowListModal username={myUsername} mode={followListMode} onClose={() => setFollowListMode(null)} onOpenUser={onOpenUser} />

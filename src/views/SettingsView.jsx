@@ -52,7 +52,7 @@ function Section({ title, children }) {
   );
 }
 
-export function SettingsView({ onClose }) {
+export function SettingsView({ onClose, initialCategory = null }) {
   // Pushes a history entry on mount so the browser/device back button
   // closes this screen instead of navigating away from the page underneath.
   const requestClose = useModalBack(onClose);
@@ -65,7 +65,7 @@ export function SettingsView({ onClose }) {
   const avatarRef = useRef(null);
 
   const desktop = isDesktopApp();
-  const [category, setCategory] = useState("preferences");
+  const [category, setCategory] = useState(initialCategory || "preferences");
   const CATEGORY_TABS = desktop ? [
     { id: "preferences",   label: t.catPreferences },
     { id: "profile",       label: t.catProfile },
@@ -121,6 +121,13 @@ export function SettingsView({ onClose }) {
   const [unlockedBadges, setUnlockedBadges] = useState([]);
   const [activeBadge, setActiveBadge] = useState(null);
   const [badgesLoading, setBadgesLoading] = useState(true);
+
+  // Ouvert depuis le crayon du profil : on descend jusqu'à la section « Cadre de profil » (après le chargement des cadres)
+  useEffect(() => {
+    if(initialCategory !== "profile" || framesLoading) return;
+    const id = setTimeout(() => document.getElementById("settings-frame")?.scrollIntoView({ block: "start" }), 150);
+    return () => clearTimeout(id);
+  }, [framesLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     (async () => {
@@ -422,7 +429,7 @@ export function SettingsView({ onClose }) {
           )}
         </Section>
 
-        <Section title={t.frame}>
+        <div id="settings-frame"><Section title={t.frame}>
           {framesLoading ? (
             <p className="text-xs text-slate-500 text-center py-2">{t.framesLoading}</p>
           ) : (
@@ -484,7 +491,7 @@ export function SettingsView({ onClose }) {
               })}
             </>
           )}
-        </Section>
+        </Section></div>
 
         <Section title={t.banner}>
           {me.banner ? (
