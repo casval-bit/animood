@@ -4,7 +4,8 @@
 // 3. Fetches season labels from AniList for new anime
 
 const SUPABASE_URL  = process.env.SUPABASE_URL;
-const SUPABASE_ANON = process.env.SUPABASE_ANON;
+// clé de service si disponible (nécessaire une fois security_rls_2_reference.sql exécuté), sinon clé publique
+const SUPABASE_ANON = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON;
 const JIKAN_BASE    = "https://api.jikan.moe/v4";
 const ANILIST_URL   = "https://graphql.anilist.co";
 const DELAY_MS      = 1100;

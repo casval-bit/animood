@@ -17,7 +17,8 @@
 // Attribution requise par TMDB : « Données de disponibilité fournies par JustWatch ».
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_ANON = process.env.SUPABASE_ANON;
+// clé de service si disponible (nécessaire une fois security_rls_2_reference.sql exécuté), sinon clé publique
+const SUPABASE_ANON = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON;
 const TMDB_KEY = process.env.TMDB_KEY;
 const TMDB = "https://api.themoviedb.org/3";
 const FRIBB = "https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json"; // correspondances MAL → TMDB

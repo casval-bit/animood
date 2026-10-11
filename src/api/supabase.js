@@ -6,6 +6,31 @@ const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON || "eyJhbGciOiJIUzI1NiI
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
 
+// ─── SESSION → JETON ENVOYÉ À L'API REST ──────────────────────────────────────
+// Les requêtes REST partent avec le jeton de l'utilisateur connecté (et non plus la clé publique) : c'est ce qui permet
+// aux règles de sécurité Supabase (supabase/security_rls_*.sql) de savoir QUI fait la demande. Sans session, on retombe
+// sur la clé publique, comme avant. Tant que le SQL de sécurité n'est pas exécuté, ça ne change rien au comportement.
+let accessToken = null;
+let tokenExpMs = 0;
+let refreshing = null;
+const setSession = (session) => {
+  accessToken = session?.access_token || null;
+  tokenExpMs = session?.expires_at ? session.expires_at * 1000 : 0;
+};
+supabase.auth.getSession().then(({ data }) => setSession(data?.session)).catch(() => {});
+supabase.auth.onAuthStateChange((_event, session) => setSession(session)); // pas d'appel Supabase ici (interblocage possible)
+
+// Jeton à jour avant chaque requête : si il expire dans moins d'une minute, getSession() le renouvelle.
+async function freshToken() {
+  if (accessToken && tokenExpMs && tokenExpMs - Date.now() < 60_000) {
+    refreshing ||= supabase.auth.getSession()
+      .then(({ data }) => setSession(data?.session))
+      .catch(() => {})
+      .finally(() => { refreshing = null; });
+    await refreshing;
+  }
+}
+
 // ─── GOOGLE AUTH ──────────────────────────────────────────────────────────────
 export async function signInWithGoogle() {
   const { error } = await supabase.auth.signInWithOAuth({
@@ -25,14 +50,27 @@ export function onAuthChange(callback) {
 
 // ─── REST HELPERS ─────────────────────────────────────────────────────────────
 export const sb = {
-  headers: {
-    "Content-Type": "application/json",
-    "apikey": SUPABASE_ANON,
-    "Authorization": `Bearer ${SUPABASE_ANON}`,
+  // getter : toujours le jeton courant (les appelants font { ...sb.headers, ... } au moment de la requête)
+  get headers() {
+    return {
+      "Content-Type": "application/json",
+      "apikey": SUPABASE_ANON,
+      "Authorization": `Bearer ${accessToken || SUPABASE_ANON}`,
+    };
   },
 
   async query(path, opts={}) {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: this.headers, ...opts });
+    await freshToken();
+    const send = () => {
+      // l'en-tête Authorization est toujours recalculé (l'appelant a pu le copier avant un renouvellement du jeton)
+      const headers = { ...(opts.headers || this.headers), "Authorization": `Bearer ${accessToken || SUPABASE_ANON}` };
+      return fetch(`${SUPABASE_URL}/rest/v1/${path}`, { ...opts, headers });
+    };
+    let r = await send();
+    if(r.status === 401 && accessToken) { // jeton refusé (expiré) : on le renouvelle une fois
+      try { const { data } = await supabase.auth.refreshSession(); setSession(data?.session); } catch {}
+      r = await send();
+    }
     if(!r.ok) { const e = await r.text(); throw new Error(e); }
     if(r.status === 204 || r.headers.get("content-length") === "0") return null;
     const text = await r.text();

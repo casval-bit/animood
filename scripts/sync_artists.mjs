@@ -10,7 +10,8 @@
 import { POPULAR_ARTIST_NAMES } from "../src/constants/popularArtists.js";
 
 const SUPABASE_URL  = process.env.SUPABASE_URL;
-const SUPABASE_ANON = process.env.SUPABASE_ANON;
+// clé de service si disponible (nécessaire une fois security_rls_2_reference.sql exécuté), sinon clé publique
+const SUPABASE_ANON = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON;
 const ANIMETHEMES_BASE = "https://api.animethemes.moe";
 const DELAY_MS = 300; // politeness delay between AnimeThemes requests
 // Cloudflare in front of AnimeThemes answers 403 to Node's default fetch
