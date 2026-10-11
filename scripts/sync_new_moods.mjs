@@ -6,7 +6,8 @@
 // - Statistically normalized to match real DB distribution
 
 const SUPABASE_URL  = process.env.SUPABASE_URL;
-const SUPABASE_ANON = process.env.SUPABASE_ANON;
+// clé de service si disponible (nécessaire une fois security_rls_2_reference.sql exécuté), sinon clé publique
+const SUPABASE_ANON = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON;
 
 // Groq preferred; falls back to OpenRouter if only OPENROUTER_API_KEY is set
 const USE_OPENROUTER = !process.env.GROQ_API_KEY && !!process.env.OPENROUTER_API_KEY;
