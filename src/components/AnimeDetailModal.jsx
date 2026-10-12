@@ -19,6 +19,8 @@ import { ArtistModal } from "./ArtistModal.jsx";
 import { GradientButton } from "./ui.jsx";
 import { NewThreadModal, ThreadModal, timeAgo } from "./ForumThreadModal.jsx";
 import { StreamingBarDesktop } from "./StreamingBarDesktop.jsx";
+import { TrailerPlayerDesktop } from "./TrailerPlayerDesktop.jsx";
+import { youtubeIdOf } from "../utils/youtube.js";
 import { isDesktopApp } from "../utils/streamingLinks.js";
 
 const FALLBACK = "https://placehold.co/700x300/1a1a2e/818cf8?text=?";
@@ -158,6 +160,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
   const [discussionsVersion, setDiscussionsVersion] = useState(0);
   const [themes, setThemes]           = useState([]);
   const [artistModal, setArtistModal] = useState(null);
+  const [showTrailer, setShowTrailer] = useState(false);
   const [artistLoading, setArtistLoading] = useState(null);
 
   // AniMood score state
@@ -306,6 +309,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
   const studios  = a?.studios || [];
   const streaming = a?.streaming || seedData?.streaming || [];
   const trailer  = a?.trailer?.url;
+  const canPlayHere = desktop && !!youtubeIdOf(a?.trailer); // appli de bureau : lecteur intégré
   const userScore = me.ratings[malId]?.score || null;
 
   // Friend scores summary
@@ -387,12 +391,17 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/6 px-6 py-3.5">
                 <StreamingBarDesktop anime={a} streamingNames={streaming.map(s => s.name || s)} lang={lang} />
                 <div className="flex items-center gap-2">
-                  {trailer && (
+                  {trailer && (canPlayHere ? (
+                    <button type="button" onClick={() => { playSound("click"); setShowTrailer(true); }}
+                      className="flex h-9 items-center gap-1.5 rounded-xl border border-white/10 px-3 text-[12px] font-bold text-slate-300 transition hover:border-white/25 hover:bg-white/5">
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[7px] text-white">▶</span>Trailer
+                    </button>
+                  ) : (
                     <a href={trailer} target="_blank" rel="noopener noreferrer"
                       className="flex h-9 items-center gap-1.5 rounded-xl border border-white/10 px-3 text-[12px] font-bold text-slate-300 transition hover:border-white/25 hover:bg-white/5">
                       <span className="flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[7px] text-white">▶</span>Trailer
                     </a>
-                  )}
+                  ))}
                   <button onClick={toggleWatched}
                     className={`h-9 rounded-xl px-3.5 text-[12px] font-bold transition ${isWatched ? "border border-emerald-400 bg-emerald-400/10 text-emerald-400" : "border border-white/10 text-slate-400 hover:bg-white/5"}`}>
                     {isWatched ? t.watchedBadge : t.markWatched}
@@ -447,10 +456,17 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                   const url = trailer || `https://youtube.com/results?search_query=${encodeURIComponent(title + " trailer")}`;
                   const label = trailer ? t.watchTrailer : t.searchTrailer;
                   return (
+                    canPlayHere ? (
+                      <button type="button" onClick={() => { playSound("click"); setShowTrailer(true); }}
+                        className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/3 py-2.5 text-[13px] font-bold text-slate-400">
+                        {label}
+                      </button>
+                    ) : (
                     <a href={url} target="_blank" rel="noopener noreferrer"
                       className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/3 py-2.5 text-[13px] font-bold text-slate-400">
                       {label}
                     </a>
+                    )
                   );
                 })()}
 
@@ -701,6 +717,9 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
       {studioModal && (
         <StudioModal studioId={studioModal.id} studioName={studioModal.name} onClose={() => setStudioModal(null)}
           onOpenDetail={a => { setStudioModal(null); onOpenDetail?.(a); }} />
+      )}
+      {showTrailer && canPlayHere && (
+        <TrailerPlayerDesktop trailer={a?.trailer} title={a?.title_english || a?.title} lang={lang} onClose={() => setShowTrailer(false)} />
       )}
       {artistModal && (
         <ArtistModal artist={artistModal} onClose={() => setArtistModal(null)}

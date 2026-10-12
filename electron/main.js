@@ -10,14 +10,18 @@
  *  - System tray icon with quick-access menu
  */
 
-import { app, BrowserWindow, ipcMain, shell, protocol, Menu, Tray, nativeImage } from "electron";
+import { app, BrowserWindow, ipcMain, shell, protocol, Menu, Tray, nativeImage, session } from "electron";
 import { createRequire } from "module";
 import path from "path";
 import { fileURLToPath } from "url";
+import { resolveSiteLink } from "./siteResolver.js";
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = process.env.NODE_ENV !== "production";
+
+// Sécurité : on n'ouvre dans le navigateur système QUE des liens http(s) — jamais file://, javascript:, ms-msdt:, etc.
+const safeHttpUrl = (u) => { try { const x = new URL(String(u)); return x.protocol === "https:" || x.protocol === "http:" ? x.toString() : null; } catch { return null; } };
 
 // ── Auto-updater (only in production) ─────────────────────────────────────────
 let autoUpdater = null;
@@ -57,7 +61,9 @@ function createWindow() {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true, // le preload n'utilise que contextBridge/ipcRenderer
+      webSecurity: true,
+      allowRunningInsecureContent: false,
     },
   });
 
@@ -74,6 +80,13 @@ function createWindow() {
     win.show();
     win.focus();
   });
+
+  // La fenêtre ne doit JAMAIS naviguer hors de l'appli (sinon une page distante aurait accès au pont window.animood)
+  win.webContents.on("will-navigate", (e, url) => {
+    const ok = url.startsWith("http://localhost:5173") || url.startsWith("file://");
+    if (!ok) { e.preventDefault(); const h = safeHttpUrl(url); if (h) shell.openExternal(h); }
+  });
+  win.webContents.on("will-attach-webview", (e) => e.preventDefault());
 
   // Open external links in default browser, not in Electron
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -111,6 +124,15 @@ function createTray() {
 
 // ── App lifecycle ──────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
+  // Aucune permission sensible (géolocalisation, caméra, micro, USB…) n'est jamais accordée à l'appli
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(["notifications", "clipboard-sanitized-write"].includes(permission)));
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => ["notifications", "clipboard-sanitized-write"].includes(permission));
+  // Lecteur de trailer intégré : depuis file:// l'iframe YouTube part sans Referer et affiche « erreur 153 ».
+  // On ajoute un Referer https UNIQUEMENT à la requête de l'iframe /embed/ de YouTube (rien d'autre n'est modifié).
+  session.defaultSession.webRequest.onBeforeSendHeaders(
+    { urls: ["https://www.youtube-nocookie.com/embed/*", "https://www.youtube.com/embed/*"], types: ["subFrame"] },
+    (details, cb) => { const h = { ...details.requestHeaders }; if (!h.Referer && !h.referer) h.Referer = "https://animood.app/"; cb({ requestHeaders: h }); }
+  );
   createWindow();
   if (process.platform !== "linux") createTray();
 
@@ -166,9 +188,10 @@ function handleDeepLink(url) {
  * Called from preload.js via window.animood.openStream(service, url)
  */
 ipcMain.handle("open-stream", async (_event, { service, url: streamUrl }) => {
-  if (!streamUrl) return { ok: false, error: "No URL" };
+  const safe = safeHttpUrl(streamUrl);
+  if (!safe) return { ok: false, error: "Invalid URL" };
   try {
-    await shell.openExternal(streamUrl);
+    await shell.openExternal(safe);
     return { ok: true, service };
   } catch (e) {
     return { ok: false, error: e.message };
@@ -176,11 +199,25 @@ ipcMain.handle("open-stream", async (_event, { service, url: streamUrl }) => {
 });
 
 /**
+ * Renderer → retrouve la page d'un animé sur un site perso (domaine saisi par l'utilisateur).
+ * Entrées validées ; le résolveur refuse les adresses privées et ne fait que des GET.
+ */
+ipcMain.handle("resolve-site-link", async (_event, req) => {
+  try {
+    const host = typeof req?.host === "string" ? req.host.slice(0, 120) : "";
+    const titles = Array.isArray(req?.titles) ? req.titles.filter((t) => typeof t === "string").map((t) => t.slice(0, 200)).slice(0, 4) : [];
+    const r = await resolveSiteLink({ host, titles });
+    return { url: r.url ? safeHttpUrl(r.url) : null, kind: r.kind };
+  } catch { return { url: null, kind: "none" }; }
+});
+
+/**
  * Renderer → open any external URL in the default browser.
  */
 ipcMain.handle("open-external", async (_event, url) => {
-  if (!url) return;
-  await shell.openExternal(url).catch(() => {});
+  const safe = safeHttpUrl(url);
+  if (!safe) return;
+  await shell.openExternal(safe).catch(() => {});
 });
 
 /**
