@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { GLASS_STYLE, GRADIENT_PRIMARY } from "../constants/theme.js";
 import {
   getCustomPlatforms, saveCustomPlatform, deleteCustomPlatform, normaliseUrl, buildCustomUrl,
-  getExactLink, setExactLink, hostOf, platformColor,
+  getExactLink, setExactLink, hostOf, platformColor, nameFromHost,
 } from "../utils/customPlatforms.js";
 
 const SAMPLE = { mal_id: 52701, title: "Sousou no Frieren", title_english: "Frieren: Beyond Journey's End" };
@@ -42,9 +42,8 @@ export function CustomPlatformsModal({ onClose, lang = "fr" }) {
   const preview = normaliseUrl(url) ? buildCustomUrl({ id: "_preview", url: normaliseUrl(url), mode }, SAMPLE) : "";
 
   const submit = () => {
-    if (!name.trim()) return setErr(en ? "Give it a name." : "Donne-lui un nom.");
-    if (!normaliseUrl(url)) return setErr(en ? "Invalid link (e.g. https://www.netflix.com/fr/)." : "Lien invalide (ex. https://www.netflix.com/fr/).");
-    saveCustomPlatform({ id: editId, name, url, mode }); setName(""); setUrl(""); setMode("auto"); setEditId(null); setErr(""); refresh();
+    if (!normaliseUrl(url)) return setErr(en ? "Invalid address (e.g. mysite.com)." : "Adresse invalide (ex. monsite.com).");
+    saveCustomPlatform({ id: editId, name: name.trim() || nameFromHost(hostOf(normaliseUrl(url))), url, mode }); setName(""); setUrl(""); setMode("auto"); setEditId(null); setErr(""); refresh();
   };
 
   return (
@@ -70,9 +69,9 @@ export function CustomPlatformsModal({ onClose, lang = "fr" }) {
       <div className="rounded-xl border border-white/8 bg-white/2 p-3.5">
         <div className="mb-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-500">{editId ? (en ? "Edit" : "Modifier") : (en ? "New platform" : "Nouvelle plateforme")}</div>
         <label className="mb-1 block text-[11px] font-bold text-slate-400">{en ? "Name" : "Nom"}</label>
-        <input value={name} maxLength={24} onChange={(e) => setName(e.target.value)} placeholder="Netflix" className={inputCls + " mb-2.5"} />
+        <input value={name} maxLength={24} onChange={(e) => setName(e.target.value)} placeholder={en ? "Optional (taken from the address)" : "Facultatif (déduit de l'adresse)"} className={inputCls + " mb-2.5"} />
         <label className="mb-1 block text-[11px] font-bold text-slate-400">{en ? "Site address" : "Adresse du site"}</label>
-        <input value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} placeholder="https://www.netflix.com/fr/" className={inputCls} spellCheck={false} />
+        <input value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} placeholder="monsite.com" className={inputCls} spellCheck={false} />
         {!hasVars && (
           <div className="mt-2.5 grid grid-cols-2 gap-2">
             {[["auto", en ? "Automatic" : "Automatique", en ? "Finds each anime on the site by itself (recommended)" : "Trouve chaque animé sur le site tout seul (recommandé)"], ["slug", en ? "Add the name" : "Ajouter le nom", en ? "site.com/watch → site.com/watch/anime-name" : "site.com/watch → site.com/watch/nom-anime"]].map(([id, t1, t2]) => (

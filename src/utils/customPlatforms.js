@@ -4,7 +4,7 @@
 //   • le modèle de lien avec ses variables remplacées ({slug}, {slug_jp}, {title}, {id}), sinon
 //   • le lien de base + "/" + nom-de-l-anime-en-slug.
 // Tout est stocké sur l'ordinateur (localStorage) — rien n'est envoyé à un serveur.
-import { titleToSlug, isDesktopApp } from "./streamingLinks.js";
+import { titleToSlug, cleanTitle, isDesktopApp } from "./streamingLinks.js";
 
 const K_PLATFORMS = "animood_custom_platforms";
 const K_LINKS = "animood_custom_links";
@@ -29,7 +29,7 @@ export function saveCustomPlatform({ id, name, url, mode = "auto" }) {
   const n = String(name || "").trim().slice(0, 24), u = normaliseUrl(url);
   if (!n || !u) return false;
   const list = getCustomPlatforms();
-  const pid = id || "cp_" + Date.now().toString(36);
+  const pid = id || "cp_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const next = list.some((p) => p.id === pid) ? list.map((p) => (p.id === pid ? { id: pid, name: n, url: u, mode } : p)) : [...list, { id: pid, name: n, url: u, mode }];
   write(K_PLATFORMS, next.slice(0, 12));
   return true;
@@ -40,6 +40,9 @@ export function deleteCustomPlatform(id) {
   const links = read(K_LINKS, {});
   for (const k of Object.keys(links)) if (k.startsWith(id + ":")) delete links[k];
   write(K_LINKS, links);
+  const auto = read(K_AUTO, {});
+  for (const k of Object.keys(auto)) if (k.startsWith(id + ":")) delete auto[k];
+  try { localStorage.setItem(K_AUTO, JSON.stringify(auto)); } catch { /* ok */ }
 }
 
 const animeKey = (anime) => String(anime?.mal_id ?? anime?.id ?? titleToSlug(anime?.title || ""));
@@ -58,8 +61,8 @@ export function setExactLink(platformId, anime, url) {
  *  1. lien exact enregistré pour cet animé ;
  *  2. modèle avec variables {slug} {slug_jp} {title} {id} ;
  *  3. mode « slug » : lien + "/" + nom-de-l-anime ;
- *  4. mode « auto » (défaut) : recherche ciblée sur le site → ouvre directement le premier résultat de ce site
- *     (DuckDuckGo « !ducky » + site:domaine). Marche pour n'importe quel site, sans rien configurer par animé.
+ *  4. mode « auto » (défaut) : résolu par resolveCustomUrl (lecture du site côté Electron : recherche du site → fiche
+ *     qui ressemble le plus au titre). Ce lien-ci n'est que le REPLI si le site est illisible (DuckDuckGo « !ducky » + site:domaine).
  */
 export function buildCustomUrl(platform, anime) {
   const exact = getExactLink(platform.id, anime);
@@ -71,11 +74,58 @@ export function buildCustomUrl(platform, anime) {
   if (/\{[a-z_]+\}/i.test(platform.url)) return platform.url.replace(/\{([a-z_]+)\}/gi, (m, k) => (k.toLowerCase() in vars ? vars[k.toLowerCase()] : m));
   if (platform.mode === "slug" || (!platform.mode && /^https?:\/\/[^/]+\/.+/i.test(platform.url))) return platform.url.replace(/\/+$/, "") + "/" + slug;
   const host = hostOf(platform.url);
-  return `https://duckduckgo.com/?q=${encodeURIComponent(`!ducky site:${host} "${en}"`)}`;
+  return `https://duckduckgo.com/?q=${encodeURIComponent(`!ducky site:${host} "${cleanTitle(en)}"`)}`;
+}
+
+/** « Anime-sama » à partir de « www.anime-sama.fr » (nom affiché quand l'utilisateur n'en donne pas). */
+export const nameFromHost = (host = "") => { const b = host.replace(/^www\./, "").split(".")[0] || host; return (b.charAt(0).toUpperCase() + b.slice(1)).slice(0, 24); };
+
+/**
+ * Ajout express : l'utilisateur ne tape que « nomdusite.com » (ou un lien complet).
+ * Nom déduit du domaine, mode automatique (retrouve chaque animé tout seul). Renvoie { ok, name } ou { ok:false, error }.
+ */
+export function addPlatformFromInput(raw) {
+  const url = normaliseUrl(raw);
+  if (!url) return { ok: false, error: "invalid" };
+  const host = hostOf(url), list = getCustomPlatforms();
+  if (list.some((p) => hostOf(p.url) === host)) return { ok: false, error: "exists" };
+  if (list.length >= 12) return { ok: false, error: "max" };
+  const name = nameFromHost(host);
+  return saveCustomPlatform({ name, url, mode: "auto" }) ? { ok: true, name } : { ok: false, error: "invalid" };
+}
+
+// ── Résolution automatique (mode « auto ») ────────────────────────────────────
+// Le processus principal d'Electron lit le site (recherche du site → meilleure correspondance avec le titre).
+// Le résultat « fiche trouvée » est mémorisé 30 jours sur cet ordinateur : les clics suivants sont instantanés.
+const K_AUTO = "animood_custom_autolinks", AUTO_TTL = 30 * 24 * 3600 * 1000;
+const autoKey = (platformId, anime) => `${platformId}:${animeKey(anime)}`;
+export const getAutoLink = (platformId, anime) => { const v = read(K_AUTO, {})[autoKey(platformId, anime)]; return v && v.url && Date.now() - v.t < AUTO_TTL ? v.url : ""; };
+export function clearAutoLink(platformId, anime) { const m = read(K_AUTO, {}); delete m[autoKey(platformId, anime)]; try { localStorage.setItem(K_AUTO, JSON.stringify(m)); } catch { /* ok */ } }
+const setAutoLink = (platformId, anime, url) => { const m = read(K_AUTO, {}); m[autoKey(platformId, anime)] = { url, t: Date.now() }; try { localStorage.setItem(K_AUTO, JSON.stringify(m)); } catch { /* ok */ } };
+
+const usesAuto = (platform) => !/\{[a-z_]+\}/i.test(platform.url) && !(platform.mode === "slug" || (!platform.mode && /^https?:\/\/[^/]+\/.+/i.test(platform.url)));
+
+/** Lien à ouvrir, en résolvant la fiche exacte si besoin. kind : exact | cached | page | search | fallback */
+export async function resolveCustomUrl(platform, anime) {
+  const exact = getExactLink(platform.id, anime);
+  if (exact) return { url: exact, kind: "exact" };
+  if (usesAuto(platform)) {
+    const cached = getAutoLink(platform.id, anime);
+    if (cached) return { url: cached, kind: "cached" };
+    if (typeof window !== "undefined" && window.animood?.resolveSiteLink) {
+      const titles = [anime?.title_english, anime?.title, ...(Array.isArray(anime?.title_synonyms) ? anime.title_synonyms.slice(0, 2) : [])].filter(Boolean);
+      try {
+        const r = await Promise.race([window.animood.resolveSiteLink({ host: hostOf(platform.url), titles }), new Promise((res) => setTimeout(() => res(null), 25000))]);
+        if (r?.url && r.kind === "page") { setAutoLink(platform.id, anime, r.url); return { url: r.url, kind: "page" }; }
+        if (r?.url && r.kind === "search") return { url: r.url, kind: "search" };
+      } catch { /* on retombe sur le lien de secours */ }
+    }
+  }
+  return { url: buildCustomUrl(platform, anime), kind: "fallback" };
 }
 
 export async function openCustomPlatform(platform, anime) {
-  const url = buildCustomUrl(platform, anime);
+  const { url } = await resolveCustomUrl(platform, anime);
   if (!url) return;
   try { await window.animood.openStream(platform.id, url); } catch { window.open(url, "_blank", "noopener,noreferrer"); }
 }

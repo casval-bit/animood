@@ -1,23 +1,25 @@
 // ─── DESKTOP ONLY — Paramètres → Streaming : pays, plateformes perso, VPN ────
 import { useEffect, useState } from "react";
 import { REGIONS, getUserRegion, setUserRegion, REGION_EVENT } from "../utils/streamingRegions.js";
-import { getCustomPlatforms, deleteCustomPlatform, CUSTOM_PLATFORMS_EVENT } from "../utils/customPlatforms.js";
+import { getCustomPlatforms, deleteCustomPlatform, addPlatformFromInput, CUSTOM_PLATFORMS_EVENT } from "../utils/customPlatforms.js";
+import { VPNS, openExternalUrl } from "../utils/vpnList.js";
 import { CustomPlatformsModal, PlatformIcon } from "./CustomPlatformsModal.jsx";
 import { GRADIENT_PRIMARY } from "../constants/theme.js";
 
-const VPNS = [
-  { name: "ProtonVPN", url: "https://protonvpn.com", color: "#6d4aff", note: { fr: "Offre gratuite, sans limite de données", en: "Free plan, no data cap" } },
-  { name: "NordVPN", url: "https://nordvpn.com", color: "#4687ff", note: { fr: "Très grand choix de pays", en: "Huge choice of countries" } },
-  { name: "CyberGhost", url: "https://www.cyberghostvpn.com", color: "#ffcc00", note: { fr: "Serveurs dédiés au streaming", en: "Streaming-optimised servers" } },
-  { name: "Urban VPN", url: "https://www.urban-vpn.com", color: "#22c55e", note: { fr: "Gratuit (extension / appli)", en: "Free (extension / app)" } },
-];
-const openExt = (url) => { try { window.animood.openExternal(url); } catch { window.open(url, "_blank", "noopener,noreferrer"); } };
+const openExt = openExternalUrl;
 
 export function StreamingSettingsDesktop({ lang = "fr", Section, playSound = () => {} }) {
   const en = lang === "en";
   const [region, setRegion] = useState(getUserRegion);
   const [list, setList] = useState(getCustomPlatforms);
   const [modal, setModal] = useState(false);
+  const [quick, setQuick] = useState(""), [quickMsg, setQuickMsg] = useState(null);
+  const quickAdd = () => {
+    if (!quick.trim()) return;
+    const r = addPlatformFromInput(quick);
+    if (r.ok) { setQuick(""); setQuickMsg({ ok: true, t: en ? `${r.name} added — its button now appears on every anime.` : `${r.name} ajouté — son bouton apparaît maintenant sur tous les animés.` }); }
+    else setQuickMsg({ ok: false, t: { invalid: en ? "Invalid address (e.g. mysite.com)." : "Adresse invalide (ex. monsite.com).", exists: en ? "This site is already in your list." : "Ce site est déjà dans ta liste.", max: en ? "12 platforms maximum." : "12 plateformes maximum." }[r.error] });
+  };
   useEffect(() => {
     const a = () => setRegion(getUserRegion()), b = () => setList(getCustomPlatforms());
     window.addEventListener(REGION_EVENT, a); window.addEventListener(CUSTOM_PLATFORMS_EVENT, b);
@@ -44,7 +46,15 @@ export function StreamingSettingsDesktop({ lang = "fr", Section, playSound = () 
       </Section>
 
       <Section title={en ? "My streaming platforms" : "Mes plateformes perso"}>
-        <p className="mb-3 text-xs leading-relaxed text-slate-500">{en ? "Add any site once: its button then appears on every anime and finds the right page by itself." : "Ajoute un site une seule fois : son bouton apparaît ensuite sur tous les animés et retrouve la bonne page tout seul."}</p>
+        <p className="mb-3 text-xs leading-relaxed text-slate-500">{en ? "Type the site address once (e.g. mysite.com): its button then appears on every anime and finds the right page by itself, from the anime name. Nothing to re-enter." : "Tape l'adresse du site une seule fois (ex. monsite.com) : son bouton apparaît ensuite sur tous les animés et retrouve la bonne page tout seul, d'après le nom de l'animé. Rien à ressaisir."}</p>
+        <p className="mb-3 text-[10.5px] leading-relaxed text-slate-600">{en ? "AniMood provides no site list and hosts nothing: it only opens the address you typed, so you are responsible for the sites you add and for respecting their terms and your local law." : "AniMood ne fournit aucune liste de sites et n'héberge rien : l'appli ouvre seulement l'adresse que tu as saisie. Tu es responsable des sites que tu ajoutes (respect de leurs conditions et de la loi de ton pays)."}</p>
+        <div className="mb-3 flex gap-2">
+          <input value={quick} onChange={(e) => { setQuick(e.target.value); setQuickMsg(null); }} onKeyDown={(e) => e.key === "Enter" && quickAdd()}
+            placeholder={en ? "mysite.com" : "monsite.com"} spellCheck={false} autoCapitalize="off"
+            className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/4 px-3 py-2 text-[13px] text-slate-100 outline-none placeholder:text-slate-600 focus:border-violet-400/60" />
+          <button onClick={() => { playSound("click"); quickAdd(); }} className="rounded-xl px-4 py-2 text-[12px] font-extrabold text-white" style={{ background: GRADIENT_PRIMARY }}>{en ? "Add" : "Ajouter"}</button>
+        </div>
+        {quickMsg && <div className="mb-3 text-[11px] font-bold" style={{ color: quickMsg.ok ? "#4ade80" : "#f87171" }}>{quickMsg.t}</div>}
         {list.length > 0 && (
           <div className="mb-3 flex flex-col gap-1.5">
             {list.map((p) => (
@@ -56,7 +66,7 @@ export function StreamingSettingsDesktop({ lang = "fr", Section, playSound = () 
             ))}
           </div>
         )}
-        <button onClick={() => setModal(true)} className="rounded-xl px-4 py-2.5 text-[12px] font-extrabold text-white" style={{ background: GRADIENT_PRIMARY }}>＋ {en ? "Add / manage platforms" : "Ajouter / gérer mes plateformes"}</button>
+        <button onClick={() => setModal(true)} className="rounded-xl px-4 py-2.5 text-[12px] font-extrabold text-white" style={{ background: GRADIENT_PRIMARY }}>＋ {en ? "Advanced options / manage" : "Options avancées / gérer"}</button>
         {modal && <CustomPlatformsModal lang={lang} onClose={() => setModal(false)} />}
       </Section>
 
