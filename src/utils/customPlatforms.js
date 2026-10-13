@@ -64,17 +64,17 @@ export function setExactLink(platformId, anime, url) {
  *  4. mode « auto » (défaut) : résolu par resolveCustomUrl (lecture du site côté Electron : recherche du site → fiche
  *     qui ressemble le plus au titre). Ce lien-ci n'est que le REPLI si le site est illisible (DuckDuckGo « !ducky » + site:domaine).
  */
-export function buildCustomUrl(platform, anime) {
+export function buildCustomUrl(platform, anime, extra = {}) {
   const exact = getExactLink(platform.id, anime);
   if (exact) return exact;
   const en = anime?.title_english || anime?.title || "";
   const jp = anime?.title || en;
   const slug = titleToSlug(en) || titleToSlug(jp);
-  const vars = { slug, slug_jp: titleToSlug(jp) || slug, title: encodeURIComponent(en), id: String(anime?.mal_id ?? "") };
+  const vars = { slug, slug_jp: titleToSlug(jp) || slug, title: encodeURIComponent(en), id: String(anime?.mal_id ?? ""), mal: String(anime?.mal_id ?? ""), anilist: String(extra.anilist ?? anime?.anilist_id ?? getCachedAnilistId(anime) ?? "") };
   if (/\{[a-z_]+\}/i.test(platform.url)) return platform.url.replace(/\{([a-z_]+)\}/gi, (m, k) => (k.toLowerCase() in vars ? vars[k.toLowerCase()] : m));
   if (platform.mode === "slug" || (!platform.mode && /^https?:\/\/[^/]+\/.+/i.test(platform.url))) return platform.url.replace(/\/+$/, "") + "/" + slug;
   const host = hostOf(platform.url);
-  return `https://duckduckgo.com/?q=${encodeURIComponent(`!ducky site:${host} "${cleanTitle(en)}"`)}`;
+  return `https://duckduckgo.com/?q=${encodeURIComponent(`!ducky site:${host} ${cleanTitle(en)}`)}`;
 }
 
 /** « Anime-sama » à partir de « www.anime-sama.fr » (nom affiché quand l'utilisateur n'en donne pas). */
@@ -92,6 +92,52 @@ export function addPlatformFromInput(raw) {
   if (list.length >= 12) return { ok: false, error: "max" };
   const name = nameFromHost(host);
   return saveCustomPlatform({ name, url, mode: "auto" }) ? { ok: true, name } : { ok: false, error: "invalid" };
+}
+
+// ── Identifiant AniList (nombreux sites de streaming l'utilisent dans leurs liens) ──
+const K_AL = "animood_anilist_ids";
+export const getCachedAnilistId = (anime) => (anime?.mal_id ? read(K_AL, {})[anime.mal_id] ?? null : null);
+export async function getAnilistId(anime) {
+  if (anime?.anilist_id) return anime.anilist_id;
+  const mal = anime?.mal_id; if (!mal) return null;
+  const hit = getCachedAnilistId(anime); if (hit) return hit;
+  try {
+    const r = await fetch("https://graphql.anilist.co", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ query: "query($m:Int){Media(idMal:$m,type:ANIME){id}}", variables: { m: Number(mal) } }), signal: AbortSignal.timeout(8000) });
+    const id = (await r.json())?.data?.Media?.id;
+    if (id) { const m = read(K_AL, {}); m[mal] = id; try { localStorage.setItem(K_AL, JSON.stringify(m)); } catch { /* ok */ } return id; }
+  } catch { /* hors-ligne : pas de lien par identifiant */ }
+  return null;
+}
+
+/**
+ * Apprentissage : quand l'utilisateur enregistre le lien exact d'UN animé, on repère comment le site construit ses liens
+ * (identifiant AniList, identifiant MAL ou nom-en-slug) et on transforme la plateforme en modèle valable pour TOUS les animés.
+ * Renvoie { learned: "anilist"|"mal"|"slug"|null }.
+ */
+export async function learnFromExact(platform, anime, rawUrl) {
+  const url = normaliseUrl(rawUrl);
+  if (!url || /\{[a-z_]+\}/i.test(platform.url)) return { learned: null };
+  let u; try { u = new URL(url); } catch { return { learned: null }; }
+  if (hostOf(u.toString()) !== hostOf(platform.url)) return { learned: null };
+  const rest = u.pathname + u.search;
+  const esc = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const swap = (str, value, token, cls = "0-9A-Za-z") => {
+    if (!value) return null;
+    const re = new RegExp(`(?<![${cls}])${esc(value)}(?![${cls}])`, "i");
+    return re.test(str) ? str.replace(re, token) : null;
+  };
+  let learned = null, out = rest, t;
+  const al = await getAnilistId(anime);
+  if ((t = swap(out, al, "{anilist}"))) { out = t; learned = "anilist"; }
+  else if ((t = swap(out, anime?.mal_id, "{id}"))) { out = t; learned = "mal"; }
+  const slug = titleToSlug(anime?.title_english || anime?.title || "");
+  if (slug.length > 3 && (t = swap(out, slug, "{slug}", "a-z0-9-"))) { out = t; learned = learned || "slug"; }
+  if (!learned) return { learned: null };
+  const tpl = u.origin + out;
+  if (!normaliseUrl(tpl)) return { learned: null };
+  saveCustomPlatform({ id: platform.id, name: platform.name, url: tpl, mode: "auto" });
+  return { learned };
 }
 
 // ── Résolution automatique (mode « auto ») ────────────────────────────────────
@@ -121,13 +167,18 @@ export async function resolveCustomUrl(platform, anime) {
       } catch { /* on retombe sur le lien de secours */ }
     }
   }
+  if (/\{anilist\}/i.test(platform.url)) { // modèle avec l'identifiant AniList : on le récupère (une fois, mémorisé)
+    const al = await getAnilistId(anime);
+    if (al) return { url: buildCustomUrl(platform, anime, { anilist: al }), kind: "template" };
+  }
   return { url: buildCustomUrl(platform, anime), kind: "fallback" };
 }
 
 export async function openCustomPlatform(platform, anime) {
-  const { url } = await resolveCustomUrl(platform, anime);
-  if (!url) return;
+  const { url, kind } = await resolveCustomUrl(platform, anime);
+  if (!url) return kind;
   try { await window.animood.openStream(platform.id, url); } catch { window.open(url, "_blank", "noopener,noreferrer"); }
+  return kind;
 }
 
 export const hostOf = (url = "") => { try { return new URL(url.replace(/\{[a-z_]+\}/gi, "x")).hostname.replace(/^www\./, ""); } catch { return ""; } };
