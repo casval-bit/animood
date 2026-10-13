@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { GLASS_STYLE, GRADIENT_PRIMARY } from "../constants/theme.js";
 import {
   getCustomPlatforms, saveCustomPlatform, deleteCustomPlatform, normaliseUrl, buildCustomUrl,
-  getExactLink, setExactLink, hostOf, platformColor, nameFromHost,
+  getExactLink, setExactLink, hostOf, platformColor, nameFromHost, learnFromExact,
 } from "../utils/customPlatforms.js";
 
 const SAMPLE = { mal_id: 52701, title: "Sousou no Frieren", title_english: "Frieren: Beyond Journey's End" };
@@ -108,18 +108,28 @@ export function CustomPlatformsModal({ onClose, lang = "fr" }) {
 export function ExactLinkModal({ platform, anime, onClose, lang = "fr" }) {
   const en = lang === "en";
   const [v, setV] = useState(getExactLink(platform.id, anime)), [err, setErr] = useState("");
-  const save = () => { if (v.trim() && !normaliseUrl(v)) return setErr(en ? "Invalid link." : "Lien invalide."); setExactLink(platform.id, anime, v); onClose(); };
+  const [learnedMsg, setLearnedMsg] = useState("");
+  const save = async () => {
+    if (v.trim() && !normaliseUrl(v)) return setErr(en ? "Invalid link." : "Lien invalide.");
+    setExactLink(platform.id, anime, v);
+    if (!v.trim()) return onClose();
+    const { learned } = await learnFromExact(platform, anime, v);
+    if (!learned) return onClose();
+    setLearnedMsg(en ? `Got it: this site builds its links from the ${{ anilist: "AniList id", mal: "MAL id", slug: "anime name" }[learned]}. Every other anime now opens its own page automatically.`
+      : `Compris : ce site construit ses liens avec ${{ anilist: "l'identifiant AniList", mal: "l'identifiant MAL", slug: "le nom de l'animé" }[learned]}. Tous les autres animés ouvrent maintenant leur propre page automatiquement.`);
+  };
   return (
     <Shell onClose={onClose} title={`${platform.name} · ${anime.title_english || anime.title}`} width={440}>
-      <p className="mb-3 text-[12px] leading-relaxed text-slate-400">{en ? "Paste the exact link of this anime on this site. It will be used instead of the automatic link. Leave empty to go back to automatic."
-        : "Colle le lien exact de cet animé sur ce site. Il sera utilisé à la place du lien automatique. Laisse vide pour revenir à l'automatique."}</p>
+      <p className="mb-3 text-[12px] leading-relaxed text-slate-400">{en ? "Open ONE anime on this site, copy its address and paste it here: AniMood works out how the site builds its links and then opens every other anime by itself. Leave empty to go back to automatic."
+        : "Ouvre UN animé sur ce site, copie son adresse et colle-la ici : AniMood repère comment le site construit ses liens et ouvrira ensuite tous les autres animés tout seul. Laisse vide pour revenir à l'automatique."}</p>
       <input autoFocus value={v} onChange={(e) => { setV(e.target.value); setErr(""); }} onKeyDown={(e) => e.key === "Enter" && save()} placeholder="https://…" className={inputCls} spellCheck={false} />
       <div className="mt-2 break-all text-[10.5px] text-slate-500">{en ? "Automatic: " : "Automatique : "}{buildCustomUrl({ ...platform, id: "_none" }, anime)}</div>
       {err && <div className="mt-2 text-[11px] font-bold text-red-400">{err}</div>}
-      <div className="mt-3 flex gap-2">
+      {learnedMsg && <div className="mt-3 rounded-lg border border-emerald-400/30 bg-emerald-400/8 p-2.5 text-[11.5px] leading-relaxed text-emerald-300">{learnedMsg}<div className="mt-2"><button onClick={onClose} className="rounded-lg bg-white/10 px-3 py-1 text-[11px] font-bold text-white">OK</button></div></div>}
+      {!learnedMsg && <div className="mt-3 flex gap-2">
         <button onClick={save} className="rounded-xl px-4 py-2 text-[12px] font-extrabold text-white" style={{ background: GRADIENT_PRIMARY }}>{en ? "Save" : "Enregistrer"}</button>
         <button onClick={onClose} className="rounded-xl border border-white/10 px-4 py-2 text-[12px] font-bold text-slate-300">{en ? "Cancel" : "Annuler"}</button>
-      </div>
+      </div>}
     </Shell>
   );
 }

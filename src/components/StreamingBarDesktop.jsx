@@ -19,6 +19,7 @@ export function StreamingBarDesktop({ anime, streamingNames, lang = "fr" }) {
   const [region, setRegion] = useState(getUserRegion);
   const [avail, setAvail] = useState({ known: false, ids: new Set(), names: [], elsewhere: {} });
   const [vpnFor, setVpnFor] = useState(null);
+  const [hint, setHint] = useState(null); // plateforme perso dont la page exacte n'a pas été trouvée
   const [regionMenu, setRegionMenu] = useState(false);
   useEffect(() => { const h = () => setRegion(getUserRegion()); window.addEventListener(REGION_EVENT, h); return () => window.removeEventListener(REGION_EVENT, h); }, []);
   useEffect(() => { let off = false; setAvail({ known: false, ids: new Set(), names: [], elsewhere: {} }); setVpnFor(null); getRegionAvailability(anime?.mal_id, region).then((a) => { if (!off) setAvail(a); }); return () => { off = true; }; }, [anime?.mal_id, region]);
@@ -76,7 +77,7 @@ export function StreamingBarDesktop({ anime, streamingNames, lang = "fr" }) {
       {custom.map((p) => {
         const c = platformColor(p.name), has = !!getExactLink(p.id, anime);
         return (
-          <button key={p.id} onClick={async () => { playSound("click"); setLoading(p.id); try { await openCustomPlatform(p, anime); } finally { setTimeout(() => setLoading(null), 800); } }}
+          <button key={p.id} onClick={async () => { playSound("click"); setLoading(p.id); setHint(null); try { const kind = await openCustomPlatform(p, anime); if (kind === "fallback" || kind === "search") setHint(p); } finally { setTimeout(() => setLoading(null), 800); } }}
             onContextMenu={(e) => { e.preventDefault(); setExact(p); }}
             title={(en ? `Open on ${p.name}` : `Ouvrir sur ${p.name}`) + (has ? (en ? " (exact link saved)" : " (lien exact enregistré)") : "") + (en ? " — right-click: set exact link" : " — clic droit : lien exact")}
             className="group relative flex h-9 items-center gap-2 rounded-xl px-3 transition-all duration-200 hover:-translate-y-0.5"
@@ -126,6 +127,18 @@ export function StreamingBarDesktop({ anime, streamingNames, lang = "fr" }) {
             <button onClick={() => open(vpnFor)} className="ml-auto rounded-lg px-2.5 py-1 text-[11px] font-bold text-violet-300 hover:bg-white/8">{en ? "Open anyway" : "Ouvrir quand même"}</button>
           </div>
           <p className="mt-2 text-[10px] leading-snug text-slate-600">{en ? "Links go to the official VPN sites, with no partnership. Check the platform's terms of use first." : "Liens vers les sites officiels des VPN, sans partenariat. Vérifie d'abord les conditions d'utilisation de la plateforme."}</p>
+        </div>
+      )}
+      {hint && (
+        <div className="flex basis-full items-start justify-between gap-3 rounded-xl border p-2.5" style={{ borderColor: "rgba(251,191,36,.35)", background: "rgba(251,191,36,.07)" }}>
+          <p className="text-[11.5px] leading-relaxed text-slate-300">
+            {en ? <>Couldn't find this anime's own page on <b>{hint.name}</b> automatically. Open it there once, then <b>right-click the {hint.name} button</b> and paste its address: AniMood learns how the site builds its links and handles every other anime by itself.</>
+                : <>Page exacte introuvable automatiquement sur <b>{hint.name}</b>. Ouvre-la une fois sur le site, puis <b>clic droit sur le bouton {hint.name}</b> et colle son adresse : AniMood apprend comment le site construit ses liens et gère ensuite tous les autres animés tout seul.</>}
+          </p>
+          <div className="flex shrink-0 gap-2">
+            <button onClick={() => { setExact(hint); setHint(null); }} className="rounded-lg bg-white/10 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-white/15">{en ? "Paste link" : "Coller le lien"}</button>
+            <button onClick={() => setHint(null)} className="text-slate-500 hover:text-slate-200">✕</button>
+          </div>
         </div>
       )}
       {manage && <CustomPlatformsModal lang={lang} onClose={() => setManage(false)} />}
