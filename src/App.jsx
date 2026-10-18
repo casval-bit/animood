@@ -6,6 +6,7 @@ import { SoundProvider, useSound } from "./context/SoundContext.jsx";
 import { useApp } from "./context/useApp.js";
 import { useLang } from "./context/useLang.js";
 import { isDesktopApp } from "./utils/streamingLinks.js";
+import { isInstalledApp } from "./utils/installedApp.js";
 import { Header } from "./components/Header.jsx";
 import { Footer } from "./components/Footer.jsx";
 import { Spinner } from "./components/Spinner.jsx";
@@ -341,6 +342,194 @@ function ModerationPage({ onClose }) {
   );
 }
 
+// ── Page « Télécharger l'appli » : APK Android (servi par le site) + bureau (release GitHub)
+const RELEASES_URL = "https://github.com/casval-bit/animood/releases/latest";
+const RELEASES_API = "https://api.github.com/repos/casval-bit/animood/releases/latest";
+const APK_URL = "/downloads/AniMood.apk"; // public/downloads/ — remplacer le fichier pour une nouvelle version
+
+function detectOS() {
+  const ua = navigator.userAgent || "";
+  if (/Android/i.test(ua)) return "android";
+  if (/iPhone|iPad|iPod/i.test(ua)) return "ios";
+  if (/Windows/i.test(ua)) return "win";
+  if (/Mac OS X|Macintosh/i.test(ua) && !/iPhone|iPad/i.test(ua)) return "mac";
+  if (/Linux/i.test(ua) && !/Android/i.test(ua)) return "linux";
+  return null;
+}
+
+// Range les fichiers de la release par système (noms générés par electron-builder)
+function pickAssets(assets = []) {
+  const by = (re) => assets.filter(a => re.test(a.name) && !/\.blockmap$/i.test(a.name));
+  return {
+    win:   by(/\.exe$/i),
+    mac:   by(/\.dmg$/i),
+    linux: by(/\.(AppImage|deb)$/i),
+  };
+}
+
+function DownloadPage({ onClose }) {
+  const { lang } = useLang();
+  const en = lang === "en";
+  const [release, setRelease] = useState(null);
+  const [status, setStatus]   = useState("loading"); // loading | ready | none
+  const os = detectOS();
+
+  useEffect(() => {
+    let alive = true;
+    fetch(RELEASES_API, { headers: { Accept: "application/vnd.github+json" } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!alive) return;
+        const files = data ? pickAssets(data.assets) : null;
+        if (files && (files.win.length || files.mac.length || files.linux.length)) {
+          setRelease({ version: data.tag_name, files });
+          setStatus("ready");
+        } else setStatus("none");
+      })
+      .catch(() => alive && setStatus("none"));
+    return () => { alive = false; };
+  }, []);
+
+  const platforms = [
+    { id: "win",   icon: "🪟", label: "Windows", hint: "Windows 10 / 11" },
+    { id: "mac",   icon: "🍎", label: "macOS",   hint: en ? "Intel & Apple Silicon" : "Intel et Apple Silicon" },
+    { id: "linux", icon: "🐧", label: "Linux",   hint: "AppImage / .deb" },
+  ].sort((a, b) => (b.id === os) - (a.id === os)); // le système détecté en premier
+
+  const assetLabel = (name) => {
+    if (/arm64/i.test(name)) return "Apple Silicon (M1+)";
+    if (/\.dmg$/i.test(name)) return "Intel";
+    if (/\.AppImage$/i.test(name)) return "AppImage";
+    if (/\.deb$/i.test(name)) return ".deb";
+    return en ? "Installer" : "Installateur";
+  };
+  const sizeMb = (b) => `${Math.round(b / 1048576)} Mo`;
+
+  return (
+    <PageWrapper title={en ? "Get the app" : "Télécharger l'appli"} onClose={onClose}>
+      <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:32}}>
+        <img src="/logo-mark.png" alt="" style={{width:56,height:56,borderRadius:16,objectFit:"cover"}}/>
+        <div>
+          <div style={{fontSize:28,fontWeight:900,color:"var(--text-1, #f1f5f9)"}}>{en ? "AniMood apps" : "Les applis AniMood"}</div>
+          <div style={{fontSize:13,color:"var(--text-4, #64748b)",marginTop:4}}>
+            {en ? "On your phone and your computer — same account, lists and messages as the website"
+                : "Sur ton téléphone et ton ordinateur — même compte, mêmes listes et messages que sur le site"}
+          </div>
+        </div>
+      </div>
+
+      <Section title={en ? "On your phone" : "Sur téléphone"}>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {[
+            { id: "android", icon: "🤖", label: "Android", hint: en ? "APK · updates itself with the website" : "APK · se met à jour avec le site" },
+            { id: "ios",     icon: "🍏", label: "iPhone / iPad", hint: en ? "Safari → Share → Add to Home Screen" : "Safari → Partager → Sur l'écran d'accueil" },
+          ].sort((a, b) => (b.id === os) - (a.id === os)).map(p => {
+            const mine = p.id === os;
+            return (
+              <div key={p.id} style={{
+                display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",
+                padding:"14px 16px",borderRadius:14,
+                background: mine ? "rgba(124,58,237,0.10)" : "rgba(255,255,255,0.03)",
+                border: `1px solid ${mine ? "rgba(124,58,237,0.35)" : "rgba(255,255,255,0.06)"}`,
+              }}>
+                <span style={{fontSize:26}}>{p.icon}</span>
+                <div style={{flex:1,minWidth:140}}>
+                  <div style={{fontSize:14,fontWeight:800,color:"var(--text-1, #f1f5f9)"}}>
+                    {p.label}{mine && <span style={{marginLeft:8,fontSize:10,fontWeight:800,color:"#c084fc"}}>{en ? "YOUR DEVICE" : "TON APPAREIL"}</span>}
+                  </div>
+                  <div style={{fontSize:11,color:"var(--text-4, #64748b)"}}>{p.hint}</div>
+                </div>
+                {p.id === "android" && (
+                  <a href={APK_URL} download="AniMood.apk"
+                    style={{
+                      padding:"8px 14px",borderRadius:999,fontSize:12,fontWeight:800,textDecoration:"none",
+                      color:"#fff",background:"linear-gradient(135deg,#7c3aed,#ec4899)",
+                      boxShadow: mine ? "0 6px 18px rgba(124,58,237,.35)" : "none",
+                    }}>
+                    ⬇ {en ? "Download APK" : "Télécharger l'APK"}
+                  </a>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+
+      <Section title={en ? "On your computer" : "Sur ordinateur"}>
+        <div style={{marginBottom:12}}>
+          {en
+            ? "A dedicated Games tab, animated profile frames, sounds, quick anime search and automatic updates."
+            : "Un onglet Jeux dédié, des cadres de profil animés, des sons, une recherche d'animés rapide et les mises à jour automatiques."}
+          {release?.version && <> · <b style={{color:"#c084fc"}}>{release.version}</b></>}
+        </div>
+        {status === "loading" && <Spinner label={en ? "Looking for the latest version…" : "Recherche de la dernière version…"} />}
+
+        {status === "none" && (
+          <div style={{padding:"18px 20px",borderRadius:14,background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.25)"}}>
+            <div style={{fontWeight:800,color:"var(--text-1, #f1f5f9)",marginBottom:4}}>
+              {en ? "Coming soon 🚧" : "Bientôt disponible 🚧"}
+            </div>
+            {en ? "The first version of the desktop app hasn't been published yet. " : "La première version de l'appli de bureau n'a pas encore été publiée. "}
+            <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer" style={{color:"#c084fc",fontWeight:700,textDecoration:"none"}}>
+              {en ? "Check the releases on GitHub" : "Voir les versions sur GitHub"} →
+            </a>
+          </div>
+        )}
+
+        {status === "ready" && (
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {platforms.map(p => {
+              const files = release.files[p.id];
+              const mine = p.id === os;
+              return (
+                <div key={p.id} style={{
+                  display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",
+                  padding:"14px 16px",borderRadius:14,
+                  background: mine ? "rgba(124,58,237,0.10)" : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${mine ? "rgba(124,58,237,0.35)" : "rgba(255,255,255,0.06)"}`,
+                }}>
+                  <span style={{fontSize:26}}>{p.icon}</span>
+                  <div style={{flex:1,minWidth:140}}>
+                    <div style={{fontSize:14,fontWeight:800,color:"var(--text-1, #f1f5f9)"}}>
+                      {p.label}{mine && <span style={{marginLeft:8,fontSize:10,fontWeight:800,color:"#c084fc"}}>{en ? "YOUR SYSTEM" : "TON SYSTÈME"}</span>}
+                    </div>
+                    <div style={{fontSize:11,color:"var(--text-4, #64748b)"}}>{p.hint}</div>
+                  </div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    {files.length ? files.map(f => (
+                      <a key={f.name} href={f.browser_download_url} title={f.name}
+                        style={{
+                          padding:"8px 14px",borderRadius:999,fontSize:12,fontWeight:800,textDecoration:"none",
+                          color:"#fff",background:"linear-gradient(135deg,#7c3aed,#ec4899)",
+                          boxShadow: mine ? "0 6px 18px rgba(124,58,237,.35)" : "none",
+                        }}>
+                        ⬇ {assetLabel(f.name)} <span style={{opacity:.7,fontWeight:600}}>· {sizeMb(f.size)}</span>
+                      </a>
+                    )) : (
+                      <span style={{fontSize:11,color:"var(--text-5, #475569)"}}>{en ? "Not available yet" : "Pas encore disponible"}</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Section>
+
+      <Section title={en ? "Installation" : "Installation"}>
+        <p style={{margin:"0 0 8px"}}>
+          {en
+            ? "Android: open the downloaded APK and allow installing apps from this source when asked."
+            : "Android : ouvre l'APK téléchargé et autorise l'installation depuis cette source quand Android le demande."}
+        </p>
+        {en
+          ? "Windows may show a \"Windows protected your PC\" warning because the app isn't signed yet: click \"More info\" then \"Run anyway\". On macOS, the first time, open System Settings → Privacy & Security and click \"Open Anyway\" next to AniMood. Updates then install by themselves."
+          : "Windows peut afficher « Windows a protégé votre ordinateur » car l'appli n'est pas encore signée : clique sur « Informations complémentaires » puis « Exécuter quand même ». Sur Mac, la première fois, va dans Réglages Système → Confidentialité et sécurité et clique sur « Ouvrir quand même » à côté d'AniMood. Les mises à jour s'installent ensuite toutes seules."}
+      </Section>
+    </PageWrapper>
+  );
+}
+
 function LegalPage({ type, onClose }) {
   const sections = type === "privacy" ? [
     {h:"Données collectées",p:"Nom d'utilisateur, avatar, liste des animés vus, notes et votes de moods. Aucune donnée bancaire ou sensible n'est collectée."},
@@ -437,6 +626,7 @@ function Shell() {
   return (
     <div className="min-h-screen" style={desktop ? { paddingTop: 80 } : {}}>
       <Header activeTab={activeTab} onChangeTab={changeTab} onOpenSettings={() => setShowSettings(true)}
+        onOpenDownload={isInstalledApp() ? undefined : () => setActivePage("download")}
         onJoinGame={payload => { changeTab(desktop ? "games" : "forum"); setPendingJoinGame(payload); }} />
       <main>
         {/* Feed and Profile stay mounted for cross-sync */}
@@ -469,6 +659,7 @@ function Shell() {
       {activePage === "faq"       && <FAQPage       onClose={()=>setActivePage(null)}/>}
       {activePage === "categories" && <CategoriesPage onClose={()=>setActivePage(null)}/>}
       {activePage === "moderation" && <ModerationPage onClose={()=>setActivePage(null)}/>}
+      {activePage === "download"   && <DownloadPage   onClose={()=>setActivePage(null)}/>}
       {legalPage && <LegalPage type={legalPage} onClose={()=>setLegalPage(null)}/>}
 
       {openUser && (

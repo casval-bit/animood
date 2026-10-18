@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.vercel.animood_rho.twa",
+        "sha256_cert_fingerprints": ["59:3A:0B:1F:B0:56:6A:A5:1E:2C:9D:C2:53:AD:84:7F:7B:C8:0E:93:54:18:24:08:DA:69:8B:C7:54:C5:7C:29"]
+      }
+    }]

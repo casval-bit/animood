@@ -2,22 +2,35 @@
  * AniMood Desktop — Electron Main Process
  *
  * Features:
- *  - Single BrowserWindow loading the Vite dev server (dev) or built app (prod)
- *  - Custom frameless window with native traffic-light controls on macOS
+ *  - Single BrowserWindow loading the Vite dev server (dev) or the live website (prod)
+ *    → the desktop UI ships with every Vercel deploy, no reinstall needed
+ *  - Google login in the system browser, back into the app via animood://auth-callback
  *  - Protocol handler: animood://  for streaming deep-links
  *  - IPC bridge for opening streaming links in the default browser
- *  - Auto-updater (electron-updater) using GitHub releases
+ *  - Auto-updater (electron-updater) using GitHub releases (shell updates only)
  *  - System tray icon with quick-access menu
+ *  - Offline page with retry when the site can't be reached
  */
 
-import { app, BrowserWindow, ipcMain, shell, protocol, Menu, Tray, nativeImage } from "electron";
+import { app, BrowserWindow, ipcMain, shell, Menu, Tray, nativeImage } from "electron";
 import { createRequire } from "module";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const isDev = process.env.NODE_ENV !== "production";
+const isDev = !app.isPackaged;
+
+// Site chargé par l'appli installée (surcharge possible : ANIMOOD_URL=http://localhost:5173)
+const APP_URL = process.env.ANIMOOD_URL || (isDev ? "http://localhost:5173" : "https://animood-rho.vercel.app");
+const APP_ORIGIN = new URL(APP_URL).origin;
+const ICON = path.join(__dirname, "icon.png");
+
+// ── Single instance (must run before anything else) ───────────────────────────
+// A second launch (e.g. an animood:// link on Windows/Linux) is forwarded to the
+// first instance through "second-instance", then quits.
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) app.quit();
 
 // ── Auto-updater (only in production) ─────────────────────────────────────────
 let autoUpdater = null;
@@ -33,16 +46,22 @@ if (!isDev) {
 }
 
 // ── Deep link protocol ─────────────────────────────────────────────────────────
+// animood://auth-callback#access_token=...   (Google login, see src/api/supabase.js)
 // animood://stream?service=crunchyroll&url=https://...
-if (!app.isDefaultProtocolClient("animood")) {
+if (isDev && process.defaultApp && process.argv[1]) {
+  app.setAsDefaultProtocolClient("animood", process.execPath, [path.resolve(process.argv[1])]);
+} else {
   app.setAsDefaultProtocolClient("animood");
 }
 
 // ── Window reference ───────────────────────────────────────────────────────────
 let win = null;
 let tray = null;
+let pageReady = false;
+let pendingLinks = [process.argv.find((a) => a.startsWith("animood://"))].filter(Boolean); // cold start (Windows/Linux)
 
 function createWindow() {
+  pageReady = false;
   win = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -52,7 +71,7 @@ function createWindow() {
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     frame: process.platform !== "darwin",
     show: false,
-    icon: path.join(__dirname, "../public/logo-mark.png"),
+    icon: ICON,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -61,18 +80,36 @@ function createWindow() {
     },
   });
 
-  // Load app
-  if (isDev) {
-    win.loadURL("http://localhost:5173");
-    win.webContents.openDevTools({ mode: "detach" });
-  } else {
-    win.loadFile(path.join(__dirname, "../dist/index.html"));
-  }
+  win.loadURL(APP_URL);
+  if (isDev) win.webContents.openDevTools({ mode: "detach" });
 
   // Show window once ready to avoid white flash
   win.once("ready-to-show", () => {
     win.show();
     win.focus();
+  });
+
+  // Page loaded → deliver links received before it was ready (login callback on cold start)
+  win.webContents.on("did-finish-load", () => {
+    if (!win.webContents.getURL().startsWith(APP_ORIGIN)) return;
+    pageReady = true;
+    const links = pendingLinks;
+    pendingLinks = [];
+    links.forEach(handleDeepLink);
+  });
+
+  // No connection → local offline page with a retry button
+  win.webContents.on("did-fail-load", (_e, code, _desc, url, isMainFrame) => {
+    if (!isMainFrame || code === -3) return; // -3 = navigation aborted (normal)
+    win.loadFile(path.join(__dirname, "offline.html"), { query: { url: url || APP_URL } });
+    win.show();
+  });
+
+  // Stay on AniMood: any other site opens in the default browser
+  win.webContents.on("will-navigate", (event, url) => {
+    if (url.startsWith(APP_ORIGIN) || url.startsWith("file://")) return;
+    event.preventDefault();
+    if (url.startsWith("http://") || url.startsWith("https://")) shell.openExternal(url);
   });
 
   // Open external links in default browser, not in Electron
@@ -85,20 +122,27 @@ function createWindow() {
 
   win.on("closed", () => {
     win = null;
+    pageReady = false;
   });
 
   return win;
 }
 
+function focusWindow() {
+  if (!win) createWindow();
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
 // ── Tray icon ──────────────────────────────────────────────────────────────────
 function createTray() {
-  const iconPath = path.join(__dirname, "../public/logo-mark.png");
-  const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
+  const icon = nativeImage.createFromPath(ICON).resize({ width: 16, height: 16 });
   tray = new Tray(icon);
   tray.setToolTip("AniMood");
 
   const menu = Menu.buildFromTemplate([
-    { label: "Ouvrir AniMood", click: () => { if (win) { win.show(); win.focus(); } else { createWindow(); } } },
+    { label: "Ouvrir AniMood", click: focusWindow },
     { type: "separator" },
     { label: "Quitter", click: () => app.quit() },
   ]);
@@ -110,46 +154,58 @@ function createTray() {
 }
 
 // ── App lifecycle ──────────────────────────────────────────────────────────────
-app.whenReady().then(() => {
-  createWindow();
-  if (process.platform !== "linux") createTray();
+if (gotLock) {
+  app.whenReady().then(() => {
+    createWindow();
+    if (process.platform !== "linux") createTray();
 
-  // Check for updates after 3 s (avoids blocking startup)
-  if (autoUpdater) {
-    setTimeout(() => autoUpdater.checkForUpdatesAndNotify().catch(() => {}), 3000);
-  }
+    // Check for updates after 3 s (avoids blocking startup)
+    if (autoUpdater) {
+      setTimeout(() => autoUpdater.checkForUpdatesAndNotify().catch(() => {}), 3000);
+    }
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
   });
-});
+}
 
 app.on("window-all-closed", () => {
   // On macOS keep the process alive (tray remains)
   if (process.platform !== "darwin") app.quit();
 });
 
-// macOS: handle animood:// links when app is already open
-app.on("open-url", (_event, url) => {
-  handleDeepLink(url);
+// macOS: handle animood:// links (may fire before the window exists)
+app.on("open-url", (event, url) => {
+  event.preventDefault();
+  receiveLink(url);
 });
 
 // Windows / Linux: handle animood:// links via argv
 app.on("second-instance", (_event, argv) => {
   const link = argv.find((a) => a.startsWith("animood://"));
-  if (link) handleDeepLink(link);
-  if (win) { win.show(); win.focus(); }
+  if (link) receiveLink(link);
+  else focusWindow();
 });
+
+function receiveLink(url) {
+  if (app.isReady()) focusWindow();
+  if (pageReady) handleDeepLink(url);
+  else pendingLinks.push(url);
+}
 
 // ── Deep link handler ─────────────────────────────────────────────────────────
 /**
+ * animood://auth-callback#access_token=...  → session handed to the renderer
  * animood://stream?service=crunchyroll&url=https%3A%2F%2F...
  * Forwarded to the renderer via IPC so it can update the UI.
  */
 function handleDeepLink(url) {
   try {
     const parsed = new URL(url);
-    if (parsed.host === "stream") {
+    if (parsed.host === "auth-callback") {
+      win?.webContents.send("auth-callback", url);
+    } else if (parsed.host === "stream") {
       const service = parsed.searchParams.get("service") || "";
       const streamUrl = parsed.searchParams.get("url") || "";
       if (streamUrl && win) {
@@ -176,10 +232,10 @@ ipcMain.handle("open-stream", async (_event, { service, url: streamUrl }) => {
 });
 
 /**
- * Renderer → open any external URL in the default browser.
+ * Renderer → open any external URL in the default browser (http/https only).
  */
 ipcMain.handle("open-external", async (_event, url) => {
-  if (!url) return;
+  if (!url || !/^https?:\/\//.test(url)) return;
   await shell.openExternal(url).catch(() => {});
 });
 
@@ -192,6 +248,11 @@ ipcMain.on("window-maximize", () => {
   else win?.maximize();
 });
 ipcMain.on("window-close", () => win?.close());
+
+/**
+ * Offline page → retry loading the site.
+ */
+ipcMain.on("retry-load", () => win?.loadURL(APP_URL));
 
 /**
  * Renderer → request current app version.
@@ -211,6 +272,11 @@ ipcMain.handle("check-update", async () => {
   }
 });
 
+/**
+ * Renderer → restart now and install the downloaded update.
+ */
+ipcMain.on("install-update", () => autoUpdater?.quitAndInstall());
+
 // Relay auto-updater events to the renderer
 if (autoUpdater) {
   autoUpdater.on("update-available", (info) => {
@@ -222,10 +288,4 @@ if (autoUpdater) {
   autoUpdater.on("error", (err) => {
     win?.webContents.send("update-error", err?.message);
   });
-}
-
-// ── macOS single-instance guard ────────────────────────────────────────────────
-const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) {
-  app.quit();
 }
