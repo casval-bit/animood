@@ -10,13 +10,28 @@ const DAYS_EN = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","
 // back to the Saison tab doesn't refetch 200 rows every time.
 let airingCache = null;
 
+// ONA / OVA (ex. des séries Netflix comme JoJo Steel Ball Run) sont chargés
+// à part : une seule requête triée par note les noierait sous les séries TV.
+const AIRING_SELECT = "mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,broadcast,streaming";
+const SPECIAL_TYPES = new Set(["ONA", "OVA"]);
+// Petite étiquette pour distinguer ce qui n'est pas une série TV classique.
+const typeTag = (a) => a?.type === "OVA" ? "OAV" : a?.type === "ONA" ? "ONA" : null;
+
 async function fetchAiringAnime() {
   if(airingCache) return airingCache;
-  const rows = await sb.query(
-    "anime_cache?type=eq.TV&status=eq.Currently%20Airing&select=mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,broadcast,streaming&order=score.desc.nullslast&limit=200"
-  ).catch(()=>[]);
+  const [rows, extra] = await Promise.all([
+    sb.query(
+      `anime_cache?type=eq.TV&status=eq.Currently%20Airing&select=${AIRING_SELECT}&order=score.desc.nullslast&limit=200`
+    ).catch(()=>[]),
+    sb.query(
+      `anime_cache?type=in.(ONA,OVA)&status=eq.Currently%20Airing&select=${AIRING_SELECT}&order=score.desc.nullslast&limit=60`
+    ).catch(()=>[]),
+  ]);
   if(rows?.length) {
-    airingCache = rows.filter(a => a.type === "TV");
+    airingCache = [
+      ...rows.filter(a => a.type === "TV"),
+      ...(extra || []).filter(a => SPECIAL_TYPES.has(a.type)),
+    ];
   } else {
     const res = await fetch("https://api.jikan.moe/v4/seasons/now?limit=50").catch(()=>null);
     const data = res?.ok ? await res.json() : null;
@@ -33,7 +48,7 @@ async function fetchFinishedAnime() {
   if(finishedCache) return finishedCache;
   const threeMonthsAgo = new Date(Date.now() - 90*24*60*60*1000).toISOString().slice(0,10);
   const rows = await sb.query(
-    `anime_cache?type=eq.TV&status=eq.Finished%20Airing&aired_from=gte.${threeMonthsAgo}` +
+    `anime_cache?type=in.(TV,ONA,OVA)&status=eq.Finished%20Airing&aired_from=gte.${threeMonthsAgo}` +
     "&select=mal_id,title,title_en,score,year,episodes,type,image_url,large_image,genres,aired_from&order=score.desc.nullslast&limit=30"
   ).catch(()=>[]);
   finishedCache = rows || [];
@@ -133,6 +148,13 @@ function baseTitle(title) {
 
 const statusDot = (status) => STATUS_COLORS[status]?.dot;
 
+function TypeTag({ a }) {
+  return (
+    <span style={{fontSize:8,fontWeight:800,color:"#67e8f9",background:"rgba(103,232,249,0.12)",
+      padding:"1px 4px",borderRadius:3}}>{typeTag(a)}</span>
+  );
+}
+
 // One day at a time: a day picker, then that day's anime as larger cards
 // sorted by broadcast time — readable on a phone, unlike the 7-column week.
 function DayView({ byDay, dayIdx, setDayIdx, todayIdx, myStatuses, currentYear, onOpenDetail, t }) {
@@ -204,6 +226,7 @@ function DayView({ byDay, dayIdx, setDayIdx, todayIdx, myStatuses, currentYear, 
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:4,flexWrap:"wrap",marginTop:3}}>
                   {a.score && <span style={{fontSize:9,color:"#fbbf24",fontWeight:700}}>★ {a.score}</span>}
+                  {typeTag(a) && <TypeTag a={a} />}
                   {a.year && a.year < currentYear && (
                     <span style={{fontSize:8,color:"var(--text-6)",background:"rgba(255,255,255,0.06)",
                       padding:"1px 4px",borderRadius:3}}>{t.recurring}</span>
@@ -597,6 +620,7 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
                               ★ {a.score}
                             </span>
                           )}
+                          {typeTag(a) && <TypeTag a={a} />}
                           {a.year && a.year < currentYear && (
                             <span style={{fontSize:8,color:"var(--text-6)",
                               background:"rgba(255,255,255,0.06)",
@@ -617,7 +641,39 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
       </div>
       )}
 
-
+      {/* Animés en cours sans jour de diffusion connu (sorties par lot, ONA…) */}
+      {unknownDay.length > 0 && (
+        <div style={{marginTop:24}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 4px",marginBottom:6,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+            <span style={{fontSize:12,fontWeight:900,color:"var(--text-2)"}}>{t.unknownDay(unknownDay.length)}</span>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(150px, 1fr))",gap:4}}>
+            {unknownDay.map(a => (
+              <button key={a.mal_id} onClick={()=>onOpenDetail(a)} style={{
+                display:"flex",gap:7,alignItems:"center",background:"none",border:"none",cursor:"pointer",
+                textAlign:"left",padding:4,borderRadius:8,transition:"background 0.12s",width:"100%",
+              }}
+              onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.06)";}}
+              onMouseLeave={e=>{e.currentTarget.style.background="none";}}>
+                <img src={a.image_url||a.large_image} alt="" style={{
+                  width:32,height:44,objectFit:"cover",borderRadius:5,flexShrink:0,
+                  border:`${statusDot(myStatuses[a.mal_id]) ? "2px" : "1px"} solid ${statusDot(myStatuses[a.mal_id]) || "rgba(255,255,255,0.1)"}`,display:"block",
+                }} onError={e=>{e.target.style.display="none";}}/>
+                <div style={{minWidth:0,flex:1}}>
+                  <div style={{fontSize:10,fontWeight:700,color:"var(--text-1)",overflow:"hidden",textOverflow:"ellipsis",
+                    display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",lineHeight:1.3,marginBottom:2}}>
+                    {a.title_en||a.title}
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}>
+                    {a.score && <span style={{fontSize:8,color:"#fbbf24",fontWeight:700}}>★ {a.score}</span>}
+                    {typeTag(a) && <TypeTag a={a} />}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {finishedSection}
     </div>
