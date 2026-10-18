@@ -271,7 +271,7 @@ async function jobBroadcast() {
   const KNOWN = {21:"Sunday",235:"Saturday",966:"Friday",1560:"Sunday",50250:"Sunday"};
 
   const { data: missing } = await supabase.from("anime_cache")
-    .select("mal_id,title").eq("type","TV").eq("status","Currently Airing").is("broadcast",null);
+    .select("mal_id,title").in("type",["TV","ONA","OVA"]).eq("status","Currently Airing").is("broadcast",null);
   log(`${missing?.length||0} anime without broadcast day`);
 
   let patched=0, notFound=0;
@@ -316,7 +316,7 @@ async function jobStreaming() {
     while(true) {
       const { data: batch } = await supabase.from("anime_cache")
         .select("mal_id,title,streaming")
-        .eq("type","TV")
+        .in("type", status==="Finished Airing" ? ["TV"] : ["TV","ONA","OVA"])
         .eq("status", status)
         .order("score",{ascending:false,nullsLast:true})
         .range(offset, offset+49);
