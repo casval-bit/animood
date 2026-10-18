@@ -1,10 +1,10 @@
 name: Sync Anime Database
 
-# Hebdomadaire : nouveaux animés, scores, diffusion, humeurs (mood_pts_v4), plateformes, quiz OP, artistes.
-# Mensuel (voir sync-monthly.yml) : trailers + disponibilité par pays.
+# Hebdomadaire (le dimanche) : rafraîchissement COMPLET des scores de tous les animés + plateformes, quiz OP, artistes.
+# Quotidien (sync-daily.yml) : nouveaux animés, diffusion, humeurs. Mensuel (sync-monthly.yml) : trailers + pays.
 on:
   schedule:
-    - cron: '0 3 * * 0'  # Every Sunday at 3am UTC
+    - cron: '0 5 * * 0'  # Every Sunday at 5am UTC (après le quotidien de 3h)
   workflow_dispatch:       # Manual trigger from GitHub UI
 
 concurrency:
