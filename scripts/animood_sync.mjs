@@ -416,6 +416,32 @@ async function jobTrailers() {
   log(`=== trailers done: ${fetched} found, ${notFound} not found ===`);
 }
 
+// ── SCORE AniMood = note MAL pondérée + notes des utilisateurs (même formule que l'ancienne copie du script) ──
+const MAX_SCORED_BY = 3_096_001;
+function calcJikanWeight(scored_by) {
+  if(!scored_by || scored_by <= 0) return 0;
+  const ratio = Math.log10(scored_by + 1) / Math.log10(MAX_SCORED_BY + 1);
+  return Math.round((ratio ** 2 * 1200) / 1.3);
+}
+async function calcAnimoodScore(mal_id, jikan_score, jikan_weight) {
+  if(!jikan_score || !jikan_weight) return jikan_score;
+  try {
+    const { data: votes } = await supabase.from("user_votes").select("score").eq("mal_id", mal_id).not("score","is",null);
+    const valid = (votes||[]).filter(v => v.score != null);
+    const sumUsers = valid.reduce((s,v) => s + parseFloat(v.score), 0);
+    return Math.round(((jikan_score * jikan_weight + sumUsers) / (jikan_weight + valid.length)) * 100) / 100;
+  } catch { return jikan_score; }
+}
+// Met à jour anime_cache ; si les colonnes jikan_weight / animood_score n'existent pas (anciennes bases), réessaie sans elles.
+async function updateAnimeCache(mal_id, updates) {
+  let { error } = await supabase.from("anime_cache").update(updates).eq("mal_id", mal_id);
+  if(error && /jikan_weight|animood_score|scored_by/.test(error.message||"")) {
+    const { jikan_weight, animood_score, scored_by, ...rest } = updates; // eslint-disable-line no-unused-vars
+    ({ error } = Object.keys(rest).length ? await supabase.from("anime_cache").update(rest).eq("mal_id", mal_id) : { error: null });
+  }
+  if(error) log(`  ❌ anime_cache ${mal_id}: ${error.message}`);
+}
+
 // ── JOB: new-scores ───────────────────────────────────────────────────────────
 // Only touches anime that recently changed from "Not yet aired" to "Currently Airing"
 // Tracks first_fetch_at in a separate log table
@@ -444,11 +470,16 @@ async function jobNewScores() {
         const score = d?.data?.score||null;
         const broadcastDay = d?.data?.broadcast?.day?.replace(/s$/i,"")||null;
         const updates = {};
-        if(score) updates.score = score;
-        if(broadcastDay && !a.broadcast?.day) updates.broadcast = {day:broadcastDay};
-        if(Object.keys(updates).length) {
-          await supabase.from("anime_cache").update(updates).eq("mal_id",a.mal_id);
+        if(score) {
+          updates.score = score;
+          const scored_by = d?.data?.scored_by||null;
+          if(scored_by) updates.scored_by = scored_by;
+          const weight = calcJikanWeight(scored_by);
+          updates.jikan_weight = weight;
+          updates.animood_score = await calcAnimoodScore(a.mal_id, score, weight);
         }
+        if(broadcastDay && !a.broadcast?.day) updates.broadcast = {day:broadcastDay};
+        if(Object.keys(updates).length) await updateAnimeCache(a.mal_id, updates);
       }
       await sleep(450);
     } catch {}
@@ -520,11 +551,18 @@ async function rescoreAnime(malId) {
     const score = d?.data?.score||null;
     const status = d?.data?.status;
     const updates = {};
+    const scored_by = d?.data?.scored_by||null;
     if(score) updates.score = score;
+    if(scored_by) updates.scored_by = scored_by;
     if(status) updates.status = status==="Currently Airing"?"Currently Airing":status==="Finished Airing"?"Finished Airing":status;
+    if(score) {
+      const weight = calcJikanWeight(scored_by);
+      updates.jikan_weight = weight;
+      updates.animood_score = await calcAnimoodScore(malId, score, weight);
+    }
     if(Object.keys(updates).length) {
-      await supabase.from("anime_cache").update(updates).eq("mal_id",malId);
-      log(`  ✅ rescored mal_id=${malId}: score=${score}`);
+      await updateAnimeCache(malId, updates);
+      log(`  ✅ rescored mal_id=${malId}: score=${score} animood=${updates.animood_score ?? "-"}`);
     }
   } catch(e) { log(`  ❌ mal_id=${malId}: ${e.message}`); }
 }
