@@ -1,31 +1,35 @@
 # electron-builder configuration for AniMood Desktop
 # https://www.electron.build/configuration/configuration
+#
+# The installed app loads the live website (see electron/main.js), so only the
+# Electron shell is packaged. Builds run on GitHub Actions (.github/workflows/desktop-release.yml).
 
 appId: com.animood.desktop
 productName: AniMood
-copyright: "Copyright © 2025 AniMood"
+copyright: "Copyright © 2026 AniMood"
 
-# Source of the compiled web app
 directories:
   buildResources: public
   output: dist-electron
 
 files:
-  - dist/**/*           # Vite build output
-  - electron/**/*       # Main process & preload
+  - electron/**/*       # Main process, preload, offline page, icon
   - package.json
 
-# macOS
+# Ad-hoc signature on macOS (free; avoids the "app is damaged" error on Apple Silicon)
+afterPack: build-hooks/mac-adhoc-sign.cjs
+
+# macOS — not signed with an Apple certificate (paid): first launch needs "Open Anyway"
 mac:
   category: public.app-category.entertainment
   target:
     - target: dmg
       arch: [x64, arm64]
-  icon: public/logo-mark.png
-  hardenedRuntime: true
-  gatekeeperAssess: false
-  entitlements: build/entitlements.mac.plist
-  entitlementsInherit: build/entitlements.mac.plist
+    - target: zip       # required by the auto-updater
+      arch: [x64, arm64]
+  icon: public/icons/icon-512.png
+  identity: null
+  artifactName: "${productName}-${version}-mac-${arch}.${ext}"
 
 dmg:
   sign: false
@@ -34,7 +38,7 @@ dmg:
 win:
   target:
     - target: nsis
-      arch: [x64, ia32]
+      arch: [x64]
   icon: public/logo-mark.png
 
 nsis:
@@ -42,23 +46,26 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
+  artifactName: "${productName}-Setup-${version}.${ext}"
 
 # Linux
 linux:
   target:
     - AppImage
     - deb
-  icon: public/logo-mark.png
+  icon: public/icons/icon-512.png
   category: Network
+  maintainer: "AniMood <mousjabie@gmail.com>"
+  artifactName: "${productName}-${version}-linux-${arch}.${ext}"
 
-# Auto-updater — publish to GitHub releases
+# Auto-updater — reads GitHub releases
 publish:
   provider: github
-  owner: YOUR_GITHUB_USERNAME          # ← change this
-  repo: animood                        # ← change this
+  owner: casval-bit
+  repo: animood
   releaseType: release
 
-# Deep-link protocol (animood://)
+# Deep-link protocol (animood://) — streaming links + Google login callback
 protocols:
   name: AniMood
   schemes:

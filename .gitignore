@@ -24,3 +24,13 @@ dist-ssr
 *.sw?
 .env
 .claude/
+.vercel
+.env*
+
+# Android : clé de signature (jamais dans git) + paquet Play Store
+*.keystore
+*.jks
+signing-key-info.txt
+android/*.aab
+dist-electron
+android/*.apk

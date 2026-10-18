@@ -1,124 +1,145 @@
 # AniMood
 
-A mood-driven anime app — moodboard, feed, search, forum, profiles, and messaging. React + Vite + Tailwind on the client, Supabase (Postgres + REST) for data, Jikan/AniList for the anime catalog.
+**Découvre des animés selon ton humeur.** Moodboard, feed, forum, mini-jeux, profils et messages.
 
-## Run locally
+🌐 **Site :** https://animood-rho.vercel.app
+📲 **Applis :** sur le site, bouton « Télécharger l'appli » (header ou footer)
 
-No setup needed — the Supabase key already in the code is the `anon`/publishable key (safe to ship client-side by design; access control lives in RLS policies, not in keeping it secret), and the DB schema is already migrated on the shared Supabase project.
+React + Vite + Tailwind · Supabase (base de données) · Jikan / AniList / AnimeThemes (catalogue)
+
+---
+
+## 📱 Les applis
+
+| Plateforme | Comment l'avoir |
+|---|---|
+| 🌐 Web | https://animood-rho.vercel.app |
+| 🤖 Android | APK à télécharger sur le site |
+| 🍏 iPhone / iPad | Safari → Partager → « Sur l'écran d'accueil » |
+| 🪟 Windows · 🍎 Mac · 🐧 Linux | Installateurs sur le site (releases GitHub) |
+
+Toutes les applis affichent le site en ligne : **un déploiement du site = toutes les applis à jour**.
+
+---
+
+## 🚀 Lancer en local
 
 ```bash
-git clone -b animood-v.11.00 https://github.com/casval-bit/animood.git
+git clone -b animood-v.12.00 https://github.com/casval-bit/animood.git
 cd animood
 npm install
 npm run dev
 ```
 
-Open the URL Vite prints (`http://localhost:5173`).
+Ouvre `http://localhost:5173`. Aucune config : la clé Supabase dans le code est la clé publique.
 
-Other commands:
+| Commande | Rôle |
+|---|---|
+| `npm run build` | Build du site |
+| `npm run lint` | Vérifie le code |
+| `npm run electron:dev` | Appli de bureau en mode dev (ou `run_desktop.bat`) |
+| `npm run electron:build:win` | Installateur Windows dans `dist-electron/` |
 
+---
+
+## ✨ Fonctionnalités
+
+**Découvrir**
+- **Moodboard** — choisis une ou plusieurs humeurs (Hype, Chill, Dark…), AniMood propose 3 animés, reroll à volonté.
+- **Recherche** — onglets Animé / 📅 Saison / Studio / Artiste / Membres.
+- **Calendrier de la saison** — vue Jour ou Semaine, à l'heure du visiteur, filtres plateforme et « Mon calendrier ».
+- **Terminés récemment**, **trailers** des prochaines sorties, **liens streaming** selon ta région.
+- **Fiche animé** — infos, trailer, discussions dédiées, catalogue complet du studio.
+
+**Communauté**
+- **Feed** — posts, commentaires, likes, sondages, `@mentions`.
+- **Forum** — sujets tagués avec image, likes, réponses, suppression par l'auteur.
+- **Messages privés** — bulle de chat partout, accusés « Envoyé ✓ → Vu ✓✓ → Lu ».
+- **Notifications** — cloche 🔔 (réponses, mentions, invitations de jeu) et badge messages.
+- **Blocage** et **modération** automatique (mots interdits).
+
+**Jeux** (Forum → Mini-jeux, ou onglet Jeux sur l'appli de bureau)
+- **Solo du jour** — Wordle Animé, Poster Mystère, OP Quiz (difficulté qui s'adapte).
+- **Multijoueur** — Chaîne Animé, Timeline, Cluescale, Undercover : matchmaking Elo, rooms privées, invitations, mode vs IA.
+- **Tierlist** — classe les animés de S à F, export en image.
+- **Classements** par jeu et général.
+
+**Profil**
+- Stats, moods, genres les plus vus, favoris, listes, journal, posts.
+- **Cadres animés**, **badges** et **Pts jeux** à débloquer, anime « En Boucle ».
+- **Confidentialité** — profil visible par tous, par les amis ou par une liste choisie.
+- **Import AniList**, avec sous-listes et réimport.
+
+**Réglages**
+- Thème clair / sombre, français / anglais (toute l'appli), photo, nom, cadre, badge, plateformes de streaming.
+
+---
+
+## 📦 Publier
+
+**Le site (Vercel)**
 ```bash
-npm run build     # production build
-npm run preview   # preview the build
-npm run lint      # eslint across the project
+npx vercel deploy --prod
 ```
 
-## What's on this branch
+**L'appli de bureau** (Windows + Mac + Linux, compilée par GitHub Actions)
+1. Mets le nouveau numéro dans `package.json` (ex. `"version": "12.1.0"`).
+2. Lance :
+   ```bash
+   git tag v12.1.0
+   git push origin v12.1.0
+   ```
+3. GitHub publie la release. La page de téléchargement et les mises à jour automatiques la trouvent seules.
 
-- **Forum** — "Community mood" card is now an octagon radar (instead of bars), moved into a sticky right sidebar instead of sitting full-width at the top; threads can be tagged (Discussion / Question / Theory / Recommendation / Spoiler / Rant) and can include an image. Unread-reply badge per thread. Thread rows, thread detail, and replies now show the poster's real profile photo and display name next to `@username`. Threads and replies can be liked (❤️/🤍 + count), same as Feed posts.
-- **Sondages** — attach a poll (2 to 6 options, single or multiple choice) to a Feed post or a Forum thread when creating it; live vote with percentage bars once you've voted.
-- **Messages** — 1:1 chat between members ("Messages" tab + "💬 Message" button on any profile), plus a floating chat bubble available from any page, and a "✏️ Nouveau" button to start a conversation without going through a profile first. Conversation list, chat header, and the new-message search all show the other person's real profile photo and display name, not just their `@handle`. Read receipts in three stages under your last sent bubble (and in the conversation list): "Envoyé ✓" → "Vu ✓✓" once the message reaches the recipient's app (background poll, thread not opened yet) → "Lu à 14:32 ✓✓" (blue) once they open the thread — backed by server-side `delivered_at`/`read_at` columns on `direct_messages` instead of a per-device `localStorage` timestamp — so the unread badge and the seen tick agree across devices.
-- **Mini-jeux** (Forum → 🎮 Mini-jeux du jour) — three solo daily games (Wordle Animé, Poster Mystère, OP Quiz — pick a difficulty, then guess the anime from its opening theme, all three awarding points on a win, once per day per game) plus three 1v1/multijoueur games (Chaîne Animé, Timeline, Cluescale — devine un score 1-20 à partir d'un indice donné par le juge, 2 à 4 joueurs) with matchmaking (Elo range widens the longer you wait) or a private room code. Each game button shows your own score for that game, and an inline top-20 leaderboard (medals, followed friends highlighted, your rank shown separately if you're outside the top 20) ranked on `game_elo.points_total`, which also feeds the profile frames below. Chaîne et Timeline se jouent aussi **vs IA** (facile/moyen/difficile) sans passer par le matchmaking. Le matchmaking nettoie désormais les rooms "waiting" abandonnées (parties fantômes) avant d'en recréer une, et rafraîchit la sienne en arrière-plan tant qu'elle attend un adversaire. OP Quiz's daily picks are now adaptive: openings you tend to miss come back weighted higher, ones you've mastered fade toward a small floor instead of disappearing, and the difficulty tag itself re-buckets from real community answers once an opening has enough attempts.
-- **Discussions par animé** — chaque fiche animé a sa propre section "💬 Discussions" (sujets de forum liés à cet animé, créés et consultés sans quitter la fiche) ; les animés de la saison en cours dans le Forum pointent vers la même liste de discussions.
-- **Recherche** — barre de recherche pleine largeur en tête de page, onglets Animé / Saison / Studio / Artiste / Membres en dessous ; la requête est conservée quand on change d'onglet ou de filtre.
-- **Calendrier de la saison** (Recherche → onglet 📅 Saison) — vue **Jour** (sélecteur de jour + grandes cartes triées par heure, pensée pour mobile) ou **Semaine** (tableau Lundi → Dimanche), choix mémorisé. Jours et heures convertis de l'heure japonaise (JST) vers le fuseau du visiteur ; filtre "Mon calendrier" (tes animés en cours/à voir + les suites des séries que tu as vues).
-- **Invitations de jeu** — depuis une room privée LinkUp / Timeline / Cluescale, invite directement un abonné/abonnement ; l'invitation arrive dans la cloche 🔔 avec Rejoindre / Refuser.
-- **Cadres de profil** — unlockable decorative avatar borders across 5 tracks (abonnés, contribution aux moods, animés vus, genre préféré, jeux). Settings → Profil shows every frame, locked ones greyed out with a 🔒 and the unlock condition, and lets you pick your active one.
-- **Badges de profil** — same idea as profile frames (unlock tracks: anime watched, followers, mood contributions, etc.), shown as a pill in the profile's stats row with a picker for the active one.
-- **PWA** — installable (manifest + service worker + icons); the browser/device back button closes modals and returns to the previous tab instead of leaving the app.
-- **Profils enrichis** — your own profile and any member's profile modal now share the same depth: watch/rating stats, mood average, pinned list, favorites and highlights, with Journal / Listes tabs on both. "Mes Posts" is fully interactive (like, comment, delete inline — not just a read-only recap) and stays live-synced with the Feed: liking or deleting a post in one place updates it instantly in the other. Any member's profile modal also shows your **abonnés en commun** ("👥 N abonnés en commun") when you have any — click one to jump straight to their profile.
-- **Modération de contenu** — Feed posts, comments, and poll options are checked against a banned-word list (`src/constants/bannedWords.js`) before posting; a match blocks the post with an inline error instead of publishing it.
-- **Confidentialité du profil** — Settings → Profil lets you set who can view your profile: everyone, friends only (mutual follow), or a hand-picked list of members (search-and-add picker). A profile you can't view shows a locked "🔒" placeholder instead of its banner/stats/lists. Follower/following counts on any profile (yours or someone else's) are now clickable and open a scrollable list of usernames.
-- **Footer** — every page now ends with a footer (AniMood name/tagline, copyright) plus "Mentions légales" / "Confidentialité" links opening placeholder legal pages — content to fill in before a real public launch.
-- **Réglages** — reorganized into tabs (Préférences / Profil / Données / Compte); light/dark theme toggle, FR/EN language switch, an editable display name, and a delete-account placeholder.
-- **Traduction FR/EN complète** — the language switch (Settings → Préférences) now actually translates the whole app: every view, modal, and component (Feed, Forum, Moodboard, Search, Profile, Messages, chat bubble, mini-games, anime/person/studio modals, statuses, filters, forum tags, profile frame names, notifications) — not just the setting itself.
-- **Bloquer un utilisateur** — block/unblock from any profile; hides a blocked member's posts, threads and replies, blocks DMs both ways, and excludes them from mentions and search. Tucked into a discreet "⋯" menu on the profile (not a big red button next to Follow/Message) since it's rarely the first thing you want to do there. Manage the full list from Settings → Compte.
-- **Mentions** — `@username` in Feed posts/comments and Forum threads/replies: autocompletes while typing, renders as a clickable link to that member's profile, and notifies the mentioned member (see Notifications below) even on a post/thread they haven't posted or commented on themselves.
-- **Notifications** — unread-message badge (with count) on the ✉️ icon; a 🔔 bell for activity (new comments on Feed posts and new replies on Forum threads you wrote or took part in, *plus* any post/comment/thread/reply where someone `@mentions` you). The bell and Forum's per-thread unread badge read from the same feed, so they never disagree. Both update automatically in the background — no page refresh needed.
-- **Theme** — selectable light/dark appearance (Settings → 🎨 Apparence). Dark (glass/gradient) stays the default; the light theme is a softer, violet-tinted "social feed" look, not a flat white dashboard.
-- **AniList import** — also pulls a public AniList account's custom (sub-)lists, filterable from Profile → Journal. Re-run the same import anytime (same username, now with a clearly labeled field and a "🔄 Réimporter" button) to resync after updating your list on AniList.
+**L'APK Android** — Rien à refaire tant que le site change. Pour un nouvel APK : PWABuilder → remplacer `public/downloads/AniMood.apk`.
+> 🔒 La clé de signature Android n'est **pas** dans le dépôt. Sans elle, impossible de mettre à jour l'appli sur le Play Store : garde-la en sécurité.
 
-## v.11.00 — repris de v.09.02
+---
 
-Tout ce que la branche `animood-v.09.02` avait en plus, porté sur la base v.10.02 (sans reprendre ses anciennes versions de fichiers, qui auraient effacé la confidentialité de profil, les accusés de lecture, les invitations `game_invites`, etc.) et corrigé au passage :
+## 🗄️ Base de données (Supabase)
 
-- **Undercover** 🕵️ (Forum → Mini-jeux) — 3 à 6 joueurs sur le même appareil : chacun découvre son rôle en privé (mot secret, ou indice pour l'imposteur), deux tours d'indices, vote chacun son tour, dernière chance de l'imposteur pour deviner le mot (30 s). Points dans `game_elo.pts_undercover` + `points_total`, pour le compte connecté seulement (les autres places sont de simples noms). La version 09.02 bloquait dès que ce n'était pas le tour du compte connecté, et son minuteur de vote ignorait les votes.
-- **Tierlist** 📊 — Saison / Année / Perso : glisser les affiches dans les rangs S → F (ou toucher une affiche puis un rang, sur mobile), rangs renommables, ajout/retrait de rangs, export PNG (`html2canvas`, chargé à la demande).
-- **Fenêtres de jeu** — tous les mini-jeux s'ouvrent dans une fenêtre cadrée avec barre de titre (`GameModal`), le bouton retour du téléphone la ferme toujours.
-- **Calendrier : filtres plateforme et région** (Recherche → 📅 Saison) — 🇫🇷/🇺🇸/🇯🇵 et une liste des plateformes réellement présentes dans les données (Crunchyroll, Netflix, ADN, Bahamut…), combinables avec "Mon calendrier".
-- **Terminés récemment** — sous le calendrier, les séries TV terminées qui ont commencé dans les ~4 derniers mois.
-- **Boutons trailer des prochaines sorties** — les trailers remplis par le script de sync sont dans la colonne JSON `trailer`, que l'app ne lisait pas (262 des 263 trailers d'animés à venir) ; ils s'affichent maintenant partout (Forum, fiches).
-- **Cadres de profil animés** — nouveaux visuels SVG (dégradés, rotations, halos) pour les 26 cadres, IDs SVG uniques par taille (plusieurs avatars sur une page ne se mélangent plus), cadre "Fondateur" prêt (pas encore attribuable). La logique de déblocage de v.10.02 est gardée : celle de 09.02 ne débloquait plus les cadres jeux ni contribution, et supprimait le cadre "Légende".
-- **Discussions d'une fiche animé** — les fenêtres de sujet s'ouvrent au-dessus de la fiche au lieu d'être coincées dans son contenu défilant ; cliquer un pseudo ouvre son profil.
-- **Forum** — bouton "💬 Discussion" sur les animés de la saison ; salon "✨ Saisonnier" dans le Feed (ex-"Récents").
-- **Script de sync `scripts/animood_sync.mjs`** (clé `service_role` dans `.env`) — jobs `new-anime`, `broadcast`, `streaming`, `trailers`, `new-scores`, `rescore-2w`, `rescore-2m`, `moods`, `weekly` ; raccourcis Windows `run_weekly.bat`, `run_broadcast.bat`, `run_streaming.bat`, `run_trailers.bat`, `run_moods.bat`, ou `npm run sync:weekly`. Corrigé : encodage cassé, nouveaux animés insérés sans image ni titre anglais, lots d'insertion qui échouaient sur un doublon, jobs `moods`/`weekly` appelés par les `.bat` mais absents, chemins `.bat` pointant vers un autre PC.
+Fichiers SQL dans `supabase/`, à lancer dans l'éditeur SQL de Supabase.
 
-## v.10.02 — en comparaison avec v.10.00
+**Déjà appliqués** ✅
+`forum_schema` · `messages_schema` · `posts_schema` · `polls_schema` · `game_schema` · `game_invites_schema` · `blocks_schema` · `profile_privacy_schema` · `badges_schema` · `anilist_sub_lists` · `anime_sync_log_schema` · `artist_cache_schema` · `opquiz_pool_schema` · `opquiz_stats_schema`
 
-- **Accusés de réception en 3 étapes** (v.10.01) — "Envoyé ✓" → "Vu ✓✓" (le message est arrivé dans l'app du destinataire, colonne `delivered_at`) → "Lu à 14:32 ✓✓" (fil ouvert, `read_at`). Nécessite de relancer `supabase/messages_schema.sql`.
-- **Nouveau logo** (v.10.01) — logo PNG dans le header, le footer et l'écran de chargement ; favicon et icônes PWA en PNG (cache du service worker passé en `animood-v3`). Retrait des stats non fondées du Moodboard ("12 000 animes", "98 % de satisfaction").
-- **Page Recherche réorganisée** — barre de recherche pleine largeur en tête, onglets dessous ; le calendrier quitte l'onglet Animé pour un onglet 📅 Saison dédié (taper une recherche depuis Saison bascule sur les résultats Animé). La requête survit au changement d'onglet/de filtre, et une réponse lente ne peut plus écraser une recherche plus récente. Onglet Membres : compteurs d'abonnés en une requête au lieu de 2 par membre.
-- **Calendrier Jour / Semaine en heure locale** — vue Jour par défaut, vue Semaine au choix (mémorisé). Jikan donne les horaires en heure japonaise : jour **et** heure sont convertis dans le fuseau du visiteur (un épisode du lundi 1h00 au Japon apparaît le dimanche 18h00 en France), heure japonaise d'origine au survol. Nouvelle entrée dans la FAQ. Calendrier entièrement traduit FR/EN.
-- **Onglet Artiste résistant aux pannes d'AnimeThemes** — AnimeThemes.moe tombe parfois pendant des heures (panne de datacenter, Cloudflare 522). Les artistes populaires, leurs openings/endings et l'ID MAL de chaque animé sont maintenant copiés dans une table Supabase `artist_cache` (`supabase/artist_cache_schema.sql`, remplie par `scripts/sync_artists.mjs` dans le sync hebdomadaire). L'onglet lit d'abord cette copie, et la recherche s'y replie quand l'API est hors ligne. Pendant une panne, une seule requête de test au lieu de 16 qui expirent, et un message qui dit clairement que la panne vient d'AnimeThemes.
-- **Fix sync AnimeThemes** — Cloudflare renvoie 403 aux requêtes Node sans User-Agent : `sync_opquiz_pool.mjs` (et le nouveau `sync_artists.mjs`) s'identifient désormais explicitement.
+**Nouveaux (v.11.02 / v.12)** — à lancer si pas encore fait
+`profile_spotlight` · `profile_frame_flags` · `streaming_regions_schema`
 
-## v.10.00 — en comparaison avec v.09.01
+**Sécurité** 🔐 — à faire dans l'ordre, en suivant [`supabase/SECURITE_LISEZMOI.md`](supabase/SECURITE_LISEZMOI.md)
+`security_rls_1_private` → `security_rls_2_reference` (retour en arrière : `security_rls_rollback`)
 
-- **Invitations de jeu** — dans une room privée LinkUp / Timeline / Cluescale, une liste de tes abonnés/abonnements (mutuels en premier) permet de les inviter en un clic. L'invitation apparaît en tête de la cloche 🔔 (vérifiée toutes les 10 s) avec "Rejoindre" (bascule sur le Forum et entre dans la room comme joueur) ou "Refuser". Table `game_invites` (`supabase/game_invites_schema.sql`, déjà appliqué).
-- **Classement Elo par jeu** — la modale de matchmaking LinkUp/Timeline affiche un mini-classement Elo propre au jeu (médailles, amis suivis en vert, ton rang à part si tu es hors du top).
-- **Parties 1v1 abandonnées** — si l'adversaire ne donne plus signe de vie pendant son tour (crash, réseau coupé, veille) depuis 45 s, la victoire t'est attribuée au lieu de rester bloqué indéfiniment.
-- **Forum — suppression** — l'auteur d'un sujet ou d'une réponse peut le supprimer (🗑, avec confirmation). Policies DELETE ajoutées à `supabase/forum_schema.sql` (déjà appliqué).
-- **Modale Studio** — catalogue complet du studio (jusqu'à 200 animés), tri Récents / Mieux notés / Populaires, option pour masquer les animés déjà vus, et tes statuts affichés sur les affiches.
-- **Profil** — retour de la section "🎌 Genres les plus vus".
-- **Footer** — liens À propos / Catégories / Contact / FAQ / Modération, ouvrant des pages d'info (`InfoModal`), en plus de Mentions légales / Confidentialité.
-- **Calendrier de la saison restauré** (Recherche → Animé) — il était retombé en simple grille, parce que la requête ne demandait plus la colonne `broadcast` à `anime_cache`. Le tableau Lundi → Dimanche est revenu, avec le filtre "Mon calendrier", jusqu'à 200 animés, défilement horizontal sur mobile, et une ligne "Jour non précisé".
-- **Fix onglet Artiste** — quand l'API AnimeThemes.moe est indisponible (erreur Cloudflare 522 côté serveur), l'onglet restait vide sans explication. Les requêtes ont maintenant un délai max de 12 s, et l'onglet affiche un message d'erreur avec un bouton "Réessayer".
-- **Fix écran blanc en dev** — un service worker laissé par un build de prod pouvait servir des modules Vite périmés en `npm run dev`. Le service worker n'est plus enregistré qu'en prod, tout reliquat est désinscrit en dev, et le cache passe en `animood-v2` en ne gardant en cache-first que les fichiers hashés de `/assets/` et les images.
+**Réglages Supabase** (Authentication → URL Configuration)
+- Site URL : `https://animood-rho.vercel.app`
+- Redirect URLs : `https://animood-rho.vercel.app/**` et `animood://**` (connexion depuis l'appli de bureau)
 
-## v.10.00 — en comparaison avec v.08.06
+---
 
-v.10.00 reprend les fonctionnalités de v.08.06 (calendrier saisonnier, invitations de jeu, classement Elo par jeu, tri de la modale Studio, suppression dans le forum, genres les plus vus, pages À propos / Contact / FAQ), et ajoute :
+## 🔄 Synchronisation du catalogue
 
-- **Invitations de jeu dans leur propre table** — v.08.06 les stockait comme des lignes `type = "game_invite"` dans une table `notifications` générique, jamais déclarée dans les schémas SQL suivis. v.10.00 utilise une table dédiée `game_invites` (`supabase/game_invites_schema.sql`), liée à `game_rooms` : une invitation disparaît automatiquement quand sa room est supprimée.
-- **Confidentialité du profil** — Settings → Profil : tout le monde, amis seulement (abonnement mutuel) ou une liste de personnes choisies. Un profil non autorisé affiche un état verrouillé "🔒". Nécessite `supabase/profile_privacy_schema.sql`.
-- **Listes abonnés/abonnements cliquables** — sur ton profil comme sur celui des autres, avec avatar + nom + `@username`.
-- **Accusés de lecture des messages** — "vu"/"envoyé" sous ta dernière bulle, basés sur une colonne `read_at` côté serveur (cohérent entre appareils). Nécessite de relancer `supabase/messages_schema.sql`.
-- **Footer légal** — liens Mentions légales / Confidentialité (contenu placeholder à compléter avant une mise en ligne publique).
-- **Fix onglet Artiste** et **fix écran blanc en dev** — voir la section ci-dessus.
+- **Automatique** — chaque semaine sur GitHub Actions (`.github/workflows/sync-anime.yml`) : nouveaux animés, moods, OP Quiz, artistes.
+- **À la main** — `scripts/animood_sync.mjs` (clé `service_role` dans `.env`) :
+  ```bash
+  npm run sync:weekly
+  ```
+  Raccourcis Windows : `run_weekly.bat`, `run_new_anime.bat`, `run_moods.bat`, `run_scores.bat`, `run_broadcast.bat`, `run_streaming.bat`, `run_streaming_regions.bat`, `run_trailers.bat`.
 
-## Database (Supabase)
+---
 
-All schemas are already applied on the shared project. For a fresh Supabase project (or after a reset), run everything in this table in order in the SQL Editor:
+## 🕓 Versions
 
-| File | Adds |
+| Version | Nouveautés |
 |---|---|
-| ✅ `supabase/forum_schema.sql` | `forum_threads`, `forum_replies` (+ `tags`, `image_url`, `likes`), the v.08 columns on `forum_threads` (`anime_id`/`anime_title`/`anime_image`/`reply_count`/`last_reply_at`, for the per-anime "💬 Discussions" section and the reply-count/last-activity on each thread) and the v.10.00 `DELETE` policies on both tables (author-only 🗑 in the UI) — all applied and verified. Safe to re-run: every statement is `add column if not exists` / `drop policy if exists` then `create policy`. |
-| ✅ `supabase/messages_schema.sql` | `direct_messages` table with `read_at` (v.09.01) and `delivered_at` (v.10.01) columns for the three-stage read receipts ("Envoyé"/"Vu"/"Lu"). Safe to re-run: `add column if not exists` / `drop policy if exists` then `create policy`. |
-| ✅ `supabase/game_invites_schema.sql` | `game_invites` (`from_user`, `to_user`, `game_type`, `room_id` → `game_rooms` with `on delete cascade`, `private_code`, `status` pending/accepted/declined) plus a partial index on pending invites. |
-| ✅ `supabase/anilist_sub_lists.sql` | `anilist_sub_lists` column on `profiles` for AniList custom/sub-lists. |
-| ✅ `supabase/blocks_schema.sql` | `user_blocks` (one-directional user blocking). |
-| ✅ `supabase/profile_privacy_schema.sql` | Adds `visibility` (`everyone`/`friends`/`custom`, default `everyone`) and `visibility_allowed` (jsonb array of usernames) to `profiles`. Enforced client-side only (`src/utils/profilePrivacy.js`), same access model as the rest of the app. |
-| ✅ `supabase/polls_schema.sql` | `polls` (belongs to either a Feed post or a Forum thread — `options` jsonb `{id, text, votes[]}[]`, `multi` boolean). |
-| ✅ `supabase/posts_schema.sql` | `posts`, `comments` tables with `UPDATE`/`DELETE` RLS policies for liking and deleting posts/comments. |
-| ✅ `supabase/game_schema.sql` | `game_elo`, `game_rooms` tables with columns for solo game points (`streak_wordle`, `last_wordle_date`, etc.) and multiplayer (`player3`/`player4` for Cluescale), plus per-game point breakdowns (`pts_wordle`/`pts_poster`/`pts_opquiz`/`pts_cluescale`/`pts_undercover`). |
-| ✅ `supabase/anime_sync_log_schema.sql` | `anime_sync_log` (first-scored date + 2-week/2-month rescore flags) and the `anime_cache.trailer`/`streaming` jsonb columns, used by `scripts/animood_sync.mjs`. |
-| ✅ `supabase/badges_schema.sql` | `active_badge` column on `profiles`. Badge unlock conditions are computed client-side (`src/badges/badges.jsx`). |
-| ✅ `supabase/artist_cache_schema.sql` | Creates `artist_cache` (`slug`, `name`, `themes` jsonb), filled by `scripts/sync_artists.mjs`. Caches AnimeThemes data to survive datacenter outages — the Artist tab falls back to the live API if the cache is empty. |
-| ✅ `supabase/opquiz_pool_schema.sql` | Creates `opquiz_pool` (`mal_id`, `difficulty`, `audio_url`, `video_url`), filled by `scripts/sync_opquiz_pool.mjs`. OP Quiz falls back to ~24 hand-picked entries in `src/constants/animeOpenings.js` if empty. |
-| ✅ `supabase/opquiz_stats_schema.sql` | Creates `opquiz_stats` (community-wide per-opening attempts/correct/response-time, with `difficulty_score`) and `opquiz_user_stats` (per-player per-opening history). Enables adaptive difficulty picker — falls back to hand-picked tags if empty. |
+| **v.12.00** | Site en ligne (Vercel), applis Android / Windows / Mac / Linux, page de téléchargement, connexion Google sur l'appli de bureau |
+| v.11.02 | Appli de bureau, profil enrichi (Pts jeux, En Boucle), streaming par région, sécurité RLS |
+| v.11.01 | Bouton trailer, logos footer, onglets forum |
+| v.11.00 | Undercover, Tierlist, filtres calendrier, terminés récemment, cadres animés, script de sync |
+| v.10.02 | Accusés de réception en 3 étapes, nouveau logo, calendrier Jour/Semaine, onglet Artiste résistant aux pannes |
+| v.10.00 | Invitations de jeu, classement Elo, confidentialité du profil, footer |
 
-Access model: like the rest of the app, these tables use the shared `anon` key with open RLS policies ("anyone can read/insert/update/delete") — not per-user privacy, consistent with `profiles`/`follows`/`user_votes`.
+---
 
-> Heads-up: the app reads moods from `mood_pts_v4`, but `scripts/sync_new_moods.mjs` (the GitHub weekly workflow) still writes to `mood_pts_v2`. `scripts/animood_sync.mjs --job=moods` writes to `mood_pts_v4`.
+## 💡 Bon à savoir
 
-> `profiles.custom_lists` (manually-created lists, `{id, name, animeIds}[]`) is a separate feature living on the `main` branch — unrelated to `anilist_sub_lists` above.
+- L'appli lit les moods dans `mood_pts_v4`, mais `scripts/sync_new_moods.mjs` (workflow hebdo) écrit encore dans `mood_pts_v2`. `animood_sync.mjs --job=moods` écrit bien dans `mood_pts_v4`.
+- `profiles.custom_lists` (listes créées à la main) est une fonctionnalité de la branche `main`, sans lien avec les sous-listes AniList.
