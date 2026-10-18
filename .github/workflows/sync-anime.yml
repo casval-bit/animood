@@ -35,7 +35,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON: ${{ secrets.SUPABASE_ANON }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}            # optionnel (Groq prioritaire s'il existe)
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_KEY }}    # sinon OpenRouter (mêmes noms que ton .env)
         run: node scripts/sync_new_moods.mjs 2>&1 | tee /tmp/moods_log.txt
 
       - name: Expand Quiz OP opening pool
