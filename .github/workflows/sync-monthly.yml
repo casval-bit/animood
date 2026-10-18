@@ -1,0 +1,54 @@
+name: Sync Monthly (trailers + pays)
+
+# Le 1er de chaque mois : trailers manquants + disponibilité des plateformes par pays (JustWatch via TMDB).
+on:
+  schedule:
+    - cron: '0 4 1 * *'  # 1st of the month at 4am UTC
+  workflow_dispatch:
+
+concurrency:
+  group: animood-sync
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  monthly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON: ${{ secrets.SUPABASE_ANON }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      TMDB_KEY: ${{ secrets.TMDB_KEY }}
+      HAS_TMDB: ${{ secrets.TMDB_KEY != '' }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci --ignore-scripts
+
+      - name: Missing trailers
+        id: trailers
+        continue-on-error: true
+        run: node scripts/animood_sync.mjs --job=trailers 2>&1 | tee /tmp/trailers_log.txt
+
+      # Ignoré tant que le secret TMDB_KEY n'existe pas
+      - name: Streaming availability by country
+        id: regions
+        if: env.HAS_TMDB == 'true'
+        continue-on-error: true
+        run: node scripts/sync_streaming_regions.mjs --refresh=30 --limit=3000 2>&1 | tee /tmp/regions_log.txt
+
+      - name: Write summary
+        if: always()
+        run: |
+          echo "## 🗓️ AniMood — Monthly Sync $(date '+%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎬 Trailers — ${{ steps.trailers.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY; tail -4 /tmp/trailers_log.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null; echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "### 🌍 Pays — ${{ steps.regions.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY; tail -3 /tmp/regions_log.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null; echo '```' >> $GITHUB_STEP_SUMMARY

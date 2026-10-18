@@ -47,13 +47,6 @@ async function fetchAniListSeasons(malIds) {
   } catch { return {}; }
 }
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const SB_HEADERS = {
-  "Content-Type": "application/json",
-  "apikey": SUPABASE_ANON,
-  "Authorization": `Bearer ${SUPABASE_ANON}`,
-};
-
 async function sbQuery(path) {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: SB_HEADERS });
   if(!r.ok) throw new Error(await r.text());
