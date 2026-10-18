@@ -205,7 +205,7 @@ ipcMain.handle("open-stream", async (_event, { service, url: streamUrl }) => {
 ipcMain.handle("resolve-site-link", async (_event, req) => {
   try {
     const host = typeof req?.host === "string" ? req.host.slice(0, 120) : "";
-    const titles = Array.isArray(req?.titles) ? req.titles.filter((t) => typeof t === "string").map((t) => t.slice(0, 200)).slice(0, 4) : [];
+    const titles = Array.isArray(req?.titles) ? req.titles.filter((t) => typeof t === "string").map((t) => t.slice(0, 200)).slice(0, 8) : [];
     const r = await resolveSiteLink({ host, titles });
     return { url: r.url ? safeHttpUrl(r.url) : null, kind: r.kind };
   } catch { return { url: null, kind: "none" }; }
