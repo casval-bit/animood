@@ -74,7 +74,8 @@ export function buildCustomUrl(platform, anime, extra = {}) {
   if (/\{[a-z_]+\}/i.test(platform.url)) return platform.url.replace(/\{([a-z_]+)\}/gi, (m, k) => (k.toLowerCase() in vars ? vars[k.toLowerCase()] : m));
   if (platform.mode === "slug" || (!platform.mode && /^https?:\/\/[^/]+\/.+/i.test(platform.url))) return platform.url.replace(/\/+$/, "") + "/" + slug;
   const host = hostOf(platform.url);
-  return `https://duckduckgo.com/?q=${encodeURIComponent(`!ducky site:${host} ${cleanTitle(en)}`)}`;
+  const variants = (extra.titles && extra.titles.length ? extra.titles : [en]).slice(0, 4).map(cleanTitle).filter(Boolean);
+  return `https://duckduckgo.com/?q=${encodeURIComponent(`!ducky site:${host} ${variants.join(" OR ")}`)}`;
 }
 
 /** « Anime-sama » à partir de « www.anime-sama.fr » (nom affiché quand l'utilisateur n'en donne pas). */
@@ -94,20 +95,42 @@ export function addPlatformFromInput(raw) {
   return saveCustomPlatform({ name, url, mode: "auto" }) ? { ok: true, name } : { ok: false, error: "invalid" };
 }
 
-// ── Identifiant AniList (nombreux sites de streaming l'utilisent dans leurs liens) ──
-const K_AL = "animood_anilist_ids";
+// ── Identifiant et titres AniList (nombreux sites de streaming utilisent l'identifiant et le titre d'AniList) ──
+const K_AL = "animood_anilist_ids", K_ALT = "animood_anilist_titles";
 export const getCachedAnilistId = (anime) => (anime?.mal_id ? read(K_AL, {})[anime.mal_id] ?? null : null);
-export async function getAnilistId(anime) {
-  if (anime?.anilist_id) return anime.anilist_id;
-  const mal = anime?.mal_id; if (!mal) return null;
-  const hit = getCachedAnilistId(anime); if (hit) return hit;
+async function fetchAnilist(anime) {
+  const mal = anime?.mal_id; if(!mal) return null;
   try {
     const r = await fetch("https://graphql.anilist.co", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ query: "query($m:Int){Media(idMal:$m,type:ANIME){id}}", variables: { m: Number(mal) } }), signal: AbortSignal.timeout(8000) });
-    const id = (await r.json())?.data?.Media?.id;
-    if (id) { const m = read(K_AL, {}); m[mal] = id; try { localStorage.setItem(K_AL, JSON.stringify(m)); } catch { /* ok */ } return id; }
-  } catch { /* hors-ligne : pas de lien par identifiant */ }
-  return null;
+      body: JSON.stringify({ query: "query($m:Int){Media(idMal:$m,type:ANIME){id title{romaji english} synonyms}}", variables: { m: Number(mal) } }), signal: AbortSignal.timeout(8000) });
+    const m = (await r.json())?.data?.Media;
+    if(!m?.id) return null;
+    const ids = read(K_AL, {}); ids[mal] = m.id; try { localStorage.setItem(K_AL, JSON.stringify(ids)); } catch { /* ok */ }
+    const titles = [m.title?.english, m.title?.romaji, ...(m.synonyms || [])].filter(Boolean);
+    const all = read(K_ALT, {}); all[mal] = titles; try { localStorage.setItem(K_ALT, JSON.stringify(all)); } catch { /* ok */ }
+    return { id: m.id, titles };
+  } catch { return null; } // hors-ligne : on se contente des titres déjà connus
+}
+export async function getAnilistId(anime) {
+  if(anime?.anilist_id) return anime.anilist_id;
+  return getCachedAnilistId(anime) ?? (await fetchAnilist(anime))?.id ?? null;
+}
+
+/**
+ * Toutes les variantes de titre connues, dans l'ordre d'essai : titre anglais, titre de la base, synonymes / titres
+ * alternatifs stockés, puis variantes AniList (mises en cache). Seuls les titres en alphabet latin servent à chercher.
+ */
+export async function collectTitles(anime, { online = true } = {}) {
+  const stored = [anime?.title_english, anime?.title_en, anime?.title, ...(Array.isArray(anime?.title_synonyms) ? anime.title_synonyms : []), ...(Array.isArray(anime?.titles) ? anime.titles.map((t) => t?.title) : [])];
+  let extra = (anime?.mal_id && read(K_ALT, {})[anime.mal_id]) || [];
+  if(online && !extra.length && anime?.mal_id) extra = (await fetchAnilist(anime))?.titles || [];
+  const seen = new Set(), out = [];
+  for(const t of [...stored, ...extra]) {
+    const v = String(t || "").trim(); if(!v || !/[A-Za-z]{2}/.test(v)) continue;
+    const k = v.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); if(!k || seen.has(k)) continue;
+    seen.add(k); out.push(v);
+  }
+  return out.slice(0, 8);
 }
 
 /**
@@ -159,7 +182,7 @@ export async function resolveCustomUrl(platform, anime) {
     const cached = getAutoLink(platform.id, anime);
     if (cached) return { url: cached, kind: "cached" };
     if (typeof window !== "undefined" && window.animood?.resolveSiteLink) {
-      const titles = [anime?.title_english, anime?.title, ...(Array.isArray(anime?.title_synonyms) ? anime.title_synonyms.slice(0, 2) : [])].filter(Boolean);
+      const titles = await collectTitles(anime);
       try {
         const r = await Promise.race([window.animood.resolveSiteLink({ host: hostOf(platform.url), titles }), new Promise((res) => setTimeout(() => res(null), 25000))]);
         if (r?.url && r.kind === "page") { setAutoLink(platform.id, anime, r.url); return { url: r.url, kind: "page" }; }
@@ -171,7 +194,8 @@ export async function resolveCustomUrl(platform, anime) {
     const al = await getAnilistId(anime);
     if (al) return { url: buildCustomUrl(platform, anime, { anilist: al }), kind: "template" };
   }
-  return { url: buildCustomUrl(platform, anime), kind: "fallback" };
+  const titles = usesAuto(platform) ? await collectTitles(anime, { online: false }) : [];
+  return { url: buildCustomUrl(platform, anime, { titles }), kind: "fallback" };
 }
 
 export async function openCustomPlatform(platform, anime) {

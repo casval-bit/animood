@@ -124,6 +124,41 @@ async function openSearchTemplate(html, base, opts) {
 }
 const fill = (tpl, base, q) => new URL(tpl.replace("{q}", encodeURIComponent(q)), base).toString();
 
+// ── Repli « moteur de recherche » : pour les sites sans recherche lisible (pages construites en JavaScript) ──
+// On interroge la version HTML de DuckDuckGo avec « site:domaine titre », UN titre à la fois (titre principal puis variantes),
+// et on garde le résultat du site dont le texte / l'adresse ressemble le plus à l'un des titres.
+export function parseDdgResults(html) {
+  const out = [];
+  for (const m of html.matchAll(/<a\b([^>]*\bresult__a\b[^>]*)>([\s\S]*?)<\/a>/gi)) {
+    const href = (m[1].match(/\bhref\s*=\s*"([^"]*)"/i) || [])[1];
+    if (!href) continue;
+    let url = href.replace(/&amp;/g, "&");
+    try { const u = new URL(url, "https://duckduckgo.com"); url = u.searchParams.get("uddg") || u.toString(); } catch { continue; }
+    out.push({ url, text: strip(m[2]) });
+  }
+  return out;
+}
+async function ddgSearch(hostname, titles, opts) {
+  const base = opts.ddgUrl || "https://html.duckduckgo.com/html/";
+  const wanted = baseHost(hostname);
+  for (const [i, t] of titles.slice(0, 5).entries()) {
+    if (i) await new Promise((r) => setTimeout(r, opts.ddgDelayMs ?? 700));
+    let r; try { r = await getText(`${base}?q=${encodeURIComponent(`site:${hostname} ${t}`)}`, opts); } catch { continue; }
+    if (r.status !== 200) break; // limité / captcha : on n'insiste pas
+    let best = null;
+    for (const c of parseDdgResults(r.text)) {
+      let u; try { u = new URL(c.url); } catch { continue; }
+      if (!/^https?:$/.test(u.protocol) || baseHost(u.hostname) !== wanted || u.pathname === "/") continue;
+      const slug = decodeURIComponent(u.pathname.split("/").filter(Boolean).pop() || "").replace(/[-_]+/g, " ");
+      let score = 0;
+      for (const q of titles) score = Math.max(score, similarity(c.text, q), similarity(slug, q) * 0.97);
+      if (score >= 0.55 && (!best || score > best.score)) best = { url: u.toString(), score };
+    }
+    if (best) return best.url;
+  }
+  return null;
+}
+
 const templateMemory = new Map(); // host → modèle qui a déjà fonctionné
 
 /**
@@ -134,7 +169,7 @@ const templateMemory = new Map(); // host → modèle qui a déjà fonctionné
 export async function resolveSiteLink({ host, titles }, opts = {}) {
   const hostname = String(host || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
   if (!opts.baseUrl && !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(hostname)) return { url: null, kind: "none" };
-  const ts = [...new Set((titles || []).map((t) => String(t || "").trim()).filter(Boolean))].slice(0, 4);
+  const ts = [...new Set((titles || []).map((t) => String(t || "").trim()).filter(Boolean))].slice(0, 8);
   if (!ts.length) return { url: null, kind: "none" };
   const attempts = [];
   const extra = ts.map((t) => t.split(/\s+/).slice(0, 4).join(" ")).filter((t) => !ts.includes(t));
@@ -164,5 +199,8 @@ export async function resolveSiteLink({ host, titles }, opts = {}) {
       if (!fallbackSearch && i < discovered) fallbackSearch = r.url;
     }
   }
+  // Aucune fiche trouvée via la recherche du site → moteur de recherche, titre par titre
+  const viaEngine = await ddgSearch(hostname, ts, opts).catch(() => null);
+  if (viaEngine) return { url: viaEngine, kind: "page" };
   return fallbackSearch ? { url: fallbackSearch, kind: "search" } : { url: null, kind: "none" };
 }
