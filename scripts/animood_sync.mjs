@@ -536,14 +536,14 @@ async function jobRescore2m() {
 
   log(`${toRescore?.length||0} anime to rescore at 2m`);
   for(const row of (toRescore||[])) {
-    await rescoreAnime(row.mal_id);
+    await rescoreAnime(row.mal_id, true); // keepWeight=true : à 2 mois on garde le poids Jikan déjà calculé
     await supabase.from("anime_sync_log").update({rescored_2m:true}).eq("mal_id",row.mal_id);
     await sleep(500);
   }
   log("=== rescore-2m done ===");
 }
 
-async function rescoreAnime(malId) {
+async function rescoreAnime(malId, keepWeight=false) {
   try {
     const r = await fetch(`https://api.jikan.moe/v4/anime/${malId}`,{headers:{"Accept":"application/json"}});
     if(!r.ok) return;
@@ -556,9 +556,15 @@ async function rescoreAnime(malId) {
     if(scored_by) updates.scored_by = scored_by;
     if(status) updates.status = status==="Currently Airing"?"Currently Airing":status==="Finished Airing"?"Finished Airing":status;
     if(score) {
-      const weight = calcJikanWeight(scored_by);
-      updates.jikan_weight = weight;
-      updates.animood_score = await calcAnimoodScore(malId, score, weight);
+      let weight;
+      if(keepWeight) {
+        const { data: row } = await supabase.from("anime_cache").select("jikan_weight").eq("mal_id",malId).limit(1);
+        weight = row?.[0]?.jikan_weight || calcJikanWeight(scored_by);
+      } else {
+        weight = calcJikanWeight(scored_by);
+        updates.jikan_weight = weight;
+      }
+      if(weight) updates.animood_score = await calcAnimoodScore(malId, score, weight);
     }
     if(Object.keys(updates).length) {
       await updateAnimeCache(malId, updates);

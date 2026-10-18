@@ -282,4 +282,4 @@ async function main() {
   console.log(`   Seasons updated   : ${seasons}`);
 }
 
-main().catch(console.error);
+main().catch(e => { console.error(e); process.exit(1); }); // code d'erreur : le workflow GitHub passe au rouge
