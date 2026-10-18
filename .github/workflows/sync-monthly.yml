@@ -3,7 +3,7 @@ name: Sync Monthly (trailers + pays)
 # Le 1er de chaque mois : trailers manquants + disponibilité des plateformes par pays (JustWatch via TMDB).
 on:
   schedule:
-    - cron: '0 4 1 * *'  # 1st of the month at 4am UTC
+    - cron: '0 7 1 * *'  # 1st of the month at 7am UTC
   workflow_dispatch:
 
 concurrency:
