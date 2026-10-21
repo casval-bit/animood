@@ -11,6 +11,7 @@ export const FOOTER_I18N = {
     moderationLink: "Signaler un problème",
     legalLink:      "Mentions légales",
     privacyLink:    "Confidentialité",
+    desktopLink:    "📲 Télécharger l'appli",
     rights: (y) => `© ${y} AniMood — Tous droits réservés`,
   },
   en: {
@@ -22,6 +23,7 @@ export const FOOTER_I18N = {
     moderationLink: "Report an Issue",
     legalLink:      "Legal Notice",
     privacyLink:    "Privacy Policy",
+    desktopLink:    "📲 Get the app",
     rights: (y) => `© ${y} AniMood — All rights reserved`,
   },
 };

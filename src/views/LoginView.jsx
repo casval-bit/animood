@@ -8,12 +8,16 @@ import { LOGIN_I18N } from "../constants/loginI18n.js";
 export function LoginView() {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
+  const [inBrowser, setInBrowser] = useState(false); // appli de bureau : connexion ouverte dans le navigateur
   const { lang } = useLang();
   const t = LOGIN_I18N[lang] || LOGIN_I18N.fr;
 
   const handleGoogle = async () => {
     setLoading(true); setError(null);
-    try { await signInWithGoogle(); }
+    try {
+      await signInWithGoogle();
+      if (window.animood?.isDesktop) { setInBrowser(true); setLoading(false); }
+    }
     catch(e) { setError(e.message); setLoading(false); }
   };
 
@@ -44,6 +48,13 @@ export function LoginView() {
           )}
         </button>
 
+        {inBrowser && !error && (
+          <p className="mt-3 text-xs text-slate-400">
+            {lang === "en"
+              ? "Finish signing in in your browser — AniMood will open again automatically."
+              : "Termine la connexion dans ton navigateur — AniMood se rouvrira tout seul."}
+          </p>
+        )}
         {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
 
         <p className="mt-6 text-[11px] leading-relaxed text-slate-600">

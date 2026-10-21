@@ -13,9 +13,9 @@ directories:
   buildResources: build        # build/appx/ contient les logos de tuile (StoreLogo, Square44x44Logo, Square150x150Logo, Wide310x150Logo)
   output: dist-store
 
+# Depuis la v12 l'appli installée charge le site en ligne (electron/main.js) : seule la « coquille » Electron est empaquetée.
 files:
-  - dist/**/*
-  - electron/**/*
+  - electron/**/*       # processus principal, preload, page hors-ligne, icône
   - package.json
 
 win:

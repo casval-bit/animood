@@ -84,6 +84,9 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = request.url;
 
+  // Fichiers à télécharger (APK…) : jamais en cache, le navigateur gère seul
+  if (new URL(url).pathname.startsWith("/downloads/")) return;
+
   // ═══ Static assets: cache-first ════════════════════════════════════════
   if (isStaticAsset(url)) {
     event.respondWith(

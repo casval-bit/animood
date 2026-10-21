@@ -49,9 +49,9 @@ export function DesktopUpdateBanner() {
       </div>
       <button
         onClick={() => {
-          // Tell Electron to quit-and-install
-          window.animood.openExternal("animood://update-now").catch(() => {});
-          // Fallback: reload the app (the updater installs on next launch)
+          // Quit and install now (older app builds without installUpdate install on next quit)
+          if (window.animood.installUpdate) window.animood.installUpdate();
+          else setUpdateReady(false);
         }}
         className="rounded-xl px-3 py-1.5 text-[11px] font-extrabold text-white transition hover:opacity-90"
         style={{ background: GRADIENT_PRIMARY }}
