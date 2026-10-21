@@ -32,12 +32,34 @@ async function freshToken() {
 }
 
 // ─── GOOGLE AUTH ──────────────────────────────────────────────────────────────
+// Appli de bureau : Google refuse la connexion dans une fenêtre d'appli, donc on l'ouvre dans le
+// navigateur de l'utilisateur, qui revient ensuite dans l'appli par animood://auth-callback#access_token=…
+const DESKTOP_AUTH_REDIRECT = "animood://auth-callback";
+
 export async function signInWithGoogle() {
-  const { error } = await supabase.auth.signInWithOAuth({
+  const desktop = typeof window !== "undefined" && window.animood?.isDesktop && window.animood.onAuthCallback;
+  const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: window.location.origin },
+    options: desktop
+      ? { redirectTo: DESKTOP_AUTH_REDIRECT, skipBrowserRedirect: true }
+      : { redirectTo: window.location.origin },
   });
   if(error) throw error;
+  if(desktop && data?.url) await window.animood.openExternal(data.url);
+}
+
+if (typeof window !== "undefined" && window.animood?.onAuthCallback) {
+  window.animood.onAuthCallback(async (url) => {
+    const params = new URLSearchParams(url.split("#")[1] || url.split("?")[1] || "");
+    const access_token = params.get("access_token");
+    const refresh_token = params.get("refresh_token");
+    if (!access_token || !refresh_token) {
+      console.warn("[AniMood] Connexion annulée :", params.get("error_description") || "aucun jeton");
+      return;
+    }
+    const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+    if (error) console.warn("[AniMood] Connexion impossible :", error.message);
+  });
 }
 
 export async function signOut() {

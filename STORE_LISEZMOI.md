@@ -22,7 +22,8 @@ Colle-les dans `electron-builder.store.yml` (section `appx`, à la place des « 
 cd "C:\Users\brice maillard\animoodv12\animoodv12"
 npm run electron:build:store
 ```
-Le fichier `.appx` est créé dans `dist-store\`. (Ne lance jamais `npm install` ici ; si la commande dit « electron-builder introuvable », préviens-moi.)
+Le fichier `.appx` est créé dans `dist-store\`. Depuis la v12, l'appli installée **affiche le site en ligne** (`https://animood-rho.vercel.app`) :
+le paquet ne contient que la coquille Electron, et le site doit donc être en ligne et à jour (déployé sur Vercel) pendant la certification et ensuite. (Ne lance jamais `npm install` ici ; si la commande dit « electron-builder introuvable », préviens-moi.)
 
 ## 4. Tester avant d'envoyer
 - Mode Store sans installer : `$env:ANIMOOD_STORE=1; .\run_desktop.bat` — les plateformes perso disparaissent (voir §6) et la mise à jour automatique est coupée.
@@ -47,9 +48,12 @@ Partner Center → ton app → **Démarrer la soumission** :
 3. **Contenu des utilisateurs** (forum, messages, profils) : le Store attend signalement + modération + blocage (le blocage existe ; vérifier le signalement).
 4. **Images et textes** d'animés (affiches venant de MyAnimeList/AniList) : le Store demande que tout contenu soit sous licence ou autorisé (règle 11.2).
    Le risque est réel mais rarement vérifié en pratique.
-5. L'appli est un vrai logiciel (pas un simple site dans une fenêtre) : elle embarque ses fichiers, ce qui respecte la règle 10.1.
+5. **Appli qui affiche un site** : depuis la v12 l'appli est une fenêtre sur le site en ligne. Les règles 10.1.2 et 10.1.4 exigent une vraie valeur
+   ajoutée par rapport au site (le Store refuse parfois les simples « emballages » de sites) ; la règle 10.1.1 impose que l'éditeur soit propriétaire du site
+   (c'est ton cas). Mets en avant dans la fiche ce que l'appli apporte : bouton des plateformes, lecteur de trailer intégré, notifications, mode hors-ligne.
 
 ## 7. Ce qui est déjà préparé dans le projet
 - `electron-builder.store.yml` + logos de tuile `build/appx/` (générés depuis `logo-mark.png`).
+- Pont `window.animood` : n'accepte plus que les appels venant d'AniMood (site officiel, serveur de développement, page hors-ligne locale).
 - Mode Store : détecté automatiquement (`process.windowsStore`), mises à jour automatiques coupées (le Store s'en charge).
 - Icône de la barre système corrigée dans la version installée.

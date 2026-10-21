@@ -1,9 +1,10 @@
 {
   "name": "animood-final",
   "private": true,
-  "version": "1.0.0",
-  "description": "AniMood — recommandations d'animés selon ton humeur",
-  "author": "AniMood",
+  "version": "12.0.0",
+  "description": "AniMood — découvre des animés selon ton humeur",
+  "author": "AniMood <mousjabie@gmail.com>",
+  "homepage": "https://animood-rho.vercel.app",
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
@@ -16,24 +17,20 @@
     "sync:moods": "node scripts/sync_new_moods.mjs",
     "sync:artists": "node scripts/sync_artists.mjs",
     "sync:weekly": "node --env-file=.env scripts/animood_sync.mjs --job=weekly",
-    "electron:dev": "cross-env NODE_ENV=development concurrently -k \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "vite build --mode electron && electron-builder --config electron-builder.yml",
-    "electron:build:mac": "vite build --mode electron && electron-builder --mac --config electron-builder.yml",
-    "electron:build:win": "vite build --mode electron && electron-builder --win --config electron-builder.yml",
-    "electron:build:store": "vite build --mode electron && electron-builder --win appx --config electron-builder.store.yml",
-    "electron:build:linux": "vite build --mode electron && electron-builder --linux --config electron-builder.yml"
+    "electron:dev": "cross-env ANIMOOD_URL=http://localhost:5173 concurrently -k \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "electron-builder --config electron-builder.yml --publish never",
+    "electron:build:mac": "electron-builder --mac --config electron-builder.yml --publish never",
+    "electron:build:win": "electron-builder --win --config electron-builder.yml --publish never",
+    "electron:build:store": "electron-builder --win appx --config electron-builder.store.yml --publish never",
+    "electron:build:linux": "electron-builder --linux --config electron-builder.yml --publish never"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.110.2",
-    "@tailwindcss/vite": "^4.2.4",
-    "html2canvas": "^1.4.1",
-    "node-fetch": "^3.3.2",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
-    "tailwindcss": "^4.2.4"
+    "electron-updater": "^6.3.9"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@supabase/supabase-js": "^2.110.2",
+    "@tailwindcss/vite": "^4.2.4",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
@@ -41,12 +38,19 @@
     "cross-env": "^7.0.3",
     "electron": "^32.0.0",
     "electron-builder": "^24.13.3",
-    "electron-updater": "^6.3.9",
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "html2canvas": "^1.4.1",
+    "node-fetch": "^3.3.2",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "tailwindcss": "^4.2.4",
     "vite": "^8.0.12",
     "wait-on": "^8.0.3"
+  },
+  "allowScripts": {
+    "electron@32.3.3": true
   }
 }

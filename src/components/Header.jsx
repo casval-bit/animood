@@ -639,7 +639,7 @@ function WebNotificationBell({ onChangeTab, onJoinGame }) {
   );
 }
 
-function WebHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
+function WebHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings, onOpenDownload }) {
   const { me, session, unreadPeers } = useApp();
   const { lang } = useLang();
   const t = HEADER_I18N[lang] || HEADER_I18N.fr;
@@ -683,6 +683,22 @@ function WebHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
             );
           })}
         </nav>
+
+        {onOpenDownload && (
+          <button
+            onClick={onOpenDownload}
+            title={lang === "en" ? "Get the app" : "Télécharger l'appli"}
+            aria-label={lang === "en" ? "Get the app" : "Télécharger l'appli"}
+            className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full px-2.5 text-[12px] font-bold transition hover:scale-105 lg:px-3"
+            style={{ background: "rgba(var(--fg-rgb),.06)", color: "var(--text-2)" }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" />
+              <path d="M8 21h8M12 17v4M12 6v6M9.5 9.5 12 12l2.5-2.5" />
+            </svg>
+            <span className="hidden lg:inline">{lang === "en" ? "App" : "Appli"}</span>
+          </button>
+        )}
 
         <WebNotificationBell onChangeTab={onChangeTab} onJoinGame={onJoinGame} />
 
@@ -1063,9 +1079,9 @@ function DesktopHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
 }
 
 // ── Export principal ───────────────────────────────────────────────────────────
-export function Header({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
+export function Header({ activeTab, onChangeTab, onJoinGame, onOpenSettings, onOpenDownload }) {
   if (isDesktopApp()) {
     return <DesktopHeader activeTab={activeTab} onChangeTab={onChangeTab} onJoinGame={onJoinGame} onOpenSettings={onOpenSettings} />;
   }
-  return <WebHeader activeTab={activeTab} onChangeTab={onChangeTab} onJoinGame={onJoinGame} onOpenSettings={onOpenSettings} />;
+  return <WebHeader activeTab={activeTab} onChangeTab={onChangeTab} onJoinGame={onJoinGame} onOpenSettings={onOpenSettings} onOpenDownload={onOpenDownload} />;
 }

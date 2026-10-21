@@ -42,6 +42,14 @@ contextBridge.exposeInMainWorld("animood", {
     return () => ipcRenderer.off("deep-link-stream", handler);
   },
 
+  // ── Google login (system browser → animood://auth-callback) ──────────────
+  /** @param {(url: string) => void} cb  Returns an unsubscribe function. */
+  onAuthCallback: (cb) => {
+    const handler = (_event, url) => cb(url);
+    ipcRenderer.on("auth-callback", handler);
+    return () => ipcRenderer.off("auth-callback", handler);
+  },
+
   // ── Window controls (custom title bar) ───────────────────────────────────
   minimize: () => ipcRenderer.send("window-minimize"),
   maximize: () => ipcRenderer.send("window-maximize"),
@@ -61,6 +69,12 @@ contextBridge.exposeInMainWorld("animood", {
     ipcRenderer.on("update-available", handler);
     return () => ipcRenderer.off("update-available", handler);
   },
+
+  /** Restart now and install the downloaded update. */
+  installUpdate: () => ipcRenderer.send("install-update"),
+
+  /** Offline page → retry loading the site. */
+  retryLoad: () => ipcRenderer.send("retry-load"),
 
   /** @param {(info: object) => void} cb */
   onUpdateDownloaded: (cb) => {

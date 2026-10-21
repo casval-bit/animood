@@ -1,6 +1,7 @@
 import { useLang } from "../context/useLang.js";
 import { GRADIENT_TEXT } from "../constants/theme.js";
 import { FOOTER_I18N } from "../constants/footerI18n.js";
+import { isInstalledApp } from "../utils/installedApp.js";
 
 export function Footer({ onOpenPage }) {
   const { lang } = useLang();
@@ -26,6 +27,7 @@ export function Footer({ onOpenPage }) {
             {label:t.moderationLink, onClick:()=>onOpenPage?.("moderation")},
             {label:t.legalLink,      onClick:()=>onOpenPage?.("legal")},
             {label:t.privacyLink,    onClick:()=>onOpenPage?.("privacy")},
+            ...(isInstalledApp() ? [] : [{label:t.desktopLink, onClick:()=>onOpenPage?.("download")}]),
           ].map(btn => (
             <button key={btn.label} onClick={btn.onClick}
               className="rounded-full border border-white/10 bg-white/4 px-3 py-1 text-[11px] text-slate-400 transition hover:border-white/20 hover:bg-white/8 hover:text-slate-200">

@@ -1,0 +1,13 @@
+# Vercel ne reçoit que ce qui sert à construire le site (index.html, src/, public/, config)
+.env*
+dist
+dist-electron
+electron
+scripts
+supabase
+*.bat
+*.mjs
+seasons_*.json
+reroll-method.txt
+android
+build-hooks
