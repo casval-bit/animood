@@ -141,7 +141,8 @@ export function parseDdgResults(html) {
 async function ddgSearch(hostname, titles, opts) {
   const base = opts.ddgUrl || "https://html.duckduckgo.com/html/";
   const wanted = baseHost(hostname);
-  for (const [i, t] of titles.slice(0, 5).entries()) {
+  for (const [i, t] of titles.slice(0, 8).entries()) { // TOUS les titres connus (8 au plus), un par un
+    if (opts.until && Date.now() > opts.until) break;   // budget de temps épuisé : l'appli ne doit pas attendre indéfiniment
     if (i) await new Promise((r) => setTimeout(r, opts.ddgDelayMs ?? 700));
     let r; try { r = await getText(`${base}?q=${encodeURIComponent(`site:${hostname} ${t}`)}`, opts); } catch { continue; }
     if (r.status !== 200) break; // limité / captcha : on n'insiste pas
@@ -173,7 +174,8 @@ export async function resolveSiteLink({ host, titles }, opts = {}) {
   if (!ts.length) return { url: null, kind: "none" };
   const attempts = [];
   const extra = ts.map((t) => t.split(/\s+/).slice(0, 4).join(" ")).filter((t) => !ts.includes(t));
-  const queries = [...ts, ...extra].slice(0, 5);
+  const queries = [...ts, ...extra].slice(0, 12); // les titres complets d'abord, puis leurs versions raccourcies
+  const t0 = Date.now(), budget = opts.budgetMs ?? 24000;   // temps total ; la 1re moitié pour la recherche du site, le reste pour le moteur
 
   let base = opts.baseUrl || `https://${hostname}/`, home = null;
   try { home = await getText(base, opts); } catch { if (!opts.baseUrl) { try { base = `http://${hostname}/`; home = await getText(base, opts); } catch { /* injoignable */ } } }
@@ -190,7 +192,8 @@ export async function resolveSiteLink({ host, titles }, opts = {}) {
 
   let fallbackSearch = null;
   for (const [i, tpl] of uniq.entries()) {
-    for (const q of queries.slice(0, i < discovered ? 3 : 1)) {
+    for (const q of queries.slice(0, i < discovered ? queries.length : 1)) {
+      if (Date.now() - t0 > budget / 2) break;
       let r; try { r = await getText(fill(tpl, base, q), opts); } catch { continue; }
       attempts.push(`${tpl} ${r.status}`);
       if (r.status >= 400) break;
@@ -200,7 +203,7 @@ export async function resolveSiteLink({ host, titles }, opts = {}) {
     }
   }
   // Aucune fiche trouvée via la recherche du site → moteur de recherche, titre par titre
-  const viaEngine = await ddgSearch(hostname, ts, opts).catch(() => null);
+  const viaEngine = await ddgSearch(hostname, ts, { ...opts, until: t0 + budget }).catch(() => null);
   if (viaEngine) return { url: viaEngine, kind: "page" };
   return fallbackSearch ? { url: fallbackSearch, kind: "search" } : { url: null, kind: "none" };
 }

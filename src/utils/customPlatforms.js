@@ -203,7 +203,7 @@ export async function resolveCustomUrl(platform, anime) {
     if (typeof window !== "undefined" && window.animood?.resolveSiteLink) {
       const titles = await collectTitles(anime);
       try {
-        const r = await Promise.race([window.animood.resolveSiteLink({ host: hostOf(platform.url), titles }), new Promise((res) => setTimeout(() => res(null), 25000))]);
+        const r = await Promise.race([window.animood.resolveSiteLink({ host: hostOf(platform.url), titles }), new Promise((res) => setTimeout(() => res(null), 35000))]);
         if (r?.url && r.kind === "page") { setAutoLink(platform.id, anime, r.url); return { url: r.url, kind: "page" }; }
         if (r?.url && r.kind === "search") return { url: r.url, kind: "search" };
       } catch { /* on retombe sur le lien de secours */ }
