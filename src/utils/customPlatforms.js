@@ -4,7 +4,7 @@
 //   • le modèle de lien avec ses variables remplacées ({slug}, {slug_jp}, {title}, {id}), sinon
 //   • le lien de base + "/" + nom-de-l-anime-en-slug.
 // Tout est stocké sur l'ordinateur (localStorage) — rien n'est envoyé à un serveur.
-import { titleToSlug, cleanTitle, isDesktopApp } from "./streamingLinks.js";
+import { titleToSlug, cleanTitle, isDesktopApp, isStoreApp } from "./streamingLinks.js";
 
 const K_PLATFORMS = "animood_custom_platforms";
 const K_LINKS = "animood_custom_links";
@@ -14,7 +14,7 @@ const read = (k, fb) => { try { const v = JSON.parse(localStorage.getItem(k)); r
 const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* stockage indisponible */ } window.dispatchEvent(new Event(EVT)); };
 
 export const CUSTOM_PLATFORMS_EVENT = EVT;
-export const getCustomPlatforms = () => (isDesktopApp() ? read(K_PLATFORMS, []).filter((p) => p && p.id && p.name && p.url) : []);
+export const getCustomPlatforms = () => (isDesktopApp() && !isStoreApp() ? read(K_PLATFORMS, []).filter((p) => p && p.id && p.name && p.url) : []);
 
 /** Normalise un lien saisi : ajoute https:// si absent. Renvoie "" si invalide. */
 export function normaliseUrl(raw = "") {
@@ -116,16 +116,35 @@ export async function getAnilistId(anime) {
   return getCachedAnilistId(anime) ?? (await fetchAnilist(anime))?.id ?? null;
 }
 
+// Titres alternatifs stockés en base (colonne anime_cache.alt_titles, remplie par scripts/sync_alt_titles.mjs).
+// La fiche d'animé n'a pas toujours cette colonne : on la lit à la demande, une seule fois par animé et par session.
+const altFromDb = new Map();
+async function fetchAltTitles(anime) {
+  const id = Number(anime?.mal_id); if(!id) return [];
+  if(altFromDb.has(id)) return altFromDb.get(id);
+  let list = [];
+  try {
+    const { sb } = await import("../api/supabase.js");
+    const rows = await sb.query(`anime_cache?mal_id=eq.${id}&select=alt_titles&limit=1`);
+    if(Array.isArray(rows?.[0]?.alt_titles)) list = rows[0].alt_titles;
+  } catch { /* colonne absente, hors-ligne… : on se rabat sur AniList */ }
+  altFromDb.set(id, list);
+  return list;
+}
+
 /**
- * Toutes les variantes de titre connues, dans l'ordre d'essai : titre anglais, titre de la base, synonymes / titres
- * alternatifs stockés, puis variantes AniList (mises en cache). Seuls les titres en alphabet latin servent à chercher.
+ * Toutes les variantes de titre connues, dans l'ordre d'essai : titre anglais, titre de la base, titres alternatifs
+ * stockés en base (AniList + MAL), puis — seulement si la base n'en a pas — variantes lues sur AniList (mises en cache).
+ * Seuls les titres en alphabet latin servent à chercher.
  */
 export async function collectTitles(anime, { online = true } = {}) {
   const stored = [anime?.title_english, anime?.title_en, anime?.title, ...(Array.isArray(anime?.title_synonyms) ? anime.title_synonyms : []), ...(Array.isArray(anime?.titles) ? anime.titles.map((t) => t?.title) : [])];
+  let dbAlt = Array.isArray(anime?.alt_titles) ? anime.alt_titles : null;
+  if(!dbAlt && online) dbAlt = await fetchAltTitles(anime);
   let extra = (anime?.mal_id && read(K_ALT, {})[anime.mal_id]) || [];
-  if(online && !extra.length && anime?.mal_id) extra = (await fetchAnilist(anime))?.titles || [];
+  if(online && !extra.length && !(dbAlt && dbAlt.length) && anime?.mal_id) extra = (await fetchAnilist(anime))?.titles || [];
   const seen = new Set(), out = [];
-  for(const t of [...stored, ...extra]) {
+  for(const t of [...stored, ...(dbAlt || []), ...extra]) {
     const v = String(t || "").trim(); if(!v || !/[A-Za-z]{2}/.test(v)) continue;
     const k = v.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); if(!k || seen.has(k)) continue;
     seen.add(k); out.push(v);
