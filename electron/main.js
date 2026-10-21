@@ -13,6 +13,7 @@
 import { app, BrowserWindow, ipcMain, shell, protocol, Menu, Tray, nativeImage, session } from "electron";
 import { createRequire } from "module";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import { resolveSiteLink } from "./siteResolver.js";
 
@@ -23,9 +24,13 @@ const isDev = process.env.NODE_ENV !== "production";
 // Sécurité : on n'ouvre dans le navigateur système QUE des liens http(s) — jamais file://, javascript:, ms-msdt:, etc.
 const safeHttpUrl = (u) => { try { const x = new URL(String(u)); return x.protocol === "https:" || x.protocol === "http:" ? x.toString() : null; } catch { return null; } };
 
-// ── Auto-updater (only in production) ─────────────────────────────────────────
+// Installé depuis le Microsoft Store (paquet MSIX) : Electron met process.windowsStore à true.
+// ANIMOOD_STORE=1 permet de tester ce mode sur un lancement normal (ex. $env:ANIMOOD_STORE=1; .\run_desktop.bat).
+const IS_STORE = !!process.windowsStore || process.env.ANIMOOD_STORE === "1";
+
+// ── Auto-updater (only in production, jamais dans la version Store : c'est le Store qui met à jour) ──────────
 let autoUpdater = null;
-if (!isDev) {
+if (!isDev && !IS_STORE) {
   try {
     const { autoUpdater: au } = require("electron-updater");
     autoUpdater = au;
@@ -62,6 +67,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true, // le preload n'utilise que contextBridge/ipcRenderer
+      additionalArguments: IS_STORE ? ["--animood-store"] : [], // lu par preload.cjs → window.animood.isStore
       webSecurity: true,
       allowRunningInsecureContent: false,
     },
@@ -105,7 +111,8 @@ function createWindow() {
 
 // ── Tray icon ──────────────────────────────────────────────────────────────────
 function createTray() {
-  const iconPath = path.join(__dirname, "../public/logo-mark.png");
+  // Version installée : seul dist/ est embarqué (public/ n'existe qu'en développement)
+  const iconPath = [path.join(__dirname, "../dist/logo-mark.png"), path.join(__dirname, "../public/logo-mark.png")].find((p) => fs.existsSync(p)) || path.join(__dirname, "../public/logo-mark.png");
   const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
   tray = new Tray(icon);
   tray.setToolTip("AniMood");

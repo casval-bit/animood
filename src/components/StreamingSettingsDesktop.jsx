@@ -1,6 +1,7 @@
 // ─── DESKTOP ONLY — Paramètres → Streaming : pays, plateformes perso, VPN ────
 import { useEffect, useState } from "react";
 import { REGIONS, getUserRegion, setUserRegion, REGION_EVENT } from "../utils/streamingRegions.js";
+import { isStoreApp } from "../utils/streamingLinks.js";
 import { getCustomPlatforms, deleteCustomPlatform, addPlatformFromInput, CUSTOM_PLATFORMS_EVENT } from "../utils/customPlatforms.js";
 import { VPNS, openExternalUrl } from "../utils/vpnList.js";
 import { CustomPlatformsModal, PlatformIcon } from "./CustomPlatformsModal.jsx";
@@ -45,7 +46,7 @@ export function StreamingSettingsDesktop({ lang = "fr", Section, playSound = () 
         <p className="mt-3 text-[10px] leading-relaxed text-slate-600">{en ? "More countries will be added over time. Availability data: JustWatch, via TMDB." : "D'autres pays seront ajoutés avec le temps. Données de disponibilité : JustWatch, via TMDB."}</p>
       </Section>
 
-      <Section title={en ? "My streaming platforms" : "Mes plateformes perso"}>
+      {!isStoreApp() && <Section title={en ? "My streaming platforms" : "Mes plateformes perso"}>
         <p className="mb-3 text-xs leading-relaxed text-slate-500">{en ? "Type the site address once (e.g. mysite.com): its button then appears on every anime and finds the right page by itself, from the anime name. Nothing to re-enter. If a site can't be read automatically: open ONE anime there, right-click its button on the anime page and paste the address — the app then learns the site's pattern for all the others." : "Tape l'adresse du site une seule fois (ex. monsite.com) : son bouton apparaît ensuite sur tous les animés et retrouve la bonne page tout seul, d'après le nom de l'animé. Rien à ressaisir. Si un site ne se laisse pas lire automatiquement : ouvre UN animé dessus, fais clic droit sur son bouton dans la fiche de l'animé et colle l'adresse — l'appli apprend alors le modèle du site pour tous les autres."}</p>
         <p className="mb-3 text-[10.5px] leading-relaxed text-slate-600">{en ? "AniMood provides no site list and hosts nothing: it only opens the address you typed, so you are responsible for the sites you add and for respecting their terms and your local law." : "AniMood ne fournit aucune liste de sites et n'héberge rien : l'appli ouvre seulement l'adresse que tu as saisie. Tu es responsable des sites que tu ajoutes (respect de leurs conditions et de la loi de ton pays)."}</p>
         <div className="mb-3 flex gap-2">
@@ -68,7 +69,7 @@ export function StreamingSettingsDesktop({ lang = "fr", Section, playSound = () 
         )}
         <button onClick={() => setModal(true)} className="rounded-xl px-4 py-2.5 text-[12px] font-extrabold text-white" style={{ background: GRADIENT_PRIMARY }}>＋ {en ? "Advanced options / manage" : "Options avancées / gérer"}</button>
         {modal && <CustomPlatformsModal lang={lang} onClose={() => setModal(false)} />}
-      </Section>
+      </Section>}
 
       <Section title="VPN">
         <p className="mb-3 text-xs leading-relaxed text-slate-500">

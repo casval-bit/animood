@@ -1,0 +1,35 @@
+# ─── Paquet pour le MICROSOFT STORE (MSIX/AppX) ─────────────────────────────────────────────────────────────────
+# Commande (sur Windows) :  npm run electron:build:store      → fichier .appx dans dist-store\
+# Le guide complet est dans STORE_LISEZMOI.md. Le Store signe lui-même le paquet : aucun certificat à acheter.
+#
+# ⚠️ Remplace les 3 valeurs « REMPLACE… » ci-dessous par celles de Partner Center
+#    (ton app → Gestion des produits → Identité du produit). Ce ne sont pas des secrets.
+
+appId: com.animood.desktop
+productName: AniMood
+copyright: "Copyright © 2025 AniMood"
+
+directories:
+  buildResources: build        # build/appx/ contient les logos de tuile (StoreLogo, Square44x44Logo, Square150x150Logo, Wide310x150Logo)
+  output: dist-store
+
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+
+win:
+  target:
+    - target: appx
+      arch: [x64]
+  icon: public/logo-mark.png
+
+appx:
+  applicationId: AniMood
+  identityName: "REMPLACE_Package_Identity_Name"                  # ex. 12345ABC.AniMood
+  publisher: "CN=REMPLACE-Package-Identity-Publisher"             # ex. CN=XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+  publisherDisplayName: "REMPLACE_Nom_Editeur"                    # nom affiché dans le Store
+  displayName: AniMood
+  languages: [fr-FR, en-US]
+  backgroundColor: "#0d0b18"
+  showNameOnTiles: false

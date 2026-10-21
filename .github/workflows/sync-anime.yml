@@ -54,6 +54,11 @@ jobs:
         continue-on-error: true
         run: node scripts/animood_sync.mjs --job=streaming 2>&1 | tee /tmp/streaming_log.txt
 
+      - name: Alternative titles (custom streaming platforms)
+        id: sync_titles
+        continue-on-error: true
+        run: node scripts/sync_alt_titles.mjs 2>&1 | tee /tmp/titles_log.txt
+
       - name: Expand Quiz OP opening pool
         id: sync_opquiz
         continue-on-error: true
@@ -73,5 +78,6 @@ jobs:
           show "📺 New anime + scores" "${{ steps.sync_anime.outcome }}" /tmp/anime_log.txt 8
           show "🗓️ Weekly job (moods v4, broadcast, rescore)" "${{ steps.sync_weekly.outcome }}" /tmp/weekly_log.txt 5
           show "📡 Streaming platforms" "${{ steps.sync_streaming.outcome }}" /tmp/streaming_log.txt 3
+          show "🔤 Alternative titles" "${{ steps.sync_titles.outcome }}" /tmp/titles_log.txt 3
           show "🎵 Quiz OP pool" "${{ steps.sync_opquiz.outcome }}" /tmp/opquiz_log.txt 5
           show "🎤 Artist cache" "${{ steps.sync_artists.outcome }}" /tmp/artists_log.txt 3

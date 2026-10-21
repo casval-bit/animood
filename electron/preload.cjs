@@ -79,4 +79,6 @@ contextBridge.exposeInMainWorld("animood", {
   // ── Platform detection ───────────────────────────────────────────────────
   platform: process.platform, // "darwin" | "win32" | "linux"
   isDesktop: true,
+  /** true quand l'appli est installée depuis le Microsoft Store (certaines fonctions y sont désactivées) */
+  isStore: process.argv.includes("--animood-store"),
 });

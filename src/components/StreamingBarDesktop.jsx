@@ -2,7 +2,7 @@
 // Même logique que l’ancien StreamingButtons (liens directs Jikan, sinon recherche sur la plateforme),
 // présentée en pastilles compactes avec le logo de chaque service.
 import { useEffect, useState } from "react";
-import { STREAMING_SERVICES, DEFAULT_SHOW_SERVICES, openStreamingLink, getConfirmedServices, normaliseServiceName } from "../utils/streamingLinks.js";
+import { STREAMING_SERVICES, DEFAULT_SHOW_SERVICES, openStreamingLink, getConfirmedServices, normaliseServiceName, isStoreApp } from "../utils/streamingLinks.js";
 import { useSound } from "../context/SoundContext.jsx";
 import { StreamingLogo, logoColor } from "./StreamingLogos.jsx";
 import { getCustomPlatforms, openCustomPlatform, getExactLink, platformColor, CUSTOM_PLATFORMS_EVENT } from "../utils/customPlatforms.js";
@@ -90,11 +90,11 @@ export function StreamingBarDesktop({ anime, streamingNames, lang = "fr" }) {
           </button>
         );
       })}
-      <button onClick={() => { playSound("click"); setManage(true); }}
+      {!isStoreApp() && <button onClick={() => { playSound("click"); setManage(true); }}
         title={en ? "Add your own streaming platform" : "Ajouter ta propre plateforme de streaming"}
         className="flex h-9 items-center gap-1.5 rounded-xl border border-dashed border-white/15 px-3 text-[11px] font-bold text-slate-400 transition hover:border-violet-400/60 hover:text-violet-300">
         <span className="text-[14px] leading-none">+</span>{custom.length === 0 ? (en ? "My platform" : "Ma plateforme") : null}
-      </button>
+      </button>}
       <div className="relative ml-auto">
         <button onClick={() => setRegionMenu((v) => !v)} title={avail.known ? (en ? `Availability in ${reg.en} (JustWatch)` : `Disponibilité en ${reg.fr} (JustWatch)`) : (en ? `Region: ${reg.en} — not checked yet for this anime` : `Pays : ${reg.fr} — pas encore vérifié pour cet animé`)}
           className="flex h-9 items-center gap-1.5 rounded-xl border border-white/10 px-2.5 text-[11px] font-bold text-slate-300 transition hover:border-white/25">

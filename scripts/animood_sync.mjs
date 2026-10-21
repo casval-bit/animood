@@ -26,6 +26,7 @@
 // run_trailers.bat, run_moods.bat at the project root.
 
 import { createClient } from "@supabase/supabase-js";
+import { buildAltTitles } from "./lib/altTitles.mjs";
 
 const CFG = {
   SUPABASE_URL:         process.env.SUPABASE_URL         || "https://pjkvhhxwjzpmxmhdhwcp.supabase.co",
@@ -201,7 +202,7 @@ async function jobNewAnime() {
   const maxInDB = Math.max(...[...existing].filter(id => id < 99999));
   log(`Max mal_id in DB: ${maxInDB}`);
   
-  const alQuery = `query($page:Int){Page(page:$page,perPage:50){pageInfo{hasNextPage}media(type:ANIME,sort:ID_DESC){idMal title{romaji english}description(asHtml:false)averageScore popularity status startDate{year}episodes format genres coverImage{large}studios(isMain:true){nodes{name}}nextAiringEpisode{airingAt}trailer{id site}}}}`;
+  const alQuery = `query($page:Int){Page(page:$page,perPage:50){pageInfo{hasNextPage}media(type:ANIME,sort:ID_DESC){idMal title{romaji english}description(asHtml:false)averageScore popularity status startDate{year}episodes format synonyms genres coverImage{large}studios(isMain:true){nodes{name}}nextAiringEpisode{airingAt}trailer{id site}}}}`;
   
   let page = 1, hasNext = true;
   while(hasNext && page <= 10) {
@@ -221,6 +222,7 @@ async function jobNewAnime() {
           scored_by: a.popularity||null,
           year: a.startDate?.year||null,
           episodes: a.episodes||null,
+          alt_titles: buildAltTitles([a.title?.english, a.title?.romaji, a.synonyms||[]]), // essais de recherche des plateformes perso (appli de bureau)
           type: a.format==="TV"?"TV":a.format==="MOVIE"?"Movie":a.format==="OVA"?"OVA":a.format==="ONA"?"ONA":"Special",
           status: a.status==="RELEASING"?"Currently Airing":a.status==="FINISHED"?"Finished Airing":"Not yet aired",
           image_url: a.coverImage?.large||null,
@@ -248,8 +250,13 @@ async function jobNewAnime() {
   let failed=0;
   for(let i=0; i<rows.length; i+=10) {
     const batch = rows.slice(i,i+10);
-    const { error } = await supabase.from("anime_cache")
+    let { error } = await supabase.from("anime_cache")
       .upsert(batch, {onConflict:"mal_id", ignoreDuplicates:true});
+    if(error && /alt_titles/.test(error.message)) { // colonne pas encore créée (supabase/alt_titles_schema.sql) : on insère sans
+      log("  ⚠️ colonne alt_titles absente — exécute supabase/alt_titles_schema.sql ; insertion sans titres alternatifs");
+      rows.forEach(r => delete r.alt_titles);
+      ({ error } = await supabase.from("anime_cache").upsert(batch, {onConflict:"mal_id", ignoreDuplicates:true}));
+    }
     if(error) { log(`Insert error: ${error.message}`); failed+=batch.length; }
     else inserted.push(...batch);
     await sleep(100);
