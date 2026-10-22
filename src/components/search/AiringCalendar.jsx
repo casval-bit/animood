@@ -12,6 +12,7 @@ let airingCache = null;
 
 // ONA / OVA (ex. des séries Netflix comme JoJo Steel Ball Run) sont chargés
 // à part : une seule requête triée par note les noierait sous les séries TV.
+// (ils ne sont gardés que s'ils ont un jour de diffusion — voir fetchAiringAnime)
 const AIRING_SELECT = "mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,broadcast,streaming";
 const SPECIAL_TYPES = new Set(["ONA", "OVA"]);
 // Petite étiquette pour distinguer ce qui n'est pas une série TV classique.
@@ -30,7 +31,9 @@ async function fetchAiringAnime() {
   if(rows?.length) {
     airingCache = [
       ...rows.filter(a => a.type === "TV"),
-      ...(extra || []).filter(a => SPECIAL_TYPES.has(a.type)),
+      // ONA/OVA : seulement ceux qui ont un vrai jour de sortie (série hebdo type Netflix). Beaucoup d'OAV restent
+      // « Currently Airing » sur MAL alors qu'ils sortent en un bloc ou au compte-gouttes : pas de place dans un calendrier.
+      ...(extra || []).filter(a => SPECIAL_TYPES.has(a.type) && getBroadcastDay(a)),
     ];
   } else {
     const res = await fetch("https://api.jikan.moe/v4/seasons/now?limit=50").catch(()=>null);

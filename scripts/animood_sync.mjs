@@ -272,6 +272,83 @@ async function jobNewAnime() {
   log("=== new-anime done ===");
 }
 
+// ── JOB: refresh-airing ───────────────────────────────────────────────────────
+// Remet à jour le STATUT de tout ce qui est « Currently Airing » ou « Not yet aired » (TV, ONA, OVA).
+// Sans ça, une série terminée reste dans le calendrier pour toujours, et une série qui vient de commencer
+// (ex. JoJo Steel Ball Run) reste « Not yet aired » donc n'apparaît jamais : les autres jobs ne le font
+// que pour les anime notés (top 5000) ou à 2 semaines / 2 mois après la 1re diffusion.
+// Source : AniList (50 anime par requête, rapide) ; Jikan en secours pour ceux qu'AniList ne connaît pas.
+const AL_STATUS = { RELEASING:"Currently Airing", HIATUS:"Currently Airing", FINISHED:"Finished Airing", CANCELLED:"Finished Airing", NOT_YET_RELEASED:"Not yet aired" };
+const DAYS_EN = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+// Jour + heure de diffusion au format du site (heure du Japon ; le calendrier la convertit à ton fuseau)
+function jstSlot(airingAt) {
+  const d = new Date(airingAt*1000 + 9*3600*1000);
+  return { day: DAYS_EN[d.getUTCDay()], time: `${String(d.getUTCHours()).padStart(2,"0")}:${String(d.getUTCMinutes()).padStart(2,"0")}`, timezone: "Asia/Tokyo" };
+}
+async function jobRefreshAiring() {
+  log("=== JOB: refresh-airing ===");
+  const rows = [];
+  for(const status of ["Currently Airing","Not yet aired"]) {
+    let from = 0;
+    while(true) {
+      const { data, error } = await supabase.from("anime_cache")
+        .select("mal_id,title,type,status,episodes,broadcast")
+        .in("type",["TV","ONA","OVA"]).eq("status",status).range(from, from+999);
+      if(error) { log(`  ❌ lecture ${status}: ${error.message}`); break; }
+      if(!data?.length) break;
+      rows.push(...data);
+      if(data.length < 1000) break;
+      from += 1000;
+    }
+  }
+  log(`${rows.length} anime à vérifier (en cours + à venir)`);
+
+  const q = `query($ids:[Int]){Page(perPage:50){media(idMal_in:$ids,type:ANIME){idMal status episodes nextAiringEpisode{airingAt}}}}`;
+  const found = new Map();
+  for(let i=0; i<rows.length; i+=50) {
+    const ids = rows.slice(i,i+50).map(r=>r.mal_id);
+    try {
+      const d = await anilistQuery(q, {ids});
+      for(const m of (d?.data?.Page?.media||[])) if(m.idMal) found.set(m.idMal, m);
+    } catch(e) { log(`  ⚠️ AniList (lot ${i/50+1}) : ${e.message}`); }
+    await sleep(1100);
+  }
+
+  let changed=0, unknown=[];
+  for(const r of rows) {
+    const m = found.get(r.mal_id);
+    if(!m) { unknown.push(r); continue; }
+    const updates = {};
+    const next = AL_STATUS[m.status];
+    // AniList passe à RELEASING à la 1re diffusion : on ne fait jamais repasser en « à venir » une série déjà lancée
+    if(next && next !== r.status && !(next==="Not yet aired" && r.status!=="Not yet aired")) updates.status = next;
+    if(m.episodes && m.episodes !== r.episodes) updates.episodes = m.episodes;
+    // Jour/heure : seulement si on n'en a pas encore (ne remplace jamais ce que Jikan a fourni)
+    if(!r.broadcast && m.nextAiringEpisode?.airingAt) updates.broadcast = jstSlot(m.nextAiringEpisode.airingAt);
+    if(Object.keys(updates).length) {
+      await updateAnimeCache(r.mal_id, updates);
+      changed++;
+      log(`  ✅ ${r.title} [${r.type}] : ${Object.entries(updates).map(([k,v])=>`${k}=${typeof v==="object"?JSON.stringify(v):v}`).join(", ")}${updates.status?` (avant : ${r.status})`:""}`);
+    }
+  }
+
+  // Inconnus d'AniList : on demande à Jikan (lent, plafonné)
+  for(const r of unknown.slice(0,150)) {
+    try {
+      const res = await fetch(`https://api.jikan.moe/v4/anime/${r.mal_id}`,{headers:{"Accept":"application/json"}});
+      if(res.ok) {
+        const st = (await res.json())?.data?.status;
+        if(st && st !== r.status && !(st==="Not yet aired" && r.status!=="Not yet aired")) {
+          await updateAnimeCache(r.mal_id, {status: st}); changed++;
+          log(`  ✅ [Jikan] ${r.title} : ${r.status} → ${st}`);
+        }
+      }
+    } catch {}
+    await sleep(450);
+  }
+  log(`=== refresh-airing done: ${changed} mis à jour sur ${rows.length} (${unknown.length} inconnus d'AniList) ===`);
+}
+
 // ── JOB: broadcast ────────────────────────────────────────────────────────────
 async function jobBroadcast() {
   log("=== JOB: broadcast ===");
@@ -622,6 +699,7 @@ log("✅ Supabase connected");
 
 switch(job) {
   case "new-anime":    await jobNewAnime();    break;
+  case "refresh-airing": await jobRefreshAiring(); break;
   case "broadcast":    await jobBroadcast();   break;
   case "streaming":    await jobStreaming();    break;
   case "trailers":     await jobTrailers();    break;
@@ -631,6 +709,7 @@ switch(job) {
   case "moods":        await jobMoods();       break;
   case "weekly":
     await jobNewAnime();
+    await jobRefreshAiring();
     await jobBroadcast();
     await jobNewScores();
     await jobMoods();
@@ -643,6 +722,7 @@ Usage: node --env-file=.env scripts/animood_sync.mjs --job=<job>
 
 Jobs:
   new-anime    Weekly  — add new anime from AniList (INSERT only, never updates)
+  refresh-airing Weekly — update status (airing / finished / upcoming), episodes, broadcast day of everything airing or upcoming
   broadcast    Weekly  — patch missing broadcast days (Jikan + AniList)
   streaming    Weekly  — fetch streaming platforms per anime (Jikan, slow: every TV anime)
   trailers     Monthly — fetch missing trailers (Jikan, upcoming first)
@@ -650,7 +730,7 @@ Jobs:
   rescore-2w   Weekly  — refresh score/status 2 weeks after first airing
   rescore-2m   Weekly  — refresh score/status 2 months after first airing
   moods        Weekly  — assign moods to airing/upcoming anime missing them
-  weekly       Weekly  — new-anime, broadcast, new-scores, moods, rescore-2w, rescore-2m
+  weekly       Weekly  — new-anime, refresh-airing, broadcast, new-scores, moods, rescore-2w, rescore-2m
 `);
 }
 log("=== Done ===");
