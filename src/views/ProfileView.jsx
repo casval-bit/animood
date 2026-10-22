@@ -666,6 +666,10 @@ const HUD_CSS = `
 @keyframes bar-fill {
   0%   { width: 0; }
 }
+@keyframes hg-rise {
+  0%   { transform: scaleY(0); opacity: 0; }
+  100% { transform: scaleY(1); opacity: 1; }
+}
 @keyframes hud-flicker {
   0%, 95%, 100% { opacity: 1; }
   96% { opacity: 0.85; }
@@ -820,46 +824,43 @@ function HudPanel({ me, rated, myUsername, unlockedBadges, activeBadge, onOpenBa
         </div>
 
         {rated.length > 0 ? (
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 80, position: "relative" }}>
-            {/* Data stream scanner */}
-            <div style={{
-              position: "absolute", top: 0, bottom: 0, width: 1,
-              background: "linear-gradient(180deg, transparent, rgba(139,92,246,0.4), transparent)",
-              animation: "hud-data-stream 4s linear infinite",
-              pointerEvents: "none",
-              left: "50%",
-            }} />
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 96, position: "relative", padding: "0 2px", borderBottom: "1px solid rgba(167,139,250,0.22)" }}>
             {histoData.map(({ score, count }) => {
-              const heightPx = count > 0 ? Math.max(Math.round((count / histoMax) * 76), 4) : 0;
-              const isHigh = score >= 8;
-              const isMid = score >= 5 && score < 8;
-              const barColor = isHigh
-                ? "linear-gradient(180deg, #a855f7, #6366f1)"
-                : isMid
-                  ? "linear-gradient(180deg, #4f46e5, #3730a3)"
-                  : "linear-gradient(180deg, #374151, #1f2937)";
+              const heightPx = count > 0 ? Math.max(Math.round((count / histoMax) * 62), 6) : 0;
+              const isPeak = count > 0 && count === histoMax;
+              // Une seule famille de couleurs (violet → fuchsia) : plus la note est haute, plus c'est lumineux
+              const hue = 262 + (score - 1) * 5;
+              const top = `hsl(${hue} 95% ${72 + score}%)`;
+              const mid = `hsl(${hue} 85% 58%)`;
+              const bot = `hsl(${hue - 6} 75% 38%)`;
               return (
-                <div key={score} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                <div key={score} title={count > 0 ? `${score}/10 · ${count}` : undefined}
+                  style={{ flex: 1, height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 3 }}>
                   {count > 0 && (
-                    <div style={{ fontSize: 7, fontWeight: 700, color: isHigh ? "#c4b5fd" : "rgba(100,116,139,0.6)" }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: isPeak ? "#f5d0fe" : "rgba(196,181,253,0.8)", textShadow: isPeak ? "0 0 8px rgba(232,121,249,0.8)" : "none" }}>
                       {count}
                     </div>
                   )}
                   <div style={{
-                    flex: 1, width: "100%",
-                    display: "flex", alignItems: "flex-end",
+                    position: "relative", overflow: "hidden", width: "100%",
+                    height: heightPx,
+                    background: count > 0 ? `linear-gradient(180deg, ${top} 0%, ${mid} 38%, ${bot} 100%)` : "rgba(167,139,250,0.07)",
+                    borderRadius: "5px 5px 2px 2px",
+                    boxShadow: count > 0
+                      ? `0 0 ${isPeak ? 16 : 9}px hsl(${hue} 90% 60% / ${isPeak ? 0.7 : 0.38}), inset 0 1px 0 rgba(255,255,255,0.55), inset 0 -8px 10px rgba(0,0,0,0.18)`
+                      : "none",
+                    transformOrigin: "bottom",
+                    animation: count > 0 ? `hg-rise 0.7s cubic-bezier(.22,1,.36,1) ${score * 45}ms both` : "none",
+                    transition: "height 0.5s ease",
                   }}>
-                    <div style={{
-                      width: "100%",
-                      height: heightPx,
-                      background: barColor,
-                      borderRadius: "3px 3px 2px 2px",
-                      boxShadow: isHigh && count > 0 ? "0 0 6px rgba(168,85,247,0.5)" : "none",
-                      animation: "bar-fill 0.8s ease-out",
-                      transition: "height 0.5s ease",
-                    }} />
+                    {count > 0 && <>
+                      {/* reflet vitré sur la moitié gauche */}
+                      <div style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: "42%", background: "linear-gradient(90deg, rgba(255,255,255,0.32), rgba(255,255,255,0))", pointerEvents: "none" }} />
+                      {/* éclat qui balaye la barre */}
+                      <div style={{ position: "absolute", top: 0, bottom: 0, width: "55%", background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.65), transparent)", animation: `bd-shine 5.5s ease-in-out ${score * 0.35}s infinite`, pointerEvents: "none" }} />
+                    </>}
                   </div>
-                  <div style={{ fontSize: 7, fontWeight: 600, color: "rgba(100,116,139,0.4)" }}>{score}</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: count > 0 ? "rgba(196,181,253,0.75)" : "rgba(100,116,139,0.45)" }}>{score}</div>
                 </div>
               );
             })}
