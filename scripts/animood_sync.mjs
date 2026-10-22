@@ -168,10 +168,6 @@ async function anilistQuery(query, variables) {
 
 function anilistToRow(a) {
   const status = a.status==="RELEASING"?"Currently Airing":a.status==="FINISHED"?"Finished Airing":a.status==="NOT_YET_RELEASED"?"Not yet aired":"Unknown";
-  let broadcastDay = null;
-  if(a.nextAiringEpisode?.airingAt) {
-    broadcastDay = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date(a.nextAiringEpisode.airingAt*1000).getDay()];
-  }
   return {
     mal_id: a.idMal,
     title: a.title?.romaji||"",
@@ -187,7 +183,7 @@ function anilistToRow(a) {
     large_image: a.coverImage?.large||null,
     genres: (a.genres||[]).map(g=>({name:g})),
     studios: (a.studios?.nodes||[]).map(s=>({name:s.name})),
-    broadcast: broadcastDay?{day:broadcastDay}:null,
+    broadcast: a.nextAiringEpisode?.airingAt ? jstSlot(a.nextAiringEpisode.airingAt) : null, // jour + heure du Japon (le calendrier les convertit à ton fuseau)
     trailer: a.trailer?.site==="youtube"?{url:`https://www.youtube.com/watch?v=${a.trailer.id}`,youtube_id:a.trailer.id}:null,
     fetched_at: new Date().toISOString(),
   };
@@ -258,7 +254,7 @@ async function jobNewAnime() {
           large_image: a.coverImage?.large||null,
           genres: (a.genres||[]).map(g=>({name:g})),
           studios: (a.studios?.nodes||[]).map(s=>({name:s.name})),
-          broadcast: a.nextAiringEpisode?.airingAt?{day:["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date(a.nextAiringEpisode.airingAt*1000).getDay()]}:null,
+          broadcast: a.nextAiringEpisode?.airingAt ? jstSlot(a.nextAiringEpisode.airingAt) : null,
           trailer: a.trailer?.id&&a.trailer?.site==="youtube"?{url:`https://www.youtube.com/watch?v=${a.trailer.id}`,youtube_id:a.trailer.id}:null,
           fetched_at: new Date().toISOString(),
         });
@@ -336,7 +332,7 @@ async function loadOpenRows(columns) {
 // Renvoie { started: [ids passés « en cours »], finished: [ids passés « terminé »] } pour déclencher les jobs qui suivent
 async function jobRefreshAiring() {
   log("=== JOB: refresh-airing ===");
-  const { rows } = await loadOpenRows("mal_id,title,type,status,episodes");
+  const { rows } = await loadOpenRows("mal_id,title,type,status,episodes,broadcast");
   const started = [], finished = [];
   const noteStatus = (r, st) => {
     if(st === "Currently Airing" && r.status === "Not yet aired") started.push(r.mal_id);
@@ -344,7 +340,7 @@ async function jobRefreshAiring() {
   };
   log(`${rows.length} anime à vérifier (en cours + à venir : TV, ONA, OVA, films, spéciaux)`);
 
-  const q = `query($ids:[Int]){Page(perPage:50){media(idMal_in:$ids,type:ANIME){idMal status episodes}}}`;
+  const q = `query($ids:[Int]){Page(perPage:50){media(idMal_in:$ids,type:ANIME){idMal status episodes nextAiringEpisode{airingAt}}}}`;
   const found = new Map();
   const nBatches = Math.ceil(rows.length/50);
   for(let i=0; i<rows.length; i+=50) {
@@ -357,7 +353,7 @@ async function jobRefreshAiring() {
     await sleep(1100);
   }
 
-  let changed=0, unknown=[];
+  let changed=0, slotFixed=0, unknown=[];
   for(const r of rows) {
     const m = found.get(r.mal_id);
     if(!m) { unknown.push(r); continue; }
@@ -366,6 +362,12 @@ async function jobRefreshAiring() {
     // AniList passe à RELEASING à la 1re diffusion : on ne fait jamais repasser en « à venir » une série déjà lancée
     if(next && next !== r.status && !(next==="Not yet aired" && r.status!=="Not yet aired")) { updates.status = next; noteStatus(r, next); }
     if(m.episodes && m.episodes !== r.episodes) updates.episodes = m.episodes;
+    // Jour + heure de diffusion : AniList connaît l'horaire RÉEL du prochain épisode (MAL / Jikan sont souvent faux ou vides,
+    // surtout pour les séries Netflix). On corrige donc aussi les créneaux déjà enregistrés, pas seulement les vides.
+    if(m.nextAiringEpisode?.airingAt) {
+      const slot = jstSlot(m.nextAiringEpisode.airingAt);
+      if(r.broadcast?.day !== slot.day || r.broadcast?.time !== slot.time) { updates.broadcast = slot; slotFixed++; }
+    }
     if(Object.keys(updates).length) {
       await updateAnimeCache(r.mal_id, updates);
       changed++;
@@ -388,7 +390,7 @@ async function jobRefreshAiring() {
     } catch {}
     await sleep(450);
   }
-  log(`=== refresh-airing done: ${changed} mis à jour sur ${rows.length} (${unknown.length} inconnus d'AniList) — ${started.length} démarrés, ${finished.length} terminés ===`);
+  log(`=== refresh-airing done: ${changed} mis à jour sur ${rows.length} (${unknown.length} inconnus d'AniList) — ${started.length} démarrés, ${finished.length} terminés, ${slotFixed} jours/heures de diffusion corrigés ===`);
   return { started, finished };
 }
 
