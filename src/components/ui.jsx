@@ -83,10 +83,10 @@ export function StatPill({ label, emoji = "⭐" }) {
   );
 }
 
-// Bookmark SVG icon (watchlist)
-function BookmarkIcon({ filled, color = "#22c55e" }) {
+// Bookmark SVG icon (watchlist) — icône unique de la watchlist partout (cartes, fiches animé, profil), site et appli de bureau
+export function BookmarkIcon({ filled, color = "#22c55e", size = 14 }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill={filled ? color : "none"} stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? color : "none"} stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
     </svg>
   );

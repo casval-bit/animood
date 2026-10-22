@@ -74,7 +74,7 @@ function ThreadRow({ anime, onClick, metaLabel, trailerLink, convLink, statOverr
   return (
     <div className="flex w-full items-center gap-3.5 border-b border-white/6 px-4 py-3 transition last:border-b-0 hover:bg-white/5 sm:gap-4 sm:px-5">
       <button onClick={() => onClick?.(anime)} className="flex min-w-0 flex-1 items-center gap-3.5 text-left sm:gap-4">
-        <img
+        <img loading="lazy" decoding="async"
           src={img || FALLBACK_IMG} alt=""
           onError={e => { e.target.src = FALLBACK_IMG; }}
           className="h-14 w-10 shrink-0 rounded-md object-cover shadow-md"
@@ -230,7 +230,7 @@ function AnticipatedCard({ anime, airedDates, onOpenDetail, t, flush = false }) 
       style={{ background: `linear-gradient(135deg, rgba(139,92,246,.22), rgba(236,72,153,.14)), ${GLASS_STYLE.background}`, boxShadow: GLASS_STYLE.boxShadow }}
     >
       <button onClick={() => onOpenDetail?.(anime)} className="flex min-w-0 flex-1 items-center gap-5 text-left">
-        <img src={img || FALLBACK_IMG} alt="" onError={e => { e.target.src = FALLBACK_IMG; }} className="h-32 w-24 shrink-0 rounded-xl object-cover shadow-lg sm:h-36 sm:w-26" />
+        <img loading="lazy" decoding="async" src={img || FALLBACK_IMG} alt="" onError={e => { e.target.src = FALLBACK_IMG; }} className="h-32 w-24 shrink-0 rounded-xl object-cover shadow-lg sm:h-36 sm:w-26" />
         <div className="min-w-0 flex-1">
           <div className="mb-1 text-[11px] font-black uppercase tracking-wide text-fuchsia-300">{t.mostAnticipated}</div>
           <div className="mb-1 truncate text-[19px] font-black text-slate-50 sm:text-[22px]">{anime.title}</div>
@@ -436,7 +436,7 @@ function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, profileC
               >
                 <Avatar profile={profile} size={36} fallback={th.username.slice(0,2).toUpperCase()} className="mt-0.5 text-[11px]"/>
                 {th.image_url && (
-                  <img src={th.image_url} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" onError={e=>{e.target.style.display="none";}} />
+                  <img loading="lazy" decoding="async" src={th.image_url} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" onError={e=>{e.target.style.display="none";}} />
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13.5px] font-bold text-slate-100">💬 {th.title}</div>

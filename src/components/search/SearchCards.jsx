@@ -15,7 +15,7 @@ function nameColor(name = "") {
 function StudioLogo({ studio }) {
   const [broken, setBroken] = useState(false);
   if(studio.logo && !broken) {
-    return <img src={studio.logo} alt={studio.name} onError={() => setBroken(true)} className="h-full w-full object-contain p-2" />;
+    return <img loading="lazy" decoding="async" src={studio.logo} alt={studio.name} onError={() => setBroken(true)} className="h-full w-full object-contain p-2" />;
   }
   return (
     <div className="flex h-full w-full items-center justify-center text-base font-black tracking-tight text-white" style={{ background: `linear-gradient(135deg, ${nameColor(studio.name)}, rgba(0,0,0,.35))` }}>
@@ -30,7 +30,7 @@ export function MemberCard({ u, onOpenUser, t }) {
     <button onClick={()=>onOpenUser(u.username)}
       className={`flex items-center gap-3 p-3.5 text-left transition-all duration-300 hover:-translate-y-1 hover:border-white/15 ${GLASS}`} style={GLASS_STYLE}>
       <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-violet-600 to-fuchsia-500 text-lg">
-        {avatar ? <img src={avatar} alt={u.name} className="h-full w-full object-cover"/> : (u.avatar||"👤")}
+        {avatar ? <img loading="lazy" decoding="async" src={avatar} alt={u.name} className="h-full w-full object-cover"/> : (u.avatar||"👤")}
       </div>
       <div className="flex-1 min-w-0">
         <div className={`text-[13px] font-black ${GRADIENT_TEXT}`}>{u.name||u.username}</div>

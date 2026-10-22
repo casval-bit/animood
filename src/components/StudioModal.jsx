@@ -58,7 +58,7 @@ export function StudioModal({ studioId, studioName, onClose, onOpenDetail }) {
       <div className="p-6">
         <div className="mb-4 flex items-center gap-3.5">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5 text-2xl">
-            {logo ? <img src={logo} alt={studioName} className="h-full w-full object-contain p-1.5" onError={()=>setLogo(null)} /> : "🎬"}
+            {logo ? <img loading="lazy" decoding="async" src={logo} alt={studioName} className="h-full w-full object-contain p-1.5" onError={()=>setLogo(null)} /> : "🎬"}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
@@ -129,7 +129,7 @@ export function StudioModal({ studioId, studioName, onClose, onOpenDetail }) {
               return (
                 <button key={a.mal_id} onClick={() => onOpenDetail(a)} className="group text-left" style={{opacity: isWatched ? 0.6 : 1}}>
                   <div className="relative mb-1 aspect-2/3 overflow-hidden rounded-xl transition-transform duration-300 group-hover:-translate-y-1">
-                    <img src={a.images?.jpg?.large_image_url || a.images?.jpg?.image_url || FALLBACK} alt={a.title}
+                    <img loading="lazy" decoding="async" src={a.images?.jpg?.large_image_url || a.images?.jpg?.image_url || FALLBACK} alt={a.title}
                       onError={e=>{e.target.src=FALLBACK;}} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
                     {dotColor && (
                       <div style={{position:"absolute",bottom:4,right:4,width:8,height:8,

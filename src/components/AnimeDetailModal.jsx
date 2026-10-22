@@ -16,12 +16,14 @@ import { Modal } from "./Modal.jsx";
 import { PersonModal } from "./PersonModal.jsx";
 import { StudioModal } from "./StudioModal.jsx";
 import { ArtistModal } from "./ArtistModal.jsx";
-import { GradientButton } from "./ui.jsx";
+import { GradientButton, TabBar, BookmarkIcon } from "./ui.jsx";
 import { NewThreadModal, ThreadModal, timeAgo } from "./ForumThreadModal.jsx";
 import { StreamingBarDesktop } from "./StreamingBarDesktop.jsx";
+import { StreamingPanelWeb } from "./StreamingPanelWeb.jsx";
+import { StreamingLogo } from "./StreamingLogos.jsx";
 import { TrailerPlayerDesktop } from "./TrailerPlayerDesktop.jsx";
 import { youtubeIdOf } from "../utils/youtube.js";
-import { isDesktopApp } from "../utils/streamingLinks.js";
+import { isDesktopApp, normaliseServiceName } from "../utils/streamingLinks.js";
 
 const FALLBACK = "https://placehold.co/700x300/1a1a2e/818cf8?text=?";
 
@@ -161,6 +163,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
   const [themes, setThemes]           = useState([]);
   const [artistModal, setArtistModal] = useState(null);
   const [showTrailer, setShowTrailer] = useState(false);
+  const [tab, setTab] = useState("overview"); // site web : « overview » | « watch » (l'appli de bureau garde sa fiche d'une seule page)
   const [artistLoading, setArtistLoading] = useState(null);
 
   // AniMood score state
@@ -387,6 +390,17 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
               </div>
             </div>
 
+            {!desktop && (
+              <TabBar className="px-4" active={tab} onChange={id => { playSound("click"); setTab(id); }}
+                tabs={[{ id:"overview", label:t.tabOverview }, { id:"watch", label:t.tabWatch }]} />
+            )}
+
+            {!desktop && tab === "watch" && (
+              <div className="p-6">
+                <StreamingPanelWeb anime={a} streamingNames={streaming.map(s => s.name || s)} lang={lang} />
+              </div>
+            )}
+
             {desktop && (
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/6 px-6 py-3.5">
                 <StreamingBarDesktop anime={a} streamingNames={streaming.map(s => s.name || s)} lang={lang} />
@@ -410,14 +424,15 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                     className={`h-9 w-9 rounded-xl text-sm transition ${isFavorite ? "border border-pink-400 bg-pink-400/10 text-pink-400" : "border border-white/10 text-slate-500 hover:bg-white/5"}`}>
                     {isFavorite ? "❤️" : "🤍"}
                   </button>
-                  <button onClick={toggleWatchlist} title="Watchlist"
+                  <button onClick={toggleWatchlist} title={isOnWatchlist ? t.watchlistRemoveTitle : t.watchlistTitle}
                     className={`flex h-9 w-9 items-center justify-center rounded-xl transition ${isOnWatchlist ? "border border-emerald-400/60 bg-emerald-400/12" : "border border-white/10 hover:bg-white/5"}`}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill={isOnWatchlist ? "#22c55e" : "none"} stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                    <BookmarkIcon filled={isOnWatchlist} size={15} />
                   </button>
                 </div>
               </div>
             )}
 
+            {(desktop || tab === "overview") && (
             <div className="grid gap-6 p-6 md:grid-cols-[1fr_300px]">
               <div className="min-w-0">
                 {loading && <Spinner small label={t.loading} />}
@@ -509,11 +524,16 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                   </div>
                 )}
                 {!desktop && streaming.length > 0 && (
-                  <div className="mb-4">
-                    <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{t.availableOn}</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {streaming.map(s => { const name = s.name || s; return <span key={name} className="rounded-md px-2.5 py-1 text-[11px] font-extrabold text-white" style={{ background: STREAMING_COLORS[name] || "#444" }}>{name}</span>; })}
-                    </div>
+                  <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-white/8 bg-white/3 p-3">
+                    <span className="mr-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">{t.availableOn}</span>
+                    {streaming.map(s => {
+                      const name = s.name || s, sid = normaliseServiceName(name);
+                      return sid
+                        ? <span key={name} title={name} className="flex h-7 items-center rounded-lg bg-black/25 px-2"><StreamingLogo id={sid} size={16} /></span>
+                        : <span key={name} className="rounded-md px-2 py-1 text-[10px] font-extrabold text-white" style={{ background: STREAMING_COLORS[name] || "#444" }}>{name}</span>;
+                    })}
+                    <button onClick={() => { playSound("click"); setTab("watch"); }}
+                      className="ml-auto rounded-lg px-2.5 py-1 text-[11px] font-bold text-violet-300 transition hover:bg-white/8">{t.seeWhereToWatch}</button>
                   </div>
                 )}
                 {staff.length > 0 && (
@@ -699,14 +719,15 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                       className={`rounded-xl px-3 py-2.5 text-sm ${isFavorite ? "border border-pink-400 bg-pink-400/10 text-pink-400" : "border border-white/10 text-slate-500"}`}>
                       {isFavorite ? "❤️" : "🤍"}
                     </button>
-                    <button onClick={toggleWatchlist}
-                      className={`rounded-xl px-3 py-2.5 text-sm ${isOnWatchlist ? "border border-slate-400 bg-slate-400/15 text-slate-300" : "border border-white/10 text-slate-500"}`}>
-                      🎯
+                    <button onClick={toggleWatchlist} title={isOnWatchlist ? t.watchlistRemoveTitle : t.watchlistTitle}
+                      className={`flex items-center justify-center rounded-xl px-3 py-2.5 ${isOnWatchlist ? "border border-emerald-400/60 bg-emerald-400/12" : "border border-white/10 hover:bg-white/5"}`}>
+                      <BookmarkIcon filled={isOnWatchlist} size={16} />
                     </button>
                   </div>
                 </div>}
               </div>
             </div>
+            )}
           </>
         )}
       </Modal>
