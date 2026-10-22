@@ -375,20 +375,32 @@ async function jobRefreshAiring() {
     }
   }
 
-  // Inconnus d'AniList : on demande à Jikan (lent, plafonné)
-  if(unknown.length) log(`  ${unknown.length} anime inconnus d'AniList → vérification via Jikan (${Math.min(150,unknown.length)} max, ~1 min)`);
-  for(const r of unknown.slice(0,150)) {
-    try {
-      const res = await fetch(`https://api.jikan.moe/v4/anime/${r.mal_id}`,{headers:{"Accept":"application/json"}});
-      if(res.ok) {
-        const st = (await res.json())?.data?.status;
-        if(st && st !== r.status && !(st==="Not yet aired" && r.status!=="Not yet aired")) {
-          await updateAnimeCache(r.mal_id, {status: st}); changed++; noteStatus(r, st);
-          log(`  ✅ [Jikan] ${r.title} : ${r.status} → ${st}`);
+  // Inconnus d'AniList : on demande à Jikan. Jikan limite à ~60 requêtes/minute (trop vite = 429 et attente) :
+  // on va à ~1 requête/seconde, avec un budget de temps, et on tourne d'un jour à l'autre pour couvrir tout le monde.
+  const JIKAN_BUDGET_MS = 150_000;
+  if(unknown.length) {
+    const shift = (Math.floor(Date.now()/86_400_000) * 100) % unknown.length; // départ différent chaque jour
+    const queue = [...unknown.slice(shift), ...unknown.slice(0, shift)].slice(0, 150);
+    log(`  ${unknown.length} anime inconnus d'AniList → vérification via Jikan (${queue.length} max, 2 min 30 max)`);
+    const t0 = Date.now(); let n = 0, rate = 0;
+    for(const r of queue) {
+      if(Date.now() - t0 > JIKAN_BUDGET_MS) { log(`  ⏱️ budget de temps atteint après ${n} vérifications — la suite sera vue demain`); break; }
+      n++;
+      try {
+        const res = await fetch(`https://api.jikan.moe/v4/anime/${r.mal_id}`,{headers:{"Accept":"application/json"}});
+        if(res.status === 429) { rate++; await sleep(Math.min(10, Number(res.headers.get("retry-after")) || 4)*1000); }
+        else if(res.ok) {
+          const st = (await res.json())?.data?.status;
+          if(st && st !== r.status && !(st==="Not yet aired" && r.status!=="Not yet aired")) {
+            await updateAnimeCache(r.mal_id, {status: st}); changed++; noteStatus(r, st);
+            log(`  ✅ [Jikan] ${r.title} : ${r.status} → ${st}`);
+          }
         }
-      }
-    } catch {}
-    await sleep(450);
+      } catch {}
+      if(n % 20 === 0) log(`  Jikan : ${n}/${queue.length} vérifiés`);
+      await sleep(1100);
+    }
+    if(rate) log(`  (Jikan a demandé de ralentir ${rate} fois)`);
   }
   log(`=== refresh-airing done: ${changed} mis à jour sur ${rows.length} (${unknown.length} inconnus d'AniList) — ${started.length} démarrés, ${finished.length} terminés, ${slotFixed} jours/heures de diffusion corrigés ===`);
   return { started, finished };
