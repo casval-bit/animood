@@ -1,7 +1,8 @@
 @echo off
-rem AniMood - remet a jour le statut (en cours / termine / a venir) de tous les anime du calendrier.
-rem Corrige : series terminees encore affichees, series recentes absentes (ex. JoJo Steel Ball Run). Dure ~1-2 min.
+rem AniMood - mise a jour QUOTIDIENNE complete (meme chose que GitHub Actions chaque jour) :
+rem   nouveaux anime, statuts via LiveChart + AniList (a venir -> en cours -> termine), jour de diffusion,
+rem   score / humeurs / plateformes / trailer des anime qui demarrent, note finale de ceux qui finissent.
+rem Corrige : series terminees encore au calendrier, series recentes absentes (ex. JoJo Steel Ball Run). Quelques minutes.
 cd /d "%~dp0"
-node --env-file=.env scripts\animood_sync.mjs --job=refresh-airing
-node --env-file=.env scripts\animood_sync.mjs --job=broadcast
+node --env-file=.env scripts\animood_sync.mjs --job=daily
 pause

@@ -1,7 +1,8 @@
 name: Sync Daily (animés en cours de diffusion)
 
 # Mise à jour légère et sans risque (le script n'insère que du nouveau et ne corrige que les champs vides) :
-#   nouveaux animés (AniList), jours de diffusion, scores/humeurs des animés qui viennent de passer « en cours »,
+#   nouveaux animés (AniList), changements de statut (LiveChart + AniList : à venir → en cours → terminé, avec jour de diffusion,
+#   score, humeurs, plateformes et trailer déclenchés pour ceux qui démarrent), jours de diffusion, scores/humeurs des animés qui viennent de passer « en cours »,
 #   humeurs (mood_pts_v4), rescore à 2 semaines / 2 mois.
 # Tous les jours à 3h UTC, et une 2e fois à 15h UTC pendant les 3 premières semaines de chaque saison
 # (janvier, avril, juillet, octobre) : les sorties y sont quotidiennes.
@@ -37,9 +38,9 @@ jobs:
           node-version: '20'
       - run: npm ci --ignore-scripts
 
-      - name: New anime, broadcast, scores, moods v4, rescore
+      - name: New anime, statuts (LiveChart/AniList), broadcast, scores, moods v4, rescore
         id: daily
-        run: node scripts/animood_sync.mjs --job=weekly 2>&1 | tee /tmp/daily_log.txt
+        run: node scripts/animood_sync.mjs --job=daily 2>&1 | tee /tmp/daily_log.txt
 
       - name: Write summary
         if: always()

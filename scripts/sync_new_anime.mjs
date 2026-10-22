@@ -235,7 +235,7 @@ async function refreshScores(existingIds) {
         rank:      a.rank,
         popularity:a.popularity,
         episodes:  a.episodes,
-        status:    a.status,
+        // pas de « status » ici : il appartient à refresh-airing (AniList), MAL garde parfois « Currently Airing » pour des OAV finis
       });
       totalUpdated++;
       if(batch.length >= 25) {
