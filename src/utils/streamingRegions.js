@@ -1,10 +1,9 @@
-// ─── DISPONIBILITÉ STREAMING PAR PAYS — APPLI DE BUREAU UNIQUEMENT ────────────
+// ─── DISPONIBILITÉ STREAMING PAR PAYS — appli de bureau ET site web ───────────
 // Les plateformes réellement disponibles dépendent du pays. Données JustWatch (via TMDB) rangées dans la table
 // Supabase anime_streaming_regions par scripts/sync_streaming_regions.mjs.
 // Le pays est CHOISI par l'utilisateur (Paramètres → Streaming). Aucune géolocalisation : par défaut on le déduit
 // de la langue du système (navigator.language), sans rien demander.
 import { sb } from "../api/supabase.js";
-import { isDesktopApp } from "./streamingLinks.js";
 
 export const REGIONS = [
   { code: "FR", flag: "🇫🇷", fr: "France", en: "France" },
@@ -64,7 +63,7 @@ async function loadAll(malId) {
  */
 export async function getRegionAvailability(malId, region) {
   const none = { known: false, ids: new Set(), names: [], elsewhere: {} };
-  if (!isDesktopApp() || !malId) return none;
+  if (!malId) return none;
   const all = await loadAll(malId);
   const elsewhere = {};
   for (const [code, v] of Object.entries(all)) {

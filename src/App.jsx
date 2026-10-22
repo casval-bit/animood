@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, lazy, Suspense } from "react";
 import { ThemeProvider } from "./context/ThemeProvider.jsx";
 import { LangProvider } from "./context/LangProvider.jsx";
 import { AppProvider } from "./context/AppProvider.jsx";
@@ -10,19 +10,38 @@ import { isInstalledApp } from "./utils/installedApp.js";
 import { Header } from "./components/Header.jsx";
 import { Footer } from "./components/Footer.jsx";
 import { Spinner } from "./components/Spinner.jsx";
-import { AnimeDetailModal } from "./components/AnimeDetailModal.jsx";
-import { ChatBubble } from "./components/ChatBubble.jsx";
 import { LoginView } from "./views/LoginView.jsx";
-import { FeedView } from "./views/FeedView.jsx";
 import { MoodboardView } from "./views/MoodboardView.jsx";
-import { SearchView } from "./views/SearchView.jsx";
-import { ForumView } from "./views/ForumView.jsx";
-import { GamesView } from "./views/GamesView.jsx";
-import { MessagesView } from "./views/MessagesView.jsx";
-import { ProfileView } from "./views/ProfileView.jsx";
-import { UserProfileModal } from "./views/UserProfileModal.jsx";
-import { SettingsView } from "./views/SettingsView.jsx";
 import { DesktopUpdateBanner } from "./components/DesktopUpdateBanner.jsx";
+
+// ── Découpage par page ───────────────────────────────────────────────────────────────────────────────────
+// Chaque vue lourde est un fichier JS à part, chargé au moment où on en a besoin (le visiteur non connecté ne télécharge
+// ni le forum, ni les jeux, ni le profil…). Connexion + Moodboard + en-tête restent dans le fichier principal : premier écran immédiat.
+// Si un morceau ne se charge pas (hors-ligne, ou nouvelle version publiée pendant la visite), on réessaie une fois puis on recharge la page une seule fois.
+function lazyNamed(loader, name) {
+  return lazy(async () => {
+    try { return { default: (await loader())[name] }; }
+    catch {
+      try { await new Promise(r => setTimeout(r, 800)); return { default: (await loader())[name] }; }
+      catch (e) {
+        let reloaded = false;
+        try { reloaded = sessionStorage.getItem("animood_chunk_reload") === "1"; sessionStorage.setItem("animood_chunk_reload", "1"); } catch { /* ignore */ }
+        if (!reloaded) window.location.reload();
+        throw e;
+      }
+    }
+  });
+}
+const AnimeDetailModal = lazyNamed(() => import("./components/AnimeDetailModal.jsx"), "AnimeDetailModal");
+const ChatBubble       = lazyNamed(() => import("./components/ChatBubble.jsx"), "ChatBubble");
+const FeedView         = lazyNamed(() => import("./views/FeedView.jsx"), "FeedView");
+const SearchView       = lazyNamed(() => import("./views/SearchView.jsx"), "SearchView");
+const ForumView        = lazyNamed(() => import("./views/ForumView.jsx"), "ForumView");
+const GamesView        = lazyNamed(() => import("./views/GamesView.jsx"), "GamesView");
+const MessagesView     = lazyNamed(() => import("./views/MessagesView.jsx"), "MessagesView");
+const ProfileView      = lazyNamed(() => import("./views/ProfileView.jsx"), "ProfileView");
+const UserProfileModal = lazyNamed(() => import("./views/UserProfileModal.jsx"), "UserProfileModal");
+const SettingsView     = lazyNamed(() => import("./views/SettingsView.jsx"), "SettingsView");
 
 // ── Static Pages ──────────────────────────────────────────────────────────────
 function PageWrapper({ title, onClose, children }) {
@@ -631,29 +650,35 @@ function Shell() {
         onJoinGame={payload => { changeTab(desktop ? "games" : "forum"); setPendingJoinGame(payload); }} />
       <main>
         {/* Feed and Profile stay mounted for cross-sync */}
-        <div style={{display: activeTab==="feed" ? "block" : "none"}}>
-          <FeedView onOpenUser={setOpenUser} onOpenDetail={openDetail}/>
-        </div>
-        <div style={{display: activeTab==="profile" ? "block" : "none"}}>
-          <ProfileView onOpenDetail={openDetail} onOpenSettings={(cat) => { setSettingsCat(typeof cat === "string" ? cat : null); setShowSettings(true); }} onOpenUser={setOpenUser} />
-        </div>
+        <Suspense fallback={null}>
+          <div style={{display: activeTab==="feed" ? "block" : "none"}}>
+            <FeedView onOpenUser={setOpenUser} onOpenDetail={openDetail}/>
+          </div>
+          <div style={{display: activeTab==="profile" ? "block" : "none"}}>
+            <ProfileView onOpenDetail={openDetail} onOpenSettings={(cat) => { setSettingsCat(typeof cat === "string" ? cat : null); setShowSettings(true); }} onOpenUser={setOpenUser} />
+          </div>
+        </Suspense>
         {/* Other pages unmount when hidden — no sync needed */}
-        {pages[activeTab]}
+        <Suspense fallback={<div className="py-24"><Spinner /></div>}>
+          {pages[activeTab]}
+        </Suspense>
       </main>
       <Footer onOpenPage={(p) => { if(p==="legal"||p==="privacy") setLegalPage(p); else setActivePage(p); }}/>
-      <ChatBubble hidden={activeTab === "messages"} />
+      <Suspense fallback={null}>
+        <ChatBubble hidden={activeTab === "messages"} />
 
-      {showSettings && <SettingsView initialCategory={settingsCat} onClose={() => setShowSettings(false)} />}
+        {showSettings && <SettingsView initialCategory={settingsCat} onClose={() => setShowSettings(false)} />}
 
-      {detailAnime && (
-        <AnimeDetailModal
-          malId={detailAnime.mal_id}
-          seedData={detailAnime.seedData}
-          onClose={closeDetail}
-          onOpenDetail={openDetail}
-          onOpenUser={setOpenUser}
-        />
-      )}
+        {detailAnime && (
+          <AnimeDetailModal
+            malId={detailAnime.mal_id}
+            seedData={detailAnime.seedData}
+            onClose={closeDetail}
+            onOpenDetail={openDetail}
+            onOpenUser={setOpenUser}
+          />
+        )}
+      </Suspense>
 
       {activePage === "about"      && <AboutPage      onClose={()=>setActivePage(null)}/>}
       {activePage === "contact"   && <ContactPage   onClose={()=>setActivePage(null)}/>}
@@ -664,7 +689,9 @@ function Shell() {
       {legalPage && <LegalPage type={legalPage} onClose={()=>setLegalPage(null)}/>}
 
       {openUser && (
-        <UserProfileModal username={openUser} onClose={() => setOpenUser(null)} onOpenDetail={openDetail} onOpenUser={setOpenUser} />
+        <Suspense fallback={null}>
+          <UserProfileModal username={openUser} onClose={() => setOpenUser(null)} onOpenDetail={openDetail} onOpenUser={setOpenUser} />
+        </Suspense>
       )}
       <DesktopUpdateBanner />
     </div>

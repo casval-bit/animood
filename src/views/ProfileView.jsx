@@ -20,7 +20,7 @@ import { EmptyState } from "../components/EmptyState.jsx";
 import { Modal } from "../components/Modal.jsx";
 import { FavoriteSearchModal } from "../components/FavoriteSearchModal.jsx";
 import { FollowListModal } from "../components/FollowListModal.jsx";
-import { TabBar } from "../components/ui.jsx";
+import { TabBar, BookmarkIcon } from "../components/ui.jsx";
 import { isDesktopApp } from "../utils/streamingLinks.js";
 import { GRADIENT_PRIMARY, GRADIENT_TEXT, GLASS, GLASS_STYLE } from "../constants/theme.js";
 
@@ -442,7 +442,7 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
       <p style={{fontSize:14,color:"var(--text-1)",lineHeight:1.6,margin:"0 0 10px",whiteSpace:"pre-wrap"}}>{post.content}</p>
       {post.image_url && (
         <div style={{borderRadius:10,overflow:"hidden",marginBottom:10,maxHeight:400}}>
-          <img src={post.image_url} alt="" style={{width:"100%",objectFit:"cover",maxHeight:400,display:"block",cursor:"pointer"}}
+          <img loading="lazy" decoding="async" src={post.image_url} alt="" style={{width:"100%",objectFit:"cover",maxHeight:400,display:"block",cursor:"pointer"}}
             onClick={()=>window.open(post.image_url,"_blank")}/>
         </div>
       )}
@@ -591,7 +591,7 @@ function SpotlightCircle({ anime, lang, onOpen, onPick, onClear, size = 132, com
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
           {anime && img
-            ? <img src={img} alt={anime.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ? <img loading="lazy" decoding="async" src={img} alt={anime.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             : <span style={{ fontSize: Math.round(SIZE * 0.26), lineHeight: 1, color: "rgba(148,163,184,.7)", fontWeight: 300 }}>＋</span>}
         </button>
 
@@ -927,7 +927,7 @@ function FramePickerModal({ frames, unlocked, active, avatar, lang, onPick, onCl
                           opacity: isUnlocked ? 1 : 0.4, filter: isUnlocked ? "none" : "grayscale(1)" }}>
                         <div style={{ position: "relative", width: sz, height: sz }}>
                           <div style={{ width: sz, height: sz, borderRadius: "50%", overflow: "hidden", background: GRADIENT_PRIMARY, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
-                            {avatar?.startsWith?.("http") || avatar?.startsWith?.("data:") ? <img src={avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (avatar || "👤")}
+                            {avatar?.startsWith?.("http") || avatar?.startsWith?.("data:") ? <img loading="lazy" decoding="async" src={avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (avatar || "👤")}
                           </div>
                           <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible", pointerEvents: "none" }}
                             viewBox={`0 0 ${sz} ${sz}`} dangerouslySetInnerHTML={{ __html: getFrameSvg(frame, sz) }} />
@@ -1391,7 +1391,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
       {/* Banner */}
       {me.banner && (
         <div className="mb-6 -mx-6 -mt-8 relative h-36 sm:h-48 overflow-hidden">
-          <img src={me.banner} alt="" className="w-full h-full object-cover" />
+          <img loading="lazy" decoding="async" src={me.banner} alt="" className="w-full h-full object-cover" />
           <div className="absolute inset-0" style={{
             background: "linear-gradient(to bottom, transparent 50%, rgba(2,6,23,0.85) 100%)",
           }}/>
@@ -1409,7 +1409,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
           <FrameSVG frame={activeFrame} size={AVATAR}>
             <div className="flex items-center justify-center overflow-hidden rounded-full" style={{ width: AVATAR, height: AVATAR, fontSize: Math.round(AVATAR * 0.43), background: GRADIENT_PRIMARY }}>
               {(me.avatar_base64 || (me.avatar?.startsWith?.("http") ? me.avatar : null))
-                ? <img src={me.avatar_base64 || me.avatar} alt="avatar" className="h-full w-full object-cover" />
+                ? <img loading="lazy" decoding="async" src={me.avatar_base64 || me.avatar} alt="avatar" className="h-full w-full object-cover" />
                 : (me.avatar || "👤")}
             </div>
           </FrameSVG>
@@ -1705,7 +1705,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                 return (
                   <button key={id} onClick={() => onOpenDetail(a)} className="flex gap-3 overflow-hidden rounded-xl text-left" style={{ border:`1px solid ${sc.border}`, background:sc.bg }}>
                     <div className="relative h-19 w-13 shrink-0 bg-black/20">
-                      {img && <img src={img} alt={a.title} className="h-full w-full object-cover" onError={e=>{e.target.style.display="none";}} />}
+                      {img && <img loading="lazy" decoding="async" src={img} alt={a.title} className="h-full w-full object-cover" onError={e=>{e.target.style.display="none";}} />}
                       <div className="absolute bottom-1 left-1 h-1.5 w-1.5 rounded-full" style={{ background:sc.dot }} />
                     </div>
                     <div className="flex flex-1 flex-col justify-between py-2 pr-3">
@@ -1731,7 +1731,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
           <div className="mb-3 flex items-center gap-4 rounded-2xl border border-white/7 bg-white/3 p-4 cursor-pointer hover:bg-white/6 transition"
             onClick={()=>setOpenList("watchlist")}>
             <div className="flex gap-1 shrink-0">
-              {watchlistIds.slice(0,4).map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(var(--fg-rgb),0.05)",border:"1px solid rgba(var(--fg-rgb),0.08)",flexShrink:0}}>{img&&<img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
+              {watchlistIds.slice(0,4).map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(var(--fg-rgb),0.05)",border:"1px solid rgba(var(--fg-rgb),0.08)",flexShrink:0}}>{img&&<img loading="lazy" decoding="async" src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
               {watchlistIds.length===0&&<div style={{width:36,height:54,borderRadius:6,background:"rgba(var(--fg-rgb),0.04)",border:"2px dashed rgba(var(--fg-rgb),0.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"rgba(var(--fg-rgb),0.2)"}}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
               </div>}
@@ -1750,7 +1750,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
           <div className="mb-3 flex items-center gap-4 rounded-2xl border border-white/7 bg-white/3 p-4 cursor-pointer hover:bg-white/6 transition"
             onClick={()=>setOpenList("highlights")}>
             <div className="flex gap-1 shrink-0">
-              {(me.highlights||[]).slice(0,4).map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(var(--fg-rgb),0.05)",border:"1px solid rgba(var(--fg-rgb),0.08)"}}>{img&&<img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
+              {(me.highlights||[]).slice(0,4).map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(var(--fg-rgb),0.05)",border:"1px solid rgba(var(--fg-rgb),0.08)"}}>{img&&<img loading="lazy" decoding="async" src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
               {(me.highlights||[]).length===0&&<div style={{width:36,height:54,borderRadius:6,background:"rgba(var(--fg-rgb),0.04)",border:"2px dashed rgba(var(--fg-rgb),0.1)",display:"flex",alignItems:"center",justifyContent:"center"}}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
               </div>}
@@ -1774,7 +1774,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                 <div key={list.id} className="flex items-center gap-4 rounded-2xl border border-white/7 bg-white/3 p-4 cursor-pointer hover:bg-white/6 transition"
                   onClick={()=>setOpenList(list.id)}>
                   <div className="flex gap-1 shrink-0">
-                    {preview.map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(var(--fg-rgb),0.05)",border:"1px solid rgba(var(--fg-rgb),0.08)"}}>{img&&<img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
+                    {preview.map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(var(--fg-rgb),0.05)",border:"1px solid rgba(var(--fg-rgb),0.08)"}}>{img&&<img loading="lazy" decoding="async" src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
                     {preview.length===0&&<div style={{width:36,height:54,borderRadius:6,background:"rgba(var(--fg-rgb),0.04)",border:"2px dashed rgba(var(--fg-rgb),0.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,color:"rgba(var(--fg-rgb),0.2)"}}>📋</div>}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -1854,7 +1854,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                 <div className="p-5">
                   <div className="mb-4 flex items-center justify-between">
                     <div>
-                      <div className="text-sm font-black text-slate-100">🎯 Watchlist</div>
+                      <div className="flex items-center gap-2 text-sm font-black text-slate-100"><BookmarkIcon size={15} />Watchlist</div>
                       <div className="text-[11px] text-slate-500">{t.animeCount(watchlistIds.length)}</div>
                     </div>
                     <button onClick={close} className="flex h-7 w-7 items-center justify-center rounded-full bg-white/8 text-sm text-slate-400">✕</button>
@@ -1863,7 +1863,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                     <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-6">
                       {watchlistIds.map(id=><AnimePoster key={id} anime={animeCache[id]} onClick={a=>{close();onOpenDetail(a);}} loading/>)}
                     </div>
-                  ):<EmptyState emoji="🎯" title={t.watchlistEmptyTitle} subtitle={t.watchlistEmptySubtitle}/>}
+                  ):<EmptyState emoji={<span className="inline-flex"><BookmarkIcon size={38} /></span>} title={t.watchlistEmptyTitle} subtitle={t.watchlistEmptySubtitle}/>}
                 </div>
               )}
             </Modal>
@@ -1930,7 +1930,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                           {listSearchResults.map(a=>(
                             <button key={a.mal_id} onClick={()=>{addAnimeToList(openListData.id,a);setListSearchQuery("");setListSearchResults([]);}}
                               className="flex items-center gap-3 rounded-xl border border-white/6 bg-white/3 p-2.5 text-left hover:bg-white/7 transition">
-                              <img src={a.images?.jpg?.image_url} alt={a.title} className="h-12 w-8 rounded object-cover"/>
+                              <img loading="lazy" decoding="async" src={a.images?.jpg?.image_url} alt={a.title} className="h-12 w-8 rounded object-cover"/>
                               <div>
                                 <div className="text-[12px] font-bold text-slate-100">{a.title}</div>
                                 <div className="text-[10px] text-slate-500">{a.year} · {a.type}</div>

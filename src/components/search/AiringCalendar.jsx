@@ -210,7 +210,7 @@ function DayView({ byDay, dayIdx, setDayIdx, todayIdx, myStatuses, currentYear, 
               onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.07)";}}
               onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,0.03)";}}>
                 <div style={{position:"relative",marginBottom:6}}>
-                  <img src={a.image_url||a.large_image} alt="" style={{
+                  <img loading="lazy" decoding="async" src={a.image_url||a.large_image} alt="" style={{
                     width:"100%",aspectRatio:"2/3",objectFit:"cover",borderRadius:8,display:"block",
                     border:`2px solid ${dotColor||"transparent"}`,
                   }} onError={e=>{e.target.style.display="none";}}/>
@@ -390,7 +390,7 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
           }}
           onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.06)";}}
           onMouseLeave={e=>{e.currentTarget.style.background="none";}}>
-            <img src={a.image_url||a.large_image} alt="" style={{
+            <img loading="lazy" decoding="async" src={a.image_url||a.large_image} alt="" style={{
               width:32,height:44,objectFit:"cover",borderRadius:5,flexShrink:0,
               border:`${statusDot(myStatuses[a.mal_id]) ? "2px" : "1px"} solid ${statusDot(myStatuses[a.mal_id]) || "rgba(255,255,255,0.1)"}`,display:"block",
             }} onError={e=>{e.target.style.display="none";}}/>
@@ -439,7 +439,7 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
             }}
             onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.07)";}}
             onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,0.03)";}}>
-              <img src={a.image_url||a.large_image} alt="" style={{
+              <img loading="lazy" decoding="async" src={a.image_url||a.large_image} alt="" style={{
                 width:"100%",aspectRatio:"2/3",objectFit:"cover",borderRadius:8,marginBottom:6,
                 border:`2px solid ${statusDot(myStatuses[a.mal_id])||"transparent"}`,
               }} onError={e=>{e.target.style.display="none";}}/>
@@ -589,7 +589,7 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
                     onMouseLeave={e=>{e.currentTarget.style.background="none";}}>
                       {/* Poster */}
                       <div style={{position:"relative",flexShrink:0}}>
-                        <img src={a.image_url||a.large_image} alt="" style={{
+                        <img loading="lazy" decoding="async" src={a.image_url||a.large_image} alt="" style={{
                           width:32,height:44,objectFit:"cover",borderRadius:5,display:"block",
                           border: dotColor ? `2px solid ${dotColor}` : "1px solid rgba(255,255,255,0.1)",
                         }} onError={e=>{e.target.style.display="none";}}/>
@@ -658,7 +658,7 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
               }}
               onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.06)";}}
               onMouseLeave={e=>{e.currentTarget.style.background="none";}}>
-                <img src={a.image_url||a.large_image} alt="" style={{
+                <img loading="lazy" decoding="async" src={a.image_url||a.large_image} alt="" style={{
                   width:32,height:44,objectFit:"cover",borderRadius:5,flexShrink:0,
                   border:`${statusDot(myStatuses[a.mal_id]) ? "2px" : "1px"} solid ${statusDot(myStatuses[a.mal_id]) || "rgba(255,255,255,0.1)"}`,display:"block",
                 }} onError={e=>{e.target.style.display="none";}}/>

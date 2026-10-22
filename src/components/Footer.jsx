@@ -13,7 +13,7 @@ export function Footer({ onOpenPage }) {
         <div className="flex items-center gap-2">
           <picture>
             <source srcSet="/logo-transparent.png" media="(prefers-color-scheme: dark)" />
-            <img src="/logo-light.png" alt="" className="h-10 w-auto object-contain" />
+            <img loading="lazy" decoding="async" src="/logo-light.png" alt="" className="h-10 w-auto object-contain" />
           </picture>
           <span className={`text-sm font-black tracking-tight ${GRADIENT_TEXT}`}>AniMood</span>
         </div>
