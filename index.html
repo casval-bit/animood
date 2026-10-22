@@ -4,7 +4,26 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AniMood</title>
+    <title>AniMood — Trouve l'animé qui correspond à ton humeur</title>
+    <meta name="description" content="Choisis ton humeur et AniMood te propose des animés faits pour ce moment. Calendrier de la saison, mini-jeux, forum et listes, gratuit et sans publicité." />
+    <meta name="application-name" content="AniMood" />
+
+    <!-- ─── Aperçu quand on partage le lien (Open Graph / X-Twitter) ───────
+         Les adresses sont absolues : si le nom de domaine change, les remplacer ici,
+         dans public/robots.txt et dans public/sitemap.xml. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="AniMood" />
+    <meta property="og:title" content="AniMood — Trouve l'animé qui correspond à ton humeur" />
+    <meta property="og:description" content="Choisis ton humeur et AniMood te propose des animés faits pour ce moment. Gratuit, sans publicité." />
+    <meta property="og:image" content="https://animood-rho.vercel.app/icons/icon-512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:locale" content="fr_FR" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="AniMood — Trouve l'animé qui correspond à ton humeur" />
+    <meta name="twitter:description" content="Choisis ton humeur et AniMood te propose des animés faits pour ce moment." />
+    <meta name="twitter:image" content="https://animood-rho.vercel.app/icons/icon-512.png" />
 
     <!-- ─── PWA Meta ─────────────────────────────────────────────────── -->
     <link rel="manifest" href="/manifest.json" />
@@ -17,6 +36,13 @@
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <div style="padding:32px;font-family:system-ui,sans-serif;color:#cbd5e1;background:#070b17;min-height:100vh">
+        <h1 style="font-size:22px;color:#fff">AniMood</h1>
+        <p>Choisis ton humeur et AniMood te propose des animés faits pour ce moment. JavaScript est nécessaire pour utiliser l'application : active-le dans ton navigateur.</p>
+        <p lang="en">Pick your mood and AniMood suggests anime made for the moment. JavaScript is required to use the app — please enable it in your browser.</p>
+      </div>
+    </noscript>
     <!-- Dev only: drop any service worker left over from a prod build. Its
          cache-first rule would otherwise serve stale /src/*.js modules and
          break the import graph (white screen). Inline so it runs even when
