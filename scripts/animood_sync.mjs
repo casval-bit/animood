@@ -28,6 +28,11 @@
 import { createClient } from "@supabase/supabase-js";
 import { buildAltTitles } from "./lib/altTitles.mjs";
 
+// Aucune requête ne doit pouvoir bloquer le script indéfiniment (un serveur qui ne répond pas = script figé sans message) :
+// toutes les requêtes réseau de ce fichier abandonnent au bout de 30 s (les appels qui le gèrent déjà réessaient ou passent au suivant).
+const _fetch = globalThis.fetch;
+globalThis.fetch = (url, opts = {}) => _fetch(url, opts.signal ? opts : { ...opts, signal: AbortSignal.timeout(30_000) });
+
 const CFG = {
   SUPABASE_URL:         process.env.SUPABASE_URL         || "https://pjkvhhxwjzpmxmhdhwcp.supabase.co",
   SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY || "",
@@ -143,12 +148,22 @@ async function assignMoods(anime) {
 }
 
 // ── ANILIST HELPERS ───────────────────────────────────────────────────────────
+// AniList limite à ~90 requêtes / minute : sur « 429 » on attend le délai demandé puis on réessaie (3 fois max).
 async function anilistQuery(query, variables) {
-  const r = await fetch("https://graphql.anilist.co", {
-    method:"POST", headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({query, variables}),
-  });
-  return r.json();
+  for(let attempt=0; attempt<4; attempt++) {
+    const r = await fetch("https://graphql.anilist.co", {
+      method:"POST", headers:{"Content-Type":"application/json","Accept":"application/json"},
+      body:JSON.stringify({query, variables}),
+    });
+    if(r.status === 429 || r.status >= 500) {
+      const wait = Math.min(65, Number(r.headers.get("retry-after")) || 20*(attempt+1));
+      log(`  ⏳ AniList ${r.status} — pause ${wait} s (essai ${attempt+1}/4)`);
+      await sleep(wait*1000);
+      continue;
+    }
+    return r.json();
+  }
+  throw new Error("AniList indisponible (limite de requêtes ou panne)");
 }
 
 function anilistToRow(a) {
@@ -331,12 +346,14 @@ async function jobRefreshAiring() {
 
   const q = `query($ids:[Int]){Page(perPage:50){media(idMal_in:$ids,type:ANIME){idMal status episodes}}}`;
   const found = new Map();
+  const nBatches = Math.ceil(rows.length/50);
   for(let i=0; i<rows.length; i+=50) {
     const ids = rows.slice(i,i+50).map(r=>r.mal_id);
     try {
       const d = await anilistQuery(q, {ids});
       for(const m of (d?.data?.Page?.media||[])) if(m.idMal) found.set(m.idMal, m);
-    } catch(e) { log(`  ⚠️ AniList (lot ${i/50+1}) : ${e.message}`); }
+    } catch(e) { log(`  ⚠️ AniList (lot ${i/50+1}/${nBatches}) : ${e.message}`); }
+    if((i/50+1) % 5 === 0 || i+50 >= rows.length) log(`  AniList : lot ${i/50+1}/${nBatches} — ${found.size} anime reconnus`);
     await sleep(1100);
   }
 
@@ -357,6 +374,7 @@ async function jobRefreshAiring() {
   }
 
   // Inconnus d'AniList : on demande à Jikan (lent, plafonné)
+  if(unknown.length) log(`  ${unknown.length} anime inconnus d'AniList → vérification via Jikan (${Math.min(150,unknown.length)} max, ~1 min)`);
   for(const r of unknown.slice(0,150)) {
     try {
       const res = await fetch(`https://api.jikan.moe/v4/anime/${r.mal_id}`,{headers:{"Accept":"application/json"}});
