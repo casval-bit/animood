@@ -22,7 +22,7 @@ export const LEGAL_MODAL_I18N = {
       },
       {
         h: "Hébergement",
-        p: "Site web : Vercel Inc., 340 S Lemon Ave #4133, Walnut, CA 91789, États-Unis (vercel.com). Base de données et authentification : Supabase (supabase.com). Images envoyées par les utilisateurs : Cloudinary (cloudinary.com).",
+        p: "Site web : Vercel Inc., 340 S Lemon Ave #4133, Walnut, CA 91789, États-Unis (vercel.com). Base de données et authentification : Supabase (supabase.com). Images envoyées par les utilisateurs : Cloudinary (cloudinary.com). Fichier d'installation Android (APK) : servi par le site ; applications de bureau : versions publiées sur GitHub (github.com/casval-bit/animood).",
       },
       {
         h: "Propriété intellectuelle",
@@ -30,7 +30,7 @@ export const LEGAL_MODAL_I18N = {
       },
       {
         h: "Sources de données & attributions",
-        p: "Les informations sur les animés (titres, synopsis, scores, genres, images) proviennent de MyAnimeList (myanimelist.net) via l'API Jikan (jikan.moe), et de façon complémentaire d'AniList (anilist.co). Les musiques d'ouverture et de fin proviennent d'AnimeThemes (animethemes.moe). Les disponibilités par pays sont fournies par JustWatch via TMDB : This product uses the TMDB API but is not endorsed or certified by TMDB. Les bandes-annonces sont lues depuis YouTube et soumises à ses conditions d'utilisation. MyAnimeList, AniList, TMDB, JustWatch, YouTube et les noms des plateformes de streaming sont des marques de leurs propriétaires respectifs ; AniMood n'est affilié à aucun d'eux et n'a aucun partenariat avec eux.",
+        p: "Les informations sur les animés (titres, synopsis, scores, genres, images) proviennent de MyAnimeList (myanimelist.net) via l'API Jikan (jikan.moe), et de façon complémentaire d'AniList (anilist.co). Les musiques d'ouverture et de fin proviennent d'AnimeThemes (animethemes.moe). Les disponibilités par pays sont fournies par JustWatch via TMDB : This product uses the TMDB API but is not endorsed or certified by TMDB. Les jours de diffusion et les épisodes sortis s'appuient aussi sur le flux RSS public de LiveChart (livechart.me). Les bandes-annonces sont lues depuis YouTube et soumises à ses conditions d'utilisation. MyAnimeList, AniList, TMDB, JustWatch, LiveChart, YouTube et les noms des plateformes de streaming sont des marques de leurs propriétaires respectifs ; AniMood n'est affilié à aucun d'eux et n'a aucun partenariat avec eux.",
       },
       {
         h: "Images et droits des ayants droit",
@@ -42,7 +42,7 @@ export const LEGAL_MODAL_I18N = {
       },
       {
         h: "Liens et plateformes de streaming",
-        p: "AniMood affiche des liens vers des plateformes de streaming officielles, sans partenariat ni rémunération. AniMood n'héberge, ne diffuse et n'indexe aucun fichier vidéo protégé. Dans l'application de bureau (hors Microsoft Store), l'utilisateur peut ajouter lui-même l'adresse de sites de son choix : AniMood ne fournit aucune liste de sites et se contente d'ouvrir l'adresse saisie ; l'utilisateur est seul responsable des sites qu'il ajoute et du respect de leurs conditions et de la loi de son pays.",
+        p: "AniMood affiche des liens vers des plateformes de streaming officielles, sans partenariat ni rémunération. Lorsqu'un animé n'est proposé que dans d'autres pays, une indication peut renvoyer vers des sites de VPN (liens officiels, sans partenariat ni commission) : il appartient à l'utilisateur de vérifier les conditions d'utilisation de la plateforme avant d'y recourir. AniMood n'héberge, ne diffuse et n'indexe aucun fichier vidéo protégé. Dans l'application de bureau (hors Microsoft Store), l'utilisateur peut ajouter lui-même l'adresse de sites de son choix : AniMood ne fournit aucune liste de sites et se contente d'ouvrir l'adresse saisie ; l'utilisateur est seul responsable des sites qu'il ajoute et du respect de leurs conditions et de la loi de son pays.",
       },
       {
         h: "Limitation de responsabilité",
@@ -79,7 +79,7 @@ export const LEGAL_MODAL_I18N = {
       },
       {
         h: "Qui reçoit tes données",
-        p: "Prestataires qui font tourner AniMood : Supabase (base de données et connexion), Vercel (hébergement du site), Cloudinary (images envoyées), Google (connexion avec ton compte Google). Services appelés directement par ton navigateur, qui voient ton adresse IP : Jikan, AniList, AnimeThemes (données d'animés), YouTube (bandes-annonces, lecteur en mode renforcé de confidentialité), Google Fonts (police Inter), placehold.co (images de remplacement), GitHub (page de téléchargement). Aucun outil publicitaire ni de mesure d'audience n'est utilisé.",
+        p: "Prestataires qui font tourner AniMood : Supabase (base de données et connexion), Vercel (hébergement du site), Cloudinary (images envoyées), Google (connexion avec ton compte Google). Services appelés directement par ton navigateur, qui voient ton adresse IP : Jikan, AniList, AnimeThemes (données d'animés), YouTube (bandes-annonces, lecteur en mode renforcé de confidentialité), Google Fonts (police Inter), placehold.co (images de remplacement), GitHub (page de téléchargement et mises à jour de l'application de bureau). Aucun outil publicitaire ni de mesure d'audience n'est utilisé.",
       },
       {
         h: "Transferts hors de l'Union européenne",
@@ -87,11 +87,11 @@ export const LEGAL_MODAL_I18N = {
       },
       {
         h: "Cookies & stockage local",
-        p: "AniMood n'utilise aucun cookie publicitaire ni traceur. Il enregistre sur ton appareil (stockage local du navigateur et cache de l'application) uniquement ce qui est nécessaire : ta session de connexion, ta langue, tes préférences d'affichage et le fonctionnement hors connexion. Ce stockage strictement nécessaire ne demande pas de consentement ; tu peux l'effacer à tout moment depuis les réglages de ton navigateur (tu seras alors déconnecté).",
+        p: "AniMood n'utilise aucun cookie publicitaire ni traceur. Il enregistre sur ton appareil (stockage local du navigateur et cache de l'application) uniquement ce qui est nécessaire : ta session de connexion, ta langue, ton pays choisi pour les disponibilités de streaming (aucune géolocalisation), tes préférences d'affichage et le fonctionnement hors connexion. Ce stockage strictement nécessaire ne demande pas de consentement ; tu peux l'effacer à tout moment depuis les réglages de ton navigateur (tu seras alors déconnecté).",
       },
       {
-        h: "Application de bureau",
-        p: "Les plateformes de streaming que tu ajoutes et les liens mémorisés restent sur ton ordinateur ; rien n'est envoyé à AniMood. Pour retrouver la page d'un animé, l'application contacte depuis ton ordinateur les sites que tu as ajoutés et le moteur de recherche DuckDuckGo.",
+        h: "Applis de bureau et mobile",
+        p: "Les applications (Windows, macOS, Linux, Android) affichent le site AniMood : tout ce qui précède s'applique à l'identique. L'application de bureau vérifie les mises à jour sur GitHub, qui voit alors ton adresse IP. Les plateformes de streaming que tu ajoutes et les liens mémorisés restent sur ton ordinateur ; rien n'est envoyé à AniMood. Pour retrouver la page d'un animé, l'application contacte depuis ton ordinateur les sites que tu as ajoutés et le moteur de recherche DuckDuckGo. Sur iPhone, l'« application » est le site ajouté à l'écran d'accueil.",
       },
       {
         h: "Durées de conservation",
@@ -133,7 +133,7 @@ export const LEGAL_MODAL_I18N = {
       },
       {
         h: "Hosting",
-        p: "Website: Vercel Inc., 340 S Lemon Ave #4133, Walnut, CA 91789, USA (vercel.com). Database and authentication: Supabase (supabase.com). User-uploaded images: Cloudinary (cloudinary.com).",
+        p: "Website: Vercel Inc., 340 S Lemon Ave #4133, Walnut, CA 91789, USA (vercel.com). Database and authentication: Supabase (supabase.com). User-uploaded images: Cloudinary (cloudinary.com). Android installation file (APK): served by the website; desktop apps: releases published on GitHub (github.com/casval-bit/animood).",
       },
       {
         h: "Intellectual property",
@@ -141,7 +141,7 @@ export const LEGAL_MODAL_I18N = {
       },
       {
         h: "Data sources & attributions",
-        p: "Anime information (titles, synopses, scores, genres, images) comes from MyAnimeList (myanimelist.net) via the Jikan API (jikan.moe), and additionally from AniList (anilist.co). Opening and ending themes come from AnimeThemes (animethemes.moe). Availability by country is provided by JustWatch through TMDB: This product uses the TMDB API but is not endorsed or certified by TMDB. Trailers are played from YouTube and subject to its terms of service. MyAnimeList, AniList, TMDB, JustWatch, YouTube and the names of streaming platforms are trademarks of their respective owners; AniMood is not affiliated with, or partnered with, any of them.",
+        p: "Anime information (titles, synopses, scores, genres, images) comes from MyAnimeList (myanimelist.net) via the Jikan API (jikan.moe), and additionally from AniList (anilist.co). Opening and ending themes come from AnimeThemes (animethemes.moe). Availability by country is provided by JustWatch through TMDB: This product uses the TMDB API but is not endorsed or certified by TMDB. Broadcast days and released episodes also rely on LiveChart's public RSS feed (livechart.me). Trailers are played from YouTube and subject to its terms of service. MyAnimeList, AniList, TMDB, JustWatch, LiveChart, YouTube and the names of streaming platforms are trademarks of their respective owners; AniMood is not affiliated with, or partnered with, any of them.",
       },
       {
         h: "Images and rights holders",
@@ -153,7 +153,7 @@ export const LEGAL_MODAL_I18N = {
       },
       {
         h: "Links and streaming platforms",
-        p: "AniMood shows links to official streaming platforms, with no partnership or payment. AniMood does not host, stream or index any protected video file. In the desktop app (outside the Microsoft Store), users can add the address of sites of their own choice: AniMood provides no list of sites and only opens the address typed in; users are solely responsible for the sites they add and for complying with their terms and local law.",
+        p: "AniMood shows links to official streaming platforms, with no partnership or payment. When an anime is only offered in other countries, a hint may link to VPN websites (official links, no partnership or commission): it is up to the user to check the platform's terms of use before relying on one. AniMood does not host, stream or index any protected video file. In the desktop app (outside the Microsoft Store), users can add the address of sites of their own choice: AniMood provides no list of sites and only opens the address typed in; users are solely responsible for the sites they add and for complying with their terms and local law.",
       },
       {
         h: "Limitation of liability",
@@ -190,7 +190,7 @@ export const LEGAL_MODAL_I18N = {
       },
       {
         h: "Who receives your data",
-        p: "Providers that run AniMood: Supabase (database and sign-in), Vercel (website hosting), Cloudinary (uploaded images), Google (sign-in with your Google account). Services called directly by your browser, which can see your IP address: Jikan, AniList, AnimeThemes (anime data), YouTube (trailers, privacy-enhanced player), Google Fonts (Inter typeface), placehold.co (placeholder images), GitHub (download page). No advertising or analytics tools are used.",
+        p: "Providers that run AniMood: Supabase (database and sign-in), Vercel (website hosting), Cloudinary (uploaded images), Google (sign-in with your Google account). Services called directly by your browser, which can see your IP address: Jikan, AniList, AnimeThemes (anime data), YouTube (trailers, privacy-enhanced player), Google Fonts (Inter typeface), placehold.co (placeholder images), GitHub (download page and desktop app updates). No advertising or analytics tools are used.",
       },
       {
         h: "Transfers outside the European Union",
@@ -198,11 +198,11 @@ export const LEGAL_MODAL_I18N = {
       },
       {
         h: "Cookies & local storage",
-        p: "AniMood uses no advertising cookies or trackers. It stores on your device (browser local storage and the app cache) only what is necessary: your sign-in session, your language, your display preferences and offline operation. This strictly necessary storage does not require consent; you can clear it at any time in your browser settings (you will then be signed out).",
+        p: "AniMood uses no advertising cookies or trackers. It stores on your device (browser local storage and the app cache) only what is necessary: your sign-in session, your language, the country you picked for streaming availability (no geolocation), your display preferences and offline operation. This strictly necessary storage does not require consent; you can clear it at any time in your browser settings (you will then be signed out).",
       },
       {
-        h: "Desktop app",
-        p: "The streaming platforms you add and the links it remembers stay on your computer; nothing is sent to AniMood. To find an anime's page, the app contacts, from your computer, the sites you added and the DuckDuckGo search engine.",
+        h: "Desktop and mobile apps",
+        p: "The apps (Windows, macOS, Linux, Android) display the AniMood website: everything above applies identically. The desktop app checks for updates on GitHub, which then sees your IP address. The streaming platforms you add and the links it remembers stay on your computer; nothing is sent to AniMood. To find an anime's page, the app contacts, from your computer, the sites you added and the DuckDuckGo search engine. On iPhone, the \"app\" is the website added to your home screen.",
       },
       {
         h: "Data retention",

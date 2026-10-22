@@ -221,6 +221,9 @@ function ContactPage({ onClose }) {
 }
 
 function FAQPage({ onClose }) {
+  const { lang } = useLang();
+  const en = lang === "en";
+  const L = (fr, enTxt) => (en ? enTxt : fr);
   const [open, setOpen] = React.useState(null);
   const faqs = [
     {
@@ -242,6 +245,85 @@ function FAQPage({ onClose }) {
     {
       q:"AniMood est-il gratuit ?",
       a:"Oui, complètement gratuit et sans publicité. C'est un projet communautaire open source.",
+    },
+    // ── Assistants d'installation (pas à pas) ─────────────────────────────────────────────────────────────
+    {
+      q: L("Comment installer l'appli sur Android (APK) ?", "How do I install the Android app (APK)?"),
+      a: L(
+`1. Sur ton téléphone, ouvre le site → pied de page → « Télécharger l'appli », puis appuie sur « Télécharger l'APK ».
+2. Ouvre le fichier AniMood.apk (notification de téléchargement, ou application Fichiers → Téléchargements).
+3. Android demande d'autoriser l'installation depuis cette source (ton navigateur ou Fichiers) : appuie sur « Paramètres », active l'autorisation, puis reviens en arrière.
+4. Si « Play Protect » affiche un avertissement, c'est parce que l'appli ne vient pas du Google Play Store : choisis « Installer quand même ».
+5. Ouvre AniMood et connecte-toi avec Google. Tu retrouves ton compte, tes listes et tes messages.
+L'appli affiche directement le site : elle est toujours à jour, inutile de réinstaller l'APK (sauf si on l'annonce). Télécharge-la uniquement depuis le site officiel d'AniMood.`,
+`1. On your phone, open the website → footer → "Get the app", then tap "Download APK".
+2. Open the AniMood.apk file (download notification, or Files app → Downloads).
+3. Android asks you to allow installs from this source (your browser or Files): tap "Settings", turn the permission on, then go back.
+4. If "Play Protect" shows a warning, it is because the app does not come from the Google Play Store: choose "Install anyway".
+5. Open AniMood and sign in with Google. Your account, lists and messages are there.
+The app shows the website directly: it is always up to date, no need to reinstall the APK (unless announced). Only download it from AniMood's official website.`),
+    },
+    {
+      q: L("Comment installer l'appli sur iPhone / iPad ?", "How do I install the app on iPhone / iPad?"),
+      a: L(
+`Il n'y a pas d'APK sur iPhone : on ajoute le site à l'écran d'accueil.
+1. Ouvre AniMood dans Safari (pas dans un autre navigateur).
+2. Appuie sur le bouton Partager (le carré avec une flèche vers le haut).
+3. Choisis « Sur l'écran d'accueil », puis « Ajouter ».
+L'icône AniMood apparaît comme une appli et s'ouvre en plein écran.`,
+`There is no APK on iPhone: you add the website to your home screen.
+1. Open AniMood in Safari (not another browser).
+2. Tap the Share button (the square with an up arrow).
+3. Choose "Add to Home Screen", then "Add".
+The AniMood icon appears like an app and opens full screen.`),
+    },
+    {
+      q: L("Comment installer l'appli de bureau sur Windows ?", "How do I install the desktop app on Windows?"),
+      a: L(
+`1. Va sur « Télécharger l'appli » (pied de page) et télécharge l'installateur Windows (fichier .exe).
+2. Double-clique dessus. Si Windows affiche « Windows a protégé votre PC » (SmartScreen) : clique sur « Informations complémentaires », puis « Exécuter quand même ». C'est normal : AniMood n'a pas de certificat de signature payant.
+3. Choisis le dossier d'installation (ou garde celui proposé) et valide.
+4. Un raccourci est créé sur le Bureau et dans le menu Démarrer : lance AniMood et connecte-toi.
+Les mises à jour se font ensuite toutes seules.`,
+`1. Go to "Get the app" (footer) and download the Windows installer (.exe file).
+2. Double-click it. If Windows shows "Windows protected your PC" (SmartScreen): click "More info", then "Run anyway". This is expected: AniMood has no paid code-signing certificate.
+3. Pick the install folder (or keep the default) and confirm.
+4. A shortcut is created on the Desktop and in the Start menu: launch AniMood and sign in.
+Updates then install themselves.`),
+    },
+    {
+      q: L("Comment installer l'appli de bureau sur Mac ?", "How do I install the desktop app on Mac?"),
+      a: L(
+`1. Sur « Télécharger l'appli », choisis la bonne version : menu Apple → « À propos de ce Mac ». Si tu vois « Puce Apple M1/M2/M3… », prends « Apple Silicon » ; si tu vois « Intel », prends « Intel ».
+2. Ouvre le fichier .dmg et glisse AniMood dans le dossier Applications.
+3. Au premier lancement, macOS peut refuser (application non signée par un certificat Apple payant) : clic droit sur AniMood → « Ouvrir » → « Ouvrir ». Sinon : Réglages Système → Confidentialité et sécurité → « Ouvrir quand même ».
+Ensuite, il s'ouvre normalement et se met à jour tout seul.`,
+`1. On "Get the app", pick the right version: Apple menu → "About This Mac". If you see "Apple M1/M2/M3 chip…", take "Apple Silicon"; if you see "Intel", take "Intel".
+2. Open the .dmg file and drag AniMood into the Applications folder.
+3. On first launch macOS may refuse (the app is not signed with a paid Apple certificate): right-click AniMood → "Open" → "Open". Otherwise: System Settings → Privacy & Security → "Open Anyway".
+After that it opens normally and updates itself.`),
+    },
+    {
+      q: L("Comment installer l'appli de bureau sur Linux ?", "How do I install the desktop app on Linux?"),
+      a: L(
+`Deux formats sont proposés sur « Télécharger l'appli » :
+• AppImage (toutes distributions) : rends le fichier exécutable (clic droit → Propriétés → « Autoriser l'exécution », ou « chmod +x AniMood-*.AppImage ») puis double-clique dessus.
+• .deb (Debian, Ubuntu et dérivés) : « sudo apt install ./AniMood-*.deb » dans le dossier du téléchargement.`,
+`Two formats are offered on "Get the app":
+• AppImage (any distribution): make the file executable (right-click → Properties → "Allow executing", or "chmod +x AniMood-*.AppImage") then double-click it.
+• .deb (Debian, Ubuntu and derivatives): "sudo apt install ./AniMood-*.deb" in the download folder.`),
+    },
+    {
+      q: L("Les avertissements de sécurité à l'installation sont-ils normaux ?", "Are the security warnings during installation normal?"),
+      a: L(
+`Oui, c'est attendu : AniMood est un projet gratuit et n'a pas acheté les certificats de signature de Windows, d'Apple ou le référencement Google Play, ce qui déclenche ces avertissements. Pour rester en sécurité, ne télécharge AniMood que depuis le site officiel ou depuis la page des versions du projet sur GitHub — jamais depuis un site tiers ou un lien reçu par message.`,
+`Yes, this is expected: AniMood is a free project and has not bought Windows or Apple signing certificates or a Google Play listing, which triggers these warnings. To stay safe, only download AniMood from the official website or the project's releases page on GitHub — never from a third-party site or a link sent in a message.`),
+    },
+    {
+      q: L("Quelle différence entre le site et l'appli de bureau ?", "What is the difference between the website and the desktop app?"),
+      a: L(
+`Même compte, mêmes listes et mêmes messages. L'appli de bureau ajoute un onglet Jeux dédié, des cadres de profil animés, des sons, une recherche d'animés rapide, un lecteur de trailer intégré, la possibilité d'ajouter tes propres plateformes de streaming (hors version Microsoft Store) et des mises à jour automatiques.`,
+`Same account, same lists and messages. The desktop app adds a dedicated Games tab, animated profile frames, sounds, quick anime search, a built-in trailer player, the option to add your own streaming platforms (not in the Microsoft Store version) and automatic updates.`),
     },
     {
       q:"Comment signaler un bug ou un problème ?",
@@ -286,7 +368,7 @@ function FAQPage({ onClose }) {
             {open===i && (
               <div style={{
                 padding:"0 18px 16px",
-                fontSize:12,color:"var(--text-3, #94a3b8)",lineHeight:1.7,
+                fontSize:12,color:"var(--text-3, #94a3b8)",lineHeight:1.7,whiteSpace:"pre-line",
               }}>
                 {faq.a}
               </div>
