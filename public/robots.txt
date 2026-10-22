@@ -1,0 +1,7 @@
+# AniMood — autorise l'indexation du site ; seul le dossier des téléchargements (APK) est exclu.
+# Si le nom de domaine change, remplace l'adresse du sitemap ci-dessous (et celle de public/sitemap.xml et de index.html).
+User-agent: *
+Allow: /
+Disallow: /downloads/
+
+Sitemap: https://animood-rho.vercel.app/sitemap.xml
