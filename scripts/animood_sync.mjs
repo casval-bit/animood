@@ -299,22 +299,34 @@ function jstSlot(airingAt) {
   const d = new Date(airingAt*1000 + 9*3600*1000);
   return { day: DAYS_EN[d.getUTCDay()], time: `${String(d.getUTCHours()).padStart(2,"0")}:${String(d.getUTCMinutes()).padStart(2,"0")}`, timezone: "Asia/Tokyo" };
 }
-async function jobRefreshAiring() {
-  log("=== JOB: refresh-airing ===");
+const SITE_TYPES = ["TV","ONA","OVA","Movie","Special"];
+// Tout ce qui n'est pas « terminé » : en cours + à venir
+async function loadOpenRows(columns) {
   const rows = [];
   for(const status of ["Currently Airing","Not yet aired"]) {
     let from = 0;
     while(true) {
       const { data, error } = await supabase.from("anime_cache")
-        .select("mal_id,title,type,status,episodes")
-        .in("type",["TV","ONA","OVA","Movie","Special"]).eq("status",status).range(from, from+999);
-      if(error) { log(`  ❌ lecture ${status}: ${error.message}`); break; }
+        .select(columns).in("type",SITE_TYPES).eq("status",status).range(from, from+999);
+      if(error) { log(`  ❌ lecture ${status}: ${error.message}`); return { rows, error }; }
       if(!data?.length) break;
       rows.push(...data);
       if(data.length < 1000) break;
       from += 1000;
     }
   }
+  return { rows };
+}
+
+// Renvoie { started: [ids passés « en cours »], finished: [ids passés « terminé »] } pour déclencher les jobs qui suivent
+async function jobRefreshAiring() {
+  log("=== JOB: refresh-airing ===");
+  const { rows } = await loadOpenRows("mal_id,title,type,status,episodes");
+  const started = [], finished = [];
+  const noteStatus = (r, st) => {
+    if(st === "Currently Airing" && r.status === "Not yet aired") started.push(r.mal_id);
+    if(st === "Finished Airing") finished.push(r.mal_id);
+  };
   log(`${rows.length} anime à vérifier (en cours + à venir : TV, ONA, OVA, films, spéciaux)`);
 
   const q = `query($ids:[Int]){Page(perPage:50){media(idMal_in:$ids,type:ANIME){idMal status episodes}}}`;
@@ -335,7 +347,7 @@ async function jobRefreshAiring() {
     const updates = {};
     const next = AL_STATUS[m.status];
     // AniList passe à RELEASING à la 1re diffusion : on ne fait jamais repasser en « à venir » une série déjà lancée
-    if(next && next !== r.status && !(next==="Not yet aired" && r.status!=="Not yet aired")) updates.status = next;
+    if(next && next !== r.status && !(next==="Not yet aired" && r.status!=="Not yet aired")) { updates.status = next; noteStatus(r, next); }
     if(m.episodes && m.episodes !== r.episodes) updates.episodes = m.episodes;
     if(Object.keys(updates).length) {
       await updateAnimeCache(r.mal_id, updates);
@@ -351,14 +363,79 @@ async function jobRefreshAiring() {
       if(res.ok) {
         const st = (await res.json())?.data?.status;
         if(st && st !== r.status && !(st==="Not yet aired" && r.status!=="Not yet aired")) {
-          await updateAnimeCache(r.mal_id, {status: st}); changed++;
+          await updateAnimeCache(r.mal_id, {status: st}); changed++; noteStatus(r, st);
           log(`  ✅ [Jikan] ${r.title} : ${r.status} → ${st}`);
         }
       }
     } catch {}
     await sleep(450);
   }
-  log(`=== refresh-airing done: ${changed} mis à jour sur ${rows.length} (${unknown.length} inconnus d'AniList) ===`);
+  log(`=== refresh-airing done: ${changed} mis à jour sur ${rows.length} (${unknown.length} inconnus d'AniList) — ${started.length} démarrés, ${finished.length} terminés ===`);
+  return { started, finished };
+}
+
+// ── JOB: livechart ────────────────────────────────────────────────────────────
+// LiveChart n'a pas d'API mais publie un flux RSS public des épisodes DIFFUSÉS dans les dernières 24 h
+// (https://www.livechart.me/feeds/episodes — « fourni tel quel », sans garantie). C'est la preuve la plus directe
+// qu'un anime est réellement en cours : on s'en sert pour
+//   • passer immédiatement « Not yet aired » → « Currently Airing » (sans attendre AniList / MAL)
+//   • renseigner le jour + l'heure réels de diffusion quand on n'en a pas (ex. séries Netflix)
+// Le flux ne donne pas d'identifiant MAL : on rapproche par titre EXACT (normalisé) avec title / title_en / alt_titles,
+// et on ignore tout titre ambigu (plusieurs animés possibles) plutôt que de risquer une mauvaise correspondance.
+const normTitle = (t) => String(t||"").normalize("NFKD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/&/g,"and").replace(/[^a-z0-9]+/g,"");
+const xmlText = (t) => String(t||"").replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g,"$1").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&#0?39;|&apos;/g,"'").replace(/&amp;/g,"&").trim();
+function parseLivechartFeed(xml) {
+  const items = [];
+  for(const m of String(xml).matchAll(/<item>([\s\S]*?)<\/item>/g)) {
+    const get = (tag) => xmlText((m[1].match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`))||[])[1]);
+    const raw = get("title"), pub = Date.parse(get("pubDate"));
+    const ep = raw.match(/\s#(\d+(?:\.\d+)?)$/);
+    if(!raw || !Number.isFinite(pub)) continue;
+    items.push({ title: raw.replace(/\s#\d+(?:\.\d+)?$/,"").trim(), episode: ep ? Number(ep[1]) : null, airedAt: Math.floor(pub/1000), link: get("link") });
+  }
+  return items;
+}
+async function jobLivechart() {
+  log("=== JOB: livechart (épisodes diffusés dans les dernières 24 h) ===");
+  const started = [];
+  let xml;
+  try {
+    const r = await fetch("https://www.livechart.me/feeds/episodes", { headers: { "User-Agent": "AniMood-sync (+https://animood-rho.vercel.app)", "Accept": "application/rss+xml, application/xml, text/xml" } });
+    if(!r.ok) { log(`  ⚠️ LiveChart indisponible (HTTP ${r.status}) — on continue sans`); return started; }
+    xml = await r.text();
+  } catch(e) { log(`  ⚠️ LiveChart injoignable (${e.message}) — on continue sans`); return started; }
+  const items = parseLivechartFeed(xml);
+  log(`${items.length} épisodes dans le flux`);
+  if(!items.length) return started;
+
+  let { rows, error } = await loadOpenRows("mal_id,title,title_en,alt_titles,type,status,broadcast");
+  if(error && /alt_titles/.test(error.message||"")) ({ rows } = await loadOpenRows("mal_id,title,title_en,type,status,broadcast"));
+  const index = new Map(); // titre normalisé → Set(mal_id)
+  for(const r of rows) {
+    const names = [r.title, r.title_en, ...(Array.isArray(r.alt_titles) ? r.alt_titles : [])];
+    for(const n of names) { const k = normTitle(n); if(k.length < 4) continue; if(!index.has(k)) index.set(k, new Set()); index.get(k).add(r.mal_id); }
+  }
+  const byId = new Map(rows.map(r => [r.mal_id, r]));
+
+  let matched=0, ambiguous=0, unmatched=0, flipped=0, slotted=0;
+  const done = new Set();
+  for(const it of items) {
+    const ids = index.get(normTitle(it.title));
+    if(!ids) { unmatched++; continue; }
+    if(ids.size !== 1) { ambiguous++; log(`  ⚠️ titre ambigu ignoré : ${it.title} (${ids.size} correspondances)`); continue; }
+    const id = [...ids][0];
+    if(done.has(id)) continue; done.add(id);
+    matched++;
+    const r = byId.get(id), updates = {};
+    if(r.status === "Not yet aired") { updates.status = "Currently Airing"; started.push(id); flipped++; }
+    if(!r.broadcast?.day) { updates.broadcast = jstSlot(it.airedAt); slotted++; }
+    if(Object.keys(updates).length) {
+      await updateAnimeCache(id, updates);
+      log(`  ✅ ${r.title} [${r.type}] ép. ${it.episode ?? "?"} : ${updates.status ? `${r.status} → ${updates.status}` : ""}${updates.broadcast ? ` diffusion ${updates.broadcast.day} ${updates.broadcast.time} (JST)` : ""}`);
+    }
+  }
+  log(`=== livechart done: ${matched} reconnus, ${flipped} passés « en cours », ${slotted} jours de diffusion ajoutés, ${ambiguous} ambigus, ${unmatched} non reconnus (films/anime hors base/titres différents) ===`);
+  return started;
 }
 
 // ── JOB: broadcast ────────────────────────────────────────────────────────────
@@ -401,6 +478,30 @@ async function jobBroadcast() {
   log(`=== broadcast done: ${patched} patched, ${notFound} not found ===`);
 }
 
+// Plateformes d'UN anime (Jikan) — fusionne avec l'existant, ne retire jamais une plateforme déjà connue
+async function updateStreaming(a) {
+  try {
+    const r = await fetch(`https://api.jikan.moe/v4/anime/${a.mal_id}/streaming`, { headers:{"Accept":"application/json"} });
+    if(!r.ok) return false;
+    const d = await r.json();
+    const platforms = (d?.data||[]).map(s=>({name:s.name, url:s.url}));
+    if(!platforms.length) return false;
+    const existing = Array.isArray(a.streaming) ? a.streaming : [];
+    const existingNames = new Set(existing.map(s=>s.name));
+    const merged = [...existing, ...platforms.filter(s=>!existingNames.has(s.name))];
+    await supabase.from("anime_cache").update({streaming:merged}).eq("mal_id",a.mal_id);
+    log(`  ✅ ${a.title}: ${platforms.map(p=>p.name).join(", ")}`);
+    return true;
+  } catch { return false; }
+}
+// Uniquement pour une liste d'ids (ceux qui viennent de passer « en cours »)
+async function jobStreamingFor(ids) {
+  if(!ids.length) return;
+  log(`=== streaming des ${ids.length} anime qui viennent de démarrer ===`);
+  const { data } = await supabase.from("anime_cache").select("mal_id,title,streaming").in("mal_id", ids);
+  for(const a of (data||[])) { await updateStreaming(a); await sleep(450); }
+}
+
 // ── JOB: streaming ──────────────────────────────────────────────────────────────
 // Uses Jikan /anime/{id}/streaming — same format as existing streaming column
 // Safe: merges with existing data, never removes platforms already in streaming
@@ -425,25 +526,8 @@ async function jobStreaming() {
       total += batch.length;
 
       for(const a of batch) {
-        try {
-          const r = await fetch(`https://api.jikan.moe/v4/anime/${a.mal_id}/streaming`, {
-            headers:{"Accept":"application/json"}
-          });
-          if(!r.ok) { await sleep(500); continue; }
-          const d = await r.json();
-          const platforms = (d?.data||[]).map(s=>({name:s.name, url:s.url}));
-
-          if(platforms.length) {
-            // Merge with existing — keep existing entries, add new ones
-            const existing = Array.isArray(a.streaming) ? a.streaming : [];
-            const existingNames = new Set(existing.map(s=>s.name));
-            const merged = [...existing, ...platforms.filter(s=>!existingNames.has(s.name))];
-            await supabase.from("anime_cache").update({streaming:merged}).eq("mal_id",a.mal_id);
-            log(`  ✅ ${a.title}: ${platforms.map(p=>p.name).join(", ")}`);
-            updated++;
-          }
-          await sleep(450); // Jikan rate limit
-        } catch(e) { await sleep(500); }
+        if(await updateStreaming(a)) updated++;
+        await sleep(450); // Jikan rate limit
       }
 
       if(total % 100 === 0) log(`  ${total} processed, ${updated} updated...`);
@@ -455,16 +539,23 @@ async function jobStreaming() {
 }
 
 // ── JOB: trailers ─────────────────────────────────────────────────────────────
-async function jobTrailers() {
-  log("=== JOB: trailers ===");
+async function jobTrailers(onlyIds = null) {
+  log(onlyIds ? `=== trailers des ${onlyIds.length} anime qui viennent de démarrer ===` : "=== JOB: trailers ===");
+  if(onlyIds && !onlyIds.length) return;
 
   // Priority: upcoming anime (Not yet aired) first, then rest
-  const { data: upcoming } = await supabase.from("anime_cache")
-    .select("mal_id,title,trailer").eq("status","Not yet aired")
-    .or("trailer.is.null,trailer.eq.{}");
-  const { data: rest } = await supabase.from("anime_cache")
-    .select("mal_id,title,trailer").neq("status","Not yet aired")
-    .or("trailer.is.null,trailer.eq.{}").limit(5000);
+  let upcoming, rest;
+  if(onlyIds) {
+    ({ data: upcoming } = await supabase.from("anime_cache").select("mal_id,title,trailer").in("mal_id", onlyIds).or("trailer.is.null,trailer.eq.{}"));
+    rest = [];
+  } else {
+    ({ data: upcoming } = await supabase.from("anime_cache")
+      .select("mal_id,title,trailer").eq("status","Not yet aired")
+      .or("trailer.is.null,trailer.eq.{}"));
+    ({ data: rest } = await supabase.from("anime_cache")
+      .select("mal_id,title,trailer").neq("status","Not yet aired")
+      .or("trailer.is.null,trailer.eq.{}").limit(5000));
+  }
 
   const toFetch = [...(upcoming||[]), ...(rest||[])];
   log(`${(upcoming||[]).length} upcoming + ${(rest||[]).length} others = ${toFetch.length} without trailer`);
@@ -551,7 +642,7 @@ async function jobNewScores() {
   // Find anime that are Currently Airing but not yet in sync log
   const { data: airing } = await supabase.from("anime_cache")
     .select("mal_id,title,score,genres,synopsis,broadcast")
-    .eq("status","Currently Airing").eq("type","TV")
+    .eq("status","Currently Airing").in("type",SITE_TYPES)
     .not("score","is",null);
 
   // Get already-logged anime
@@ -649,12 +740,12 @@ async function rescoreAnime(malId, keepWeight=false) {
     if(!r.ok) return;
     const d = await r.json();
     const score = d?.data?.score||null;
-    const status = d?.data?.status;
     const updates = {};
     const scored_by = d?.data?.scored_by||null;
     if(score) updates.score = score;
     if(scored_by) updates.scored_by = scored_by;
-    if(status) updates.status = status==="Currently Airing"?"Currently Airing":status==="Finished Airing"?"Finished Airing":status;
+    // Le STATUT n'est plus écrit ici : MAL garde parfois « Currently Airing » pour des OAV terminés, ce qui annulerait la correction
+    // faite chaque jour par refresh-airing (AniList). Le statut a un seul propriétaire : refresh-airing.
     if(score) {
       let weight;
       if(keepWeight) {
@@ -678,16 +769,18 @@ async function rescoreAnime(malId, keepWeight=false) {
 async function jobMoods() {
   log("=== JOB: moods ===");
   const { data: candidates } = await supabase.from("anime_cache")
-    .select("mal_id,title,genres,synopsis")
-    .eq("type","TV").in("status",["Currently Airing","Not yet aired"]).limit(2000);
+    .select("mal_id,title,genres,synopsis,status")
+    .in("type",SITE_TYPES).in("status",["Currently Airing","Not yet aired"]).limit(5000);
   const ids = (candidates||[]).map(a => a.mal_id);
   const have = new Set();
   for(let i=0; i<ids.length; i+=200) {
     const { data } = await supabase.from("mood_pts_v4").select("mal_id").in("mal_id", ids.slice(i,i+200));
     (data||[]).forEach(r => have.add(r.mal_id));
   }
-  const missing = (candidates||[]).filter(a => !have.has(a.mal_id));
-  log(`${missing.length} anime without moods`);
+  // En cours d'abord, puis à venir ; au plus 400 par passage pour ne pas dépasser le temps imparti (le reste sera fait les jours suivants)
+  const missingAll = (candidates||[]).filter(a => !have.has(a.mal_id)).sort((a,b) => (a.status==="Currently Airing"?0:1) - (b.status==="Currently Airing"?0:1));
+  const missing = missingAll.slice(0, 400);
+  log(`${missingAll.length} anime without moods (${missing.length} traités maintenant)`);
   let done = 0;
   for(const a of missing) {
     if(await assignMoods(a)) done++;
@@ -716,6 +809,7 @@ log("✅ Supabase connected");
 switch(job) {
   case "new-anime":    await jobNewAnime();    break;
   case "refresh-airing": await jobRefreshAiring(); break;
+  case "livechart":    await jobLivechart();   break;
   case "broadcast":    await jobBroadcast();   break;
   case "streaming":    await jobStreaming();    break;
   case "trailers":     await jobTrailers();    break;
@@ -723,22 +817,35 @@ switch(job) {
   case "rescore-2w":   await jobRescore2w();   break;
   case "rescore-2m":   await jobRescore2m();   break;
   case "moods":        await jobMoods();       break;
-  case "weekly":
+  case "daily":
+  case "weekly": {
     await jobNewAnime();
-    await jobRefreshAiring();
+    // 1) Qui a changé d'état ? (LiveChart = épisodes réellement diffusés ; AniList/Jikan = statut officiel)
+    const fromLivechart = await jobLivechart();
+    const { started, finished } = await jobRefreshAiring();
+    const justStarted = [...new Set([...fromLivechart, ...started])];
+    // 2) Ce qui vient de démarrer reçoit tout de suite jour de diffusion, score, humeurs, plateformes et trailer
     await jobBroadcast();
     await jobNewScores();
     await jobMoods();
+    await jobStreamingFor(justStarted);
+    await jobTrailers(justStarted);
+    // 3) Ce qui vient de se terminer : note finale (il disparaît du calendrier tout seul, le calendrier lit le statut)
+    if(finished.length) log(`=== note finale de ${finished.length} anime terminés ===`);
+    for(const id of finished.slice(0,100)) { await rescoreAnime(id, false); await sleep(500); }
     await jobRescore2w();
     await jobRescore2m();
     break;
+  }
   default:
     console.log(`
 Usage: node --env-file=.env scripts/animood_sync.mjs --job=<job>
 
 Jobs:
   new-anime    Weekly  — add new anime from AniList (INSERT only, never updates)
-  refresh-airing Weekly — update status (airing / finished / upcoming), episodes, broadcast day of everything airing or upcoming
+  livechart    Daily   — LiveChart RSS (episodes aired in the last 24 h): flips "Not yet aired" → airing, fills broadcast slot
+  daily        Daily   — same as weekly (see below)
+  refresh-airing Daily — update status (airing / finished / upcoming), episodes, broadcast day of everything airing or upcoming
   broadcast    Weekly  — patch missing broadcast days (Jikan + AniList)
   streaming    Weekly  — fetch streaming platforms per anime (Jikan, slow: every TV anime)
   trailers     Monthly — fetch missing trailers (Jikan, upcoming first)
