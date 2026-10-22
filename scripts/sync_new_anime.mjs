@@ -216,7 +216,7 @@ async function addNewAnime(existingIds) {
 
 // ── PART 2: Refresh scores for all existing anime ────────────────────────────
 // Jikan list endpoint returns score — much faster than fetching each full page
-async function refreshScores() {
+async function refreshScores(existingIds) {
   console.log("\n🔄 PART 2: Refreshing scores...");
   let page = 1, totalUpdated = 0, batch = [];
 
@@ -227,6 +227,7 @@ async function refreshScores() {
 
     for(const a of data.data) {
       if(!a.score) continue; // skip unscored
+      if(!existingIds.has(a.mal_id)) continue; // jamais d'upsert partiel : il créerait une ligne sans titre (et ferait échouer tout le lot)
       batch.push({
         mal_id:    a.mal_id,
         score:     a.score,
@@ -291,7 +292,7 @@ async function main() {
   console.log(`📦 ${existingIds.size} anime in DB`);
 
   const added    = await addNewAnime(existingIds);
-  const refreshed = await refreshScores();
+  const refreshed = await refreshScores(existingIds);
   const seasons  = await refreshMissingSeasons();
 
   console.log("\n================================");

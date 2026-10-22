@@ -178,6 +178,18 @@ function anilistToRow(a) {
   };
 }
 
+const AL_SEASON_FR = { WINTER:"Hiver", SPRING:"Printemps", SUMMER:"Été", FALL:"Automne" };
+const AL_SEASON_MONTH = { WINTER:1, SPRING:4, SUMMER:7, FALL:10 };
+function alSeason(a) {
+  const year = a.seasonYear || a.startDate?.year;
+  if(!year) return {};
+  const month = a.season ? AL_SEASON_MONTH[a.season] : (a.startDate?.month || 1);
+  return {
+    anime_season_label: a.season ? `${AL_SEASON_FR[a.season]} ${year}` : `Hiver ${year}`,
+    aired_from: `${year}-${String(month).padStart(2,"0")}-01`,
+  };
+}
+
 // ── JOB: new-anime ────────────────────────────────────────────────────────────
 // Fetches recently added anime from Jikan and inserts new ones only
 async function jobNewAnime() {
@@ -202,7 +214,7 @@ async function jobNewAnime() {
   const maxInDB = Math.max(...[...existing].filter(id => id < 99999));
   log(`Max mal_id in DB: ${maxInDB}`);
   
-  const alQuery = `query($page:Int){Page(page:$page,perPage:50){pageInfo{hasNextPage}media(type:ANIME,sort:ID_DESC){idMal title{romaji english}description(asHtml:false)averageScore popularity status startDate{year}episodes format synonyms genres coverImage{large}studios(isMain:true){nodes{name}}nextAiringEpisode{airingAt}trailer{id site}}}}`;
+  const alQuery = `query($page:Int){Page(page:$page,perPage:50){pageInfo{hasNextPage}media(type:ANIME,sort:ID_DESC){idMal title{romaji english}description(asHtml:false)averageScore popularity status season seasonYear startDate{year month}episodes format synonyms genres coverImage{large}studios(isMain:true){nodes{name}}nextAiringEpisode{airingAt}trailer{id site}}}}`;
   
   let page = 1, hasNext = true;
   while(hasNext && page <= 10) {
@@ -223,8 +235,10 @@ async function jobNewAnime() {
           year: a.startDate?.year||null,
           episodes: a.episodes||null,
           alt_titles: buildAltTitles([a.title?.english, a.title?.romaji, a.synonyms||[]]), // essais de recherche des plateformes perso (appli de bureau)
-          type: a.format==="TV"?"TV":a.format==="MOVIE"?"Movie":a.format==="OVA"?"OVA":a.format==="ONA"?"ONA":"Special",
-          status: a.status==="RELEASING"?"Currently Airing":a.status==="FINISHED"?"Finished Airing":"Not yet aired",
+          type: a.format==="TV"||a.format==="TV_SHORT"?"TV":a.format==="MOVIE"?"Movie":a.format==="OVA"?"OVA":a.format==="ONA"?"ONA":a.format==="MUSIC"?"Music":"Special",
+          status: AL_STATUS[a.status] || "Not yet aired", // RELEASING/HIATUS → en cours, FINISHED/CANCELLED → terminé
+          // Saison + date de début (comme sync_new_anime.mjs) : sans elles l'anime n'apparaît ni dans « Terminés récemment » ni dans les saisons
+          ...alSeason(a),
           image_url: a.coverImage?.large||null,
           large_image: a.coverImage?.large||null,
           genres: (a.genres||[]).map(g=>({name:g})),
@@ -273,9 +287,9 @@ async function jobNewAnime() {
 }
 
 // ── JOB: refresh-airing ───────────────────────────────────────────────────────
-// Remet à jour le STATUT de tout ce qui est « Currently Airing » ou « Not yet aired » (TV, ONA, OVA).
+// Remet à jour le STATUT de tout ce qui est « Currently Airing » ou « Not yet aired » (TV, ONA, OVA, films, spéciaux).
 // Sans ça, une série terminée reste dans le calendrier pour toujours, et une série qui vient de commencer
-// (ex. JoJo Steel Ball Run) reste « Not yet aired » donc n'apparaît jamais : les autres jobs ne le font
+// (ex. JoJo Steel Ball Run) reste « Not yet aired » donc n'apparaît jamais ; et les films / spéciaux « à venir » ne passent jamais à « sortis » : les autres jobs ne le font
 // que pour les anime notés (top 5000) ou à 2 semaines / 2 mois après la 1re diffusion.
 // Source : AniList (50 anime par requête, rapide) ; Jikan en secours pour ceux qu'AniList ne connaît pas.
 const AL_STATUS = { RELEASING:"Currently Airing", HIATUS:"Currently Airing", FINISHED:"Finished Airing", CANCELLED:"Finished Airing", NOT_YET_RELEASED:"Not yet aired" };
@@ -292,8 +306,8 @@ async function jobRefreshAiring() {
     let from = 0;
     while(true) {
       const { data, error } = await supabase.from("anime_cache")
-        .select("mal_id,title,type,status,episodes,broadcast")
-        .in("type",["TV","ONA","OVA"]).eq("status",status).range(from, from+999);
+        .select("mal_id,title,type,status,episodes")
+        .in("type",["TV","ONA","OVA","Movie","Special"]).eq("status",status).range(from, from+999);
       if(error) { log(`  ❌ lecture ${status}: ${error.message}`); break; }
       if(!data?.length) break;
       rows.push(...data);
@@ -301,9 +315,9 @@ async function jobRefreshAiring() {
       from += 1000;
     }
   }
-  log(`${rows.length} anime à vérifier (en cours + à venir)`);
+  log(`${rows.length} anime à vérifier (en cours + à venir : TV, ONA, OVA, films, spéciaux)`);
 
-  const q = `query($ids:[Int]){Page(perPage:50){media(idMal_in:$ids,type:ANIME){idMal status episodes nextAiringEpisode{airingAt}}}}`;
+  const q = `query($ids:[Int]){Page(perPage:50){media(idMal_in:$ids,type:ANIME){idMal status episodes}}}`;
   const found = new Map();
   for(let i=0; i<rows.length; i+=50) {
     const ids = rows.slice(i,i+50).map(r=>r.mal_id);
@@ -323,8 +337,6 @@ async function jobRefreshAiring() {
     // AniList passe à RELEASING à la 1re diffusion : on ne fait jamais repasser en « à venir » une série déjà lancée
     if(next && next !== r.status && !(next==="Not yet aired" && r.status!=="Not yet aired")) updates.status = next;
     if(m.episodes && m.episodes !== r.episodes) updates.episodes = m.episodes;
-    // Jour/heure : seulement si on n'en a pas encore (ne remplace jamais ce que Jikan a fourni)
-    if(!r.broadcast && m.nextAiringEpisode?.airingAt) updates.broadcast = jstSlot(m.nextAiringEpisode.airingAt);
     if(Object.keys(updates).length) {
       await updateAnimeCache(r.mal_id, updates);
       changed++;
@@ -360,11 +372,15 @@ async function jobBroadcast() {
 
   let patched=0, notFound=0;
   for(const anime of (missing||[])) {
-    let day = KNOWN[anime.mal_id]||null, src="hardcoded";
+    let day = KNOWN[anime.mal_id]||null, src="hardcoded", slot=null;
     if(!day) {
       try {
         const r = await fetch(`https://api.jikan.moe/v4/anime/${anime.mal_id}`,{headers:{"Accept":"application/json"}});
-        if(r.ok) { const d=await r.json(); const b=d?.data?.broadcast?.day; if(b) { day=b.replace(/s$/i,""); src="jikan"; } }
+        if(r.ok) {
+          const d=await r.json(); const b=d?.data?.broadcast?.day;
+          // Jikan donne aussi l'heure (JST) : on la garde, le calendrier s'en sert pour convertir à ton fuseau et trier
+          if(b) { day=b.replace(/s$/i,""); src="jikan"; if(d.data.broadcast.time) slot={day, time:d.data.broadcast.time, timezone:d.data.broadcast.timezone||"Asia/Tokyo"}; }
+        }
       } catch {}
       await sleep(400);
     }
@@ -373,12 +389,12 @@ async function jobBroadcast() {
         const d = await anilistQuery(`query($id:Int){Media(idMal:$id,type:ANIME){nextAiringEpisode{airingAt}airingSchedule(notYetAired:false,perPage:3){nodes{airingAt}}}}`,{id:anime.mal_id});
         const m = d?.data?.Media;
         const ts = m?.nextAiringEpisode?.airingAt || m?.airingSchedule?.nodes?.slice(-1)[0]?.airingAt;
-        if(ts) { day=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date(ts*1000).getDay()]; src="anilist"; }
+        if(ts) { slot=jstSlot(ts); day=slot.day; src="anilist"; } // jour calculé en heure du Japon (et non celle du serveur)
       } catch {}
       await sleep(300);
     }
     if(day) {
-      await supabase.from("anime_cache").update({broadcast:{day}}).eq("mal_id",anime.mal_id);
+      await supabase.from("anime_cache").update({broadcast: slot || {day}}).eq("mal_id",anime.mal_id);
       log(`  ✅ [${src}] ${anime.title} → ${day}`); patched++;
     } else { log(`  ⬜ ${anime.title}`); notFound++; }
   }
@@ -562,7 +578,7 @@ async function jobNewScores() {
           updates.jikan_weight = weight;
           updates.animood_score = await calcAnimoodScore(a.mal_id, score, weight);
         }
-        if(broadcastDay && !a.broadcast?.day) updates.broadcast = {day:broadcastDay};
+        if(broadcastDay && !a.broadcast?.day) updates.broadcast = d.data.broadcast.time ? {day:broadcastDay, time:d.data.broadcast.time, timezone:d.data.broadcast.timezone||"Asia/Tokyo"} : {day:broadcastDay};
         if(Object.keys(updates).length) await updateAnimeCache(a.mal_id, updates);
       }
       await sleep(450);
