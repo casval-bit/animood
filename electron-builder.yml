@@ -1,7 +1,7 @@
 # electron-builder configuration for AniMood Desktop
 # https://www.electron.build/configuration/configuration
 #
-# The installed app loads the live website (see electron/main.js), so only the
+# The installed app loads the live website (see electron/main.cjs), so only the
 # Electron shell is packaged. Builds run on GitHub Actions (.github/workflows/desktop-release.yml).
 
 appId: com.animood.desktop

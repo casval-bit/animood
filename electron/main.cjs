@@ -12,13 +12,11 @@
  *  - Offline page with retry when the site can't be reached
  */
 
-import { app, BrowserWindow, ipcMain, shell, Menu, Tray, nativeImage } from "electron";
-import { createRequire } from "module";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const require = createRequire(import.meta.url);
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// CommonJS on purpose: on some Windows setups Electron silently exits (code 0, no window) when the
+// main entry is an ES module run from the project folder (`electron .`).
+const { app, BrowserWindow, ipcMain, shell, Menu, Tray, nativeImage } = require("electron");
+const path = require("path");
+const { fileURLToPath } = require("url");
 const isDev = !app.isPackaged;
 
 // Site chargé par l'appli installée (surcharge possible : ANIMOOD_URL=http://localhost:5173)
