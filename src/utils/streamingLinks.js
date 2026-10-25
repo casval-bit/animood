@@ -244,3 +244,8 @@ export async function openStreamingLink(serviceId, anime, slugsMap = {}) {
 export function isDesktopApp() {
   return typeof window !== "undefined" && window.animood?.isDesktop === true;
 }
+
+/** Appli de bureau installée depuis le Microsoft Store (les plateformes de streaming perso y sont désactivées). */
+export function isStoreApp() {
+  return isDesktopApp() && window.animood?.isStore === true;
+}

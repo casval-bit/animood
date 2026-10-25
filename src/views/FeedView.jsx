@@ -27,7 +27,7 @@ function Avatar({ profile, size=32 }) {
     <div style={{width:size,height:size,borderRadius:"50%",flexShrink:0,overflow:"hidden",
       background:"linear-gradient(135deg,#7c3aed,#4f46e5)",display:"flex",alignItems:"center",
       justifyContent:"center",fontSize:size*0.45}}>
-      {src ? <img src={src} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : (profile?.avatar||"👤")}
+      {src ? <img loading="lazy" decoding="async" src={src} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : (profile?.avatar||"👤")}
     </div>
   );
 }
@@ -90,7 +90,7 @@ function AnimeSearchPicker({ onSelect, onClose }) {
             background:"none",border:"none",borderRadius:8,cursor:"pointer",textAlign:"left"}}
           onMouseEnter={e=>e.currentTarget.style.background="rgba(var(--fg-rgb),0.06)"}
           onMouseLeave={e=>e.currentTarget.style.background="none"}>
-          <img src={a.image_url} alt="" style={{width:28,height:40,objectFit:"cover",borderRadius:4,flexShrink:0}}
+          <img loading="lazy" decoding="async" src={a.image_url} alt="" style={{width:28,height:40,objectFit:"cover",borderRadius:4,flexShrink:0}}
             onError={e=>{e.target.style.display="none";}}/>
           <div>
             <div style={{fontSize:12,fontWeight:700,color:"var(--text-1)"}}>{a.title}</div>
@@ -200,7 +200,7 @@ function PostComposer({ onPost }) {
             onPick={username => setContent(mention.applyMention(content, username))}/>
           {imageUrl && (
             <div style={{position:"relative",marginBottom:8,borderRadius:10,overflow:"hidden",maxHeight:200}}>
-              <img src={imageUrl} alt="" style={{width:"100%",objectFit:"cover",maxHeight:200,display:"block"}}/>
+              <img loading="lazy" decoding="async" src={imageUrl} alt="" style={{width:"100%",objectFit:"cover",maxHeight:200,display:"block"}}/>
               <button onClick={()=>setImageUrl(null)}
                 style={{position:"absolute",top:6,right:6,background:"rgba(0,0,0,0.7)",border:"none",
                   color:"#fff",borderRadius:"50%",width:24,height:24,cursor:"pointer",fontSize:12,fontWeight:900}}>✕</button>
@@ -211,7 +211,7 @@ function PostComposer({ onPost }) {
           {linkedAnime && (
             <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",
               background:"rgba(129,140,248,0.1)",borderRadius:8,border:"1px solid rgba(129,140,248,0.2)",marginBottom:8}}>
-              <img src={linkedAnime.image_url} alt="" style={{width:24,height:34,objectFit:"cover",borderRadius:3}}
+              <img loading="lazy" decoding="async" src={linkedAnime.image_url} alt="" style={{width:24,height:34,objectFit:"cover",borderRadius:3}}
                 onError={e=>{e.target.style.display="none";}}/>
               <span style={{fontSize:12,color:"#818cf8",fontWeight:700,flex:1}}>{linkedAnime.title}</span>
               <button onClick={()=>setLinkedAnime(null)}
@@ -570,7 +570,7 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
           </div>
           {post.anime_title && (
             <div style={{display:"flex",alignItems:"center",gap:5,marginTop:2}}>
-              {post.anime_image && <img src={post.anime_image} alt="" style={{width:16,height:22,objectFit:"cover",borderRadius:2}} onError={e=>{e.target.style.display="none";}}/>}
+              {post.anime_image && <img loading="lazy" decoding="async" src={post.anime_image} alt="" style={{width:16,height:22,objectFit:"cover",borderRadius:2}} onError={e=>{e.target.style.display="none";}}/>}
               <span style={{fontSize:10,color:"#818cf8",fontWeight:600}}>{post.anime_title}</span>
               {(post.anime_season_label||post.anime_season) && <span style={{fontSize:9,color:"var(--text-4)"}}>· {post.anime_season_label||post.anime_season}</span>}
             </div>
@@ -595,7 +595,7 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
           <p style={{fontSize:desktop?15:14,color:"var(--text-1)",lineHeight:desktop?1.65:1.6,margin:"0 0 10px",whiteSpace:"pre-wrap"}}><MentionText text={post.content} onOpenUser={onOpenUser}/></p>
           {post.image_url && (
             <div style={{borderRadius:10,overflow:"hidden",marginBottom:10,maxHeight:400}}>
-              <img src={post.image_url} alt="" style={{width:"100%",objectFit:"cover",maxHeight:400,display:"block",cursor:"pointer"}}
+              <img loading="lazy" decoding="async" src={post.image_url} alt="" style={{width:"100%",objectFit:"cover",maxHeight:400,display:"block",cursor:"pointer"}}
                 onClick={()=>openWebUrl(post.image_url)}/>
             </div>
           )}
@@ -796,7 +796,7 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
                     <div key={a.id} onClick={()=>onOpenDetail?.({mal_id:a.id,title:a.title,images:{jpg:{large_image_url:a.image,image_url:a.image}}})}
                       style={{display:"flex",alignItems:"center",gap:10,cursor:onOpenDetail?"pointer":"default"}}>
                       <span style={{width:16,fontSize:11,fontWeight:800,color:"var(--text-4)",textAlign:"center"}}>{i+1}</span>
-                      {a.image ? <img src={a.image} alt="" style={{width:30,height:42,objectFit:"cover",borderRadius:6,flexShrink:0}} onError={e=>{e.target.style.visibility="hidden";}}/> : <div style={{width:30,height:42,borderRadius:6,background:"rgba(var(--fg-rgb),0.06)"}}/>}
+                      {a.image ? <img loading="lazy" decoding="async" src={a.image} alt="" style={{width:30,height:42,objectFit:"cover",borderRadius:6,flexShrink:0}} onError={e=>{e.target.style.visibility="hidden";}}/> : <div style={{width:30,height:42,borderRadius:6,background:"rgba(var(--fg-rgb),0.06)"}}/>}
                       <div style={{minWidth:0,flex:1}}>
                         <div style={{fontSize:12,fontWeight:700,color:"var(--text-1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.title}</div>
                         <div style={{fontSize:10,color:"var(--text-4)"}}>{L.mention(a.n)}</div>

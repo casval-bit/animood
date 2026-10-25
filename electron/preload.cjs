@@ -20,6 +20,12 @@ contextBridge.exposeInMainWorld("animood", {
     ipcRenderer.invoke("open-stream", { service, url }),
 
   /**
+   * Retrouve la page d'un animé sur un site perso. @param {{host:string,titles:string[]}} req
+   * @returns {Promise<{url:string|null, kind:"page"|"search"|"none"}>}
+   */
+  resolveSiteLink: (req) => ipcRenderer.invoke("resolve-site-link", req),
+
+  /**
    * Open any external URL in the default browser.
    * @param {string} url
    */
@@ -87,4 +93,6 @@ contextBridge.exposeInMainWorld("animood", {
   // ── Platform detection ───────────────────────────────────────────────────
   platform: process.platform, // "darwin" | "win32" | "linux"
   isDesktop: true,
+  /** true quand l'appli est installée depuis le Microsoft Store (certaines fonctions y sont désactivées) */
+  isStore: process.argv.includes("--animood-store"),
 });

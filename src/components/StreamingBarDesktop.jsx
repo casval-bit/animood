@@ -2,12 +2,13 @@
 // Même logique que l’ancien StreamingButtons (liens directs Jikan, sinon recherche sur la plateforme),
 // présentée en pastilles compactes avec le logo de chaque service.
 import { useEffect, useState } from "react";
-import { STREAMING_SERVICES, DEFAULT_SHOW_SERVICES, openStreamingLink, getConfirmedServices, normaliseServiceName } from "../utils/streamingLinks.js";
+import { STREAMING_SERVICES, DEFAULT_SHOW_SERVICES, openStreamingLink, getConfirmedServices, normaliseServiceName, isStoreApp } from "../utils/streamingLinks.js";
 import { useSound } from "../context/SoundContext.jsx";
 import { StreamingLogo, logoColor } from "./StreamingLogos.jsx";
 import { getCustomPlatforms, openCustomPlatform, getExactLink, platformColor, CUSTOM_PLATFORMS_EVENT } from "../utils/customPlatforms.js";
 import { getRegionAvailability, getUserRegion, setUserRegion, REGIONS, REGION_EVENT } from "../utils/streamingRegions.js";
 import { CustomPlatformsModal, ExactLinkModal, PlatformIcon } from "./CustomPlatformsModal.jsx";
+import { VPNS, openExternalUrl } from "../utils/vpnList.js";
 
 export function StreamingBarDesktop({ anime, streamingNames, lang = "fr" }) {
   const { playSound } = useSound();
@@ -16,10 +17,12 @@ export function StreamingBarDesktop({ anime, streamingNames, lang = "fr" }) {
   const [manage, setManage] = useState(false);
   const [exact, setExact] = useState(null);
   const [region, setRegion] = useState(getUserRegion);
-  const [avail, setAvail] = useState({ known: false, ids: new Set(), names: [] });
+  const [avail, setAvail] = useState({ known: false, ids: new Set(), names: [], elsewhere: {} });
+  const [vpnFor, setVpnFor] = useState(null);
+  const [hint, setHint] = useState(null); // plateforme perso dont la page exacte n'a pas été trouvée
   const [regionMenu, setRegionMenu] = useState(false);
   useEffect(() => { const h = () => setRegion(getUserRegion()); window.addEventListener(REGION_EVENT, h); return () => window.removeEventListener(REGION_EVENT, h); }, []);
-  useEffect(() => { let off = false; setAvail({ known: false, ids: new Set(), names: [] }); getRegionAvailability(anime?.mal_id, region).then((a) => { if (!off) setAvail(a); }); return () => { off = true; }; }, [anime?.mal_id, region]);
+  useEffect(() => { let off = false; setAvail({ known: false, ids: new Set(), names: [], elsewhere: {} }); setVpnFor(null); getRegionAvailability(anime?.mal_id, region).then((a) => { if (!off) setAvail(a); }); return () => { off = true; }; }, [anime?.mal_id, region]);
   useEffect(() => { const h = () => setCustom(getCustomPlatforms()); window.addEventListener(CUSTOM_PLATFORMS_EVENT, h); return () => window.removeEventListener(CUSTOM_PLATFORMS_EVENT, h); }, []);
   if (!anime) return null;
   // Pays vérifié (données JustWatch) → on ne confirme QUE ce qui est dispo dans ce pays. Sinon ancien comportement (liste MAL, non régionale).
@@ -31,6 +34,9 @@ export function StreamingBarDesktop({ anime, streamingNames, lang = "fr" }) {
   const all = [...DEFAULT_SHOW_SERVICES, ...extra].filter((id) => STREAMING_SERVICES[id]);
   const en = lang === "en";
 
+  const regName = (c) => { const r = REGIONS.find((x) => x.code === c); return r ? `${r.flag} ${en ? r.en : r.fr}` : c; };
+  const elsewhereLabel = (id) => (avail.elsewhere?.[id] || []).map(regName).join(", ");
+
   const open = async (id) => {
     playSound("click");
     setLoading(id);
@@ -39,6 +45,7 @@ export function StreamingBarDesktop({ anime, streamingNames, lang = "fr" }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <style>{"@keyframes animoodPing{0%{box-shadow:0 0 0 0 rgba(167,139,250,.7)}70%{box-shadow:0 0 0 7px rgba(167,139,250,0)}100%{box-shadow:0 0 0 0 rgba(167,139,250,0)}}"}</style>
       <span className="mr-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">{en ? "Watch on" : "Regarder sur"}</span>
       {all.map((id) => {
         const svc = STREAMING_SERVICES[id];
@@ -59,13 +66,18 @@ export function StreamingBarDesktop({ anime, streamingNames, lang = "fr" }) {
               <span className="text-[11px] font-bold" style={{ color: ok ? "var(--text-1)" : "rgba(148,163,184,.6)" }}>{svc.label}</span>
             )}
             {ok ? <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-[#0d0b18]" style={{ background: "#22c55e" }} /> : null}
+            {!ok && avail.known && (avail.elsewhere?.[id] || []).length > 0 ? (
+              <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); playSound("click"); setVpnFor(vpnFor === id ? null : id); }}
+                title={(en ? "Available in " : "Disponible en ") + elsewhereLabel(id) + (en ? " — click: how to watch it from there" : " — clic : comment le lancer depuis là-bas")}
+                className="absolute -right-1.5 -top-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 border-[#0d0b18]" style={{ background: "#a78bfa", boxShadow: "0 0 0 0 rgba(167,139,250,.7)", animation: "animoodPing 1.8s ease-out infinite" }} />
+            ) : null}
           </button>
         );
       })}
       {custom.map((p) => {
         const c = platformColor(p.name), has = !!getExactLink(p.id, anime);
         return (
-          <button key={p.id} onClick={async () => { playSound("click"); setLoading(p.id); try { await openCustomPlatform(p, anime); } finally { setTimeout(() => setLoading(null), 800); } }}
+          <button key={p.id} onClick={async () => { playSound("click"); setLoading(p.id); setHint(null); try { const kind = await openCustomPlatform(p, anime); if (kind === "fallback" || kind === "search") setHint(p); } finally { setTimeout(() => setLoading(null), 800); } }}
             onContextMenu={(e) => { e.preventDefault(); setExact(p); }}
             title={(en ? `Open on ${p.name}` : `Ouvrir sur ${p.name}`) + (has ? (en ? " (exact link saved)" : " (lien exact enregistré)") : "") + (en ? " — right-click: set exact link" : " — clic droit : lien exact")}
             className="group relative flex h-9 items-center gap-2 rounded-xl px-3 transition-all duration-200 hover:-translate-y-0.5"
@@ -78,11 +90,11 @@ export function StreamingBarDesktop({ anime, streamingNames, lang = "fr" }) {
           </button>
         );
       })}
-      <button onClick={() => { playSound("click"); setManage(true); }}
+      {!isStoreApp() && <button onClick={() => { playSound("click"); setManage(true); }}
         title={en ? "Add your own streaming platform" : "Ajouter ta propre plateforme de streaming"}
         className="flex h-9 items-center gap-1.5 rounded-xl border border-dashed border-white/15 px-3 text-[11px] font-bold text-slate-400 transition hover:border-violet-400/60 hover:text-violet-300">
         <span className="text-[14px] leading-none">+</span>{custom.length === 0 ? (en ? "My platform" : "Ma plateforme") : null}
-      </button>
+      </button>}
       <div className="relative ml-auto">
         <button onClick={() => setRegionMenu((v) => !v)} title={avail.known ? (en ? `Availability in ${reg.en} (JustWatch)` : `Disponibilité en ${reg.fr} (JustWatch)`) : (en ? `Region: ${reg.en} — not checked yet for this anime` : `Pays : ${reg.fr} — pas encore vérifié pour cet animé`)}
           className="flex h-9 items-center gap-1.5 rounded-xl border border-white/10 px-2.5 text-[11px] font-bold text-slate-300 transition hover:border-white/25">
@@ -98,6 +110,37 @@ export function StreamingBarDesktop({ anime, streamingNames, lang = "fr" }) {
           </div>
         )}
       </div>
+      {vpnFor && STREAMING_SERVICES[vpnFor] && (avail.elsewhere?.[vpnFor] || []).length > 0 && (
+        <div className="basis-full rounded-xl border p-3" style={{ borderColor: "rgba(167,139,250,.35)", background: "rgba(124,58,237,.08)" }}>
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-[11.5px] leading-relaxed text-slate-300">
+              {en ? <>Not offered on <b>{STREAMING_SERVICES[vpnFor].label}</b> in {reg.en}, but available in <b>{elsewhereLabel(vpnFor)}</b>. A VPN with a server in one of these countries lets you open it from there.</>
+                  : <>Pas proposé sur <b>{STREAMING_SERVICES[vpnFor].label}</b> en {reg.fr}, mais disponible en <b>{elsewhereLabel(vpnFor)}</b>. Un VPN avec un serveur dans l'un de ces pays permet de le lancer depuis là-bas.</>}
+            </p>
+            <button onClick={() => setVpnFor(null)} className="shrink-0 text-slate-500 hover:text-slate-200">✕</button>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {VPNS.map((v) => (
+              <button key={v.name} onClick={() => { playSound("click"); openExternalUrl(v.url); }} title={en ? v.note.en : v.note.fr}
+                className="rounded-lg border border-white/10 px-2.5 py-1 text-[11px] font-bold text-slate-200 transition hover:bg-white/8" style={{ borderLeft: `3px solid ${v.color}` }}>{v.name} ↗</button>
+            ))}
+            <button onClick={() => open(vpnFor)} className="ml-auto rounded-lg px-2.5 py-1 text-[11px] font-bold text-violet-300 hover:bg-white/8">{en ? "Open anyway" : "Ouvrir quand même"}</button>
+          </div>
+          <p className="mt-2 text-[10px] leading-snug text-slate-600">{en ? "Links go to the official VPN sites, with no partnership. Check the platform's terms of use first." : "Liens vers les sites officiels des VPN, sans partenariat. Vérifie d'abord les conditions d'utilisation de la plateforme."}</p>
+        </div>
+      )}
+      {hint && (
+        <div className="flex basis-full items-start justify-between gap-3 rounded-xl border p-2.5" style={{ borderColor: "rgba(251,191,36,.35)", background: "rgba(251,191,36,.07)" }}>
+          <p className="text-[11.5px] leading-relaxed text-slate-300">
+            {en ? <>Couldn't find this anime's own page on <b>{hint.name}</b> automatically. Open it there once, then <b>right-click the {hint.name} button</b> and paste its address: AniMood learns how the site builds its links and handles every other anime by itself.</>
+                : <>Page exacte introuvable automatiquement sur <b>{hint.name}</b>. Ouvre-la une fois sur le site, puis <b>clic droit sur le bouton {hint.name}</b> et colle son adresse : AniMood apprend comment le site construit ses liens et gère ensuite tous les autres animés tout seul.</>}
+          </p>
+          <div className="flex shrink-0 gap-2">
+            <button onClick={() => { setExact(hint); setHint(null); }} className="rounded-lg bg-white/10 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-white/15">{en ? "Paste link" : "Coller le lien"}</button>
+            <button onClick={() => setHint(null)} className="text-slate-500 hover:text-slate-200">✕</button>
+          </div>
+        </div>
+      )}
       {manage && <CustomPlatformsModal lang={lang} onClose={() => setManage(false)} />}
       {exact && <ExactLinkModal platform={exact} anime={anime} lang={lang} onClose={() => setExact(null)} />}
     </div>

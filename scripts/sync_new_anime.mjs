@@ -3,6 +3,8 @@
 // 2. Refreshes score/rank/episodes for ALL existing anime in batches
 // 3. Fetches season labels from AniList for new anime
 
+import { buildAltTitles, jikanTitleList } from "./lib/altTitles.mjs";
+
 const SUPABASE_URL  = process.env.SUPABASE_URL;
 // clé de service si disponible (nécessaire une fois security_rls_2_reference.sql exécuté), sinon clé publique
 const SUPABASE_ANON = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON;
@@ -16,6 +18,7 @@ const SEASON_MAP = { WINTER:"Hiver", SPRING:"Printemps", SUMMER:"Été", FALL:"A
 const SEASON_MONTH = { WINTER:1, SPRING:4, SUMMER:7, FALL:10 };
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+let ALT_OK = true; // passe à false si la colonne alt_titles n'existe pas encore (supabase/alt_titles_schema.sql)
 const SB_HEADERS = {
   "Content-Type": "application/json",
   "apikey": SUPABASE_ANON,
@@ -24,7 +27,7 @@ const SB_HEADERS = {
 
 // Fetch season data from AniList for a batch of MAL IDs
 async function fetchAniListSeasons(malIds) {
-  const query = `query($ids:[Int]){Page(perPage:50){media(idMal_in:$ids,type:ANIME){idMal season seasonYear startDate{year month day}}}}`;
+  const query = `query($ids:[Int]){Page(perPage:50){media(idMal_in:$ids,type:ANIME){idMal season seasonYear startDate{year month day} title{romaji english} synonyms}}}`;
   try {
     const res = await fetch(ANILIST_URL, {
       method:"POST",
@@ -41,18 +44,11 @@ async function fetchAniListSeasons(malIds) {
       const month = r.season ? SEASON_MONTH[r.season] : (r.startDate?.month || 1);
       const season = r.season && year ? `${SEASON_MAP[r.season]} ${year}` : year ? `Hiver ${year}` : null;
       const aired_from = year ? `${year}-${String(month).padStart(2,"0")}-01` : null;
-      result[r.idMal] = { anime_season_label: season, aired_from, year };
+      result[r.idMal] = { anime_season_label: season, aired_from, year, titles: [r.title?.english, r.title?.romaji, ...(r.synonyms || [])] };
     }
     return result;
   } catch { return {}; }
 }
-
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const SB_HEADERS = {
-  "Content-Type": "application/json",
-  "apikey": SUPABASE_ANON,
-  "Authorization": `Bearer ${SUPABASE_ANON}`,
-};
 
 async function sbQuery(path) {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: SB_HEADERS });
@@ -63,12 +59,49 @@ async function sbQuery(path) {
 
 async function sbUpsert(table, rows) {
   const deduped = [...new Map(rows.map(r=>[r.mal_id,r])).values()];
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?on_conflict=mal_id`, {
+  const send = (body) => fetch(`${SUPABASE_URL}/rest/v1/${table}?on_conflict=mal_id`, {
     method: "POST",
     headers: { ...SB_HEADERS, "Prefer": "resolution=merge-duplicates" },
-    body: JSON.stringify(deduped),
+    body: JSON.stringify(body),
   });
-  if(!r.ok) throw new Error(await r.text());
+  let r = await send(ALT_OK ? deduped : deduped.map(({ alt_titles, ...rest }) => rest));
+  if(!r.ok) {
+    const err = await r.text();
+    if(ALT_OK && /alt_titles/.test(err)) { // colonne absente : on réessaie sans, une seule fois pour tout le script
+      ALT_OK = false;
+      console.warn("\n  ⚠️ colonne alt_titles absente — exécute supabase/alt_titles_schema.sql ; on continue sans titres alternatifs");
+      r = await send(deduped.map(({ alt_titles, ...rest }) => rest));
+      if(r.ok) return;
+      throw new Error(await r.text());
+    }
+    throw new Error(err);
+  }
+}
+
+// Mise à jour d'une ligne (saison et/ou titres alternatifs) — ne casse pas si la colonne alt_titles manque
+async function patchRow(malId, body) {
+  const send = (b) => fetch(`${SUPABASE_URL}/rest/v1/anime_cache?mal_id=eq.${malId}`, {
+    method:"PATCH", headers:{...SB_HEADERS,"Prefer":"return=minimal"}, body: JSON.stringify(b),
+  }).catch(()=>null);
+  const r = await send(body);
+  if(r && !r.ok && "alt_titles" in body && /alt_titles/.test(await r.text().catch(()=>""))) {
+    ALT_OK = false;
+    const { alt_titles, ...rest } = body;
+    if(Object.keys(rest).length) await send(rest);
+  }
+}
+
+// Applique le résultat d'AniList : saison (si connue) + titres alternatifs (titres AniList + ceux déjà stockés par ligne)
+async function applyAniList(seasons, byId = {}) {
+  let n = 0;
+  for(const [malId, s] of Object.entries(seasons)) {
+    const { titles, ...season } = s;
+    const body = {};
+    if(season.anime_season_label) { Object.assign(body, season); n++; }
+    if(ALT_OK && byId[malId]) body.alt_titles = buildAltTitles([titles || [], byId[malId].alt_titles || []]);
+    if(Object.keys(body).length) await patchRow(malId, body);
+  }
+  return n;
 }
 
 async function jikanGet(path) {
@@ -90,6 +123,7 @@ function parseAnime(a) {
     title:       a.title,
     title_en:    a.title_english,
     title_jp:    a.title_japanese,
+    alt_titles:  buildAltTitles([a.title_english, a.title, jikanTitleList(a.titles)]), // complété par AniList juste après l'insertion
     synopsis:    a.synopsis,
     score:       a.score || null,
     scored_by:   a.scored_by,
@@ -160,14 +194,7 @@ async function addNewAnime(existingIds) {
           // Fetch seasons from AniList for this batch
           const malIds = batch.map(a => a.mal_id);
           const seasons = await fetchAniListSeasons(malIds);
-          for(const [malId, seasonData] of Object.entries(seasons)) {
-            if(seasonData.anime_season_label) {
-              await fetch(`${SUPABASE_URL}/rest/v1/anime_cache?mal_id=eq.${malId}`, {
-                method:"PATCH", headers:{...SB_HEADERS,"Prefer":"return=minimal"},
-                body: JSON.stringify(seasonData),
-              }).catch(()=>{});
-            }
-          }
+          await applyAniList(seasons, Object.fromEntries(batch.map(a => [String(a.mal_id), a])));
           batch = [];
         }
         } catch(e) { console.error(`\n  Error ${anime.mal_id}: ${e.message}`); }
@@ -181,14 +208,7 @@ async function addNewAnime(existingIds) {
     await sbUpsert("anime_cache", batch);
     const malIds = batch.map(a => a.mal_id);
     const seasons = await fetchAniListSeasons(malIds);
-    for(const [malId, seasonData] of Object.entries(seasons)) {
-      if(seasonData.anime_season_label) {
-        await fetch(`${SUPABASE_URL}/rest/v1/anime_cache?mal_id=eq.${malId}`, {
-          method:"PATCH", headers:{...SB_HEADERS,"Prefer":"return=minimal"},
-          body: JSON.stringify(seasonData),
-        }).catch(()=>{});
-      }
-    }
+    await applyAniList(seasons, Object.fromEntries(batch.map(a => [String(a.mal_id), a])));
   }
   console.log(`\n  ✅ ${totalInserted} new anime added`);
   return totalInserted;
@@ -196,7 +216,7 @@ async function addNewAnime(existingIds) {
 
 // ── PART 2: Refresh scores for all existing anime ────────────────────────────
 // Jikan list endpoint returns score — much faster than fetching each full page
-async function refreshScores() {
+async function refreshScores(existingIds) {
   console.log("\n🔄 PART 2: Refreshing scores...");
   let page = 1, totalUpdated = 0, batch = [];
 
@@ -207,6 +227,7 @@ async function refreshScores() {
 
     for(const a of data.data) {
       if(!a.score) continue; // skip unscored
+      if(!existingIds.has(a.mal_id)) continue; // jamais d'upsert partiel : il créerait une ligne sans titre (et ferait échouer tout le lot)
       batch.push({
         mal_id:    a.mal_id,
         score:     a.score,
@@ -214,7 +235,7 @@ async function refreshScores() {
         rank:      a.rank,
         popularity:a.popularity,
         episodes:  a.episodes,
-        status:    a.status,
+        // pas de « status » ici : il appartient à refresh-airing (AniList), MAL garde parfois « Currently Airing » pour des OAV finis
       });
       totalUpdated++;
       if(batch.length >= 25) {
@@ -256,15 +277,7 @@ async function refreshMissingSeasons() {
   for(let i=0; i<rows.length; i+=50) {
     const chunk = rows.slice(i,i+50).map(r=>r.mal_id);
     const seasons = await fetchAniListSeasons(chunk);
-    for(const [malId, seasonData] of Object.entries(seasons)) {
-      if(seasonData.anime_season_label) {
-        await fetch(`${SUPABASE_URL}/rest/v1/anime_cache?mal_id=eq.${malId}`, {
-          method:"PATCH", headers:{...SB_HEADERS,"Prefer":"return=minimal"},
-          body: JSON.stringify(seasonData),
-        }).catch(()=>{});
-        updated++;
-      }
-    }
+    updated += await applyAniList(seasons);
     await sleep(1000);
   }
   console.log(`  ✅ ${updated} seasons updated`);
@@ -279,7 +292,7 @@ async function main() {
   console.log(`📦 ${existingIds.size} anime in DB`);
 
   const added    = await addNewAnime(existingIds);
-  const refreshed = await refreshScores();
+  const refreshed = await refreshScores(existingIds);
   const seasons  = await refreshMissingSeasons();
 
   console.log("\n================================");
@@ -289,4 +302,4 @@ async function main() {
   console.log(`   Seasons updated   : ${seasons}`);
 }
 
-main().catch(console.error);
+main().catch(e => { console.error(e); process.exit(1); }); // code d'erreur : le workflow GitHub passe au rouge

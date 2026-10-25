@@ -84,7 +84,7 @@ export const PROFILE_I18N = {
 
     // Watchlist modal
     watchlistEmptyTitle: "Watchlist vide",
-    watchlistEmptySubtitle: "Ajoute des animés via 🎯 sur leur fiche",
+    watchlistEmptySubtitle: "Ajoute des animés avec le marque-page sur leur fiche",
 
     // Custom list modal
     listEmptyTitle: "Liste vide",
@@ -224,7 +224,7 @@ export const PROFILE_I18N = {
 
     // Watchlist modal
     watchlistEmptyTitle: "Empty watchlist",
-    watchlistEmptySubtitle: "Add anime via 🎯 on their page",
+    watchlistEmptySubtitle: "Add anime with the bookmark on their page",
 
     // Custom list modal
     listEmptyTitle: "Empty list",
