@@ -5,7 +5,7 @@
 // Bumped from v1: v1 cached unhashed .js/.css forever (see isStaticAsset).
 // v4: Supabase responses are no longer cached (private messages / profile stayed on
 // the device after logout) — bumping the name deletes what v3 had stored.
-const CACHE_NAME = "animood-v4";
+const CACHE_NAME = "animood-v5";
 
 // Assets to pre-cache on install — the critical app shell.
 const PRECACHE_URLS = [

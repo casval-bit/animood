@@ -14,9 +14,10 @@
 
 // CommonJS on purpose: on some Windows setups Electron silently exits (code 0, no window) when the
 // main entry is an ES module run from the project folder (`electron .`).
-const { app, BrowserWindow, ipcMain, shell, Menu, Tray, nativeImage } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Menu, Tray, nativeImage, session } = require("electron");
 const path = require("path");
 const { fileURLToPath } = require("url");
+const { resolveSiteLink } = require("./siteResolver.cjs");
 const isDev = !app.isPackaged;
 
 // Site chargé par l'appli installée (surcharge possible : ANIMOOD_URL=http://localhost:5173)
@@ -53,9 +54,13 @@ function trustedSender(event) {
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.quit();
 
-// ── Auto-updater (only in production) ─────────────────────────────────────────
+// Installé depuis le Microsoft Store (paquet MSIX) : Electron met process.windowsStore à true.
+// ANIMOOD_STORE=1 permet de tester ce mode sur un lancement normal (ex. $env:ANIMOOD_STORE=1; .\run_desktop.bat).
+const IS_STORE = !!process.windowsStore || process.env.ANIMOOD_STORE === "1";
+
+// ── Auto-updater (only in production, jamais dans la version Store : c'est le Store qui met à jour) ──────────
 let autoUpdater = null;
-if (!isDev) {
+if (!isDev && !IS_STORE) {
   try {
     const { autoUpdater: au } = require("electron-updater");
     autoUpdater = au;
@@ -97,8 +102,10 @@ function createWindow() {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
+      sandbox: true, // le preload n'utilise que contextBridge/ipcRenderer
+      additionalArguments: IS_STORE ? ["--animood-store"] : [], // lu par preload.cjs → window.animood.isStore
       webSecurity: true,
+      allowRunningInsecureContent: false,
       webviewTag: false,
     },
   });
@@ -146,11 +153,8 @@ function createWindow() {
     return { action: "deny" };
   });
 
-  // No <webview>, and no camera / micro / location… for the site or anything it embeds
+  // No <webview> for the site or anything it embeds
   win.webContents.on("will-attach-webview", (event) => event.preventDefault());
-  const ses = win.webContents.session;
-  const ALLOWED_PERMISSIONS = ["fullscreen", "mediaKeySystem", "clipboard-sanitized-write"]; // trailers / YouTube embeds
-  ses.setPermissionRequestHandler((_wc, permission, callback) => callback(ALLOWED_PERMISSIONS.includes(permission)));
 
   win.on("closed", () => {
     win = null;
@@ -188,6 +192,17 @@ function createTray() {
 // ── App lifecycle ──────────────────────────────────────────────────────────────
 if (gotLock) {
   app.whenReady().then(() => {
+    // Aucune permission sensible (géolocalisation, caméra, micro, USB…) n'est jamais accordée à l'appli
+    // (plein écran / DRM : trailers et lecteurs YouTube intégrés)
+    const ALLOWED_PERMISSIONS = ["fullscreen", "mediaKeySystem", "notifications", "clipboard-sanitized-write"];
+    session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(ALLOWED_PERMISSIONS.includes(permission)));
+    session.defaultSession.setPermissionCheckHandler((_wc, permission) => ALLOWED_PERMISSIONS.includes(permission));
+    // Lecteur de trailer intégré : on ajoute un Referer https UNIQUEMENT à la requête de l'iframe /embed/ de YouTube
+    // si elle n'en a pas (rien d'autre n'est modifié) — évite l'« erreur 153 ».
+    session.defaultSession.webRequest.onBeforeSendHeaders(
+      { urls: ["https://www.youtube-nocookie.com/embed/*", "https://www.youtube.com/embed/*"], types: ["subFrame"] },
+      (details, cb) => { const h = { ...details.requestHeaders }; if (!h.Referer && !h.referer) h.Referer = APP_ORIGIN + "/"; cb({ requestHeaders: h }); }
+    );
     createWindow();
     if (process.platform !== "linux") createTray();
 
@@ -258,6 +273,20 @@ ipcMain.handle("open-stream", async (event, { service, url: streamUrl } = {}) =>
   if (!trustedSender(event)) return { ok: false, error: "Forbidden" };
   if (!isWebUrl(streamUrl)) return { ok: false, error: "Invalid URL" };
   return (await openWebUrl(streamUrl)) ? { ok: true, service } : { ok: false, error: "Open failed" };
+});
+
+/**
+ * Renderer → retrouve la page d'un animé sur un site perso (domaine saisi par l'utilisateur).
+ * Entrées validées ; le résolveur refuse les adresses privées et ne fait que des GET.
+ */
+ipcMain.handle("resolve-site-link", async (event, req) => {
+  if (!trustedSender(event)) return { url: null, kind: "none" };
+  try {
+    const host = typeof req?.host === "string" ? req.host.slice(0, 120) : "";
+    const titles = Array.isArray(req?.titles) ? req.titles.filter((t) => typeof t === "string").map((t) => t.slice(0, 200)).slice(0, 8) : [];
+    const r = await resolveSiteLink({ host, titles });
+    return { url: isWebUrl(r.url) ? r.url : null, kind: r.kind };
+  } catch { return { url: null, kind: "none" }; }
 });
 
 /**

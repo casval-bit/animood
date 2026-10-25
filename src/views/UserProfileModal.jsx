@@ -204,7 +204,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
           {/* Banner */}
           {canView && profile.banner && (
             <div className="-mx-6 -mt-6 mb-4 relative h-24 sm:h-32 overflow-hidden">
-              <img src={profile.banner} alt="" className="w-full h-full object-cover" />
+              <img loading="lazy" decoding="async" src={profile.banner} alt="" className="w-full h-full object-cover" />
               <div className="absolute inset-0" style={{
                 background: "linear-gradient(to bottom, transparent 50%, rgba(2,6,23,0.85) 100%)",
               }}/>
@@ -217,7 +217,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
               <div className="flex h-18 w-18 items-center justify-center overflow-hidden rounded-full text-3xl"
                 style={{background:GRADIENT_PRIMARY, width:72, height:72}}>
                 {(profile.avatar_base64 || (profile.avatar?.startsWith?.("http") ? profile.avatar : null))
-                  ? <img src={profile.avatar_base64 || profile.avatar} alt={profile.name} className="h-full w-full object-cover"/>
+                  ? <img loading="lazy" decoding="async" src={profile.avatar_base64 || profile.avatar} alt={profile.name} className="h-full w-full object-cover"/>
                   : (profile.avatar||"👤")}
               </div>
             </FrameSVG>
@@ -318,7 +318,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
                       <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full text-base"
                         style={{background:GRADIENT_PRIMARY}}>
                         {(p?.avatar_base64 || (p?.avatar?.startsWith?.("http") ? p.avatar : null))
-                          ? <img src={p.avatar_base64 || p.avatar} alt="" className="h-full w-full object-cover"/>
+                          ? <img loading="lazy" decoding="async" src={p.avatar_base64 || p.avatar} alt="" className="h-full w-full object-cover"/>
                           : (p?.avatar || "👤")}
                       </div>
                       <span className="max-w-[64px] truncate text-[9px] font-semibold text-slate-400">@{u}</span>
@@ -407,7 +407,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
                       className="flex gap-3 overflow-hidden rounded-xl text-left"
                       style={{border:`1px solid ${sc.border}`,background:sc.bg}}>
                       <div className="relative h-16 w-11 shrink-0 bg-black/20">
-                        {img&&<img src={img} alt={a.title} className="h-full w-full object-cover" onError={e=>{e.target.style.display="none";}}/>}
+                        {img&&<img loading="lazy" decoding="async" src={img} alt={a.title} className="h-full w-full object-cover" onError={e=>{e.target.style.display="none";}}/>}
                         <div className="absolute bottom-1 left-1 h-1.5 w-1.5 rounded-full" style={{background:sc.dot}}/>
                       </div>
                       <div className="flex flex-1 flex-col justify-between py-2 pr-3">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, lazy, Suspense } from "react";
 import { ThemeProvider } from "./context/ThemeProvider.jsx";
 import { LangProvider } from "./context/LangProvider.jsx";
 import { AppProvider } from "./context/AppProvider.jsx";
@@ -11,19 +11,38 @@ import { isInstallerPage, canPromptInstall, wasInstalled, onInstallChange, promp
 import { Header } from "./components/Header.jsx";
 import { Footer } from "./components/Footer.jsx";
 import { Spinner } from "./components/Spinner.jsx";
-import { AnimeDetailModal } from "./components/AnimeDetailModal.jsx";
-import { ChatBubble } from "./components/ChatBubble.jsx";
 import { LoginView } from "./views/LoginView.jsx";
-import { FeedView } from "./views/FeedView.jsx";
 import { MoodboardView } from "./views/MoodboardView.jsx";
-import { SearchView } from "./views/SearchView.jsx";
-import { ForumView } from "./views/ForumView.jsx";
-import { GamesView } from "./views/GamesView.jsx";
-import { MessagesView } from "./views/MessagesView.jsx";
-import { ProfileView } from "./views/ProfileView.jsx";
-import { UserProfileModal } from "./views/UserProfileModal.jsx";
-import { SettingsView } from "./views/SettingsView.jsx";
 import { DesktopUpdateBanner } from "./components/DesktopUpdateBanner.jsx";
+
+// ── Découpage par page ───────────────────────────────────────────────────────────────────────────────────
+// Chaque vue lourde est un fichier JS à part, chargé au moment où on en a besoin (le visiteur non connecté ne télécharge
+// ni le forum, ni les jeux, ni le profil…). Connexion + Moodboard + en-tête restent dans le fichier principal : premier écran immédiat.
+// Si un morceau ne se charge pas (hors-ligne, ou nouvelle version publiée pendant la visite), on réessaie une fois puis on recharge la page une seule fois.
+function lazyNamed(loader, name) {
+  return lazy(async () => {
+    try { return { default: (await loader())[name] }; }
+    catch {
+      try { await new Promise(r => setTimeout(r, 800)); return { default: (await loader())[name] }; }
+      catch (e) {
+        let reloaded = false;
+        try { reloaded = sessionStorage.getItem("animood_chunk_reload") === "1"; sessionStorage.setItem("animood_chunk_reload", "1"); } catch { /* ignore */ }
+        if (!reloaded) window.location.reload();
+        throw e;
+      }
+    }
+  });
+}
+const AnimeDetailModal = lazyNamed(() => import("./components/AnimeDetailModal.jsx"), "AnimeDetailModal");
+const ChatBubble       = lazyNamed(() => import("./components/ChatBubble.jsx"), "ChatBubble");
+const FeedView         = lazyNamed(() => import("./views/FeedView.jsx"), "FeedView");
+const SearchView       = lazyNamed(() => import("./views/SearchView.jsx"), "SearchView");
+const ForumView        = lazyNamed(() => import("./views/ForumView.jsx"), "ForumView");
+const GamesView        = lazyNamed(() => import("./views/GamesView.jsx"), "GamesView");
+const MessagesView     = lazyNamed(() => import("./views/MessagesView.jsx"), "MessagesView");
+const ProfileView      = lazyNamed(() => import("./views/ProfileView.jsx"), "ProfileView");
+const UserProfileModal = lazyNamed(() => import("./views/UserProfileModal.jsx"), "UserProfileModal");
+const SettingsView     = lazyNamed(() => import("./views/SettingsView.jsx"), "SettingsView");
 
 // ── Static Pages ──────────────────────────────────────────────────────────────
 function PageWrapper({ title, onClose, children }) {
@@ -203,6 +222,9 @@ function ContactPage({ onClose }) {
 }
 
 function FAQPage({ onClose }) {
+  const { lang } = useLang();
+  const en = lang === "en";
+  const L = (fr, enTxt) => (en ? enTxt : fr);
   const [open, setOpen] = React.useState(null);
   const faqs = [
     {
@@ -224,6 +246,85 @@ function FAQPage({ onClose }) {
     {
       q:"AniMood est-il gratuit ?",
       a:"Oui, complètement gratuit et sans publicité. C'est un projet communautaire open source.",
+    },
+    // ── Assistants d'installation (pas à pas) ─────────────────────────────────────────────────────────────
+    {
+      q: L("Comment installer l'appli sur Android (APK) ?", "How do I install the Android app (APK)?"),
+      a: L(
+`1. Sur ton téléphone, ouvre le site → pied de page → « Télécharger l'appli », puis appuie sur « Télécharger l'APK ».
+2. Ouvre le fichier AniMood.apk (notification de téléchargement, ou application Fichiers → Téléchargements).
+3. Android demande d'autoriser l'installation depuis cette source (ton navigateur ou Fichiers) : appuie sur « Paramètres », active l'autorisation, puis reviens en arrière.
+4. Si « Play Protect » affiche un avertissement, c'est parce que l'appli ne vient pas du Google Play Store : choisis « Installer quand même ».
+5. Ouvre AniMood et connecte-toi avec Google. Tu retrouves ton compte, tes listes et tes messages.
+L'appli affiche directement le site : elle est toujours à jour, inutile de réinstaller l'APK (sauf si on l'annonce). Télécharge-la uniquement depuis le site officiel d'AniMood.`,
+`1. On your phone, open the website → footer → "Get the app", then tap "Download APK".
+2. Open the AniMood.apk file (download notification, or Files app → Downloads).
+3. Android asks you to allow installs from this source (your browser or Files): tap "Settings", turn the permission on, then go back.
+4. If "Play Protect" shows a warning, it is because the app does not come from the Google Play Store: choose "Install anyway".
+5. Open AniMood and sign in with Google. Your account, lists and messages are there.
+The app shows the website directly: it is always up to date, no need to reinstall the APK (unless announced). Only download it from AniMood's official website.`),
+    },
+    {
+      q: L("Comment installer l'appli sur iPhone / iPad ?", "How do I install the app on iPhone / iPad?"),
+      a: L(
+`Il n'y a pas d'APK sur iPhone : on ajoute le site à l'écran d'accueil.
+1. Ouvre AniMood dans Safari (pas dans un autre navigateur).
+2. Appuie sur le bouton Partager (le carré avec une flèche vers le haut).
+3. Choisis « Sur l'écran d'accueil », puis « Ajouter ».
+L'icône AniMood apparaît comme une appli et s'ouvre en plein écran.`,
+`There is no APK on iPhone: you add the website to your home screen.
+1. Open AniMood in Safari (not another browser).
+2. Tap the Share button (the square with an up arrow).
+3. Choose "Add to Home Screen", then "Add".
+The AniMood icon appears like an app and opens full screen.`),
+    },
+    {
+      q: L("Comment installer l'appli de bureau sur Windows ?", "How do I install the desktop app on Windows?"),
+      a: L(
+`1. Va sur « Télécharger l'appli » (pied de page) et télécharge l'installateur Windows (fichier .exe).
+2. Double-clique dessus. Si Windows affiche « Windows a protégé votre PC » (SmartScreen) : clique sur « Informations complémentaires », puis « Exécuter quand même ». C'est normal : AniMood n'a pas de certificat de signature payant.
+3. Choisis le dossier d'installation (ou garde celui proposé) et valide.
+4. Un raccourci est créé sur le Bureau et dans le menu Démarrer : lance AniMood et connecte-toi.
+Les mises à jour se font ensuite toutes seules.`,
+`1. Go to "Get the app" (footer) and download the Windows installer (.exe file).
+2. Double-click it. If Windows shows "Windows protected your PC" (SmartScreen): click "More info", then "Run anyway". This is expected: AniMood has no paid code-signing certificate.
+3. Pick the install folder (or keep the default) and confirm.
+4. A shortcut is created on the Desktop and in the Start menu: launch AniMood and sign in.
+Updates then install themselves.`),
+    },
+    {
+      q: L("Comment installer l'appli de bureau sur Mac ?", "How do I install the desktop app on Mac?"),
+      a: L(
+`1. Sur « Télécharger l'appli », choisis la bonne version : menu Apple → « À propos de ce Mac ». Si tu vois « Puce Apple M1/M2/M3… », prends « Apple Silicon » ; si tu vois « Intel », prends « Intel ».
+2. Ouvre le fichier .dmg et glisse AniMood dans le dossier Applications.
+3. Au premier lancement, macOS peut refuser (application non signée par un certificat Apple payant) : clic droit sur AniMood → « Ouvrir » → « Ouvrir ». Sinon : Réglages Système → Confidentialité et sécurité → « Ouvrir quand même ».
+Ensuite, il s'ouvre normalement et se met à jour tout seul.`,
+`1. On "Get the app", pick the right version: Apple menu → "About This Mac". If you see "Apple M1/M2/M3 chip…", take "Apple Silicon"; if you see "Intel", take "Intel".
+2. Open the .dmg file and drag AniMood into the Applications folder.
+3. On first launch macOS may refuse (the app is not signed with a paid Apple certificate): right-click AniMood → "Open" → "Open". Otherwise: System Settings → Privacy & Security → "Open Anyway".
+After that it opens normally and updates itself.`),
+    },
+    {
+      q: L("Comment installer l'appli de bureau sur Linux ?", "How do I install the desktop app on Linux?"),
+      a: L(
+`Deux formats sont proposés sur « Télécharger l'appli » :
+• AppImage (toutes distributions) : rends le fichier exécutable (clic droit → Propriétés → « Autoriser l'exécution », ou « chmod +x AniMood-*.AppImage ») puis double-clique dessus.
+• .deb (Debian, Ubuntu et dérivés) : « sudo apt install ./AniMood-*.deb » dans le dossier du téléchargement.`,
+`Two formats are offered on "Get the app":
+• AppImage (any distribution): make the file executable (right-click → Properties → "Allow executing", or "chmod +x AniMood-*.AppImage") then double-click it.
+• .deb (Debian, Ubuntu and derivatives): "sudo apt install ./AniMood-*.deb" in the download folder.`),
+    },
+    {
+      q: L("Les avertissements de sécurité à l'installation sont-ils normaux ?", "Are the security warnings during installation normal?"),
+      a: L(
+`Oui, c'est attendu : AniMood est un projet gratuit et n'a pas acheté les certificats de signature de Windows, d'Apple ou le référencement Google Play, ce qui déclenche ces avertissements. Pour rester en sécurité, ne télécharge AniMood que depuis le site officiel ou depuis la page des versions du projet sur GitHub — jamais depuis un site tiers ou un lien reçu par message.`,
+`Yes, this is expected: AniMood is a free project and has not bought Windows or Apple signing certificates or a Google Play listing, which triggers these warnings. To stay safe, only download AniMood from the official website or the project's releases page on GitHub — never from a third-party site or a link sent in a message.`),
+    },
+    {
+      q: L("Quelle différence entre le site et l'appli de bureau ?", "What is the difference between the website and the desktop app?"),
+      a: L(
+`Même compte, mêmes listes et mêmes messages. L'appli de bureau ajoute un onglet Jeux dédié, des cadres de profil animés, des sons, une recherche d'animés rapide, un lecteur de trailer intégré, la possibilité d'ajouter tes propres plateformes de streaming (hors version Microsoft Store) et des mises à jour automatiques.`,
+`Same account, same lists and messages. The desktop app adds a dedicated Games tab, animated profile frames, sounds, quick anime search, a built-in trailer player, the option to add your own streaming platforms (not in the Microsoft Store version) and automatic updates.`),
     },
     {
       q:"Comment signaler un bug ou un problème ?",
@@ -268,7 +369,7 @@ function FAQPage({ onClose }) {
             {open===i && (
               <div style={{
                 padding:"0 18px 16px",
-                fontSize:12,color:"var(--text-3, #94a3b8)",lineHeight:1.7,
+                fontSize:12,color:"var(--text-3, #94a3b8)",lineHeight:1.7,whiteSpace:"pre-line",
               }}>
                 {faq.a}
               </div>
@@ -709,6 +810,7 @@ function Shell() {
   // Desktop démarre sur le profil, web sur moodboard
   const [activeTab, setActiveTab]   = useState(() => window.history.state?.tab || (isDesktopApp() ? "profile" : "moodboard"));
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsCat, setSettingsCat] = useState(null); // catégorie à ouvrir directement (ex. "profile")
   const [detailAnime, setDetailAnime]   = useState(null);
   const [openUser, setOpenUser]         = useState(null);
   const [pendingJoinGame, setPendingJoinGame] = useState(null);
@@ -774,34 +876,40 @@ function Shell() {
   return (
     // Web sur téléphone : place réservée sous la barre d'onglets du bas (WebBottomNav)
     <div className={desktop ? "min-h-screen" : "min-h-screen pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0"} style={desktop ? { paddingTop: 80 } : {}}>
-      <Header activeTab={activeTab} onChangeTab={changeTab} onOpenSettings={() => setShowSettings(true)}
+      <Header activeTab={activeTab} onChangeTab={changeTab} onOpenSettings={() => { setSettingsCat(null); setShowSettings(true); }}
         onOpenDownload={isInstalledApp() ? undefined : () => setActivePage("download")}
         onJoinGame={payload => { changeTab(desktop ? "games" : "forum"); setPendingJoinGame(payload); }} />
       <main>
         {/* Feed and Profile stay mounted for cross-sync */}
-        <div style={{display: activeTab==="feed" ? "block" : "none"}}>
-          <FeedView onOpenUser={setOpenUser} onOpenDetail={openDetail}/>
-        </div>
-        <div style={{display: activeTab==="profile" ? "block" : "none"}}>
-          <ProfileView onOpenDetail={openDetail} onOpenSettings={() => setShowSettings(true)} onOpenUser={setOpenUser} />
-        </div>
+        <Suspense fallback={null}>
+          <div style={{display: activeTab==="feed" ? "block" : "none"}}>
+            <FeedView onOpenUser={setOpenUser} onOpenDetail={openDetail}/>
+          </div>
+          <div style={{display: activeTab==="profile" ? "block" : "none"}}>
+            <ProfileView onOpenDetail={openDetail} onOpenSettings={(cat) => { setSettingsCat(typeof cat === "string" ? cat : null); setShowSettings(true); }} onOpenUser={setOpenUser} />
+          </div>
+        </Suspense>
         {/* Other pages unmount when hidden — no sync needed */}
-        {pages[activeTab]}
+        <Suspense fallback={<div className="py-24"><Spinner /></div>}>
+          {pages[activeTab]}
+        </Suspense>
       </main>
       <Footer onOpenPage={(p) => { if(p==="legal"||p==="privacy") setLegalPage(p); else setActivePage(p); }}/>
-      <ChatBubble hidden={activeTab === "messages"} />
+      <Suspense fallback={null}>
+        <ChatBubble hidden={activeTab === "messages"} />
 
-      {showSettings && <SettingsView onClose={() => setShowSettings(false)} />}
+        {showSettings && <SettingsView initialCategory={settingsCat} onClose={() => setShowSettings(false)} />}
 
-      {detailAnime && (
-        <AnimeDetailModal
-          malId={detailAnime.mal_id}
-          seedData={detailAnime.seedData}
-          onClose={closeDetail}
-          onOpenDetail={openDetail}
-          onOpenUser={setOpenUser}
-        />
-      )}
+        {detailAnime && (
+          <AnimeDetailModal
+            malId={detailAnime.mal_id}
+            seedData={detailAnime.seedData}
+            onClose={closeDetail}
+            onOpenDetail={openDetail}
+            onOpenUser={setOpenUser}
+          />
+        )}
+      </Suspense>
 
       {activePage === "about"      && <AboutPage      onClose={()=>setActivePage(null)}/>}
       {activePage === "contact"   && <ContactPage   onClose={()=>setActivePage(null)}/>}
@@ -812,7 +920,9 @@ function Shell() {
       {legalPage && <LegalPage type={legalPage} onClose={()=>setLegalPage(null)}/>}
 
       {openUser && (
-        <UserProfileModal username={openUser} onClose={() => setOpenUser(null)} onOpenDetail={openDetail} onOpenUser={setOpenUser} />
+        <Suspense fallback={null}>
+          <UserProfileModal username={openUser} onClose={() => setOpenUser(null)} onOpenDetail={openDetail} onOpenUser={setOpenUser} />
+        </Suspense>
       )}
       <DesktopUpdateBanner />
     </div>

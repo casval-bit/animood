@@ -16,7 +16,7 @@ export function LegalModal({ type, onClose }) {
         <div className="text-[13px] font-black uppercase tracking-wide text-white">{title}</div>
       </div>
       <div className="max-h-[65vh] overflow-y-auto p-5 space-y-4">
-        <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-[11px] text-amber-400">{t.placeholderNotice}</p>
+        <p className="rounded-xl bg-white/5 px-3 py-2 text-[11px] text-slate-400">{t.placeholderNotice}</p>
         {sections.map(s => (
           <div key={s.h}>
             <div className="mb-1 text-[12.5px] font-black text-slate-200">{s.h}</div>

@@ -30,7 +30,7 @@ export function AnimeCard({ anime, onClick, statusDot, moodPts, className = "", 
       style={GLASS_STYLE}
     >
       <div className="relative aspect-2/3 w-full overflow-hidden bg-black/20">
-        <img
+        <img loading="lazy" decoding="async"
           src={img || FALLBACK_IMG}
           alt={anime.title}
           className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
@@ -98,7 +98,7 @@ export function AnimePoster({ anime, onClick, statusDot, empty, onEmptyClick, lo
         <div className="flex h-full w-full items-center justify-center"><div className="h-4 w-4 animate-spin rounded-full border-2 border-white/10 border-t-violet-400" /></div>
       )}
       {img && (
-        <img src={img} alt={anime?.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" onError={e => { e.target.src = FALLBACK_IMG; }} />
+        <img loading="lazy" decoding="async" src={img} alt={anime?.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" onError={e => { e.target.src = FALLBACK_IMG; }} />
       )}
       {statusDot && <div className="absolute bottom-1 left-1 h-1.5 w-1.5 rounded-full" style={{ background: statusDot, boxShadow: `0 0 4px ${statusDot}` }} />}
     </button>

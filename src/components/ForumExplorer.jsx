@@ -101,9 +101,9 @@ function ResultRow({ th, words, profile, replyCount, unread, onOpen, lang, t }) 
     <button type="button" onClick={() => onOpen(th)}
       className="grid w-full grid-cols-[44px_1fr_auto] items-center gap-3.5 border-b border-white/5 px-4 py-3 text-left transition last:border-b-0 hover:bg-white/5">
       {th.image_url
-        ? <img src={th.image_url} alt="" className="h-11 w-11 rounded-xl object-cover" onError={e => { e.target.style.display = "none"; }} />
+        ? <img loading="lazy" decoding="async" src={th.image_url} alt="" className="h-11 w-11 rounded-xl object-cover" onError={e => { e.target.style.display = "none"; }} />
         : th.anime_image
-          ? <img src={th.anime_image} alt="" className="h-11 w-11 rounded-xl object-cover" onError={e => { e.target.style.display = "none"; }} />
+          ? <img loading="lazy" decoding="async" src={th.anime_image} alt="" className="h-11 w-11 rounded-xl object-cover" onError={e => { e.target.style.display = "none"; }} />
           : <Avatar profile={profile} size={40} fallback={th.username.slice(0, 2).toUpperCase()} className="text-[11px]" />}
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
