@@ -6,7 +6,7 @@
   "author": "AniMood <mousjabie@gmail.com>",
   "homepage": "https://animood-rho.vercel.app",
   "type": "module",
-  "main": "electron/main.js",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
