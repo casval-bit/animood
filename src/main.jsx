@@ -3,6 +3,10 @@ import ReactDOM from "react-dom/client";
 import "./index.css";
 import AniMoodApp from "./App.jsx";
 import { isDesktopApp } from "./utils/streamingLinks.js";
+import { captureInstallPrompt } from "./utils/installPrompt.js";
+
+// Avant le rendu : Chrome peut proposer l'installation dès le chargement de la page
+captureInstallPrompt();
 
 // ─── Appli de bureau uniquement : police Inter + variables propres au desktop ─
 // (le site web n'est pas concerné : rien n'est posé ni chargé hors Electron)
@@ -12,6 +16,15 @@ if (isDesktopApp()) {
   link.rel = "stylesheet";
   link.href = "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap";
   document.head.appendChild(link);
+}
+
+// ─── Écran tactile (site mobile + APK) : l'appui long sur une image n'ouvre pas
+// le menu « Télécharger l'image » du navigateur. Les onContextMenu de React
+// (ex. « En boucle » du profil) continuent de se déclencher.
+if (window.matchMedia?.("(hover: none)").matches) {
+  document.addEventListener("contextmenu", (e) => {
+    if (e.target.closest?.("img")) e.preventDefault();
+  });
 }
 
 // ─── Register Service Worker (PWA) ────────────────────────────────────────

@@ -3,7 +3,9 @@
 // Offline fallback: cached pages, the app shell stays usable from cache.
 
 // Bumped from v1: v1 cached unhashed .js/.css forever (see isStaticAsset).
-const CACHE_NAME = "animood-v3";
+// v4: Supabase responses are no longer cached (private messages / profile stayed on
+// the device after logout) — bumping the name deletes what v3 had stored.
+const CACHE_NAME = "animood-v4";
 
 // Assets to pre-cache on install — the critical app shell.
 const PRECACHE_URLS = [
@@ -50,11 +52,11 @@ self.addEventListener("activate", (event) => {
 });
 
 // ─── FETCH — cache-first for static, network-first for API/dynamic ─────────
+// Public APIs only. Supabase is never cached: its answers depend on who is logged in
+// (private messages, blocks…) and would otherwise survive a logout on a shared device.
 const API_PATTERNS = [
   /^https:\/\/api\.jikan\.moe/,
   /^https:\/\/api\.animethemes\.moe/,
-  /^https:\/\/api\.cloudinary\.com/,
-  /^https:\/\/pjkvhhxwjzpmxmhdhwcp\.supabase\.co/,
   /^https:\/\/graphql\.anilist\.co/,
 ];
 
@@ -113,7 +115,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   // ═══ API requests: network-first, cache as fallback ════════════════════
-  if (isApiRequest(url)) {
+  if (request.method === "GET" && isApiRequest(url)) {
     event.respondWith(
       (async () => {
         try {

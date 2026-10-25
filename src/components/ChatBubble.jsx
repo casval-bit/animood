@@ -275,7 +275,8 @@ export function ChatBubble({ hidden }) {
   if(hidden) return null;
 
   return (
-    <div className="fixed bottom-5 right-5 z-40 flex flex-col items-end gap-3">
+    // Masquée sur téléphone : l'icône Messages du header (et la barre du bas) y suffit
+    <div className="fixed bottom-5 right-5 z-40 hidden flex-col items-end gap-3 sm:flex">
       {open && (
         <div
           className="flex h-[26rem] w-80 flex-col overflow-hidden rounded-2xl border border-white/10 shadow-2xl animate-slide-up"

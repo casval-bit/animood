@@ -527,9 +527,19 @@ function WebNotificationBell({ onChangeTab, onJoinGame }) {
   const { lang } = useLang();
   const t = HEADER_I18N[lang] || HEADER_I18N.fr;
   const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
   const activityCount = activityNotifications?.length || 0;
   const inviteCount   = gameInvites?.length || 0;
   const count = activityCount + inviteCount;
+
+  // Fermeture au clic / toucher en dehors. Un calque `fixed inset-0` ne marche pas ici :
+  // le backdrop-filter du header le confine au header lui-même.
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (!rootRef.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
 
   const openNotif = (n) => {
     markActivityRead(n.type, n.id);
@@ -544,7 +554,8 @@ function WebNotificationBell({ onChangeTab, onJoinGame }) {
   };
 
   return (
-    <div className="relative">
+    // Téléphone : pas de `relative` ici → le panneau se cale sur le header sticky (pleine largeur)
+    <div ref={rootRef} className="sm:relative">
       <button
         onClick={() => setOpen(o => !o)}
         title={t.notifications}
@@ -567,9 +578,8 @@ function WebNotificationBell({ onChangeTab, onJoinGame }) {
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div
-            className="absolute right-0 top-[calc(100%+10px)] z-50 w-80 overflow-hidden rounded-2xl border border-white/8 backdrop-blur-xl"
+            className="absolute inset-x-3 top-[calc(100%+8px)] z-50 overflow-hidden rounded-2xl border border-white/8 backdrop-blur-xl sm:inset-x-auto sm:right-0 sm:top-[calc(100%+10px)] sm:w-80"
             style={{ background: "var(--surface-1-strong)", boxShadow: "var(--shadow-modal)" }}
           >
             <div className="flex items-center justify-between gap-2 px-4 py-3 text-[13px] font-black uppercase tracking-wide text-white" style={{ background: GRADIENT_PRIMARY }}>
@@ -662,12 +672,14 @@ function WebHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings, onOpenD
       >
         <div className="flex shrink-0 items-center gap-2">
           <img src="/logo-mark.png" alt="AniMood" className="h-8 w-8 rounded-full object-cover" />
-          <span className={`hidden text-lg font-black tracking-tight sm:inline ${GRADIENT_TEXT}`}>
+          <span className={`text-lg font-black tracking-tight ${GRADIENT_TEXT}`}>
             AniMood
           </span>
         </div>
 
-        <nav className="flex flex-1 items-center gap-1 overflow-x-auto">
+        {/* Téléphone : les onglets passent dans la barre du bas (WebBottomNav) */}
+        <div className="flex-1 sm:hidden" />
+        <nav className="hidden flex-1 items-center gap-1 overflow-x-auto sm:flex">
           {TABS.map(tab => {
             const active = tab.id === activeTab;
             return (
@@ -737,7 +749,7 @@ function WebHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings, onOpenD
           )}
         </button>
 
-        <div className="flex shrink-0 items-center gap-2 pl-2 border-l border-white/8">
+        <div className="hidden shrink-0 items-center gap-2 pl-2 border-l border-white/8 sm:flex">
           <div className="h-7 w-7 rounded-full overflow-hidden flex items-center justify-center text-sm shrink-0"
             style={{background:"linear-gradient(135deg,#7c3aed,#4f46e5)"}}>
             {me.avatar?.startsWith?.("http")
@@ -747,7 +759,38 @@ function WebHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings, onOpenD
           <span className="hidden text-xs font-semibold text-slate-400 sm:inline">{me.name}</span>
         </div>
       </header>
+      <WebBottomNav tabs={TABS} activeTab={activeTab} onChangeTab={onChangeTab} />
     </div>
+  );
+}
+
+// ── Barre d'onglets du bas — téléphone uniquement (site mobile + APK Android) ──
+function WebBottomNav({ tabs, activeTab, onChangeTab }) {
+  return (
+    <nav
+      className="fixed inset-x-0 bottom-0 z-50 flex border-t border-white/8 backdrop-blur-xl sm:hidden"
+      style={{ background: "var(--surface-1-strong)", paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      {tabs.map(tab => {
+        const active = tab.id === activeTab;
+        return (
+          <button
+            key={tab.id}
+            onClick={() => onChangeTab(tab.id)}
+            className="flex h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1"
+            style={{ color: active ? "var(--text-1)" : "var(--text-3)" }}
+          >
+            <span
+              className="flex h-8 w-14 items-center justify-center rounded-full text-[17px] transition"
+              style={{ background: active ? GRADIENT_PRIMARY : "transparent", boxShadow: active ? "0 6px 18px rgba(109,91,255,.35)" : "none" }}
+            >
+              <span className={active ? "" : "opacity-50 grayscale"}>{tab.emoji}</span>
+            </span>
+            <span className="max-w-full truncate px-1 text-[10px] font-bold">{tab.label}</span>
+          </button>
+        );
+      })}
+    </nav>
   );
 }
 

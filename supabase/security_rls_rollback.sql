@@ -14,6 +14,29 @@ drop trigger if exists guard_cols on public.forum_replies;
 drop trigger if exists guard_cols on public.direct_messages;
 drop trigger if exists guard_cols on public.game_invites;
 
+-- étape 3 (sans effet si elle n'a pas été lancée)
+drop trigger if exists guard_likes on public.posts;
+drop trigger if exists guard_likes on public.comments;
+drop trigger if exists guard_likes on public.forum_threads;
+drop trigger if exists guard_likes on public.forum_replies;
+drop trigger if exists guard_poll on public.polls;
+drop trigger if exists guard_game_room on public.game_rooms;
+drop trigger if exists guard_game_elo on public.game_elo;
+drop trigger if exists guard_anime_cache on public.anime_cache;
+drop trigger if exists guard_counter_deltas on public.mood_community_votes;
+drop trigger if exists guard_counter_deltas on public.opquiz_stats;
+alter table public.posts         drop constraint if exists posts_image_url_https;
+alter table public.forum_threads drop constraint if exists forum_threads_image_url_https;
+do $$
+declare t text;
+begin
+  foreach t in array array['artist_cache','opquiz_pool','anime_streaming_regions','mood_pts_v2','mood_pts_v4','anime_sync_log'] loop
+    if to_regclass('public.' || t) is not null and (select c.relkind from pg_class c where c.oid = to_regclass('public.' || t)) = 'r' then
+      execute format('drop trigger if exists guard_script_only on public.%I', t);
+    end if;
+  end loop;
+end $$;
+
 do $$
 declare
   t text;

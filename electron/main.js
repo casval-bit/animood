@@ -25,6 +25,29 @@ const isDev = !app.isPackaged;
 const APP_URL = process.env.ANIMOOD_URL || (isDev ? "http://localhost:5173" : "https://animood-rho.vercel.app");
 const APP_ORIGIN = new URL(APP_URL).origin;
 const ICON = path.join(__dirname, "icon.png");
+const OFFLINE_PAGE = path.join(__dirname, "offline.html");
+
+// Same origin as the site — compares the parsed origin (a prefix check would let
+// "https://animood-rho.vercel.app.evil.com" through)
+function isAppUrl(url) {
+  try { return new URL(url).origin === APP_ORIGIN; } catch { return false; }
+}
+function isOfflinePage(url) {
+  try { return url.startsWith("file:") && fileURLToPath(url.split(/[?#]/)[0]) === OFFLINE_PAGE; } catch { return false; }
+}
+// Only web links leave the app: shell.openExternal on file:, smb:, ms-msdt:… can run programs
+function isWebUrl(url) {
+  try { return ["http:", "https:"].includes(new URL(url).protocol); } catch { return false; }
+}
+function openWebUrl(url) {
+  if (!isWebUrl(url)) return Promise.resolve(false);
+  return shell.openExternal(url).then(() => true, () => false);
+}
+// IPC is only accepted from the AniMood site or the local offline page (never from a third-party frame)
+function trustedSender(event) {
+  const url = event.senderFrame?.url || "";
+  return isAppUrl(url) || isOfflinePage(url);
+}
 
 // ── Single instance (must run before anything else) ───────────────────────────
 // A second launch (e.g. an animood:// link on Windows/Linux) is forwarded to the
@@ -76,7 +99,9 @@ function createWindow() {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
+      webSecurity: true,
+      webviewTag: false,
     },
   });
 
@@ -91,7 +116,7 @@ function createWindow() {
 
   // Page loaded → deliver links received before it was ready (login callback on cold start)
   win.webContents.on("did-finish-load", () => {
-    if (!win.webContents.getURL().startsWith(APP_ORIGIN)) return;
+    if (!isAppUrl(win.webContents.getURL())) return;
     pageReady = true;
     const links = pendingLinks;
     pendingLinks = [];
@@ -101,24 +126,33 @@ function createWindow() {
   // No connection → local offline page with a retry button
   win.webContents.on("did-fail-load", (_e, code, _desc, url, isMainFrame) => {
     if (!isMainFrame || code === -3) return; // -3 = navigation aborted (normal)
-    win.loadFile(path.join(__dirname, "offline.html"), { query: { url: url || APP_URL } });
+    win.loadFile(OFFLINE_PAGE);
     win.show();
   });
 
   // Stay on AniMood: any other site opens in the default browser
   win.webContents.on("will-navigate", (event, url) => {
-    if (url.startsWith(APP_ORIGIN) || url.startsWith("file://")) return;
+    if (isAppUrl(url) || isOfflinePage(url)) return;
     event.preventDefault();
-    if (url.startsWith("http://") || url.startsWith("https://")) shell.openExternal(url);
+    openWebUrl(url);
+  });
+  win.webContents.on("will-redirect", (event, url) => {
+    if (isAppUrl(url) || isOfflinePage(url)) return;
+    event.preventDefault();
+    openWebUrl(url);
   });
 
   // Open external links in default browser, not in Electron
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("http://") || url.startsWith("https://")) {
-      shell.openExternal(url);
-    }
+    openWebUrl(url);
     return { action: "deny" };
   });
+
+  // No <webview>, and no camera / micro / location… for the site or anything it embeds
+  win.webContents.on("will-attach-webview", (event) => event.preventDefault());
+  const ses = win.webContents.session;
+  const ALLOWED_PERMISSIONS = ["fullscreen", "mediaKeySystem", "clipboard-sanitized-write"]; // trailers / YouTube embeds
+  ses.setPermissionRequestHandler((_wc, permission, callback) => callback(ALLOWED_PERMISSIONS.includes(permission)));
 
   win.on("closed", () => {
     win = null;
@@ -203,12 +237,13 @@ function receiveLink(url) {
 function handleDeepLink(url) {
   try {
     const parsed = new URL(url);
+    if (parsed.protocol !== "animood:") return;
     if (parsed.host === "auth-callback") {
       win?.webContents.send("auth-callback", url);
     } else if (parsed.host === "stream") {
       const service = parsed.searchParams.get("service") || "";
       const streamUrl = parsed.searchParams.get("url") || "";
-      if (streamUrl && win) {
+      if (isWebUrl(streamUrl) && win) {
         win.webContents.send("deep-link-stream", { service, url: streamUrl });
       }
     }
@@ -221,38 +256,35 @@ function handleDeepLink(url) {
  * Renderer → open a streaming link in the system browser.
  * Called from preload.js via window.animood.openStream(service, url)
  */
-ipcMain.handle("open-stream", async (_event, { service, url: streamUrl }) => {
-  if (!streamUrl) return { ok: false, error: "No URL" };
-  try {
-    await shell.openExternal(streamUrl);
-    return { ok: true, service };
-  } catch (e) {
-    return { ok: false, error: e.message };
-  }
+ipcMain.handle("open-stream", async (event, { service, url: streamUrl } = {}) => {
+  if (!trustedSender(event)) return { ok: false, error: "Forbidden" };
+  if (!isWebUrl(streamUrl)) return { ok: false, error: "Invalid URL" };
+  return (await openWebUrl(streamUrl)) ? { ok: true, service } : { ok: false, error: "Open failed" };
 });
 
 /**
  * Renderer → open any external URL in the default browser (http/https only).
  */
-ipcMain.handle("open-external", async (_event, url) => {
-  if (!url || !/^https?:\/\//.test(url)) return;
-  await shell.openExternal(url).catch(() => {});
+ipcMain.handle("open-external", async (event, url) => {
+  if (!trustedSender(event)) return;
+  await openWebUrl(url);
 });
 
 /**
  * Renderer → window controls (custom title bar on Windows/Linux).
  */
-ipcMain.on("window-minimize", () => win?.minimize());
-ipcMain.on("window-maximize", () => {
+ipcMain.on("window-minimize", (event) => { if (trustedSender(event)) win?.minimize(); });
+ipcMain.on("window-maximize", (event) => {
+  if (!trustedSender(event)) return;
   if (win?.isMaximized()) win.unmaximize();
   else win?.maximize();
 });
-ipcMain.on("window-close", () => win?.close());
+ipcMain.on("window-close", (event) => { if (trustedSender(event)) win?.close(); });
 
 /**
  * Offline page → retry loading the site.
  */
-ipcMain.on("retry-load", () => win?.loadURL(APP_URL));
+ipcMain.on("retry-load", (event) => { if (trustedSender(event)) win?.loadURL(APP_URL); });
 
 /**
  * Renderer → request current app version.
@@ -262,7 +294,8 @@ ipcMain.handle("get-version", () => app.getVersion());
 /**
  * Renderer → manually trigger update check.
  */
-ipcMain.handle("check-update", async () => {
+ipcMain.handle("check-update", async (event) => {
+  if (!trustedSender(event)) return { available: false, reason: "forbidden" };
   if (!autoUpdater) return { available: false, reason: "updater-disabled" };
   try {
     const result = await autoUpdater.checkForUpdates();
@@ -275,7 +308,7 @@ ipcMain.handle("check-update", async () => {
 /**
  * Renderer → restart now and install the downloaded update.
  */
-ipcMain.on("install-update", () => autoUpdater?.quitAndInstall());
+ipcMain.on("install-update", (event) => { if (trustedSender(event)) autoUpdater?.quitAndInstall(); });
 
 // Relay auto-updater events to the renderer
 if (autoUpdater) {

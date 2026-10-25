@@ -22,6 +22,7 @@ import { FavoriteSearchModal } from "../components/FavoriteSearchModal.jsx";
 import { FollowListModal } from "../components/FollowListModal.jsx";
 import { TabBar } from "../components/ui.jsx";
 import { isDesktopApp } from "../utils/streamingLinks.js";
+import { openWebUrl } from "../utils/safeUrl.js";
 import { GRADIENT_PRIMARY, GRADIENT_TEXT, GLASS, GLASS_STYLE } from "../constants/theme.js";
 
 // ─── PERSONAL MOOD RADAR ──────────────────────────────────────────────────────
@@ -443,7 +444,7 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
       {post.image_url && (
         <div style={{borderRadius:10,overflow:"hidden",marginBottom:10,maxHeight:400}}>
           <img src={post.image_url} alt="" style={{width:"100%",objectFit:"cover",maxHeight:400,display:"block",cursor:"pointer"}}
-            onClick={()=>window.open(post.image_url,"_blank")}/>
+            onClick={()=>openWebUrl(post.image_url)}/>
         </div>
       )}
       {/* Actions */}
@@ -1758,7 +1759,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                             const newFavs=[null,null,null,null,null];
                             newH.slice(0,5).forEach((hid,j)=>{newFavs[j]=hid;});
                             saveMe({...me,highlights:newH,favorites:newFavs});
-                          }} className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full border-2 border-slate-950 bg-red-500 text-[10px] font-black text-white group-hover:flex">✕</button>
+                          }} className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full border-2 border-slate-950 bg-red-500 text-[10px] font-black text-white group-hover:flex [@media(hover:none)]:flex">✕</button>
                         </div>
                       ))}
                     </div>
@@ -1829,7 +1830,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                           <AnimePoster anime={animeCache[id]} onClick={a=>{if(editingList!==openListData.id){close();onOpenDetail(a);}}} loading/>
                           {editingList===openListData.id && (
                             <button onClick={()=>removeAnimeFromList(openListData.id,id)}
-                              className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full border-2 border-slate-950 bg-red-500 text-[10px] font-black text-white group-hover:flex">✕</button>
+                              className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full border-2 border-slate-950 bg-red-500 text-[10px] font-black text-white group-hover:flex [@media(hover:none)]:flex">✕</button>
                           )}
                         </div>
                       ))}

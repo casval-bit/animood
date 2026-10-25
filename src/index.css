@@ -69,10 +69,24 @@ html, body, #root {
 }
 
 body {
+  -webkit-tap-highlight-color: transparent; /* pas de flash bleu au toucher (APK / mobile) */
   background: var(--page-bg);
   background-attachment: fixed;
   color: var(--text-1);
   transition: background-color .2s ease, color .2s ease;
+}
+
+/* ─── ÉCRANS TACTILES (site mobile + APK) ────────────────────────────────────
+   Appui long sur un bouton / une affiche : pas de sélection de texte ni de
+   menu « Enregistrer l'image » (comportement d'appli, pas de page web).
+   touch-action: manipulation supprime le zoom au double-tap sur les boutons. */
+@media (hover: none) {
+  button, [role="button"], img {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  button, [role="button"], a { touch-action: manipulation; }
 }
 
 /* ─── LIGHT THEME — Tailwind utility repoints ────────────────────────────────

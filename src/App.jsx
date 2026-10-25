@@ -7,6 +7,7 @@ import { useApp } from "./context/useApp.js";
 import { useLang } from "./context/useLang.js";
 import { isDesktopApp } from "./utils/streamingLinks.js";
 import { isInstalledApp } from "./utils/installedApp.js";
+import { isInstallerPage, canPromptInstall, wasInstalled, onInstallChange, promptInstall } from "./utils/installPrompt.js";
 import { Header } from "./components/Header.jsx";
 import { Footer } from "./components/Footer.jsx";
 import { Spinner } from "./components/Spinner.jsx";
@@ -346,6 +347,142 @@ function ModerationPage({ onClose }) {
 const RELEASES_URL = "https://github.com/casval-bit/animood/releases/latest";
 const RELEASES_API = "https://api.github.com/repos/casval-bit/animood/releases/latest";
 const APK_URL = "/downloads/AniMood.apk"; // public/downloads/ — remplacer le fichier pour une nouvelle version
+const SITE_URL = "https://animood-rho.vercel.app";
+
+// Lien du QR code : l'APK lui-même, le téléchargement démarre dès le scan
+// (en local, celui du site en ligne : le téléphone ne voit pas localhost)
+function apkAbsoluteUrl() {
+  const { origin, hostname } = window.location;
+  const local = /^(localhost|127\.|192\.168\.|10\.)/.test(hostname);
+  return (local ? SITE_URL : origin) + APK_URL;
+}
+
+// QR code à scanner avec un téléphone Android : télécharge directement l'APK
+function InstallQrCode({ en }) {
+  const [svg, setSvg] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    import("qrcode") // chargé seulement quand la page s'ouvre
+      .then(({ default: QRCode }) => QRCode.toString(apkAbsoluteUrl(), {
+        type: "svg", margin: 1, errorCorrectionLevel: "M",
+        color: { dark: "#0f0a1f", light: "#ffffff" },
+      }))
+      .then(s => alive && setSvg(s))
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  if (!svg) return null;
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:14,width:"100%",marginTop:4}}>
+      <img src={"data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg)}
+        alt={en ? "QR code to download the Android app" : "QR code pour télécharger l'appli Android"}
+        style={{width:112,height:112,flexShrink:0,padding:6,borderRadius:12,background:"#fff",display:"block"}} />
+      <div style={{fontSize:12,color:"var(--text-4, #64748b)",lineHeight:1.6}}>
+        <div style={{fontWeight:800,color:"var(--text-1, #f1f5f9)",marginBottom:2}}>
+          📱 {en ? "Scan with your Android phone" : "Scanne avec ton téléphone Android"}
+        </div>
+        {en
+          ? "The APK downloads right away: open it and tap \"Install\" (the first time, allow installing from this source)."
+          : "L'APK se télécharge tout de suite : ouvre-le et touche « Installer » (la 1re fois, autorise l'installation depuis cette source)."}
+      </div>
+    </div>
+  );
+}
+
+// Page ouverte par le QR code (/?installer) : sans compte, installation en un appui.
+// Android (Chrome) : fenêtre d'installation native, sans APK ni « sources inconnues ».
+// iPhone : marche à suivre Safari. Sinon : marche à suivre du menu + APK en secours.
+function InstallPage({ onContinue }) {
+  const { lang } = useLang();
+  const en = lang === "en";
+  const os = detectOS();
+  const phone = os === "android" || os === "ios";
+  const [canInstall, setCanInstall] = useState(canPromptInstall);
+  const [done, setDone]             = useState(wasInstalled);
+  const [waited, setWaited]         = useState(false); // Chrome n'a rien proposé après quelques secondes
+
+  useEffect(() => {
+    const off = onInstallChange(() => { setCanInstall(canPromptInstall()); setDone(wasInstalled()); });
+    const t = setTimeout(() => setWaited(true), 4000);
+    return () => { off(); clearTimeout(t); };
+  }, []);
+
+  const install = async () => {
+    if (await promptInstall() === "accepted") setDone(true);
+  };
+
+  const btn = {
+    display:"block",width:"100%",padding:"16px 20px",borderRadius:999,border:"none",cursor:"pointer",
+    fontSize:16,fontWeight:900,textAlign:"center",textDecoration:"none",
+    color:"#fff",background:"linear-gradient(135deg,#7c3aed,#ec4899)",boxShadow:"0 10px 28px rgba(124,58,237,.4)",
+  };
+  const card = {
+    padding:"16px 18px",borderRadius:16,fontSize:13,lineHeight:1.7,textAlign:"left",
+    color:"var(--text-3, #94a3b8)",background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.25)",
+  };
+  const linkStyle = {color:"#c084fc",fontWeight:700,textDecoration:"none",fontSize:13};
+
+  return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"32px 16px"}}>
+      <div style={{width:"100%",maxWidth:380,display:"flex",flexDirection:"column",alignItems:"center",gap:20,textAlign:"center"}}>
+        <img src="/logo-mark.png" alt="" style={{width:88,height:88,borderRadius:24,objectFit:"cover",boxShadow:"0 12px 32px rgba(124,58,237,.35)"}}/>
+        <div>
+          <div style={{fontSize:26,fontWeight:900,color:"var(--text-1, #f1f5f9)"}}>
+            {done ? (en ? "AniMood is installed 🎉" : "AniMood est installée 🎉") : (en ? "Install AniMood" : "Installe AniMood")}
+          </div>
+          <div style={{fontSize:13,color:"var(--text-4, #64748b)",marginTop:6}}>
+            {done
+              ? (en ? "Find it on your home screen." : "Retrouve-la sur ton écran d'accueil.")
+              : (en ? "Discover anime by mood — free, no store needed." : "Découvre des animés selon ton humeur — gratuit, sans passer par un store.")}
+          </div>
+        </div>
+
+        {!done && os === "ios" && (
+          <div style={card}>
+            <b style={{color:"var(--text-1, #f1f5f9)"}}>{en ? "On iPhone, 2 taps:" : "Sur iPhone, en 2 appuis :"}</b><br/>
+            1. {en ? "Tap Share" : "Touche Partager"} <span style={{fontSize:16}}>⬆️</span> {en ? "at the bottom of Safari" : "en bas de Safari"}<br/>
+            2. {en ? "Choose \"Add to Home Screen\"" : "Choisis « Sur l'écran d'accueil »"}
+          </div>
+        )}
+
+        {!done && os !== "ios" && canInstall && (
+          <button type="button" onClick={install} style={btn}>
+            📲 {en ? "Install the app" : "Installer l'appli"}
+          </button>
+        )}
+
+        {!done && os !== "ios" && !canInstall && !waited && (
+          <Spinner label={en ? "Getting the app ready…" : "Préparation de l'appli…"} />
+        )}
+
+        {!done && os !== "ios" && !canInstall && waited && (
+          <>
+            {phone && (
+              <div style={card}>
+                <b style={{color:"var(--text-1, #f1f5f9)"}}>{en ? "Install from the browser menu:" : "Installe depuis le menu du navigateur :"}</b><br/>
+                {en
+                  ? "Tap ⋮ (top right in Chrome), then \"Install app\" or \"Add to Home screen\"."
+                  : "Touche ⋮ (en haut à droite dans Chrome), puis « Installer l'appli » ou « Ajouter à l'écran d'accueil »."}
+              </div>
+            )}
+            {!phone && <InstallQrCode en={en} />}
+            {os === "android" && (
+              <a href={APK_URL} download="AniMood.apk" style={linkStyle}>
+                ⬇ {en ? "Or download the APK" : "Ou télécharger l'APK"}
+              </a>
+            )}
+          </>
+        )}
+
+        <button type="button" onClick={onContinue} style={{...linkStyle,background:"none",border:"none",cursor:"pointer",color:"var(--text-4, #64748b)"}}>
+          {en ? "Continue on the website →" : "Continuer sur le site →"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function detectOS() {
   const ua = navigator.userAgent || "";
@@ -449,6 +586,12 @@ function DownloadPage({ onClose }) {
                     ⬇ {en ? "Download APK" : "Télécharger l'APK"}
                   </a>
                 )}
+                {p.id === "android" && mine && (
+                  <a href="/?installer" style={{fontSize:12,fontWeight:800,color:"#c084fc",textDecoration:"none"}}>
+                    📲 {en ? "Install in one tap" : "Installer en un appui"}
+                  </a>
+                )}
+                {p.id === "android" && os !== "android" && os !== "ios" && <InstallQrCode en={en} />}
               </div>
             );
           })}
@@ -571,6 +714,8 @@ function Shell() {
   const [pendingJoinGame, setPendingJoinGame] = useState(null);
   const [activePage, setActivePage] = useState(null);
   const [legalPage, setLegalPage]     = useState(null);
+  // Page d'installation du QR code : avant la connexion, et jamais dans une appli déjà installée
+  const [installer, setInstaller]     = useState(() => isInstallerPage() && !isInstalledApp());
 
   // Seed the very first history entry with the current tab so the first
   // back press has a well-defined page to land on instead of leaving the app.
@@ -597,6 +742,9 @@ function Shell() {
     setActiveTab(tab);
   };
 
+  if (installer) {
+    return <InstallPage onContinue={() => { window.history.replaceState(window.history.state, "", "/"); setInstaller(false); }} />;
+  }
   if(!session && !window.__SKIP_AUTH__) return <LoginView />;
   if(!profileReady && !window.__SKIP_AUTH__) {
     return (
@@ -624,7 +772,8 @@ function Shell() {
   const desktop = isDesktopApp();
 
   return (
-    <div className="min-h-screen" style={desktop ? { paddingTop: 80 } : {}}>
+    // Web sur téléphone : place réservée sous la barre d'onglets du bas (WebBottomNav)
+    <div className={desktop ? "min-h-screen" : "min-h-screen pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0"} style={desktop ? { paddingTop: 80 } : {}}>
       <Header activeTab={activeTab} onChangeTab={changeTab} onOpenSettings={() => setShowSettings(true)}
         onOpenDownload={isInstalledApp() ? undefined : () => setActivePage("download")}
         onJoinGame={payload => { changeTab(desktop ? "games" : "forum"); setPendingJoinGame(payload); }} />

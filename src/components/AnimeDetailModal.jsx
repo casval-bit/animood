@@ -20,6 +20,7 @@ import { GradientButton } from "./ui.jsx";
 import { NewThreadModal, ThreadModal, timeAgo } from "./ForumThreadModal.jsx";
 import { StreamingBarDesktop } from "./StreamingBarDesktop.jsx";
 import { isDesktopApp } from "../utils/streamingLinks.js";
+import { safeWebUrl } from "../utils/safeUrl.js";
 
 const FALLBACK = "https://placehold.co/700x300/1a1a2e/818cf8?text=?";
 
@@ -305,7 +306,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
   const genres   = a?.genres?.map(g => g.name || g) || [];
   const studios  = a?.studios || [];
   const streaming = a?.streaming || seedData?.streaming || [];
-  const trailer  = a?.trailer?.url;
+  const trailer  = safeWebUrl(a?.trailer?.url);
   const userScore = me.ratings[malId]?.score || null;
 
   // Friend scores summary
