@@ -12,7 +12,10 @@ const SEASON_WORDS = [
   /\b(the\s+)?(final|last)\s+(season|chapter)\b/g,
   /\b(season|saison|cour|part|partie)\s*\d+\b/g,
   /\b\d+(st|nd|rd|th)\s*(season|cour|part)?\b/g,
-  /\b(second|third|fourth|fifth|sixth|seventh)\s+(season|cour|part)\b/g,
+  /\b(first|second|third|fourth|fifth|sixth|seventh|eighth|final|last)\s+(season|cour|part|stage|series|chapter)\b/g,
+  /\bstage\s*\d+\b/g,
+  /\b(first|second|third|fourth|fifth|sixth|seventh|final|last|extra|new)\s+(stage|arc|chapter|story)\b/g, // « Initial D Fourth Stage »
+  /\bstage\s*\d+\b/g,
   /\bdai\s*\d+\s*ki\b/g,
   /\b(season|saison|cour|part|ova|oad|ona|movie|film|gekijouban|special|specials|sp|tv)\b/g,
   /\b(zoku|shin)\b/g,
@@ -57,10 +60,16 @@ function tokensMatch(ta, tb) {
   if (!ta.length || !tb.length) return false;
   const [short, long] = ta.length <= tb.length ? [ta, tb] : [tb, ta];
   if (isAnthology(short) || isAnthology(long)) return short.length === long.length && short.every((w, i) => w === long[i]);
-  for (let i = 0; i < short.length; i++) if (short[i] !== long[i]) return false;
+  let common = 0;
+  while (common < short.length && short[common] === long[common]) common++;
+  if (common >= 3 && common * 2 >= short.length) return true; // 3 premiers mots identiques : même œuvre
+  if (common < short.length) return false;
   if (short.length === 1 && short[0].length < 4) return false; // « a », « to »… trop court pour être une œuvre
   return true;
 }
+
+// Mots trop génériques pour prouver que deux titres sont la même œuvre
+const GENERIC = new Set(["mahou", "shoujo", "shounen", "isekai", "tensei", "gakuen", "gakkou", "kyoushitsu", "ore", "boku", "watashi", "kono", "sono", "no", "wa", "wo", "ni", "to", "ga", "de", "ha", "the", "of", "a", "an", "my", "our", "your", "in", "on", "is", "it", "love", "high", "school", "girl", "girls", "boy", "boys", "world", "story", "life"]);
 
 const titlesOf = (a) => [a?.title, a?.title_en, a?.title_english].filter(Boolean);
 
@@ -111,4 +120,36 @@ export const byRelease = (x, y) => (releaseKey(x) < releaseKey(y) ? -1 : release
 /** Saisons « principales » d'une œuvre : séries TV/ONA de plus de 15 min, dans l'ordre de sortie. */
 export function mainChain(members) {
   return members.filter(m => (m.type === "TV" || m.type === "ONA") && !isTvShort(m)).sort(byRelease);
+}
+
+// Parenté plus large que sameFranchise (sert au calendrier) : « JoJo no Kimyou na Bouken: Stardust Crusaders » et « …: Steel Ball Run »
+// sont deux récits différents mais une même série pour qui a vu l'un d'eux.
+const PARTICLES = new Set(["no", "wa", "ga", "ni", "to", "wo", "de", "the", "a", "of"]);
+export function sameFamily(a, b) {
+  if (sameFranchise(a, b)) return true;
+  const raw = (t) => stripAccents(String(t || "").replace(/\s*[:：]\s+.+$/, "")).replace(/[^a-z0-9\u3040-\u30ff\u4e00-\u9fff]+/g, " ").trim().split(" ").filter(Boolean);
+  for (const x of titlesOf(a).map(raw)) for (const y of titlesOf(b).map(raw)) {
+    let c = 0;
+    while (c < x.length && c < y.length && x[c] === y[c]) c++;
+    if (c >= 3) return true;
+    if (c === 2 && !PARTICLES.has(x[1]) && x[0].length + x[1].length >= 9) return true;
+  }
+  return false;
+}
+
+/**
+ * Version plus large, réservée au dédoublonnage d'une liste de résultats (jamais pour les suites/prérequis) :
+ * deux titres qui commencent par les mêmes mots caractéristiques (« Initial D … », « Natsume Yuujinchou … ») sont la même œuvre
+ * même si le sous-titre n'est pas reconnu comme un marqueur de saison.
+ */
+export function looseSameFranchise(a, b) {
+  if (sameFranchise(a, b)) return true;
+  const ta = titlesOf(a).map(franchiseTokens), tb = titlesOf(b).map(franchiseTokens);
+  for (const x of ta) for (const y of tb) {
+    if (isAnthology(x) || isAnthology(y)) continue;
+    let n = 0, weight = 0;
+    while (n < x.length && n < y.length && x[n] === y[n]) { if (!GENERIC.has(x[n])) weight += x[n].length; n++; }
+    if (n >= 2 && weight >= 8) return true;
+  }
+  return false;
 }
