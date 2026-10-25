@@ -16,7 +16,7 @@ export const INFO_MODAL_I18N = {
         },
         {
           h: "Images & droits",
-          p: "Les visuels des animés (affiches, illustrations) sont la propriété de leurs ayants droit respectifs — studios, éditeurs, distributeurs. AniMood les affiche uniquement à des fins d'identification, dans le cadre du fair use. Pour signaler un usage non autorisé : legal@animood.app",
+          p: "Les visuels des animés (affiches, illustrations) sont la propriété de leurs ayants droit respectifs — studios, éditeurs, distributeurs. AniMood les affiche uniquement pour identifier les œuvres. Si tu es ayant droit et souhaites le retrait d'un visuel : legal@animood.app",
         },
         {
           h: "Projet indépendant",
@@ -167,7 +167,7 @@ export const INFO_MODAL_I18N = {
         },
         {
           h: "Images & rights",
-          p: "Anime visuals (posters, illustrations) are the property of their respective rights holders — studios, publishers, distributors. AniMood displays them solely for identification purposes, within fair use guidelines. To report unauthorized use: legal@animood.app",
+          p: "Anime visuals (posters, illustrations) are the property of their respective rights holders — studios, publishers, distributors. AniMood displays them solely to identify the works. If you are a rights holder and want a visual removed: legal@animood.app",
         },
         {
           h: "Independent project",

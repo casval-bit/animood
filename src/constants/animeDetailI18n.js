@@ -5,6 +5,11 @@ export const ANIME_DETAIL_I18N = {
 
     synopsis: "Synopsis",
     availableOn: "Disponible sur",
+    tabOverview: "Aperçu",
+    tabWatch: "Où regarder",
+    seeWhereToWatch: "Où regarder →",
+    watchlistTitle: "Ajouter à ma watchlist",
+    watchlistRemoveTitle: "Retirer de ma watchlist",
     openings: "Openings & Endings",
     staff: "Staff",
     charactersVoice: "Personnages & Seiyuu",
@@ -36,6 +41,11 @@ export const ANIME_DETAIL_I18N = {
 
     synopsis: "Synopsis",
     availableOn: "Available on",
+    tabOverview: "Overview",
+    tabWatch: "Where to watch",
+    seeWhereToWatch: "Where to watch →",
+    watchlistTitle: "Add to my watchlist",
+    watchlistRemoveTitle: "Remove from my watchlist",
     openings: "Openings & Endings",
     staff: "Staff",
     charactersVoice: "Characters & Voice Actors",

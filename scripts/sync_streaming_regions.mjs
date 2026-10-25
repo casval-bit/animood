@@ -9,7 +9,7 @@
 //
 // Utilisation :
 //   node --env-file=.env scripts/sync_streaming_regions.mjs                 # pays par défaut, animés jamais vérifiés
-//   node --env-file=.env scripts/sync_streaming_regions.mjs --regions=FR,US,GB,IT,JP,DE
+//   node --env-file=.env scripts/sync_streaming_regions.mjs --regions=FR,US,GB,IT,JP,DE,ES,CA
 //   node --env-file=.env scripts/sync_streaming_regions.mjs --limit=500     # n'en traite que 500 (reprend où ça s'est arrêté)
 //   node --env-file=.env scripts/sync_streaming_regions.mjs --refresh=30    # re-vérifie ceux de plus de 30 jours
 //
@@ -22,7 +22,7 @@ const SUPABASE_ANON = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_A
 const TMDB_KEY = process.env.TMDB_KEY;
 const TMDB = "https://api.themoviedb.org/3";
 const FRIBB = "https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json"; // correspondances MAL → TMDB
-const DEFAULT_REGIONS = ["FR", "US", "GB", "IT", "JP"];
+const DEFAULT_REGIONS = ["FR", "US", "GB", "IT", "JP", "DE", "ES", "CA"];
 const KINDS = ["flatrate", "free", "ads"];
 
 const arg = (n, d) => { const a = process.argv.find((x) => x.startsWith(`--${n}=`)); return a ? a.split("=")[1] : d; };
