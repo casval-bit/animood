@@ -25,7 +25,7 @@ Toutes les applis affichent le site en ligne : **un déploiement du site = toute
 ## 🚀 Lancer en local
 
 ```bash
-git clone -b animood-v.12.00 https://github.com/casval-bit/animood.git
+git clone -b animood-v.13.00 https://github.com/casval-bit/animood.git
 cd animood
 npm install
 npm run dev
@@ -130,7 +130,8 @@ Fichiers SQL dans `supabase/`, à lancer dans l'éditeur SQL de Supabase.
 
 | Version | Nouveautés |
 |---|---|
-| **v.12.00** | Site en ligne (Vercel), applis Android / Windows / Mac / Linux, page de téléchargement, connexion Google sur l'appli de bureau |
+| **v.13.00** | Sécurité (règles Supabase étape 3, appli de bureau durcie, cache hors ligne sans données privées, en-têtes du site), installation en un appui par QR code, barre d'onglets mobile |
+| v.12.00 | Site en ligne (Vercel), applis Android / Windows / Mac / Linux, page de téléchargement, connexion Google sur l'appli de bureau |
 | v.11.02 | Appli de bureau, profil enrichi (Pts jeux, En Boucle), streaming par région, sécurité RLS |
 | v.11.01 | Bouton trailer, logos footer, onglets forum |
 | v.11.00 | Undercover, Tierlist, filtres calendrier, terminés récemment, cadres animés, script de sync |

@@ -63,6 +63,7 @@ const GENRE_MOOD_MAP = {
   "Isekai":     { hype:25, happy:20, twisted:10 },
 };
 
+
 if(!CFG.SUPABASE_SERVICE_KEY) {
   console.error("❌ SUPABASE_SERVICE_KEY is missing — add it to .env (Supabase → Project Settings → API → service_role).");
   process.exit(1);

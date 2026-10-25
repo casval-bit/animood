@@ -35,6 +35,10 @@ async function freshToken() {
 // Appli de bureau : Google refuse la connexion dans une fenêtre d'appli, donc on l'ouvre dans le
 // navigateur de l'utilisateur, qui revient ensuite dans l'appli par animood://auth-callback#access_token=…
 const DESKTOP_AUTH_REDIRECT = "animood://auth-callback";
+// Un lien animood://auth-callback n'est accepté que juste après un clic sur « Se connecter » dans l'appli :
+// sinon n'importe quel site pourrait ouvrir ce lien avec les jetons d'un autre compte et y connecter l'utilisateur.
+const LOGIN_WINDOW_MS = 10 * 60_000;
+let desktopLoginStartedAt = 0;
 
 export async function signInWithGoogle() {
   const desktop = typeof window !== "undefined" && window.animood?.isDesktop && window.animood.onAuthCallback;
@@ -45,11 +49,19 @@ export async function signInWithGoogle() {
       : { redirectTo: window.location.origin },
   });
   if(error) throw error;
-  if(desktop && data?.url) await window.animood.openExternal(data.url);
+  if(desktop && data?.url) {
+    desktopLoginStartedAt = Date.now();
+    await window.animood.openExternal(data.url);
+  }
 }
 
 if (typeof window !== "undefined" && window.animood?.onAuthCallback) {
   window.animood.onAuthCallback(async (url) => {
+    if (!desktopLoginStartedAt || Date.now() - desktopLoginStartedAt > LOGIN_WINDOW_MS) {
+      console.warn("[AniMood] Lien de connexion ignoré : aucune connexion en cours dans l'appli");
+      return;
+    }
+    desktopLoginStartedAt = 0; // un seul retour par connexion
     const params = new URLSearchParams(url.split("#")[1] || url.split("?")[1] || "");
     const access_token = params.get("access_token");
     const refresh_token = params.get("refresh_token");

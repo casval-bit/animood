@@ -1,7 +1,7 @@
 {
   "name": "animood-final",
   "private": true,
-  "version": "12.0.0",
+  "version": "13.0.0",
   "description": "AniMood — découvre des animés selon ton humeur",
   "author": "AniMood <mousjabie@gmail.com>",
   "homepage": "https://animood-rho.vercel.app",
@@ -42,6 +42,7 @@
     "globals": "^17.6.0",
     "html2canvas": "^1.4.1",
     "node-fetch": "^3.3.2",
+    "qrcode": "^1.5.4",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "tailwindcss": "^4.2.4",

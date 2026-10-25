@@ -9,6 +9,7 @@ import { useLang } from "../context/useLang.js";
 import { FEED_I18N } from "../constants/feedI18n.js";
 import { findBannedWord } from "../utils/contentFilter.js";
 import { isDesktopApp } from "../utils/streamingLinks.js";
+import { openWebUrl } from "../utils/safeUrl.js";
 import { GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function timeAgo(ts, lang) {
@@ -189,7 +190,7 @@ function PostComposer({ onPost }) {
       : {background:"rgba(var(--fg-rgb),0.03)",borderRadius:16,border:"1px solid rgba(var(--fg-rgb),0.07)",padding:14,marginBottom:16}}>
       <div style={{display:"flex",gap:desktop?14:10}}>
         <Avatar profile={profile} size={desktop?46:38}/>
-        <div style={{flex:1,position:"relative"}}>
+        <div style={{flex:1,minWidth:0,position:"relative"}}>
           <textarea value={content} onChange={e=>{setContent(e.target.value.slice(0,280));setFilterError(null);}}
             placeholder={t.composerPlaceholder}
             style={{width:"100%",boxSizing:"border-box",background:"none",border:"none",
@@ -258,21 +259,18 @@ function PostComposer({ onPost }) {
               )}
             </div>
           )}
-          <div style={{display:"flex",alignItems:"center",gap:8,borderTop:"1px solid rgba(var(--fg-rgb),0.06)",paddingTop:10}}>
+          <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:8,whiteSpace:"nowrap",borderTop:"1px solid rgba(var(--fg-rgb),0.06)",paddingTop:10}}>
             <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{display:"none"}}/>
             <button onClick={()=>imageInputRef.current?.click()} disabled={imageUploading}
               style={{padding:"5px 10px",borderRadius:8,background:imageUrl?"rgba(129,140,248,0.15)":"rgba(var(--fg-rgb),0.05)",
                 border:"1px solid rgba(var(--fg-rgb),0.1)",color:imageUrl?"#818cf8":"var(--text-2)",fontSize:11,fontWeight:700,cursor:"pointer"}}>
               {imageUploading ? "⏳" : "🖼"} {imageUploading ? t.imageUploading : imageUrl ? t.imageChange : t.imageAdd}
             </button>
-            <div style={{position:"relative"}}>
-              <button onClick={()=>setShowAnimePicker(p=>!p)}
-                style={{padding:"5px 10px",borderRadius:8,background:linkedAnime?"rgba(129,140,248,0.15)":"rgba(var(--fg-rgb),0.05)",
-                  border:"1px solid rgba(var(--fg-rgb),0.1)",color:linkedAnime?"#818cf8":"var(--text-2)",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                📺 {linkedAnime ? t.animeChange : t.animeLink}
-              </button>
-              {showAnimePicker && <AnimeSearchPicker onSelect={a=>{setLinkedAnime(a);setShowAnimePicker(false);}} onClose={()=>setShowAnimePicker(false)}/>}
-            </div>
+            <button onClick={()=>setShowAnimePicker(p=>!p)}
+              style={{padding:"5px 10px",borderRadius:8,background:linkedAnime?"rgba(129,140,248,0.15)":"rgba(var(--fg-rgb),0.05)",
+                border:"1px solid rgba(var(--fg-rgb),0.1)",color:linkedAnime?"#818cf8":"var(--text-2)",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+              📺 {linkedAnime ? t.animeChange : t.animeLink}
+            </button>
             <button onClick={()=>setSpoiler(p=>!p)}
               style={{padding:"5px 10px",borderRadius:8,
                 background:spoiler?"rgba(239,68,68,0.15)":"rgba(var(--fg-rgb),0.05)",
@@ -298,6 +296,8 @@ function PostComposer({ onPost }) {
               </button>
             </div>
           </div>
+          {/* Sous la barre d'outils, sur toute la largeur du composer (lisible sur téléphone) */}
+          {showAnimePicker && <AnimeSearchPicker onSelect={a=>{setLinkedAnime(a);setShowAnimePicker(false);}} onClose={()=>setShowAnimePicker(false)}/>}
         </div>
       </div>
     </div>
@@ -596,7 +596,7 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
           {post.image_url && (
             <div style={{borderRadius:10,overflow:"hidden",marginBottom:10,maxHeight:400}}>
               <img src={post.image_url} alt="" style={{width:"100%",objectFit:"cover",maxHeight:400,display:"block",cursor:"pointer"}}
-                onClick={()=>window.open(post.image_url,"_blank")}/>
+                onClick={()=>openWebUrl(post.image_url)}/>
             </div>
           )}
           <PollDisplay postId={post.id} myUsername={myUsername}/>
@@ -830,7 +830,7 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
     );
   }
   return (
-    <div style={{maxWidth:600,margin:"0 auto",padding:"0 16px 80px"}}>
+    <div style={{maxWidth:600,margin:"0 auto",padding:"16px 16px 80px"}}>
       <PostComposer onPost={handlePost}/>
       <div style={{display:"flex",gap:6,marginBottom:16,borderBottom:"1px solid rgba(var(--fg-rgb),0.06)",paddingBottom:12}}>
         {CHANNELS.map(c => (

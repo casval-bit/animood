@@ -1395,7 +1395,9 @@ setMsg(t.errWrongPosition||"❌ Mauvaise position !");
 }
 
 function DropZone({ onDrop }) {
-  const [hover, setHover] = useState(false);
+  const [hovered, setHover] = useState(false);
+  // Écran tactile : pas de survol → zone toujours visible, sinon impossible à viser au doigt
+  const hover = hovered || window.matchMedia?.("(hover: none)").matches;
   return (
     <div
       onClick={onDrop}

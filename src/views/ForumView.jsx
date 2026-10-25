@@ -18,6 +18,7 @@ import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constant
 import { FORUM_I18N } from "../constants/forumI18n.js";
 import { GAME_SYSTEM_I18N } from "../constants/gameSystemI18n.js";
 import { isDesktopApp } from "../utils/streamingLinks.js";
+import { safeWebUrl } from "../utils/safeUrl.js";
 import { ForumExplorer } from "../components/ForumExplorer.jsx";
 
 const FALLBACK_IMG = "https://placehold.co/64x92/1a1a2e/818cf8?text=?";
@@ -114,7 +115,7 @@ function ThreadRow({ anime, onClick, metaLabel, trailerLink, convLink, statOverr
       <div className="flex shrink-0 items-center gap-2">
         {trailerLink && (
           <a
-            href={anime.trailer?.url || `https://youtube.com/results?search_query=${encodeURIComponent(anime.title + " trailer")}`}
+            href={safeWebUrl(anime.trailer?.url) || `https://youtube.com/results?search_query=${encodeURIComponent(anime.title + " trailer")}`}
             target="_blank" rel="noopener noreferrer"
             onClick={e => e.stopPropagation()}
             className="shrink-0 rounded-full bg-white/8 px-3 py-1.5 text-[11px] font-bold text-slate-100 transition hover:bg-white/15"
@@ -138,7 +139,7 @@ function ThreadRow({ anime, onClick, metaLabel, trailerLink, convLink, statOverr
                 style={{position:"absolute",right:0,top:"calc(100% + 6px)",zIndex:50,
                   background:"#161226",border:"1px solid rgba(255,255,255,0.1)",
                   borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",
-                  minWidth:220,padding:8}}>
+                  minWidth:220,maxWidth:"calc(100vw - 32px)",padding:8}}>
                 {!convThreads ? (
                   <div style={{fontSize:10,color:"var(--text-4)",padding:"6px 10px"}}>{t.loading}</div>
                 ) : convThreads.length > 0 ? convThreads.map(th => (
@@ -243,7 +244,7 @@ function AnticipatedCard({ anime, airedDates, onOpenDetail, t, flush = false }) 
         </div>
       </button>
       <a
-        href={anime.trailer?.url || `https://youtube.com/results?search_query=${encodeURIComponent(anime.title + " trailer")}`}
+        href={safeWebUrl(anime.trailer?.url) || `https://youtube.com/results?search_query=${encodeURIComponent(anime.title + " trailer")}`}
         target="_blank" rel="noopener noreferrer"
         onClick={e => e.stopPropagation()}
         className="shrink-0 rounded-full bg-white px-4 py-2 text-[12px] font-black text-violet-700 shadow-md transition hover:scale-105 hover:shadow-lg"
