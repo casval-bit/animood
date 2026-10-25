@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Page introuvable — AniMood</title>
+  <meta name="robots" content="noindex" />
+  <meta name="theme-color" content="#7c3aed" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <!-- Page affichée par l'hébergeur (Vercel) pour toute adresse qui n'existe pas. Autonome : aucun script de l'appli n'est chargé. -->
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; margin: 0; }
+    body {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px;
+      background: radial-gradient(900px 500px at 50% -10%, rgba(124,58,237,.28), transparent 60%), #070b17;
+      color: #cbd5e1; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; text-align: center;
+    }
+    main { max-width: 420px; }
+    img { width: 72px; height: 72px; border-radius: 18px; margin-bottom: 18px; box-shadow: 0 8px 32px rgba(124,58,237,.35); }
+    .code { font-size: 76px; font-weight: 900; line-height: 1; letter-spacing: -2px; background: linear-gradient(135deg, #a78bfa, #7c3aed 55%, #ec4899); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    h1 { margin-top: 10px; font-size: 20px; font-weight: 800; color: #f1f5f9; }
+    p { margin-top: 10px; font-size: 14px; line-height: 1.6; color: #94a3b8; }
+    a.btn { display: inline-block; margin-top: 26px; padding: 12px 26px; border-radius: 14px; font-size: 14px; font-weight: 800; color: #fff; text-decoration: none; background: linear-gradient(135deg, #7c3aed, #6366f1); box-shadow: 0 6px 24px rgba(124,58,237,.4); }
+    a.btn:hover { filter: brightness(1.1); }
+    a.btn:focus-visible { outline: 2px solid #c4b5fd; outline-offset: 3px; }
+  </style>
+</head>
+<body>
+  <main>
+    <img src="/logo-mark.png" alt="AniMood" width="72" height="72" />
+    <div class="code" aria-hidden="true">404</div>
+    <h1 id="t">Cette page n'existe pas</h1>
+    <p id="d">L'adresse est peut-être erronée, ou la page a été déplacée. Reviens à l'accueil pour retrouver ton prochain animé.</p>
+    <a class="btn" id="b" href="/">Retour à l'accueil</a>
+  </main>
+  <script>
+    // Textes en français par défaut ; anglais si le navigateur est en anglais
+    if (/^en/i.test(navigator.language || "")) {
+      document.documentElement.lang = "en";
+      document.title = "Page not found — AniMood";
+      document.getElementById("t").textContent = "This page doesn't exist";
+      document.getElementById("d").textContent = "The address may be wrong, or the page has moved. Head back home to find your next anime.";
+      document.getElementById("b").textContent = "Back to home";
+    }
+  </script>
+</body>
+</html>

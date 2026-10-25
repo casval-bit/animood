@@ -1,0 +1,49 @@
+name: Sync Daily (animés en cours de diffusion)
+
+# Mise à jour légère et sans risque (le script n'insère que du nouveau et ne corrige que les champs vides) :
+#   nouveaux animés (AniList), changements de statut (LiveChart + AniList : à venir → en cours → terminé, avec jour de diffusion,
+#   score, humeurs, plateformes et trailer déclenchés pour ceux qui démarrent), jours de diffusion, scores/humeurs des animés qui viennent de passer « en cours »,
+#   humeurs (mood_pts_v4), rescore à 2 semaines / 2 mois.
+# Tous les jours à 3h UTC, et une 2e fois à 15h UTC pendant les 3 premières semaines de chaque saison
+# (janvier, avril, juillet, octobre) : les sorties y sont quotidiennes.
+on:
+  schedule:
+    - cron: '0 3 * * *'
+    - cron: '0 15 1-21 1,4,7,10 *'
+  workflow_dispatch:
+
+concurrency:
+  group: animood-sync
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash          # « pipefail » : un script qui plante fait échouer l'étape (sinon « | tee » le masque)
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON: ${{ secrets.SUPABASE_ANON }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
+      OPENROUTER_MODEL: ${{ secrets.OPENROUTER_MODEL }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci --ignore-scripts
+
+      - name: New anime, statuts (LiveChart/AniList), broadcast, scores, moods v4, rescore
+        id: daily
+        run: node scripts/animood_sync.mjs --job=daily 2>&1 | tee /tmp/daily_log.txt
+
+      - name: Write summary
+        if: always()
+        run: |
+          echo "## ☀️ AniMood — Daily Sync $(date '+%Y-%m-%d %H:%M') UTC — ${{ steps.daily.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY; tail -12 /tmp/daily_log.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null; echo '```' >> $GITHUB_STEP_SUMMARY

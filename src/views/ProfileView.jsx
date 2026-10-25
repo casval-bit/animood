@@ -8,7 +8,7 @@ import { MOOD_KEYS } from "../constants/moods.js";
 import { jikan } from "../api/jikan.js";
 import { follows, sb, posts as postsApi, comments as commentsApi } from "../api/supabase.js";
 import { dispatchPostEvent, addPostEventListener } from "../utils/postEvents.js";
-import { FRAMES, getUnlockedFrames, getBestFrame } from "../frames/frames.js";
+import { FRAMES, getUnlockedFrames, getBestFrame, getFrameLabel, getFrameDesc } from "../frames/frames.js";
 import { BADGES, getUnlockedBadges, getBestBadge, BadgeDisplay } from "../badges/badges.jsx";
 import { FrameSVG } from "../frames/FrameSVG.jsx";
 import { getFrameSvg, getExtraFrames, loadFrameFlags, noteNightOwl } from "../frames/framesDesktop.js";
@@ -20,7 +20,7 @@ import { EmptyState } from "../components/EmptyState.jsx";
 import { Modal } from "../components/Modal.jsx";
 import { FavoriteSearchModal } from "../components/FavoriteSearchModal.jsx";
 import { FollowListModal } from "../components/FollowListModal.jsx";
-import { TabBar } from "../components/ui.jsx";
+import { TabBar, BookmarkIcon } from "../components/ui.jsx";
 import { isDesktopApp } from "../utils/streamingLinks.js";
 import { openWebUrl } from "../utils/safeUrl.js";
 import { GRADIENT_PRIMARY, GRADIENT_TEXT, GLASS, GLASS_STYLE } from "../constants/theme.js";
@@ -443,7 +443,7 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
       <p style={{fontSize:14,color:"var(--text-1)",lineHeight:1.6,margin:"0 0 10px",whiteSpace:"pre-wrap"}}>{post.content}</p>
       {post.image_url && (
         <div style={{borderRadius:10,overflow:"hidden",marginBottom:10,maxHeight:400}}>
-          <img src={post.image_url} alt="" style={{width:"100%",objectFit:"cover",maxHeight:400,display:"block",cursor:"pointer"}}
+          <img loading="lazy" decoding="async" src={post.image_url} alt="" style={{width:"100%",objectFit:"cover",maxHeight:400,display:"block",cursor:"pointer"}}
             onClick={()=>openWebUrl(post.image_url)}/>
         </div>
       )}
@@ -592,7 +592,7 @@ function SpotlightCircle({ anime, lang, onOpen, onPick, onClear, size = 132, com
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
           {anime && img
-            ? <img src={img} alt={anime.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ? <img loading="lazy" decoding="async" src={img} alt={anime.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             : <span style={{ fontSize: Math.round(SIZE * 0.26), lineHeight: 1, color: "rgba(148,163,184,.7)", fontWeight: 300 }}>＋</span>}
         </button>
 
@@ -888,12 +888,80 @@ function HudPanel({ me, rated, myUsername, unlockedBadges, activeBadge, onOpenBa
   );
 }
 
+// Sélecteur de cadre rapide (ouvert par le petit crayon de l'avatar) — même choix que Paramètres → Profil
+function FramePickerModal({ frames, unlocked, active, avatar, lang, onPick, onClose, onOpenSettings }) {
+  const en = lang === "en";
+  const cats = [["watched", en ? "Watched" : "Visionnage"], ["contribution", en ? "Contribution" : "Contribution"], ["followers", en ? "Followers" : "Abonnés"], ["genre", en ? "Genres" : "Genres"], ["games", en ? "Games" : "Jeux"], ["fun", en ? "Effects & special" : "Effets & spéciaux"]];
+  const sz = 44;
+  return (
+    <Modal onClose={onClose} maxWidth="max-w-xl">
+      {(close) => (
+        <div className="p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-sm font-black text-slate-100">{en ? "Profile frame" : "Cadre de profil"}</div>
+            <button type="button" onClick={close} aria-label="Fermer" style={{ background: "none", border: "none", color: "#94a3b8", fontSize: 16, cursor: "pointer" }}>✕</button>
+          </div>
+          <button type="button" onClick={() => { onPick(null); close(); }}
+            className="mb-3 flex w-full items-center gap-3 rounded-xl p-2 text-left"
+            style={{ border: !active ? "2px solid #7c3aed" : "2px solid transparent", background: !active ? "rgba(124,58,237,0.1)" : "transparent", cursor: "pointer" }}>
+            <div style={{ width: 36, height: 36, borderRadius: "50%", border: "2px dashed rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>🚫</div>
+            <div className="text-xs font-bold text-slate-100">{en ? "No frame" : "Aucun cadre"}</div>
+          </button>
+          {cats.map(([cat, label]) => {
+            const list = frames.filter(f => f.category === cat);
+            if (!list.length) return null;
+            return (
+              <div key={cat} className="mb-3">
+                <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">{label}</div>
+                <div className="flex flex-wrap gap-x-2 gap-y-1">
+                  {list.map(frame => {
+                    const isUnlocked = unlocked.some(f => f.id === frame.id);
+                    const isActive = active?.id === frame.id;
+                    return (
+                      <button key={frame.id} type="button"
+                        onClick={() => { if (isUnlocked) { onPick(frame); close(); } }}
+                        title={getFrameLabel(frame, lang) + " — " + getFrameDesc(frame, lang)}
+                        style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: 8, borderRadius: 12,
+                          cursor: isUnlocked ? "pointer" : "not-allowed",
+                          border: isActive ? "2px solid #7c3aed" : "2px solid transparent",
+                          background: isActive ? "rgba(124,58,237,0.1)" : "rgba(255,255,255,0.03)",
+                          opacity: isUnlocked ? 1 : 0.4, filter: isUnlocked ? "none" : "grayscale(1)" }}>
+                        <div style={{ position: "relative", width: sz, height: sz }}>
+                          <div style={{ width: sz, height: sz, borderRadius: "50%", overflow: "hidden", background: GRADIENT_PRIMARY, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
+                            {avatar?.startsWith?.("http") || avatar?.startsWith?.("data:") ? <img loading="lazy" decoding="async" src={avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (avatar || "👤")}
+                          </div>
+                          <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible", pointerEvents: "none" }}
+                            viewBox={`0 0 ${sz} ${sz}`} dangerouslySetInnerHTML={{ __html: getFrameSvg(frame, sz) }} />
+                          {!isUnlocked && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, background: "rgba(0,0,0,0.3)", borderRadius: "50%" }}>🔒</div>}
+                        </div>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: isUnlocked ? frame.color : "rgba(148,163,184,0.5)", textAlign: "center", maxWidth: 56, lineHeight: 1.2 }}>{getFrameLabel(frame, lang)}</span>
+                        {!isUnlocked && <span style={{ fontSize: 8, color: "rgba(148,163,184,0.7)", textAlign: "center", maxWidth: 72, lineHeight: 1.2 }}>{getFrameDesc(frame, lang)}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+          {onOpenSettings && (
+            <button type="button" onClick={() => { close(); onOpenSettings("profile"); }}
+              className="mt-1 text-[11px] text-slate-500 underline" style={{ background: "none", border: "none", cursor: "pointer" }}>
+              {en ? "Change photo & badge in Settings" : "Photo et badge : Paramètres"}
+            </button>
+          )}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
   const { me, saveMe, myUsername } = useApp();
   const { lang } = useLang();
   const { playSound } = useSound();
   const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
   const desktop = isDesktopApp();
+  const AVATAR = 132; // photo de profil (les cadres s'adaptent à cette taille)
   const [tab, setTab] = useState("profile");
   const [journalFilter, setJournalFilter] = useState(null);
   const [customListFilter, setCustomListFilter] = useState(null);
@@ -939,6 +1007,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
     try { const v = localStorage.getItem(spotKey); return v ? parseInt(v) : (me.spotlight ? parseInt(me.spotlight) : null); } catch { return me.spotlight ? parseInt(me.spotlight) : null; }
   });
   const [showSpotlightPicker, setShowSpotlightPicker] = useState(false);
+  const [showFramePicker, setShowFramePicker] = useState(false);
   const gamePts = useGamePoints(desktop ? null : myUsername); // desktop : le total est déjà lu par le HudPanel
   // « En boucle » est synchronisé site <-> appli de bureau via la colonne profiles.spotlight
   // (supabase/profile_spotlight.sql, à exécuter une fois). Sans la colonne : mémorisation locale seulement.
@@ -1323,7 +1392,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
       {/* Banner */}
       {me.banner && (
         <div className="mb-6 -mx-6 -mt-8 relative h-36 sm:h-48 overflow-hidden">
-          <img src={me.banner} alt="" className="w-full h-full object-cover" />
+          <img loading="lazy" decoding="async" src={me.banner} alt="" className="w-full h-full object-cover" />
           <div className="absolute inset-0" style={{
             background: "linear-gradient(to bottom, transparent 50%, rgba(2,6,23,0.85) 100%)",
           }}/>
@@ -1335,15 +1404,25 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
         ? `${GLASS} mb-6 flex flex-col gap-6 p-6 sm:flex-row sm:items-center`
         : "mb-6 flex flex-col gap-6 sm:flex-row sm:items-start"}
         style={desktop ? GLASS_STYLE : undefined}>
-        <div className="relative shrink-0">
-          {/* La photo, le cadre et le badge se changent uniquement dans Paramètres → Profil */}
-          <FrameSVG frame={activeFrame} size={112}>
-            <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full text-5xl" style={{ background: GRADIENT_PRIMARY }}>
+        <div className="shrink-0" style={{ padding: 10 }}>{/* marge : les cadres dépassent de l'avatar */}
+         <div className="relative" style={{ width: AVATAR, height: AVATAR }}>
+          {/* Photo et badge : Paramètres → Profil. Le cadre : crayon discret ici (ou Paramètres). */}
+          <FrameSVG frame={activeFrame} size={AVATAR}>
+            <div className="flex items-center justify-center overflow-hidden rounded-full" style={{ width: AVATAR, height: AVATAR, fontSize: Math.round(AVATAR * 0.43), background: GRADIENT_PRIMARY }}>
               {(me.avatar_base64 || (me.avatar?.startsWith?.("http") ? me.avatar : null))
-                ? <img src={me.avatar_base64 || me.avatar} alt="avatar" className="h-full w-full object-cover" />
+                ? <img loading="lazy" decoding="async" src={me.avatar_base64 || me.avatar} alt="avatar" className="h-full w-full object-cover" />
                 : (me.avatar || "👤")}
             </div>
           </FrameSVG>
+          {(
+            <button type="button" onClick={() => { playSound("click"); setShowFramePicker(true); }}
+              title={lang === "en" ? "Change frame" : "Changer le cadre"}
+              aria-label={lang === "en" ? "Change profile frame" : "Changer le cadre de profil"}
+              style={{ position: "absolute", right: 2, bottom: 2, width: 26, height: 26, borderRadius: "50%", background: "#1e1b4b", border: "2px solid #070816", color: "#c4b5fd", fontSize: 11, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+              ✎
+            </button>
+          )}
+         </div>
         </div>
 
         <div className={desktop ? "sm:w-[290px] sm:flex-none" : "flex-1"}>
@@ -1433,7 +1512,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
               <HudPanel tilesOnly me={me} rated={rated} myUsername={myUsername} unlockedBadges={unlockedBadges} t={t} />
             </div>
             <div className="hidden self-stretch sm:block" style={{ width: 1, background: "linear-gradient(180deg, transparent, rgba(255,255,255,.12), transparent)" }} />
-            <SpotlightCircle
+            <SpotlightCircle compact
               anime={spotlightId ? animeCache[spotlightId] : null}
               lang={lang}
               onOpen={() => animeCache[spotlightId] && onOpenDetail(animeCache[spotlightId])}
@@ -1627,7 +1706,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                 return (
                   <button key={id} onClick={() => onOpenDetail(a)} className="flex gap-3 overflow-hidden rounded-xl text-left" style={{ border:`1px solid ${sc.border}`, background:sc.bg }}>
                     <div className="relative h-19 w-13 shrink-0 bg-black/20">
-                      {img && <img src={img} alt={a.title} className="h-full w-full object-cover" onError={e=>{e.target.style.display="none";}} />}
+                      {img && <img loading="lazy" decoding="async" src={img} alt={a.title} className="h-full w-full object-cover" onError={e=>{e.target.style.display="none";}} />}
                       <div className="absolute bottom-1 left-1 h-1.5 w-1.5 rounded-full" style={{ background:sc.dot }} />
                     </div>
                     <div className="flex flex-1 flex-col justify-between py-2 pr-3">
@@ -1653,7 +1732,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
           <div className="mb-3 flex items-center gap-4 rounded-2xl border border-white/7 bg-white/3 p-4 cursor-pointer hover:bg-white/6 transition"
             onClick={()=>setOpenList("watchlist")}>
             <div className="flex gap-1 shrink-0">
-              {watchlistIds.slice(0,4).map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(var(--fg-rgb),0.05)",border:"1px solid rgba(var(--fg-rgb),0.08)",flexShrink:0}}>{img&&<img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
+              {watchlistIds.slice(0,4).map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(var(--fg-rgb),0.05)",border:"1px solid rgba(var(--fg-rgb),0.08)",flexShrink:0}}>{img&&<img loading="lazy" decoding="async" src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
               {watchlistIds.length===0&&<div style={{width:36,height:54,borderRadius:6,background:"rgba(var(--fg-rgb),0.04)",border:"2px dashed rgba(var(--fg-rgb),0.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"rgba(var(--fg-rgb),0.2)"}}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
               </div>}
@@ -1672,7 +1751,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
           <div className="mb-3 flex items-center gap-4 rounded-2xl border border-white/7 bg-white/3 p-4 cursor-pointer hover:bg-white/6 transition"
             onClick={()=>setOpenList("highlights")}>
             <div className="flex gap-1 shrink-0">
-              {(me.highlights||[]).slice(0,4).map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(var(--fg-rgb),0.05)",border:"1px solid rgba(var(--fg-rgb),0.08)"}}>{img&&<img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
+              {(me.highlights||[]).slice(0,4).map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(var(--fg-rgb),0.05)",border:"1px solid rgba(var(--fg-rgb),0.08)"}}>{img&&<img loading="lazy" decoding="async" src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
               {(me.highlights||[]).length===0&&<div style={{width:36,height:54,borderRadius:6,background:"rgba(var(--fg-rgb),0.04)",border:"2px dashed rgba(var(--fg-rgb),0.1)",display:"flex",alignItems:"center",justifyContent:"center"}}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
               </div>}
@@ -1696,7 +1775,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                 <div key={list.id} className="flex items-center gap-4 rounded-2xl border border-white/7 bg-white/3 p-4 cursor-pointer hover:bg-white/6 transition"
                   onClick={()=>setOpenList(list.id)}>
                   <div className="flex gap-1 shrink-0">
-                    {preview.map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(var(--fg-rgb),0.05)",border:"1px solid rgba(var(--fg-rgb),0.08)"}}>{img&&<img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
+                    {preview.map(id=>{const a=animeCache[id];const img=a?.images?.jpg?.large_image_url||a?.images?.jpg?.image_url;return(<div key={id} style={{width:36,height:54,borderRadius:6,overflow:"hidden",background:"rgba(var(--fg-rgb),0.05)",border:"1px solid rgba(var(--fg-rgb),0.08)"}}>{img&&<img loading="lazy" decoding="async" src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>}</div>);})}
                     {preview.length===0&&<div style={{width:36,height:54,borderRadius:6,background:"rgba(var(--fg-rgb),0.04)",border:"2px dashed rgba(var(--fg-rgb),0.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,color:"rgba(var(--fg-rgb),0.2)"}}>📋</div>}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -1776,7 +1855,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                 <div className="p-5">
                   <div className="mb-4 flex items-center justify-between">
                     <div>
-                      <div className="text-sm font-black text-slate-100">🎯 Watchlist</div>
+                      <div className="flex items-center gap-2 text-sm font-black text-slate-100"><BookmarkIcon size={15} />Watchlist</div>
                       <div className="text-[11px] text-slate-500">{t.animeCount(watchlistIds.length)}</div>
                     </div>
                     <button onClick={close} className="flex h-7 w-7 items-center justify-center rounded-full bg-white/8 text-sm text-slate-400">✕</button>
@@ -1785,7 +1864,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                     <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-6">
                       {watchlistIds.map(id=><AnimePoster key={id} anime={animeCache[id]} onClick={a=>{close();onOpenDetail(a);}} loading/>)}
                     </div>
-                  ):<EmptyState emoji="🎯" title={t.watchlistEmptyTitle} subtitle={t.watchlistEmptySubtitle}/>}
+                  ):<EmptyState emoji={<span className="inline-flex"><BookmarkIcon size={38} /></span>} title={t.watchlistEmptyTitle} subtitle={t.watchlistEmptySubtitle}/>}
                 </div>
               )}
             </Modal>
@@ -1852,7 +1931,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                           {listSearchResults.map(a=>(
                             <button key={a.mal_id} onClick={()=>{addAnimeToList(openListData.id,a);setListSearchQuery("");setListSearchResults([]);}}
                               className="flex items-center gap-3 rounded-xl border border-white/6 bg-white/3 p-2.5 text-left hover:bg-white/7 transition">
-                              <img src={a.images?.jpg?.image_url} alt={a.title} className="h-12 w-8 rounded object-cover"/>
+                              <img loading="lazy" decoding="async" src={a.images?.jpg?.image_url} alt={a.title} className="h-12 w-8 rounded object-cover"/>
                               <div>
                                 <div className="text-[12px] font-bold text-slate-100">{a.title}</div>
                                 <div className="text-[10px] text-slate-500">{a.year} · {a.type}</div>
@@ -1903,6 +1982,12 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
         <FavoriteSearchModal
           onSelect={(a) => { playSound("confirm"); setAnimeCache(p => ({...p,[a.mal_id]:a})); persistSpotlight(a.mal_id); setShowSpotlightPicker(false); }}
           onClose={() => setShowSpotlightPicker(false)} />
+      )}
+      {showFramePicker && (
+        <FramePickerModal frames={Object.values(FRAMES)} unlocked={unlockedFrames} active={activeFrame}
+          avatar={me.avatar_base64 || me.avatar} lang={lang} onOpenSettings={onOpenSettings}
+          onPick={(f) => { playSound("click"); setActiveFrame(f); saveMe({ ...me, activeFrame: f?.id || null }); }}
+          onClose={() => setShowFramePicker(false)} />
       )}
       {followListMode && (
         <FollowListModal username={myUsername} mode={followListMode} onClose={() => setFollowListMode(null)} onOpenUser={onOpenUser} />

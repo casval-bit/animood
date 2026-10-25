@@ -37,7 +37,7 @@ export function PersonModal({ personId, onClose, onOpenDetail }) {
       {data && (
         <div className="p-6">
           <div className="mb-5 flex items-center gap-4">
-            <img src={data.images?.jpg?.image_url || FALLBACK} alt={data.name} onError={e=>{e.target.src=FALLBACK;}}
+            <img loading="lazy" decoding="async" src={data.images?.jpg?.image_url || FALLBACK} alt={data.name} onError={e=>{e.target.src=FALLBACK;}}
               className="h-16 w-16 rounded-full border-2 border-white/10 object-cover" />
             <div>
               <div className="text-lg font-black text-slate-100">{data.name}</div>
@@ -51,7 +51,7 @@ export function PersonModal({ personId, onClose, onOpenDetail }) {
             {animes.map(a => (
               <button key={a.mal_id} onClick={() => onOpenDetail(a)} className="group text-left">
                 <div className="mb-1 aspect-2/3 overflow-hidden rounded-lg transition-transform duration-300 group-hover:-translate-y-1">
-                  <img src={a.img || FALLBACK} alt={a.title} onError={e=>{e.target.src=FALLBACK;}} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+                  <img loading="lazy" decoding="async" src={a.img || FALLBACK} alt={a.title} onError={e=>{e.target.src=FALLBACK;}} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
                 </div>
                 <div className="line-clamp-2 text-center text-[9px] leading-tight text-slate-400">{a.title}</div>
               </button>

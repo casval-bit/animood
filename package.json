@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "sync:anime": "node scripts/sync_new_anime.mjs",
+    "sync:titles": "node scripts/sync_alt_titles.mjs",
     "sync:moods": "node scripts/sync_new_moods.mjs",
     "sync:artists": "node scripts/sync_artists.mjs",
     "sync:weekly": "node --env-file=.env scripts/animood_sync.mjs --job=weekly",
@@ -20,6 +21,7 @@
     "electron:build": "electron-builder --config electron-builder.yml --publish never",
     "electron:build:mac": "electron-builder --mac --config electron-builder.yml --publish never",
     "electron:build:win": "electron-builder --win --config electron-builder.yml --publish never",
+    "electron:build:store": "electron-builder --win appx --config electron-builder.store.yml --publish never",
     "electron:build:linux": "electron-builder --linux --config electron-builder.yml --publish never"
   },
   "dependencies": {

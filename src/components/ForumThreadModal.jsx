@@ -130,7 +130,7 @@ export function NewThreadModal({ username, onClose, onCreated, animeId, animeTit
 
         {imageUrl && (
           <div className="relative mb-3 max-h-50 overflow-hidden rounded-xl">
-            <img src={imageUrl} alt="" className="block max-h-50 w-full object-cover" />
+            <img loading="lazy" decoding="async" src={imageUrl} alt="" className="block max-h-50 w-full object-cover" />
             <button onClick={() => setImageUrl(null)}
               className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-xs font-black text-white">✕</button>
           </div>
@@ -407,7 +407,7 @@ export function ThreadModal({ thread, username, onClose, onOpenUser, onReply }) 
         )}
         <div className="mb-3 whitespace-pre-wrap text-sm text-slate-300"><MentionText text={thread.body} onOpenUser={onOpenUser}/></div>
         {thread.image_url && (
-          <img src={thread.image_url} alt="" className="mb-3 max-h-100 w-full rounded-xl object-cover" />
+          <img loading="lazy" decoding="async" src={thread.image_url} alt="" className="mb-3 max-h-100 w-full rounded-xl object-cover" />
         )}
         <button onClick={toggleThreadLike}
           className="mb-3 flex items-center gap-1 text-xs font-bold transition"
