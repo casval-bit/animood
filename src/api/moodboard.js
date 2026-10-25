@@ -8,7 +8,7 @@ import { sb } from "./supabase.js";
 import { jikan, supabaseRowToAnime } from "./jikan.js";
 import { getPtsBatch, ptsToPct } from "./moods.js";
 import { isAdultAnime } from "../utils/adultContent.js";
-import { sameFranchise, franchiseBucketKeys, franchiseIlike, mainChain, releaseKey, isTvShort } from "../utils/franchise.js";
+import { sameFranchise, looseSameFranchise, franchiseBucketKeys, franchiseIlike, mainChain, releaseKey, isTvShort } from "../utils/franchise.js";
 
 const BATCH_SIZE     = 100;  // lignes par requête
 const PARALLEL       = 3;    // requêtes en parallèle par tour (300 titres de plus à chaque tour)
@@ -186,7 +186,7 @@ export async function fetchMoodboardCandidates(selectedMoods, duration, mediaTyp
     if(duration === "long")   return a.type === "TV" || a.type === "ONA";
     return true;
   };
-  const shownAlready = (a) => shownPicks.some(p => sameFranchise(p, a));
+  const shownAlready = (a) => shownPicks.some(p => looseSameFranchise(p, a));
 
   async function resolveMore() {
     const todo = [...pool.values()]
@@ -241,7 +241,7 @@ export async function fetchMoodboardCandidates(selectedMoods, duration, mediaTyp
     for(const r of reps) {
       if(shownAlready(r)) continue;
       if(duration !== "all" && r._cls !== duration) continue;
-      if(kept.some(k => k.mal_id === r.mal_id || sameFranchise(k, r))) continue;
+      if(kept.some(k => k.mal_id === r.mal_id || looseSameFranchise(k, r))) continue;
       kept.push(r);
     }
     return kept;
@@ -270,7 +270,7 @@ export async function fetchMoodboardCandidates(selectedMoods, duration, mediaTyp
   if(valid.length < 3 && shownPicks.length) {
     const memoryPicks = shownPicks.splice(0, shownPicks.length); // on oublie ce qui a déjà été montré
     await resolveMore(); // résout aussi les titres qui avaient été écartés parce que déjà montrés
-    const recycled = gather().filter(r => !valid.some(v => v.mal_id === r.mal_id || sameFranchise(v, r))).map(r => ({ ...r, _recycled: true }));
+    const recycled = gather().filter(r => !valid.some(v => v.mal_id === r.mal_id || looseSameFranchise(v, r))).map(r => ({ ...r, _recycled: true }));
     valid = [...valid, ...recycled].slice(0, Math.max(valid.length, 9));
     shownPicks.push(...memoryPicks);
   }
@@ -278,8 +278,8 @@ export async function fetchMoodboardCandidates(selectedMoods, duration, mediaTyp
     const allReps = [...resolved.values()].filter(Boolean).map(r => r.rep).sort((x, y) => (y.score || 0) - (x.score || 0));
     const extra = [];
     for(const r of allReps) {
-      if(valid.some(k => k.mal_id === r.mal_id || sameFranchise(k, r))) continue;
-      if(extra.some(k => sameFranchise(k, r))) continue;
+      if(valid.some(k => k.mal_id === r.mal_id || looseSameFranchise(k, r))) continue;
+      if(extra.some(k => looseSameFranchise(k, r))) continue;
       extra.push(r);
       if(valid.length + extra.length >= 9) break;
     }
@@ -322,7 +322,7 @@ export async function fetchMoodboardCandidates(selectedMoods, duration, mediaTyp
       if(t === "Movie" && shownMovies >= 1) return false;
       if((t === "OVA" || t === "ONA") && shownOVA >= 1) return false;
     }
-    if(picks.some(p => sameFranchise(p, a))) return false;
+    if(picks.some(p => looseSameFranchise(p, a))) return false;
     picks.push(a);
     if(t === "Movie") shownMovies++;
     if(t === "OVA" || t === "ONA") shownOVA++;

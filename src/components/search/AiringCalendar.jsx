@@ -3,7 +3,7 @@ import { sb } from "../../api/supabase.js";
 import { STATUS_COLORS } from "../../constants/statuses.js";
 import { Spinner } from "../Spinner.jsx";
 import { isVisibleInCalendar } from "../../utils/adultContent.js";
-import { sameFranchise, isTvShort } from "../../utils/franchise.js";
+import { sameFamily, isTvShort } from "../../utils/franchise.js";
 
 // ─── Weekly Airing Calendar ────────────────────────────────────────────────────
 const DAYS_EN = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
@@ -15,7 +15,7 @@ let airingCache = null;
 // ONA / OVA (ex. des séries Netflix comme JoJo Steel Ball Run) sont chargés
 // à part : une seule requête triée par note les noierait sous les séries TV.
 // (ils ne sont gardés que s'ils ont un jour de diffusion — voir fetchAiringAnime)
-const AIRING_SELECT = "mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,themes,rating,duration,status,broadcast,streaming";
+const AIRING_SELECT = "mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,themes,rating,duration,status,broadcast,streaming,aired_from,scored_by,country";
 const SPECIAL_TYPES = new Set(["ONA", "OVA"]);
 // Petite étiquette pour distinguer ce qui n'est pas une série TV classique.
 const typeTag = (a) => a?.type === "OVA" ? "OAV" : a?.type === "ONA" ? "ONA" : null;
@@ -54,7 +54,7 @@ async function fetchFinishedAnime() {
   const threeMonthsAgo = new Date(Date.now() - 90*24*60*60*1000).toISOString().slice(0,10);
   const rows = await sb.query(
     `anime_cache?type=in.(TV,ONA,OVA)&status=eq.Finished%20Airing&aired_from=gte.${threeMonthsAgo}` +
-    "&select=mal_id,title,title_en,score,year,episodes,duration,type,image_url,large_image,genres,themes,rating,aired_from&order=score.desc.nullslast&limit=80"
+    "&select=mal_id,title,title_en,score,year,episodes,duration,type,image_url,large_image,genres,themes,rating,aired_from,scored_by,country&order=score.desc.nullslast&limit=80"
   ).catch(()=>[]);
   finishedCache = rows || [];
   return finishedCache;
@@ -305,7 +305,7 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
   const myStatuses = me?.statuses || {};
   const myRatings  = me?.ratings  || {};
   const myIds = new Set(Object.keys(myStatuses).map(Number));
-  const seenEarlier = (a) => seenRows.some(r => r.mal_id !== a.mal_id && sameFranchise(a, r));
+  const seenEarlier = (a) => seenRows.some(r => r.mal_id !== a.mal_id && sameFamily(a, r));
 
   function isMyAnime(a) {
     const status = myStatuses[a.mal_id];
@@ -314,14 +314,26 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
     return seenEarlier(a);
   }
 
-  // Hentai / Rx / doujin : cachés sauf s'ils sont dans ma liste.
-  // ONA (dont ONA chinois en 3D & co) : cachés par défaut, sauf si j'ai agi dessus (liste, en cours, noté) ou si j'ai déjà vu une saison précédente.
-  // TV Short (épisodes < 15 min) : cachés, sauf si je les ai mis dans ma liste / notés.
+  // Ce qu'on garde dans le calendrier (sauf si c'est dans MA liste / noté par moi : alors toujours visible) :
+  //  · séries TV « classiques » : japonaises, avec une image, lancées il y a moins d'un an et demi OU bien notées (les longues séries type One Piece) ;
+  //  · quelques ONA/OAV de la saison (type JoJo SBR) : japonais, récents, bien notés, hebdomadaires, max 6 ;
+  //  · jamais : hentai/doujin, TV Short (< 15 min), ONA chinois en 3D & co, vieilles séries restées « en cours » sans intérêt.
   const acted = (a) => !!myStatuses[a.mal_id] || myRatings[a.mal_id]?.score != null;
+  const recent = (a) => (a.year || 0) >= currentYear - 1;
+  const japanese = (a) => !a.country || a.country === "JP";
+  const hasImage = (a) => !!(a.image_url || a.large_image || a.images?.jpg?.image_url);
+  const classicTv = (a) => japanese(a) && hasImage(a) && (recent(a) || (a.score || 0) >= 7);
+  const seasonalSpecial = (a) => japanese(a) && hasImage(a) && recent(a) && (a.score || 0) >= 7.3;
+  const topSpecials = new Set(
+    [...anime, ...finished].filter(a => SPECIAL_TYPES.has(a.type) && !isTvShort(a) && seasonalSpecial(a))
+      .sort((x, y) => (y.score || 0) - (x.score || 0)).slice(0, 6).map(a => a.mal_id)
+  );
   const passesRules = (a) => {
     if(!isVisibleInCalendar(a, myStatuses)) return false;
-    if(isTvShort(a)) return acted(a);
-    if(a.type === "ONA") return acted(a) || seenEarlier(a);
+    if(acted(a)) return true;
+    if(isTvShort(a)) return false;
+    if(SPECIAL_TYPES.has(a.type)) return topSpecials.has(a.mal_id) || (a.type === "ONA" && seenEarlier(a));
+    if(a.type === "TV") return classicTv(a) || seenEarlier(a);
     return true;
   };
   const visibleAnime = anime.filter(passesRules);
