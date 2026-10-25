@@ -118,13 +118,13 @@ export function GlossBars({ counts, labels, height = 96, maxBar }) {
 const TAB_ICONS = { profile: "👤", journal: "📖", lists: "📋", posts: "✍️", stats: "📊" };
 export function HudTabs({ tabs, active, onChange }) {
   return (
-    <div style={{ display: "inline-flex", gap: 4, padding: 4, borderRadius: 16, marginBottom: 24, border: "1px solid rgba(139,92,246,0.18)", background: "linear-gradient(135deg, rgba(10,6,30,0.85) 0%, rgba(15,9,40,0.75) 100%)" }}>
+    <div className="flex max-w-full overflow-x-auto sm:inline-flex" style={{ gap: 4, padding: 4, borderRadius: 16, marginBottom: 24, scrollbarWidth: "none", border: "1px solid rgba(139,92,246,0.18)", background: "linear-gradient(135deg, rgba(10,6,30,0.85) 0%, rgba(15,9,40,0.75) 100%)" }}>
       {tabs.map(tab => {
         const on = tab.id === active;
         return (
-          <button key={tab.id} type="button" onClick={() => onChange(tab.id)}
+          <button key={tab.id} type="button" onClick={() => onChange(tab.id)} className="px-3 whitespace-nowrap sm:px-4"
             style={{
-              display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 12, border: "none", cursor: "pointer",
+              display: "inline-flex", alignItems: "center", gap: 7, flex: "0 0 auto", paddingTop: 8, paddingBottom: 8, borderRadius: 12, border: "none", cursor: "pointer",
               fontSize: 12, fontWeight: 800, letterSpacing: .2, transition: "all .15s",
               color: on ? "#fff" : "var(--text-3)",
               background: on ? "linear-gradient(135deg, rgba(124,58,237,.6), rgba(192,38,211,.42))" : "transparent",

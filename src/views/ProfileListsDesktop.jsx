@@ -62,7 +62,7 @@ export function ProfileListsDesktop({ t, watchlistIds, highlights, customLists, 
   return (
     <div>
       <HudTitle right={`${total} ${en ? "lists" : "listes"}`}>{en ? "My lists" : "Mes listes"}</HudTitle>
-      <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+      <div className="grid grid-cols-1 gap-4 min-[560px]:grid-cols-2">
         <Tile delay={0} color="#22c55e" icon={<BookmarkIcon size={15} />} title="Watchlist" subtitle={t.animeCount(watchlistIds.length)}
           ids={watchlistIds} animeCache={animeCache} onClick={() => onOpenList("watchlist")} />
         <Tile delay={60} color="#ef4444"

@@ -308,13 +308,12 @@ export function ProfileStatsDesktop({ statsData, ratings, watched, statuses, onO
   const genreAxes = (D.topGenres || []).slice(0, 8);
   const gMax = Math.max(...genreAxes.map(g => g.count), 1);
 
-  const grid2 = { display: "grid", gap: 16, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" };
   const bigGradient = "linear-gradient(90deg,#7c3aed,#c084fc,#f0abfc)";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* 1 — Chiffres-clés */}
-      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(6, minmax(0, 1fr))" }}>
+      <div className="grid grid-cols-2 gap-3 min-[560px]:grid-cols-3 min-[900px]:grid-cols-6">
         <HudKpi delay={0}   icon="▶" label={tr("Animés vus", "Anime watched")} value={watched.length.toLocaleString()} color="#a855f7" />
         <HudKpi delay={60}  icon="📺" label={tr("Épisodes (TV)", "Episodes (TV)")} value={(D.totalEpisodes || 0).toLocaleString()} color="#8b5cf6" />
         <HudKpi delay={120} icon="⏱" label={tr("Temps estimé", "Time watched")} value={fmtTime(D.totalMinutes, en)} color="#22d3ee" />
@@ -330,7 +329,7 @@ export function ProfileStatsDesktop({ statsData, ratings, watched, statuses, onO
       <HudCard scan glow corners={["tl", "tr", "bl", "br"]}>
         <HudTitle right={`${R.n} ${tr("notés", "rated")}`}>{tr("Distribution des notes", "Rating distribution")}</HudTitle>
         {R.n > 0 ? (
-          <div style={{ display: "grid", gap: 24, gridTemplateColumns: "minmax(0, 1fr) 230px", alignItems: "end" }}>
+          <div className="grid items-end gap-6 min-[700px]:grid-cols-[minmax(0,1fr)_230px]">
             <GlossBars counts={R.counts} height={150} />
             <div style={{ display: "grid", gap: 8 }}>
               {[
@@ -350,7 +349,7 @@ export function ProfileStatsDesktop({ statsData, ratings, watched, statuses, onO
       </HudCard>
 
       {/* 3 — Note par année + humeurs */}
-      <div style={grid2}>
+      <div className="grid grid-cols-1 gap-4 min-[700px]:grid-cols-2">
         <HudCard>
           <HudTitle right={tr("barres : nb d'animés · courbe : ta note moyenne", "bars: count · line: your average")}>{tr("Note moyenne par année", "Average rating by year")}</HudTitle>
           {D.yearCurve?.length > 1 ? <YearChart data={D.yearCurve} tr={tr} /> : <div style={{ padding: "30px 0", textAlign: "center", fontSize: 11, color: "rgba(148,163,184,.5)" }}>{tr("Pas assez d'années notées", "Not enough rated years")}</div>}
@@ -380,7 +379,7 @@ export function ProfileStatsDesktop({ statsData, ratings, watched, statuses, onO
       </div>
 
       {/* 4 — Ta liste + formats */}
-      <div style={grid2}>
+      <div className="grid grid-cols-1 gap-4 min-[700px]:grid-cols-2">
         <HudCard>
           <HudTitle right={`${statusSlices.reduce((a, s) => a + s.value, 0)} ${tr("animés suivis", "tracked")}`}>{tr("Ta liste", "Your list")}</HudTitle>
           <Segmented slices={statusSlices} />
@@ -395,7 +394,7 @@ export function ProfileStatsDesktop({ statsData, ratings, watched, statuses, onO
       {D.topGenres?.length > 0 && (
         <HudCard corners={["tl", "tr", "bl", "br"]}>
           <HudTitle right={tr("tes genres préférés", "your favourite genres")}>{tr("Genres", "Genres")}</HudTitle>
-          <div style={{ display: "grid", gap: 28, gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1fr)", alignItems: "center" }}>
+          <div className="grid items-center gap-7 min-[700px]:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
             <Leaderboard items={D.topGenres} gradient={bigGradient} limit={10} tr={tr} />
             <Radar axes={genreAxes.map(g => ({ label: g.name, value: g.count / gMax, raw: g.count }))} />
           </div>
@@ -403,7 +402,7 @@ export function ProfileStatsDesktop({ statsData, ratings, watched, statuses, onO
       )}
 
       {/* 6 — Classements */}
-      <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
+      <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))" }}>
         {D.topStudios?.length > 0 && <HudCard><HudTitle>🎬 {tr("Top studios", "Top studios")}</HudTitle><Leaderboard items={D.topStudios} gradient="linear-gradient(90deg,#ec4899,#f97316,#fbbf24)" tr={tr} /></HudCard>}
         {D.topVAs?.length > 0 && <HudCard><HudTitle>🎙️ {tr("Top voix", "Top voice actors")}</HudTitle><Leaderboard items={D.topVAs} gradient="linear-gradient(90deg,#34d399,#22d3ee,#818cf8)" tr={tr} /></HudCard>}
         {D.topDirectors?.length > 0 && <HudCard><HudTitle>🎞️ {tr("Top réalisateurs", "Top directors")}</HudTitle><Leaderboard items={D.topDirectors} gradient="linear-gradient(90deg,#f59e0b,#ef4444,#ec4899)" tr={tr} /></HudCard>}
@@ -411,7 +410,7 @@ export function ProfileStatsDesktop({ statsData, ratings, watched, statuses, onO
 
       {/* 7 — Écart avec la communauté */}
       {delta.n > 0 && (
-        <div style={grid2}>
+        <div className="grid grid-cols-1 gap-4 min-[700px]:grid-cols-2">
           <HudCard>
             <HudTitle right={tr("tu as noté plus haut que MAL", "you rated higher than MAL")}>💚 {tr("Tes coups de cœur", "Your hidden gems")}</HudTitle>
             <DeltaList rows={delta.up} positive onOpen={onOpenDetail} tr={tr} />

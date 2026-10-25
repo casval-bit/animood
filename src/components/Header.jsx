@@ -981,6 +981,7 @@ function DesktopHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
         <div style={{
           display: "flex", alignItems: "center", gap: 6,
           padding: "0 18px 0 14px",
+          paddingTop: window.animood?.customFrame ? 16 : 0, // laisse la place aux boutons de fenêtre (coin haut droit)
           flexShrink: 0,
           WebkitAppRegion: "no-drag",
           borderLeft: "1px solid rgba(255,255,255,0.04)",

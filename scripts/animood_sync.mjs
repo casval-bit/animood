@@ -177,7 +177,8 @@ function anilistToRow(a) {
     scored_by: a.popularity||null,
     year: a.startDate?.year||null,
     episodes: a.episodes||null,
-    type: a.format==="TV"?"TV":a.format==="MOVIE"?"Movie":a.format==="OVA"?"OVA":a.format==="ONA"?"ONA":a.format||"TV",
+    type: a.format==="TV"||a.format==="TV_SHORT"?"TV":a.format==="MOVIE"?"Movie":a.format==="OVA"?"OVA":a.format==="ONA"?"ONA":a.format||"TV",
+    ...(a.duration ? { duration: `${a.duration} min per ep` } : {}), // durée d'un épisode : le calendrier s'en sert pour écarter les « TV Short » (< 15 min)
     status,
     image_url: a.coverImage?.large||null,
     large_image: a.coverImage?.large||null,
@@ -225,7 +226,7 @@ async function jobNewAnime() {
   const maxInDB = Math.max(...[...existing].filter(id => id < 99999));
   log(`Max mal_id in DB: ${maxInDB}`);
   
-  const alQuery = `query($page:Int){Page(page:$page,perPage:50){pageInfo{hasNextPage}media(type:ANIME,sort:ID_DESC){idMal title{romaji english}description(asHtml:false)averageScore popularity status season seasonYear startDate{year month}episodes format synonyms genres coverImage{large}studios(isMain:true){nodes{name}}nextAiringEpisode{airingAt}trailer{id site}}}}`;
+  const alQuery = `query($page:Int){Page(page:$page,perPage:50){pageInfo{hasNextPage}media(type:ANIME,sort:ID_DESC){idMal title{romaji english}description(asHtml:false)averageScore popularity status season seasonYear startDate{year month}episodes duration format synonyms genres coverImage{large}studios(isMain:true){nodes{name}}nextAiringEpisode{airingAt}trailer{id site}}}}`;
   
   let page = 1, hasNext = true;
   while(hasNext && page <= 10) {
@@ -245,6 +246,7 @@ async function jobNewAnime() {
           scored_by: a.popularity||null,
           year: a.startDate?.year||null,
           episodes: a.episodes||null,
+          ...(a.duration ? { duration: `${a.duration} min per ep` } : {}),
           alt_titles: buildAltTitles([a.title?.english, a.title?.romaji, a.synonyms||[]]), // essais de recherche des plateformes perso (appli de bureau)
           type: a.format==="TV"||a.format==="TV_SHORT"?"TV":a.format==="MOVIE"?"Movie":a.format==="OVA"?"OVA":a.format==="ONA"?"ONA":a.format==="MUSIC"?"Music":"Special",
           status: AL_STATUS[a.status] || "Not yet aired", // RELEASING/HIATUS → en cours, FINISHED/CANCELLED → terminé

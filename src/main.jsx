@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import "./index.css";
 import AniMoodApp from "./App.jsx";
 import { isDesktopApp } from "./utils/streamingLinks.js";
+import { DesktopWindowControls } from "./components/DesktopWindowControls.jsx";
 
 // ─── Appli de bureau uniquement : police Inter + variables propres au desktop ─
 // (le site web n'est pas concerné : rien n'est posé ni chargé hors Electron)
@@ -26,5 +27,6 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <AniMoodApp />
+    <DesktopWindowControls />
   </React.StrictMode>
 );

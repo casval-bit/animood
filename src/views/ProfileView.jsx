@@ -853,6 +853,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
   const { playSound } = useSound();
   const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
   const desktop = isDesktopApp();
+  const hud = true; // style « HUD » des onglets Journal / Listes / Posts / Stats : appli de bureau ET site web
   const AVATAR = 132; // photo de profil (les cadres s'adaptent à cette taille)
   const [tab, setTab] = useState("profile");
   const [journalFilter, setJournalFilter] = useState(null);
@@ -1439,7 +1440,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
       </div>
 
       {/* Tabs */}
-      {desktop
+      {hud
         ? <HudTabs tabs={getTabs(t)} active={tab} onChange={id => { playSound("tab"); setTab(id); }} />
         : <TabBar tabs={getTabs(t)} active={tab} onChange={id => { playSound("tab"); setTab(id); }} className="mb-6" />}
 
@@ -1566,7 +1567,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
             {/* ── JOURNAL TAB ── */}
       {tab === "journal" && (
         <div>
-          {desktop && (
+          {hud && (
             <HudCard corners={["tl", "tr", "bl", "br"]} style={{ marginBottom: 16 }}>
               <HudTitle right={`${journalEntries.length} / ${allTrackedIds.length}`}>{lang === "en" ? "Journal" : "Journal"}</HudTitle>
               <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -1594,7 +1595,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
               )}
             </HudCard>
           )}
-          {!desktop && <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          {!hud && <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap gap-1.5">
               {Object.entries(STATUS_COLORS).map(([k,v]) => {
                 const active = journalFilter === k;
@@ -1613,7 +1614,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
             </button>
           </div>}
 
-          {!desktop && customListNames.length > 0 && (
+          {!hud && customListNames.length > 0 && (
             <div className="mb-4 flex flex-wrap items-center gap-1.5">
               <span className="mr-1 text-[10px] font-bold uppercase tracking-wider text-slate-600">{t.aniListSubLists}</span>
               {customListNames.map(name => {
@@ -1641,7 +1642,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                 })}
               </div>
             );
-            return desktop ? <HudCard pad="16px">{grid}</HudCard> : grid;
+            return hud ? <HudCard pad="16px">{grid}</HudCard> : grid;
           })()}
 
           {!journalGrid && journalEntries.length > 0 && (
@@ -1653,7 +1654,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                 const img = a?.images?.jpg?.image_url||a?.images?.jpg?.large_image_url;
                 return (
                   <button key={id} onClick={() => onOpenDetail(a)} className="flex gap-3 overflow-hidden rounded-xl text-left"
-                    style={desktop
+                    style={hud
                       ? { border:"1px solid rgba(139,92,246,0.16)", background:"linear-gradient(135deg, rgba(10,6,30,0.85), rgba(15,9,40,0.7))", boxShadow:`inset 3px 0 0 ${sc.dot}, 0 0 14px ${sc.dot}22` }
                       : { border:`1px solid ${sc.border}`, background:sc.bg }}>
                     <div className="relative h-19 w-13 shrink-0 bg-black/20">
@@ -1677,15 +1678,15 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
 
       {/* ── LISTES TAB ── */}
       {tab === "lists" && (
-        <div className={desktop ? "" : "max-w-2xl"}>
+        <div className={hud ? "" : "max-w-2xl"}>
 
-          {desktop && (
+          {hud && (
             <ProfileListsDesktop t={t} watchlistIds={watchlistIds} highlights={me.highlights||[]} customLists={customLists}
               pinnedListId={pinnedListId} animeCache={animeCache} onOpenList={setOpenList}
               creatingList={creatingList} setCreatingList={setCreatingList} newListName={newListName} setNewListName={setNewListName} createList={createList} />
           )}
 
-          {!desktop && <>
+          {!hud && <>
           {/* Watchlist card */}
           <div className="mb-3 flex items-center gap-4 rounded-2xl border border-white/7 bg-white/3 p-4 cursor-pointer hover:bg-white/6 transition"
             onClick={()=>setOpenList("watchlist")}>
@@ -1919,23 +1920,23 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
         ) : (
           (() => {
             const list = (
-              <div className={desktop ? "flex min-w-0 flex-col gap-3" : "flex max-w-2xl flex-col gap-3"}>
+              <div className={hud ? "flex min-w-0 flex-col gap-3" : "flex max-w-2xl flex-col gap-3"}>
                 {myPosts.map((post, i) => (
-                  <ProfilePostCard key={post.id||i} post={post} myUsername={myUsername} hud={desktop}
+                  <ProfilePostCard key={post.id||i} post={post} myUsername={myUsername} hud={hud}
                     onLikeUpdate={(id, newLikes) => setMyPosts(prev => prev.map(p => p.id===id ? {...p, likes:newLikes} : p))}
                     onDelete={(id) => setMyPosts(prev => prev.filter(p => p.id!==id))}/>
                 ))}
               </div>
             );
-            if(!desktop) return list;
+            if(!hud) return list;
             const written = myPosts.filter(p => p._type==="written");
             const likesReceived = written.reduce((acc,p) => acc + (p.likes||[]).length, 0);
             const best = written.reduce((b,p) => (p.likes||[]).length > ((b?.likes||[]).length||0) ? p : b, null);
             const en = lang === "en";
             return (
-              <div style={{ display:"grid", gap:20, gridTemplateColumns:"minmax(0,1fr) 270px", alignItems:"start" }}>
+              <div className="grid items-start gap-5 min-[860px]:grid-cols-[minmax(0,1fr)_270px]">
                 {list}
-                <div style={{ position:"sticky", top:16 }}>
+                <div className="min-[860px]:sticky min-[860px]:top-4">
                   <HudCard corners={["tl","tr","bl","br"]} scan>
                     <HudTitle>{en ? "My activity" : "Mon activité"}</HudTitle>
                     <div style={{ display:"grid", gap:8 }}>
@@ -1972,7 +1973,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
         ) : !statsData ? (
           <EmptyState emoji="📊" title={t.noStatsTitle} />
         ) : (
-          desktop
+          hud
             ? <ProfileStatsDesktop statsData={statsData} ratings={me.ratings} watched={me.watched} statuses={me.statuses||{}} onOpenDetail={onOpenDetail}/>
             : <StatsTab statsData={statsData} ratings={me.ratings} watched={me.watched}/>
         )

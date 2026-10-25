@@ -3,6 +3,7 @@ import { sb } from "../../api/supabase.js";
 import { STATUS_COLORS } from "../../constants/statuses.js";
 import { Spinner } from "../Spinner.jsx";
 import { isVisibleInCalendar } from "../../utils/adultContent.js";
+import { sameFranchise, isTvShort } from "../../utils/franchise.js";
 
 // ─── Weekly Airing Calendar ────────────────────────────────────────────────────
 const DAYS_EN = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
@@ -14,7 +15,7 @@ let airingCache = null;
 // ONA / OVA (ex. des séries Netflix comme JoJo Steel Ball Run) sont chargés
 // à part : une seule requête triée par note les noierait sous les séries TV.
 // (ils ne sont gardés que s'ils ont un jour de diffusion — voir fetchAiringAnime)
-const AIRING_SELECT = "mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,themes,rating,status,broadcast,streaming";
+const AIRING_SELECT = "mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,themes,rating,duration,status,broadcast,streaming";
 const SPECIAL_TYPES = new Set(["ONA", "OVA"]);
 // Petite étiquette pour distinguer ce qui n'est pas une série TV classique.
 const typeTag = (a) => a?.type === "OVA" ? "OAV" : a?.type === "ONA" ? "ONA" : null;
@@ -53,7 +54,7 @@ async function fetchFinishedAnime() {
   const threeMonthsAgo = new Date(Date.now() - 90*24*60*60*1000).toISOString().slice(0,10);
   const rows = await sb.query(
     `anime_cache?type=in.(TV,ONA,OVA)&status=eq.Finished%20Airing&aired_from=gte.${threeMonthsAgo}` +
-    "&select=mal_id,title,title_en,score,year,episodes,type,image_url,large_image,genres,themes,rating,aired_from&order=score.desc.nullslast&limit=80"
+    "&select=mal_id,title,title_en,score,year,episodes,duration,type,image_url,large_image,genres,themes,rating,aired_from&order=score.desc.nullslast&limit=80"
   ).catch(()=>[]);
   finishedCache = rows || [];
   return finishedCache;
@@ -138,16 +139,6 @@ function readSavedView() {
 }
 function saveView(view) {
   try { localStorage.setItem(VIEW_KEY, view); } catch { /* not persisted */ }
-}
-
-// Extract base titles (season suffixes stripped) so a new season matches a
-// series the user already watched.
-function baseTitle(title) {
-  return (title || "")
-    .toLowerCase()
-    .replace(/\s*(season|saison|cours|part|cour|2nd|3rd|4th|5th|\d+(?:st|nd|rd|th)|\bii\b|\biii\b|\biv\b|\bv\b)\b.*/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 const statusDot = (status) => STATUS_COLORS[status]?.dot;
@@ -245,6 +236,20 @@ function DayView({ byDay, dayIdx, setDayIdx, todayIdx, myStatuses, currentYear, 
   );
 }
 
+// Titres des animés que l'utilisateur a vus / terminés / commence : sert à reconnaître « la saison 2 d'une œuvre dont j'ai vu la saison 1 »
+const seenTitleCache = new Map();
+async function loadSeenTitles(ids) {
+  const missing = ids.filter(id => !seenTitleCache.has(id));
+  for(let i = 0; i < missing.length; i += 150) {
+    const chunk = missing.slice(i, i + 150);
+    const rows = await sb.query(`anime_cache?mal_id=in.(${chunk.join(",")})&select=mal_id,title,title_en`).catch(() => null);
+    if(!rows) continue; // échec réseau : on réessaiera
+    chunk.forEach(id => seenTitleCache.set(id, null));
+    rows.forEach(r => seenTitleCache.set(r.mal_id, r));
+  }
+  return ids.map(id => seenTitleCache.get(id)).filter(Boolean);
+}
+
 export function AiringCalendar({ onOpenDetail, me, t }) {
   const [anime, setAnime]     = useState(airingCache || []);
   const [loading, setLoading] = useState(!airingCache);
@@ -257,6 +262,18 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
   const [view, setView]       = useState(readSavedView);
   const [dayIdx, setDayIdx]   = useState(todayIdx);
   const changeView = (v) => { setView(v); saveView(v); };
+
+  const [seenRows, setSeenRows] = useState([]);
+  useEffect(() => {
+    const ids = [...new Set([
+      ...(Array.isArray(me?.watched) ? me.watched.map(Number) : []),
+      ...Object.entries(me?.statuses || {}).filter(([, st]) => st === "completed" || st === "watching").map(([id]) => Number(id)),
+    ])].filter(Boolean);
+    if(!ids.length) return;
+    let cancelled = false;
+    loadSeenTitles(ids).then(rows => { if(!cancelled) setSeenRows(rows); });
+    return () => { cancelled = true; };
+  }, [me?.watched, me?.statuses]);
 
   useEffect(() => {
     let cancelled = false;
@@ -284,30 +301,31 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
 
   if(loading) return <Spinner label={t.loading} />;
 
-  // "My anime":
-  // 1. Anime currently in watching/onhold/watchlist
-  // 2. Airing anime whose base title matches a completed/watching series
+  // "My anime": en cours / en pause / à voir, ou nouvelle saison d'une œuvre déjà vue
   const myStatuses = me?.statuses || {};
-  const myWatched  = me?.watched  || {};
+  const myRatings  = me?.ratings  || {};
   const myIds = new Set(Object.keys(myStatuses).map(Number));
-  const myBaseTitles = new Set();
-  Object.values(myWatched).forEach(a => {
-    if(a?.title) myBaseTitles.add(baseTitle(a.title));
-    if(a?.title_en) myBaseTitles.add(baseTitle(a.title_en));
-  });
+  const seenEarlier = (a) => seenRows.some(r => r.mal_id !== a.mal_id && sameFranchise(a, r));
 
   function isMyAnime(a) {
     const status = myStatuses[a.mal_id];
     if(["watching","onhold","watchlist"].includes(status)) return true;
     if(myIds.has(a.mal_id)) return false; // already seen, same anime — skip
-    const bt = baseTitle(a.title);
-    const bte = baseTitle(a.title_en || "");
-    return myBaseTitles.has(bt) || (bte && myBaseTitles.has(bte));
+    return seenEarlier(a);
   }
 
-  // Hentai / Rx / doujin : cachés sauf s'ils sont dans ma liste
-  const visibleAnime = anime.filter(a => isVisibleInCalendar(a, myStatuses));
-  const finishedShown = finished.filter(a => isVisibleInCalendar(a, myStatuses)).slice(0, 30);
+  // Hentai / Rx / doujin : cachés sauf s'ils sont dans ma liste.
+  // ONA (dont ONA chinois en 3D & co) : cachés par défaut, sauf si j'ai agi dessus (liste, en cours, noté) ou si j'ai déjà vu une saison précédente.
+  // TV Short (épisodes < 15 min) : cachés, sauf si je les ai mis dans ma liste / notés.
+  const acted = (a) => !!myStatuses[a.mal_id] || myRatings[a.mal_id]?.score != null;
+  const passesRules = (a) => {
+    if(!isVisibleInCalendar(a, myStatuses)) return false;
+    if(isTvShort(a)) return acted(a);
+    if(a.type === "ONA") return acted(a) || seenEarlier(a);
+    return true;
+  };
+  const visibleAnime = anime.filter(passesRules);
+  const finishedShown = finished.filter(passesRules).slice(0, 30);
   const displayed = visibleAnime.filter(a => (!myOnly || isMyAnime(a)) && matchesPlatforms(a, platformFilters));
   const filtersActive = platformFilters.size > 0;
   // Only offer platforms that at least one airing anime is actually on
