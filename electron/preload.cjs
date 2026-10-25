@@ -54,6 +54,16 @@ contextBridge.exposeInMainWorld("animood", {
   minimize: () => ipcRenderer.send("window-minimize"),
   maximize: () => ipcRenderer.send("window-maximize"),
   close:    () => ipcRenderer.send("window-close"),
+  /** @returns {Promise<boolean>} la fenêtre est-elle agrandie ? */
+  isMaximized: () => ipcRenderer.invoke("window-is-maximized"),
+  /** @param {(maximized: boolean) => void} cb  Returns an unsubscribe function. */
+  onWindowState: (cb) => {
+    const handler = (_e, maximized) => cb(maximized);
+    ipcRenderer.on("window-state", handler);
+    return () => ipcRenderer.off("window-state", handler);
+  },
+  /** true quand la fenêtre est sans cadre natif : l'appli dessine elle-même réduire / agrandir / fermer */
+  customFrame: process.argv.includes("--animood-frameless"),
 
   // ── App metadata ─────────────────────────────────────────────────────────
   /** @returns {Promise<string>} */

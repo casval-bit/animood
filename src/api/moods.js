@@ -120,3 +120,47 @@ export async function getPtsForAnime(anime) {
   if(!ptsStore[id]) { ptsStore[id] = genreFallbackV2(anime); savePtsCache(ptsStore); }
   return getCombinedPts(id);
 }
+
+// Version groupée de getPtsForAnime : 2 requêtes pour tout un lot (au lieu de 2 par animé), pour pouvoir
+// analyser un large éventail de candidats dans le Moodboard.
+export async function getPtsBatch(animes) {
+  const ids = [...new Set(animes.map(a => a.mal_id))];
+  const missing = ids.filter(id => ptsStore[id] === undefined);
+  const chunk = (arr, n) => { const out = []; for(let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; };
+  if(missing.length) {
+    const parts = await Promise.all(chunk(missing, 120).map(c => sb.getMoodPtsBatch(c)));
+    const rows = Object.assign({}, ...parts);
+    missing.forEach(id => {
+      const r = rows[id];
+      if(!r) return;
+      const pts = {};
+      MOOD_KEYS.forEach(k => { pts[k] = r[k]||0; });
+      ptsStore[id] = pts;
+    });
+    savePtsCache(ptsStore);
+  }
+  const toVote = ids.filter(id => communityStore[id] === undefined);
+  if(toVote.length) {
+    const parts = await Promise.all(chunk(toVote, 120).map(async c => {
+      try { return await sb.query(`mood_community_votes?mal_id=in.(${c.join(",")})&limit=${c.length}`) || []; } catch { return null; }
+    }));
+    const got = new Map();
+    parts.forEach(rows => (rows||[]).forEach(r => got.set(r.mal_id, r)));
+    toVote.forEach((id, i) => {
+      if(parts[Math.floor(i / 120)] === null) return; // lot en erreur : on réessaiera plus tard
+      const row = got.get(id);
+      const comm = {};
+      if(row) MOOD_KEYS.forEach(k => { comm[k] = row[k]||0; });
+      communityStore[id] = comm;
+    });
+    saveCommunityCache(communityStore);
+  }
+  const byId = new Map(animes.map(a => [a.mal_id, a]));
+  const out = {};
+  ids.forEach(id => {
+    if(!ptsStore[id]) ptsStore[id] = genreFallbackV2(byId.get(id));
+    out[id] = getCombinedPts(id);
+  });
+  savePtsCache(ptsStore);
+  return out;
+}
