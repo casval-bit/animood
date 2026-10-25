@@ -29,6 +29,10 @@ const WEIGHTS = [
   { q: 0.25, m: 0.75, jitter: 0.06 },
 ];
 const FIT_TARGET = 40;
+// Palier minimum : total (en %) des moods choisis que l'œuvre doit atteindre. Plus on choisit de moods, plus le total exigé est haut.
+// Si trop peu d'œuvres atteignent le palier, on le baisse par étapes (×0,85 → ×0,7 → ×0,55) plutôt que d'afficher n'importe quoi.
+const MOOD_MIN_TOTAL = { 1: 30, 2: 48, 3: 58 };
+const MOOD_TIERS = [1, 0.85, 0.7, 0.55];
 const FRIEND_MIN_AVG = 8;
 
 const COLS = "mal_id,title,title_en,score,rank,popularity,year,aired_from,episodes,duration,type,status,source,rating,image_url,large_image,genres,themes,studios,country";
@@ -243,13 +247,19 @@ export async function fetchMoodboardCandidates(selectedMoods, duration, mediaTyp
     return kept;
   };
 
+  const nMoods = Math.min(3, Math.max(1, selectedMoods.length));
+  const minTotal = MOOD_MIN_TOTAL[nMoods];
+  const moodSum = (pts) => { const pct = ptsToPct(pts || {}); return selectedMoods.reduce((s, m) => s + (pct[m] || 0), 0); };
+
   if(pool.size === 0) await fetchMore();
   let valid;
   for(;;) {
     await resolveMore();
     valid = gather();
+    const strictPts = await getPtsBatch(valid);
+    const strictCount = valid.filter(a => moodSum(strictPts[a.mal_id]) >= minTotal).length;
     const unresolvedLeft = [...pool.values()].some(a => !resolved.has(a.mal_id) && basicOk(a) && durationPrefilter(a) && !shownAlready(a));
-    if(valid.length >= NEED_VALID) break;
+    if(strictCount >= NEED_VALID) break;
     if(unresolvedLeft) continue;
     if(exhausted || fetchedBatches >= HARD_MAX_BATCH) break;
     await fetchMore();
@@ -278,6 +288,14 @@ export async function fetchMoodboardCandidates(selectedMoods, duration, mediaTyp
 
   // ── Score ──
   const ptsById = await getPtsBatch(valid);
+  // palier de mood : le plus exigeant qui laisse assez d'œuvres (au moins 4), sinon on descend
+  let tier = MOOD_TIERS[MOOD_TIERS.length - 1];
+  for(const f of MOOD_TIERS) {
+    if(valid.filter(a => moodSum(ptsById[a.mal_id]) >= minTotal * f).length >= 4) { tier = f; break; }
+  }
+  const threshold = minTotal * tier;
+  const eligible = valid.filter(a => moodSum(ptsById[a.mal_id]) >= threshold);
+  if(eligible.length >= 3) valid = eligible;
   const W = WEIGHTS[Math.min(rerollCount, WEIGHTS.length - 1)];
   const scored = valid.map(a => {
     const pct = ptsToPct(ptsById[a.mal_id] || {});

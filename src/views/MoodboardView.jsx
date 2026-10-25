@@ -43,10 +43,12 @@ function dominantGenres(moods) {
 
 function whyThisPick(anime, selectedMoods, t) {
   const pct = ptsToPct(anime._pts || {});
-  const top = [...selectedMoods].sort((a,b) => (pct[b]||0)-(pct[a]||0))[0];
-  const m = getMoodObj(top);
-  if(!m) return t.recommendedForYou;
-  return t.alignedWithMood(pct[top]||0, m);
+  const objs = selectedMoods.map(getMoodObj).filter(Boolean);
+  if(!objs.length) return t.recommendedForYou;
+  // total des moods choisis (c'est ce total que le moteur compare à son palier)
+  const total = Math.min(100, selectedMoods.reduce((s, m) => s + (pct[m]||0), 0));
+  const label = objs.length === 1 ? objs[0] : { emoji: objs.map(o => o.emoji).join(""), label: objs.map(o => o.label).join(" + ") };
+  return t.alignedWithMood(total, label);
 }
 
 // Desktop only — very light "pop" on click: one soft ring + a few tiny sparks in the mood colour.
