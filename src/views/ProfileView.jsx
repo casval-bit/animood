@@ -23,6 +23,10 @@ import { FollowListModal } from "../components/FollowListModal.jsx";
 import { TabBar, BookmarkIcon } from "../components/ui.jsx";
 import { isDesktopApp } from "../utils/streamingLinks.js";
 import { GRADIENT_PRIMARY, GRADIENT_TEXT, GLASS, GLASS_STYLE } from "../constants/theme.js";
+import { GlossBars, HudCard, HudTitle, HudChip, HudTabs } from "./profileHud.jsx";
+import { useHudCss } from "./hudCss.js";
+import { ProfileListsDesktop } from "./ProfileListsDesktop.jsx";
+import { ProfileStatsDesktop } from "./ProfileStatsDesktop.jsx";
 
 // ─── PERSONAL MOOD RADAR ──────────────────────────────────────────────────────
 function PersonalMoodRadar({ ratings, watched, bare = false }) {
@@ -351,7 +355,7 @@ function StatsTab({ statsData, ratings, watched }) {
 }
 
 // ─── PROFILE POST CARD ────────────────────────────────────────────────────────
-function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
+function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete, hud = false }) {
   const { lang } = useLang();
   const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
   const [liked, setLiked]             = useState((post.likes||[]).includes(myUsername));
@@ -416,8 +420,12 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete }) {
   }, []);
 
   return (
-    <div style={{background:"rgba(var(--fg-rgb),0.03)",borderRadius:16,
-      border:"1px solid rgba(var(--fg-rgb),0.06)",padding:14,marginBottom:10}}>
+    <div style={hud
+      ? {background:"linear-gradient(135deg, rgba(10,6,30,0.85) 0%, rgba(15,9,40,0.75) 100%)",borderRadius:16,
+         border:"1px solid rgba(139,92,246,0.18)",padding:16,position:"relative",overflow:"hidden",
+         boxShadow:`inset 3px 0 0 ${post._type==="written"?"#a855f7":"#6366f1"}`}
+      : {background:"rgba(var(--fg-rgb),0.03)",borderRadius:16,
+         border:"1px solid rgba(var(--fg-rgb),0.06)",padding:14,marginBottom:10}}>
       {/* Header */}
       <div style={{display:"flex",gap:10,marginBottom:10,alignItems:"flex-start"}}>
         <div style={{flex:1}}>
@@ -644,73 +652,7 @@ function SpotlightCircle({ anime, lang, onOpen, onPick, onClear, size = 132, com
 }
 
 // ─── HUD PANEL — dashboard high-tech style tablette holographique ─────────────
-const HUD_CSS = `
-@keyframes hud-scan {
-  0%   { transform: translateY(-100%); opacity: 0; }
-  10%  { opacity: 0.6; }
-  90%  { opacity: 0.6; }
-  100% { transform: translateY(100%); opacity: 0; }
-}
-@keyframes hud-blink {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.3; }
-}
-@keyframes hud-glow-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(139,92,246,0); }
-  50%       { box-shadow: 0 0 0 6px rgba(139,92,246,0.08); }
-}
-@keyframes counter-up {
-  0%   { opacity: 0; transform: translateY(10px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-@keyframes bar-fill {
-  0%   { width: 0; }
-}
-@keyframes hg-rise {
-  0%   { transform: scaleY(0); opacity: 0; }
-  100% { transform: scaleY(1); opacity: 1; }
-}
-@keyframes hud-flicker {
-  0%, 95%, 100% { opacity: 1; }
-  96% { opacity: 0.85; }
-  97% { opacity: 0.95; }
-  98% { opacity: 0.8; }
-}
-@keyframes hud-corner-pulse {
-  0%, 100% { opacity: 0.5; width: 12px; height: 12px; }
-  50% { opacity: 1; width: 16px; height: 16px; box-shadow: 0 0 6px rgba(139,92,246,0.6); }
-}
-@keyframes hud-data-stream {
-  0% { transform: translateY(0); opacity: 0; }
-  10% { opacity: 1; }
-  90% { opacity: 1; }
-  100% { transform: translateY(-100%); opacity: 0; }
-}
-@keyframes counter-cascade {
-  0% { opacity: 0; transform: translateY(14px) scale(0.8); filter: blur(4px); }
-  60% { filter: blur(0); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes bd-float {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-2.5px); }
-}
-@keyframes bd-shine {
-  0%, 70%, 100% { opacity: 0; transform: translateX(-120%) skewX(-20deg); }
-  85%           { opacity: .9; }
-  95%           { opacity: 0; transform: translateX(220%) skewX(-20deg); }
-}
-@keyframes bd-halo {
-  0%, 100% { opacity: .55; transform: scale(1); }
-  50%      { opacity: 1;   transform: scale(1.12); }
-}
-@keyframes border-glow-sweep {
-  0% { box-shadow: 0 0 0 0 transparent, 0 0 15px rgba(139,92,246,0); }
-  25% { box-shadow: 0 -1px 0 0 rgba(168,85,247,0.6), 0 0 20px rgba(139,92,246,0.15); }
-  75% { box-shadow: 0 0 0 0 transparent, 0 0 10px rgba(139,92,246,0.08); }
-  100% { box-shadow: 0 0 0 0 transparent, 0 0 15px rgba(139,92,246,0); }
-}
-`;
+
 
 function HudPanel({ me, rated, myUsername, unlockedBadges, activeBadge, onOpenBadges, t, lang = "fr", tilesOnly = false, noTiles = false }) {
   const gamePts = useGamePoints(myUsername);
@@ -718,16 +660,7 @@ function HudPanel({ me, rated, myUsername, unlockedBadges, activeBadge, onOpenBa
     ? (rated.reduce((a, id) => a + (me.ratings[id]?.score || 0), 0) / rated.length).toFixed(1)
     : null;
 
-  // Inject CSS once
-  useEffect(() => {
-    const id = "animood-hud-css";
-    if (!document.getElementById(id)) {
-      const style = document.createElement("style");
-      style.id = id;
-      style.textContent = HUD_CSS;
-      document.head.appendChild(style);
-    }
-  }, []);
+  useHudCss(); // animations du HUD (partagées avec les onglets)
 
   const hudCard = {
     borderRadius: 16,
@@ -764,7 +697,6 @@ function HudPanel({ me, rated, myUsername, unlockedBadges, activeBadge, onOpenBa
   for (let s = 1; s <= 10; s++) {
     histoData.push({ score: s, count: Object.values(me.ratings || {}).filter(r => r.score === s).length });
   }
-  const histoMax = Math.max(...histoData.map(d => d.count), 1);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, height: tilesOnly ? "auto" : "100%", animation: "hud-flicker 8s ease-in-out infinite" }}>
@@ -824,47 +756,7 @@ function HudPanel({ me, rated, myUsername, unlockedBadges, activeBadge, onOpenBa
         </div>
 
         {rated.length > 0 ? (
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 96, position: "relative", padding: "0 2px", borderBottom: "1px solid rgba(167,139,250,0.22)" }}>
-            {histoData.map(({ score, count }) => {
-              const heightPx = count > 0 ? Math.max(Math.round((count / histoMax) * 62), 6) : 0;
-              const isPeak = count > 0 && count === histoMax;
-              // Une seule famille de couleurs (violet → fuchsia) : plus la note est haute, plus c'est lumineux
-              const hue = 262 + (score - 1) * 5;
-              const top = `hsl(${hue} 95% ${72 + score}%)`;
-              const mid = `hsl(${hue} 85% 58%)`;
-              const bot = `hsl(${hue - 6} 75% 38%)`;
-              return (
-                <div key={score} title={count > 0 ? `${score}/10 · ${count}` : undefined}
-                  style={{ flex: 1, height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 3 }}>
-                  {count > 0 && (
-                    <div style={{ fontSize: 9, fontWeight: 800, color: isPeak ? "#f5d0fe" : "rgba(196,181,253,0.8)", textShadow: isPeak ? "0 0 8px rgba(232,121,249,0.8)" : "none" }}>
-                      {count}
-                    </div>
-                  )}
-                  <div style={{
-                    position: "relative", overflow: "hidden", width: "100%",
-                    height: heightPx,
-                    background: count > 0 ? `linear-gradient(180deg, ${top} 0%, ${mid} 38%, ${bot} 100%)` : "rgba(167,139,250,0.07)",
-                    borderRadius: "5px 5px 2px 2px",
-                    boxShadow: count > 0
-                      ? `0 0 ${isPeak ? 16 : 9}px hsl(${hue} 90% 60% / ${isPeak ? 0.7 : 0.38}), inset 0 1px 0 rgba(255,255,255,0.55), inset 0 -8px 10px rgba(0,0,0,0.18)`
-                      : "none",
-                    transformOrigin: "bottom",
-                    animation: count > 0 ? `hg-rise 0.7s cubic-bezier(.22,1,.36,1) ${score * 45}ms both` : "none",
-                    transition: "height 0.5s ease",
-                  }}>
-                    {count > 0 && <>
-                      {/* reflet vitré sur la moitié gauche */}
-                      <div style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: "42%", background: "linear-gradient(90deg, rgba(255,255,255,0.32), rgba(255,255,255,0))", pointerEvents: "none" }} />
-                      {/* éclat qui balaye la barre */}
-                      <div style={{ position: "absolute", top: 0, bottom: 0, width: "55%", background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.65), transparent)", animation: `bd-shine 5.5s ease-in-out ${score * 0.35}s infinite`, pointerEvents: "none" }} />
-                    </>}
-                  </div>
-                  <div style={{ fontSize: 9, fontWeight: 700, color: count > 0 ? "rgba(196,181,253,0.75)" : "rgba(100,116,139,0.45)" }}>{score}</div>
-                </div>
-              );
-            })}
-          </div>
+          <GlossBars counts={histoData.map(d => d.count)} height={96} />
         ) : (
           <div style={{ height: 80, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(100,116,139,0.4)", fontSize: 11 }}>
             — notes vides —
@@ -1134,6 +1026,14 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
         const moodTotals = {}; const moodDominantCount = {}; const moodScores = {}; let moodCount = 0;
         MOOD_KEYS.forEach(k => { moodTotals[k] = 0; moodDominantCount[k] = 0; moodScores[k] = []; });
         let totalEpisodes = 0;
+        // Nouvelles stats (affichage bureau) : formats, temps de visionnage, écart avec la note de la communauté
+        const typeCounts = {}; let totalMinutes = 0; const deltaRows = [];
+        const durMinutes = (a) => {
+          const m = String(a.duration||"").toLowerCase();
+          const h = /(\d+)\s*hr/.exec(m), mn = /(\d+)\s*min/.exec(m);
+          const v = (h ? parseInt(h[1])*60 : 0) + (mn ? parseInt(mn[1]) : 0);
+          return v > 0 && v < 400 ? v : null;
+        };
 
         const chunks = [];
         for(let i=0;i<me.watched.length;i+=100) chunks.push(me.watched.slice(i,i+100));
@@ -1141,7 +1041,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
         for(const chunk of chunks) {
           try {
             const [animeRows, moodRows] = await Promise.all([
-              sb.query(`anime_cache?mal_id=in.(${chunk.join(",")})&select=mal_id,type,genres,studios,characters,staff,episodes,year&limit=${chunk.length}`),
+              sb.query(`anime_cache?mal_id=in.(${chunk.join(",")})&select=mal_id,type,title,title_en,image_url,score,duration,genres,studios,characters,staff,episodes,year&limit=${chunk.length}`),
               sb.query(`mood_pts_v4?mal_id=in.(${chunk.join(",")})&select=mal_id,${MOOD_KEYS.join(",")}&limit=${chunk.length}`),
             ]);
 
@@ -1149,8 +1049,16 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
             (moodRows||[]).forEach(r => { moodByMalId[r.mal_id] = r; });
 
             (animeRows||[]).forEach(a => {
+              const userScore0 = me.ratings[a.mal_id]?.score || null;
+              // formats, temps total et écart avec la communauté : tous les formats (films, OAV…)
+              typeCounts[a.type||"?"] = (typeCounts[a.type||"?"]||0) + 1;
+              const eps0 = a.type === "Movie" ? 1 : (a.episodes || 0);
+              const perEp = durMinutes(a) || (a.type === "Movie" ? 100 : 24);
+              if(eps0 > 0) totalMinutes += eps0 * perEp;
+              if(userScore0 && a.score) deltaRows.push({ id:a.mal_id, title:a.title_en||a.title, img:a.image_url, user:userScore0, mal:a.score, delta:userScore0-a.score, type:a.type });
+
               if(a.type && a.type !== "TV") return;
-              const userScore = me.ratings[a.mal_id]?.score || null;
+              const userScore = userScore0;
               if(a.episodes) totalEpisodes += a.episodes;
 
               // Genres
@@ -1233,7 +1141,14 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
           .filter(d => d.year >= 1990 && d.year <= new Date().getFullYear())
           .sort((a,b) => a.year - b.year);
 
-        setStatsData({ topGenres, topStudios, topVAs, topDirectors, moodAvgData, yearCurve, totalEpisodes });
+        // Écart moyen avec MAL + les 5 plus gros écarts dans chaque sens (au moins 1 point)
+        const deltas = {
+          n: deltaRows.length,
+          avg: deltaRows.length ? deltaRows.reduce((acc,r)=>acc+r.delta,0)/deltaRows.length : null,
+          up:   deltaRows.filter(r=>r.delta>=1).sort((a,b)=>b.delta-a.delta).slice(0,5),
+          down: deltaRows.filter(r=>r.delta<=-1).sort((a,b)=>a.delta-b.delta).slice(0,5),
+        };
+        setStatsData({ topGenres, topStudios, topVAs, topDirectors, moodAvgData, yearCurve, totalEpisodes, typeCounts, totalMinutes, deltas });
       } catch(e) { console.error(e); }
       setStatsLoading(false);
     })();
@@ -1524,7 +1439,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
       </div>
 
       {/* Tabs */}
-      <TabBar tabs={getTabs(t)} active={tab} onChange={id => { playSound("tab"); setTab(id); }} className="mb-6" />
+      {desktop
+        ? <HudTabs tabs={getTabs(t)} active={tab} onChange={id => { playSound("tab"); setTab(id); }} />
+        : <TabBar tabs={getTabs(t)} active={tab} onChange={id => { playSound("tab"); setTab(id); }} className="mb-6" />}
 
       {/* ── PROFIL TAB ── */}
       {tab === "profile" && (
@@ -1649,7 +1566,35 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
             {/* ── JOURNAL TAB ── */}
       {tab === "journal" && (
         <div>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          {desktop && (
+            <HudCard corners={["tl", "tr", "bl", "br"]} style={{ marginBottom: 16 }}>
+              <HudTitle right={`${journalEntries.length} / ${allTrackedIds.length}`}>{lang === "en" ? "Journal" : "Journal"}</HudTitle>
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                  <HudChip active={!journalFilter} onClick={() => setJournalFilter(null)}>{lang === "en" ? "All" : "Tous"} · {allTrackedIds.length}</HudChip>
+                  {Object.entries(STATUS_COLORS).map(([k, v]) => (
+                    <HudChip key={k} active={journalFilter === k} color={v.dot} onClick={() => setJournalFilter(journalFilter === k ? null : k)}>
+                      <span style={{ width: 7, height: 7, borderRadius: "50%", background: v.dot, boxShadow: `0 0 6px ${v.dot}` }} />
+                      {getStatusLabel(k, lang)} · {allTrackedIds.filter(id => ((me.statuses||{})[id]||"completed") === k).length}
+                    </HudChip>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <HudChip active={journalGrid} onClick={() => setJournalGrid(true)}>⊞</HudChip>
+                  <HudChip active={!journalGrid} onClick={() => setJournalGrid(false)}>☰</HudChip>
+                </div>
+              </div>
+              {customListNames.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 7, marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(139,92,246,0.14)" }}>
+                  <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1.5, textTransform: "uppercase", color: "rgba(148,163,184,.6)" }}>{t.aniListSubLists}</span>
+                  {customListNames.map(name => (
+                    <HudChip key={name} active={customListFilter === name} onClick={() => setCustomListFilter(customListFilter === name ? null : name)}>{name}</HudChip>
+                  ))}
+                </div>
+              )}
+            </HudCard>
+          )}
+          {!desktop && <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap gap-1.5">
               {Object.entries(STATUS_COLORS).map(([k,v]) => {
                 const active = journalFilter === k;
@@ -1666,9 +1611,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
               className={journalGrid ? "rounded-lg border border-indigo-400/30 bg-indigo-400/12 px-2.5 py-1.5 text-sm text-indigo-300" : "rounded-lg border border-white/10 px-2.5 py-1.5 text-sm text-slate-500"}>
               {journalGrid ? "⊞" : "☰"}
             </button>
-          </div>
+          </div>}
 
-          {customListNames.length > 0 && (
+          {!desktop && customListNames.length > 0 && (
             <div className="mb-4 flex flex-wrap items-center gap-1.5">
               <span className="mr-1 text-[10px] font-bold uppercase tracking-wider text-slate-600">{t.aniListSubLists}</span>
               {customListNames.map(name => {
@@ -1686,15 +1631,18 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
 
           {journalEntries.length === 0 && <EmptyState emoji="📖" title={t.journalEmptyTitle} />}
 
-          {journalGrid && journalEntries.length > 0 && (
-            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
-              {journalEntries.map(id => {
-                const status = (me.statuses||{})[id]||"completed";
-                const sc = STATUS_COLORS[status]||STATUS_COLORS.completed;
-                return <AnimePoster key={id} anime={getAnime(id)} onClick={onOpenDetail} statusDot={sc.dot} />;
-              })}
-            </div>
-          )}
+          {journalGrid && journalEntries.length > 0 && (() => {
+            const grid = (
+              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+                {journalEntries.map(id => {
+                  const status = (me.statuses||{})[id]||"completed";
+                  const sc = STATUS_COLORS[status]||STATUS_COLORS.completed;
+                  return <AnimePoster key={id} anime={getAnime(id)} onClick={onOpenDetail} statusDot={sc.dot} />;
+                })}
+              </div>
+            );
+            return desktop ? <HudCard pad="16px">{grid}</HudCard> : grid;
+          })()}
 
           {!journalGrid && journalEntries.length > 0 && (
             <div className="flex flex-col gap-2">
@@ -1704,7 +1652,10 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                 const a = getAnime(id); const r = me.ratings[id];
                 const img = a?.images?.jpg?.image_url||a?.images?.jpg?.large_image_url;
                 return (
-                  <button key={id} onClick={() => onOpenDetail(a)} className="flex gap-3 overflow-hidden rounded-xl text-left" style={{ border:`1px solid ${sc.border}`, background:sc.bg }}>
+                  <button key={id} onClick={() => onOpenDetail(a)} className="flex gap-3 overflow-hidden rounded-xl text-left"
+                    style={desktop
+                      ? { border:"1px solid rgba(139,92,246,0.16)", background:"linear-gradient(135deg, rgba(10,6,30,0.85), rgba(15,9,40,0.7))", boxShadow:`inset 3px 0 0 ${sc.dot}, 0 0 14px ${sc.dot}22` }
+                      : { border:`1px solid ${sc.border}`, background:sc.bg }}>
                     <div className="relative h-19 w-13 shrink-0 bg-black/20">
                       {img && <img loading="lazy" decoding="async" src={img} alt={a.title} className="h-full w-full object-cover" onError={e=>{e.target.style.display="none";}} />}
                       <div className="absolute bottom-1 left-1 h-1.5 w-1.5 rounded-full" style={{ background:sc.dot }} />
@@ -1726,8 +1677,15 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
 
       {/* ── LISTES TAB ── */}
       {tab === "lists" && (
-        <div className="max-w-2xl">
+        <div className={desktop ? "" : "max-w-2xl"}>
 
+          {desktop && (
+            <ProfileListsDesktop t={t} watchlistIds={watchlistIds} highlights={me.highlights||[]} customLists={customLists}
+              pinnedListId={pinnedListId} animeCache={animeCache} onOpenList={setOpenList}
+              creatingList={creatingList} setCreatingList={setCreatingList} newListName={newListName} setNewListName={setNewListName} createList={createList} />
+          )}
+
+          {!desktop && <>
           {/* Watchlist card */}
           <div className="mb-3 flex items-center gap-4 rounded-2xl border border-white/7 bg-white/3 p-4 cursor-pointer hover:bg-white/6 transition"
             onClick={()=>setOpenList("watchlist")}>
@@ -1811,6 +1769,8 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
               </div>
             </button>
           )}
+
+          </>}
 
           {/* Highlights modal */}
           {openList==="highlights" && (
@@ -1957,13 +1917,52 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
         ) : myPosts.length === 0 ? (
           <EmptyState emoji="✍️" title={t.noPostsTitle} />
         ) : (
-          <div className="flex max-w-2xl flex-col gap-3">
-            {myPosts.map((post, i) => (
-              <ProfilePostCard key={post.id||i} post={post} myUsername={myUsername}
-                onLikeUpdate={(id, newLikes) => setMyPosts(prev => prev.map(p => p.id===id ? {...p, likes:newLikes} : p))}
-                onDelete={(id) => setMyPosts(prev => prev.filter(p => p.id!==id))}/>
-            ))}
-          </div>
+          (() => {
+            const list = (
+              <div className={desktop ? "flex min-w-0 flex-col gap-3" : "flex max-w-2xl flex-col gap-3"}>
+                {myPosts.map((post, i) => (
+                  <ProfilePostCard key={post.id||i} post={post} myUsername={myUsername} hud={desktop}
+                    onLikeUpdate={(id, newLikes) => setMyPosts(prev => prev.map(p => p.id===id ? {...p, likes:newLikes} : p))}
+                    onDelete={(id) => setMyPosts(prev => prev.filter(p => p.id!==id))}/>
+                ))}
+              </div>
+            );
+            if(!desktop) return list;
+            const written = myPosts.filter(p => p._type==="written");
+            const likesReceived = written.reduce((acc,p) => acc + (p.likes||[]).length, 0);
+            const best = written.reduce((b,p) => (p.likes||[]).length > ((b?.likes||[]).length||0) ? p : b, null);
+            const en = lang === "en";
+            return (
+              <div style={{ display:"grid", gap:20, gridTemplateColumns:"minmax(0,1fr) 270px", alignItems:"start" }}>
+                {list}
+                <div style={{ position:"sticky", top:16 }}>
+                  <HudCard corners={["tl","tr","bl","br"]} scan>
+                    <HudTitle>{en ? "My activity" : "Mon activité"}</HudTitle>
+                    <div style={{ display:"grid", gap:8 }}>
+                      {[
+                        ["✍️", en ? "Posts written" : "Posts écrits", written.length],
+                        ["💬", en ? "Commented" : "Commentés", myPosts.length - written.length],
+                        ["❤️", en ? "Likes received" : "Likes reçus", likesReceived],
+                      ].map(([ic,k,v]) => (
+                        <div key={k} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 10px", borderRadius:10, background:"rgba(139,92,246,0.06)", border:"1px solid rgba(139,92,246,0.12)" }}>
+                          <span style={{ fontSize:14 }}>{ic}</span>
+                          <span style={{ flex:1, fontSize:10, color:"rgba(148,163,184,.85)" }}>{k}</span>
+                          <span style={{ fontSize:16, fontWeight:900, color:"#fff", textShadow:"0 0 10px rgba(168,85,247,.5)" }}>{v}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {best && (best.likes||[]).length > 0 && (
+                      <div style={{ marginTop:14, paddingTop:12, borderTop:"1px solid rgba(139,92,246,0.14)" }}>
+                        <div style={{ fontSize:9, fontWeight:800, letterSpacing:1.5, textTransform:"uppercase", color:"rgba(251,191,36,.85)", marginBottom:6 }}>🏆 {en ? "Most liked" : "Le plus aimé"}</div>
+                        <div style={{ fontSize:11, color:"var(--text-2)", lineHeight:1.5, display:"-webkit-box", WebkitLineClamp:3, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{best.content}</div>
+                        <div style={{ fontSize:10, color:"#fb7185", fontWeight:800, marginTop:4 }}>❤️ {(best.likes||[]).length}</div>
+                      </div>
+                    )}
+                  </HudCard>
+                </div>
+              </div>
+            );
+          })()
         )
       )}
 
@@ -1973,7 +1972,9 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
         ) : !statsData ? (
           <EmptyState emoji="📊" title={t.noStatsTitle} />
         ) : (
-          <StatsTab statsData={statsData} ratings={me.ratings} watched={me.watched}/>
+          desktop
+            ? <ProfileStatsDesktop statsData={statsData} ratings={me.ratings} watched={me.watched} statuses={me.statuses||{}} onOpenDetail={onOpenDetail}/>
+            : <StatsTab statsData={statsData} ratings={me.ratings} watched={me.watched}/>
         )
       )}
 
