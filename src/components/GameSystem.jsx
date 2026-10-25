@@ -2312,7 +2312,21 @@ const DEFAULT_TIERS = [
   { id:"F", label:"F", color:"#6366f1" },
 ];
 const TIER_COLORS = ["#ef4444","#f97316","#fbbf24","#22c55e","#06b6d4","#6366f1","#a78bfa","#f9a8d4"];
-const TIER_SELECT = "mal_id,title,title_en,image_url,score";
+const TIER_SELECT = "mal_id,title,title_en,image_url,large_image,score";
+
+// Affiche l'affiche d'un animé en essayant, dans l'ordre : image_url avec CORS (pour l'export PNG), puis sans CORS (certains hébergeurs
+// d'images — surtout pour les animés récents venus d'AniList — refusent le mode CORS et l'image n'apparaîtrait jamais), puis large_image.
+function TierImg({ anime, name }) {
+  const sources = [anime.image_url, anime.large_image].filter(Boolean);
+  const attempts = sources.flatMap(src => [{ src, cors: true }, { src, cors: false }]);
+  const [i, setI] = useState(0);
+  const cur = attempts[i];
+  if(!cur) return <div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,
+    color:"rgba(255,255,255,0.5)",textAlign:"center",padding:2,lineHeight:1.1,background:"#2a1850",overflow:"hidden"}}>{name}</div>;
+  return <img key={i} src={cur.src} alt={name} crossOrigin={cur.cors ? "anonymous" : undefined} referrerPolicy="no-referrer"
+    style={{width:"100%",height:"100%",objectFit:"cover",pointerEvents:"none",display:"block"}}
+    onError={() => setI(n => n + 1)}/>;
+}
 
 export function TierlistGame({ mode }) {
   const { lang } = useLang();
@@ -2410,9 +2424,7 @@ export function TierlistGame({ mode }) {
           background:"#1a1030",
           border: isSel ? "2px solid #c084fc" : "1px solid rgba(255,255,255,0.1)",
           boxShadow: isSel ? "0 0 10px rgba(192,132,252,0.6)" : "none"}}>
-        <img src={anime.image_url} alt={name} crossOrigin="anonymous"
-          style={{width:"100%",height:"100%",objectFit:"cover",pointerEvents:"none",display:"block"}}
-          onError={e=>{ e.currentTarget.style.display="none"; }}/>
+        <TierImg anime={anime} name={name}/>
       </div>
     );
   };
@@ -2498,7 +2510,7 @@ export function TierlistGame({ mode }) {
                         opacity:isPlaced(a.mal_id)?0.4:1}}
                       onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.06)"}
                       onMouseLeave={e=>e.currentTarget.style.background="none"}>
-                      <img src={a.image_url} alt="" style={{width:22,height:30,objectFit:"cover",borderRadius:3}}
+                      <img src={a.image_url||a.large_image} alt="" style={{width:22,height:30,objectFit:"cover",borderRadius:3}}
                         onError={e=>{ e.currentTarget.style.display="none"; }}/>
                       <span style={{fontSize:10,color:"var(--text-2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                         {a.title_en || a.title}
