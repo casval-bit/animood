@@ -3,10 +3,10 @@ import { sb, follows } from "../api/supabase.js";
 import { useApp } from "../context/useApp.js";
 import { useLang } from "../context/useLang.js";
 import { WordleGame, PosterGame, OpQuizGame } from "../components/MiniGames.jsx";
-import { Matchmaking, ChainGame, TimelineGame, CluescaleMatchmaking, CluescaleGame, UndercoverLobby, UndercoverGame, TierlistGame } from "../components/GameSystem.jsx";
+import { Matchmaking, ChainGame, TimelineGame, CluescaleMatchmaking, CluescaleGame, UndercoverLobby, UndercoverGame } from "../components/GameSystem.jsx";
+import { TierlistStudio } from "../components/Tierlist.jsx";
 import { GameModal } from "../components/Modal.jsx";
 import { FORUM_I18N } from "../constants/forumI18n.js";
-import { GAME_SYSTEM_I18N } from "../constants/gameSystemI18n.js";
 import { isDesktopApp } from "../utils/streamingLinks.js";
 import { GamePanelDesktop } from "../components/GamesDesktop.jsx";
 import { GRADIENT_PRIMARY } from "../constants/theme.js";
@@ -129,24 +129,10 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
 }
 
 // ── TierlistPanel ─────────────────────────────────────────────────────────────
-function TierlistPanel({ mode, onModeChange }) {
-  const { lang } = useLang();
-  const tt = (GAME_SYSTEM_I18N[lang] || GAME_SYSTEM_I18N.fr).tierlist;
+function TierlistPanel() {
   return (
     <div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
-      <div style={{display:"flex",gap:6,padding:"8px 12px",borderBottom:"1px solid rgba(255,255,255,0.06)",flexShrink:0}}>
-        {["season","year","custom"].map(m => (
-          <button key={m} onClick={()=>onModeChange(m)} style={{
-            padding:"5px 12px",borderRadius:8,border:"none",cursor:"pointer",fontSize:11,fontWeight:700,
-            background:mode===m?"rgba(124,58,237,0.3)":"rgba(255,255,255,0.05)",
-            color:mode===m?"#c084fc":"var(--text-4)"}}>
-            {tt.modes[m]}
-          </button>
-        ))}
-      </div>
-      <div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column"}}>
-        <TierlistGame key={mode} mode={mode}/>
-      </div>
+      <TierlistStudio/>
     </div>
   );
 }
@@ -238,7 +224,6 @@ export function GamesView({ pendingJoinGame, onClearPendingJoin }) {
   const [showUndercover, setShowUndercover] = useState(false);
   const [undercoverPlayers, setUndercoverPlayers] = useState(null);
   const [showTierlist, setShowTierlist]   = useState(false);
-  const [tierlistMode, setTierlistMode]   = useState("season");
   const [matchmaking, setMatchmaking]     = useState(null);
   const [activeRoom, setActiveRoom]       = useState(null);
   const [activeGame, setActiveGame]       = useState(null);
@@ -385,7 +370,7 @@ export function GamesView({ pendingJoinGame, onClearPendingJoin }) {
       )}
       {showTierlist && (
         <GameModal onClose={()=>setShowTierlist(false)} title={`📊 ${t.tierlistLabel}`} maxWidth="1100px" fullHeight>
-          {() => <TierlistPanel mode={tierlistMode} onModeChange={setTierlistMode}/>}
+          {() => <TierlistPanel/>}
         </GameModal>
       )}
     </div>

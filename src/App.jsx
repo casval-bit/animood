@@ -874,7 +874,8 @@ function Shell() {
   const desktop = isDesktopApp();
 
   return (
-    // Web sur téléphone : place réservée sous la barre d'onglets du bas (WebBottomNav)
+    // Web : place réservée sous la barre d'onglets du bas (WebBottomNav) sur téléphone uniquement.
+    // Sur un grand écran (PC/tablette) via le web, pas de bottom nav → pas de padding nécessaire.
     <div className={desktop ? "min-h-screen" : "min-h-screen pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0"} style={desktop ? { paddingTop: 80 } : {}}>
       <Header activeTab={activeTab} onChangeTab={changeTab} onOpenSettings={() => { setSettingsCat(null); setShowSettings(true); }}
         onOpenDownload={isInstalledApp() ? undefined : () => setActivePage("download")}
