@@ -14,6 +14,7 @@ import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constant
 import { ChipGroup, StatPill, StarRatingDisplay, GradientButton, QuickActionIcons } from "../components/ui.jsx";
 import { MOODBOARD_I18N } from "../constants/moodboardI18n.js";
 import { isDesktopApp } from "../utils/streamingLinks.js";
+import { isWebDesktop } from "../utils/installedApp.js";
 import { MoodStage } from "../components/MoodStage.jsx";
 
 const MOOD_GENRES = {
@@ -43,10 +44,12 @@ function dominantGenres(moods) {
 
 function whyThisPick(anime, selectedMoods, t) {
   const pct = ptsToPct(anime._pts || {});
-  const top = [...selectedMoods].sort((a,b) => (pct[b]||0)-(pct[a]||0))[0];
-  const m = getMoodObj(top);
-  if(!m) return t.recommendedForYou;
-  return t.alignedWithMood(pct[top]||0, m);
+  const objs = selectedMoods.map(getMoodObj).filter(Boolean);
+  if(!objs.length) return t.recommendedForYou;
+  // total des moods choisis (c'est ce total que le moteur compare à son palier)
+  const total = Math.min(100, selectedMoods.reduce((s, m) => s + (pct[m]||0), 0));
+  const label = objs.length === 1 ? objs[0] : { emoji: objs.map(o => o.emoji).join(""), label: objs.map(o => o.label).join(" + ") };
+  return t.alignedWithMood(total, label);
 }
 
 // Desktop only — very light "pop" on click: one soft ring + a few tiny sparks in the mood colour.
@@ -81,7 +84,7 @@ function ClickBurst({ color, strong }) {
 }
 
 function DesktopMoodCard({ mood, selected, onClick }) {
-  const desktop = isDesktopApp();
+  const desktop = isDesktopApp() || isWebDesktop();
   const [burst, setBurst] = useState(0);
   const handle = (e) => {
     if (desktop) setBurst(k => k + 1);
@@ -151,9 +154,11 @@ function WebMoodCard({ mood, selected, onClick }) {
   );
 }
 
-// Site web : carte d'origine (inchangée). Appli de bureau : carte animée.
+// Carte adaptative : appli de bureau ou grand écran web (PC) → DesktopMoodCard animée,
+// téléphone → WebMoodCard légère.
+// isWebDesktop détecte un écran large avec souris (PC/tablette paysage) sur le site web.
 function MoodCard(props) {
-  return isDesktopApp() ? <DesktopMoodCard {...props} /> : <WebMoodCard {...props} />;
+  return (isDesktopApp() || isWebDesktop()) ? <DesktopMoodCard {...props} /> : <WebMoodCard {...props} />;
 }
 
 function MoodGuideTile({ onClick, t }) {
@@ -167,10 +172,10 @@ function MoodGuideTile({ onClick, t }) {
   );
 }
 
-function MoodResultCard({ anime, selectedMoods, onClick, friendUsers, t }) {
+function MoodResultCard({ anime, selectedMoods, onClick, friendUsers, friendStat, t }) {
   const img = anime.images?.jpg?.large_image_url || anime.images?.jpg?.image_url || anime.image_url || anime.large_image;
   const genres = (anime.genres || []).map(g => g.name || g).slice(0, 2);
-  const hasFriendHighlight = friendUsers && friendUsers.length > 0;
+  const hasFriendHighlight = (friendUsers && friendUsers.length > 0) || !!friendStat;
   return (
     <div role="button" tabIndex={0}
       onClick={() => onClick?.(anime)}
@@ -189,7 +194,9 @@ function MoodResultCard({ anime, selectedMoods, onClick, friendUsers, t }) {
         {hasFriendHighlight && (
           <div style={{position:"absolute",top:6,left:6,background:"rgba(239,68,68,0.9)",borderRadius:20,
             padding:"2px 8px",fontSize:10,fontWeight:800,color:"#fff",display:"flex",alignItems:"center",gap:4,zIndex:10}}>
-            ❤️ {friendUsers.length === 1
+            ❤️ {friendStat
+              ? t.friendRated(friendStat.avg.toFixed(1), friendStat.count)
+              : friendUsers.length === 1
               ? t.friendLikedOne(friendUsers[0])
               : friendUsers.length <= 4
               ? t.friendLikedFew(friendUsers.length)
@@ -227,6 +234,8 @@ export function MoodboardView({ onOpenDetail }) {
   const [mediaTypes, setMediaTypes]       = useState(["all"]);
   const [showFriendHighlights, setShowFriendHighlights] = useState(true);
   const [friendHighlights, setFriendHighlights] = useState({}); // mal_id → [username,...]
+  const [friendStats, setFriendStats]           = useState({}); // mal_id → { avg, count } (notes des amis)
+  const [info, setInfo]                         = useState({}); // remarques du moteur (ex. durée élargie)
   const [results, setResults]             = useState([]);
   const [cursor, setCursor]               = useState(null);
   const [rerollCount, setRerollCount]     = useState(0);
@@ -236,25 +245,45 @@ export function MoodboardView({ onOpenDetail }) {
   const resultsRef = useRef(null);
   const stageRef   = useRef(null);
 
-  // Load friend highlights on mount
+  // Coups de cœur + notes des amis (chargés une fois)
   useEffect(() => {
     if(!myUsername) return;
     (async () => {
       try {
         const following = await follows.getFollowing(myUsername).catch(()=>[]);
         if(!following.length) return;
-        const rows = await sb.query(`profiles?username=in.(${following.map(u=>encodeURIComponent(u)).join(",")})&select=username,highlights`);
+        const list = following.map(u=>encodeURIComponent(u)).join(",");
+        const [rows, votes] = await Promise.all([
+          sb.query(`profiles?username=in.(${list})&select=username,highlights`).catch(()=>[]),
+          sb.query(`user_votes?username=in.(${list})&score=not.is.null&select=username,mal_id,score&limit=5000`).catch(()=>[]),
+        ]);
         const map = {};
+        const sums = {}; // mal_id → { total, users:Set }
+        const addScore = (malId, user, score) => {
+          const e = sums[malId] || (sums[malId] = { total: 0, users: new Set() });
+          if(e.users.has(user)) return;
+          e.users.add(user); e.total += score;
+        };
+        (votes||[]).forEach(v => { const sc = parseFloat(v.score); if(sc > 0) addScore(v.mal_id, v.username, sc); });
         (rows||[]).forEach(p => {
           (p.highlights||[]).forEach(malId => {
             if(!map[malId]) map[malId] = [];
             map[malId].push(p.username);
+            addScore(malId, p.username, 9); // un coup de cœur sans note compte pour un 9
           });
         });
         setFriendHighlights(map);
+        const stats = {};
+        Object.entries(sums).forEach(([id, e]) => { stats[id] = { avg: e.total / e.users.size, count: e.users.size }; });
+        setFriendStats(stats);
       } catch {}
     })();
   }, [myUsername]);
+
+  // Tout changement de filtre repart de zéro (sinon les « autres suggestions » réutiliseraient l'ancien lot)
+  const resetSearch = () => { setHasSearched(false); setCursor(null); setRerollCount(0); };
+  const pickDuration = (v) => { resetSearch(); setDuration(v); };
+  const toggleFriends = () => { resetSearch(); setShowFriendHighlights(p => !p); };
 
   const toggleMood = id => {
     playSound("click");
@@ -264,6 +293,7 @@ export function MoodboardView({ onOpenDetail }) {
     setSelectedMoods(prev => prev.includes(id) ? prev.filter(m=>m!==id) : prev.length<3 ? [...prev,id] : prev);
   };
   const toggleMulti = (val, state, setState) => {
+    resetSearch();
     if(val === "all") { setState(["all"]); return; }
     setState(prev => {
       const w = prev.filter(x=>x!=="all");
@@ -275,15 +305,17 @@ export function MoodboardView({ onOpenDetail }) {
   const generate = async (reroll=false) => {
     playSound(reroll ? "click" : "confirm");
     setGenerating(true); setHasSearched(true);
-    const desktop = isDesktopApp();
+    const desktop = isDesktopApp() || isWebDesktop(); // grand écran : même scène que l'appli de bureau
     const startedAt = Date.now();
     (desktop ? stageRef.current : resultsRef.current)?.scrollIntoView({ behavior: "smooth", block: "start" });
     try {
-      const { results: picked, cursor: nextCursor } = await fetchMoodboardCandidates(
+      const { results: picked, cursor: nextCursor, info: nextInfo } = await fetchMoodboardCandidates(
         selectedMoods, duration, mediaTypes, countries, me,
         reroll ? cursor : null,
         reroll ? rerollCount : 0,
+        { friendStats, friendBoost: showFriendHighlights },
       );
+      setInfo(nextInfo || {});
       setResults(picked);
       setCursor(nextCursor);
       setRerollCount(c => reroll ? c+1 : 1);
@@ -363,11 +395,15 @@ export function MoodboardView({ onOpenDetail }) {
               );
             })()}
           </div>
+          {results.length > 0 && info.durationRelaxed && (
+            <div className="rounded-xl border border-amber-400/20 bg-amber-400/6 px-3 py-2 text-[11px] text-amber-300">{t.durationRelaxed}</div>
+          )}
           {results.length > 0 ? (
             <div className="grid grid-cols-2 gap-5 sm:grid-cols-3">
               {results.map(a => (
                 <MoodResultCard key={a.mal_id} anime={a} selectedMoods={selectedMoods} onClick={onOpenDetail}
-                  friendUsers={showFriendHighlights ? (friendHighlights[a.mal_id]||[]) : []} t={t}/>
+                  friendUsers={showFriendHighlights ? (friendHighlights[a.mal_id]||[]) : []}
+                  friendStat={showFriendHighlights && a._friend ? a._friend : null} t={t}/>
               ))}
             </div>
           ) : (
@@ -428,8 +464,13 @@ export function MoodboardView({ onOpenDetail }) {
     </div>
   );
 
-  // ── WEB VERSION — unchanged ───────────────────────────────────────────────────
-  if (!isDesktopApp()) {
+  // ── WEB VERSION — responsive : s'adapte à la largeur de l'écran ──────────────
+  // Sur téléphone : présentation classique (panneau gauche + panel droit empilés).
+  // Sur grand écran web (PC/tablette) : mêmes composants que la version desktop
+  // (grille 3×3, MoodStage, ClickBurst…) pour une expérience optimale sans Electron.
+  const isLargeScreen = isDesktopApp() || isWebDesktop();
+  if (!isLargeScreen) {
+    // ── VERSION TÉLÉPHONE (web mobile) ──────────────────────────────────
     return (
       <div className="min-h-screen w-full px-6 py-10 md:px-10">
         <div className="mx-auto max-w-7xl">
@@ -466,7 +507,7 @@ export function MoodboardView({ onOpenDetail }) {
 
               <div>
                 <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.duration}</p>
-                <ChipGroup items={getDurations(lang)} value={[duration]} onToggle={setDuration} />
+                <ChipGroup items={getDurations(lang)} value={[duration]} onToggle={pickDuration} />
               </div>
               <div>
                 <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.country}</p>
@@ -479,7 +520,7 @@ export function MoodboardView({ onOpenDetail }) {
 
               <div>
                 <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.friendRecs}</p>
-                <button onClick={()=>setShowFriendHighlights(p=>!p)}
+                <button onClick={toggleFriends}
                   className="flex items-center justify-between w-full rounded-xl px-3 py-2 text-[11px] font-bold transition border border-white/8 bg-white/3">
                   <span className="text-slate-300">{t.friendToggle}</span>
                   <div className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${showFriendHighlights ? "bg-violet-500" : "bg-white/15"}`}>
@@ -510,7 +551,7 @@ export function MoodboardView({ onOpenDetail }) {
     );
   }
 
-  // ── DESKTOP VERSION — grille 3×3 d'origine + scène de tarot à droite ──────────
+  // ── VERSION GRAND ÉCRAN (desktop Electron + web PC/tablette) ─────────────
   return (
     <div className="min-h-screen w-full px-6 py-8 md:px-10">
       <div className="mx-auto max-w-7xl">
@@ -548,10 +589,10 @@ export function MoodboardView({ onOpenDetail }) {
             <MoodFilters
               lang={lang} t={t}
               durations={getDurations(lang)} countries={getCountries(lang)} mediaTypes={getMediaTypes(lang)}
-              duration={duration} onDuration={setDuration}
+              duration={duration} onDuration={pickDuration}
               selCountries={countries} onCountry={v => toggleMulti(v, countries, setCountries)}
               selTypes={mediaTypes} onType={v => toggleMulti(v, mediaTypes, setMediaTypes)}
-              friendOn={showFriendHighlights} onFriendToggle={() => setShowFriendHighlights(p=>!p)}
+              friendOn={showFriendHighlights} onFriendToggle={toggleFriends}
               excludedCount={excludedCount}
             />
           </div>

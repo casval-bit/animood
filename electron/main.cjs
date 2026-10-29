@@ -58,6 +58,10 @@ if (!gotLock) app.quit();
 // ANIMOOD_STORE=1 permet de tester ce mode sur un lancement normal (ex. $env:ANIMOOD_STORE=1; .\run_desktop.bat).
 const IS_STORE = !!process.windowsStore || process.env.ANIMOOD_STORE === "1";
 
+// Windows / Linux : fenêtre SANS cadre ni menu natifs (plus de bandeau blanc « File Edit View »). Les boutons réduire / agrandir /
+// fermer sont dessinés par l'appli (src/components/DesktopWindowControls.jsx), intégrés à l'en-tête. macOS garde ses boutons natifs.
+const FRAMELESS = process.platform !== "darwin";
+
 // ── Auto-updater (only in production, jamais dans la version Store : c'est le Store qui met à jour) ──────────
 let autoUpdater = null;
 if (!isDev && !IS_STORE) {
@@ -95,7 +99,7 @@ function createWindow() {
     minHeight: 600,
     backgroundColor: "#020617", // slate-950 — avoids white flash on load
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
-    frame: process.platform !== "darwin",
+    frame: false,
     show: false,
     icon: ICON,
     webPreferences: {
@@ -103,7 +107,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true, // le preload n'utilise que contextBridge/ipcRenderer
-      additionalArguments: IS_STORE ? ["--animood-store"] : [], // lu par preload.cjs → window.animood.isStore
+      additionalArguments: [...(IS_STORE ? ["--animood-store"] : []), ...(FRAMELESS ? ["--animood-frameless"] : [])], // lus par preload.cjs → window.animood.isStore / customFrame
       webSecurity: true,
       allowRunningInsecureContent: false,
       webviewTag: false,
@@ -112,6 +116,27 @@ function createWindow() {
 
   win.loadURL(APP_URL);
   if (isDev) win.webContents.openDevTools({ mode: "detach" });
+
+  // L'appli affiche l'icône « agrandir » ou « restaurer » selon l'état de la fenêtre
+  const sendState = () => win?.webContents.send("window-state", win.isMaximized() || win.isFullScreen());
+  win.on("maximize", sendState);
+  win.on("unmaximize", sendState);
+  win.on("enter-full-screen", sendState);
+  win.on("leave-full-screen", sendState);
+
+  // Sans menu natif, on garde les raccourcis utiles : recharger, zoom, plein écran (+ outils de développement hors version installée)
+  win.webContents.on("before-input-event", (event, input) => {
+    if (input.type !== "keyDown") return;
+    const ctrl = input.control || input.meta;
+    const key = input.key.toLowerCase();
+    if (key === "f11") { win.setFullScreen(!win.isFullScreen()); event.preventDefault(); }
+    else if (ctrl && key === "r") { win.webContents.reload(); event.preventDefault(); }
+    else if (key === "f5") { win.webContents.reload(); event.preventDefault(); }
+    else if (ctrl && (key === "+" || key === "=")) { win.webContents.setZoomLevel(win.webContents.getZoomLevel() + 0.5); event.preventDefault(); }
+    else if (ctrl && key === "-") { win.webContents.setZoomLevel(win.webContents.getZoomLevel() - 0.5); event.preventDefault(); }
+    else if (ctrl && key === "0") { win.webContents.setZoomLevel(0); event.preventDefault(); }
+    else if (isDev && ((ctrl && input.shift && key === "i") || key === "f12")) { win.webContents.toggleDevTools(); event.preventDefault(); }
+  });
 
   // Show window once ready to avoid white flash
   win.once("ready-to-show", () => {
@@ -203,6 +228,7 @@ if (gotLock) {
       { urls: ["https://www.youtube-nocookie.com/embed/*", "https://www.youtube.com/embed/*"], types: ["subFrame"] },
       (details, cb) => { const h = { ...details.requestHeaders }; if (!h.Referer && !h.referer) h.Referer = APP_ORIGIN + "/"; cb({ requestHeaders: h }); }
     );
+    if (FRAMELESS) Menu.setApplicationMenu(null); // plus de menu « File Edit View Window Help » (raccourcis gérés dans createWindow)
     createWindow();
     if (process.platform !== "linux") createTray();
 
@@ -307,6 +333,7 @@ ipcMain.on("window-maximize", (event) => {
   else win?.maximize();
 });
 ipcMain.on("window-close", (event) => { if (trustedSender(event)) win?.close(); });
+ipcMain.handle("window-is-maximized", (event) => trustedSender(event) && !!(win && (win.isMaximized() || win.isFullScreen())));
 
 /**
  * Offline page → retry loading the site.

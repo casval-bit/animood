@@ -22,9 +22,14 @@
       font-size: 13px; font-weight: 800; color: #fff;
       background: linear-gradient(135deg, #7c3aed, #ec4899);
     }
+    .win { display: none; position: fixed; top: 0; right: 0; -webkit-app-region: no-drag; }
+    .win button { -webkit-app-region: no-drag; background: transparent; border-radius: 0; width: 42px; height: 30px; padding: 0; color: #c4b5fd; font-size: 14px; font-weight: 400; }
+    .win button:hover { background: rgba(139,92,246,.28); color: #fff; }
+    .win button.x:hover { background: rgba(239,68,68,.9); }
   </style>
 </head>
 <body>
+  <div class="win" id="win"><button id="min" title="Réduire">&#8211;</button><button id="max" title="Agrandir">&#9633;</button><button id="close" class="x" title="Fermer">&#10005;</button></div>
   <div class="card">
     <img src="icon.png" alt="" />
     <h1>Pas de connexion</h1>
@@ -35,6 +40,12 @@
     const retry = () => window.animood?.retryLoad?.();
     document.getElementById("retry").addEventListener("click", retry);
     window.addEventListener("online", retry);
+    if (window.animood?.customFrame) {
+      document.getElementById("win").style.display = "flex";
+      document.getElementById("min").onclick = () => window.animood.minimize();
+      document.getElementById("max").onclick = () => window.animood.maximize();
+      document.getElementById("close").onclick = () => window.animood.close();
+    }
   </script>
 </body>
 </html>
