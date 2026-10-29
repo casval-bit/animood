@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { sb } from "../../api/supabase.js";
 import { STATUS_COLORS } from "../../constants/statuses.js";
 import { Spinner } from "../Spinner.jsx";
+import { isVisibleInCalendar } from "../../utils/adultContent.js";
+import { sameFamily, isTvShort } from "../../utils/franchise.js";
 
 // ─── Weekly Airing Calendar ────────────────────────────────────────────────────
 const DAYS_EN = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
@@ -13,7 +15,7 @@ let airingCache = null;
 // ONA / OVA (ex. des séries Netflix comme JoJo Steel Ball Run) sont chargés
 // à part : une seule requête triée par note les noierait sous les séries TV.
 // (ils ne sont gardés que s'ils ont un jour de diffusion — voir fetchAiringAnime)
-const AIRING_SELECT = "mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,status,broadcast,streaming";
+const AIRING_SELECT = "mal_id,title,title_en,synopsis,score,year,episodes,type,image_url,large_image,genres,themes,rating,duration,status,broadcast,streaming,aired_from,scored_by,country";
 const SPECIAL_TYPES = new Set(["ONA", "OVA"]);
 // Petite étiquette pour distinguer ce qui n'est pas une série TV classique.
 const typeTag = (a) => a?.type === "OVA" ? "OAV" : a?.type === "ONA" ? "ONA" : null;
@@ -52,7 +54,7 @@ async function fetchFinishedAnime() {
   const threeMonthsAgo = new Date(Date.now() - 90*24*60*60*1000).toISOString().slice(0,10);
   const rows = await sb.query(
     `anime_cache?type=in.(TV,ONA,OVA)&status=eq.Finished%20Airing&aired_from=gte.${threeMonthsAgo}` +
-    "&select=mal_id,title,title_en,score,year,episodes,type,image_url,large_image,genres,aired_from&order=score.desc.nullslast&limit=30"
+    "&select=mal_id,title,title_en,score,year,episodes,duration,type,image_url,large_image,genres,themes,rating,aired_from,scored_by,country&order=score.desc.nullslast&limit=80"
   ).catch(()=>[]);
   finishedCache = rows || [];
   return finishedCache;
@@ -137,16 +139,6 @@ function readSavedView() {
 }
 function saveView(view) {
   try { localStorage.setItem(VIEW_KEY, view); } catch { /* not persisted */ }
-}
-
-// Extract base titles (season suffixes stripped) so a new season matches a
-// series the user already watched.
-function baseTitle(title) {
-  return (title || "")
-    .toLowerCase()
-    .replace(/\s*(season|saison|cours|part|cour|2nd|3rd|4th|5th|\d+(?:st|nd|rd|th)|\bii\b|\biii\b|\biv\b|\bv\b)\b.*/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 const statusDot = (status) => STATUS_COLORS[status]?.dot;
@@ -244,6 +236,20 @@ function DayView({ byDay, dayIdx, setDayIdx, todayIdx, myStatuses, currentYear, 
   );
 }
 
+// Titres des animés que l'utilisateur a vus / terminés / commence : sert à reconnaître « la saison 2 d'une œuvre dont j'ai vu la saison 1 »
+const seenTitleCache = new Map();
+async function loadSeenTitles(ids) {
+  const missing = ids.filter(id => !seenTitleCache.has(id));
+  for(let i = 0; i < missing.length; i += 150) {
+    const chunk = missing.slice(i, i + 150);
+    const rows = await sb.query(`anime_cache?mal_id=in.(${chunk.join(",")})&select=mal_id,title,title_en`).catch(() => null);
+    if(!rows) continue; // échec réseau : on réessaiera
+    chunk.forEach(id => seenTitleCache.set(id, null));
+    rows.forEach(r => seenTitleCache.set(r.mal_id, r));
+  }
+  return ids.map(id => seenTitleCache.get(id)).filter(Boolean);
+}
+
 export function AiringCalendar({ onOpenDetail, me, t }) {
   const [anime, setAnime]     = useState(airingCache || []);
   const [loading, setLoading] = useState(!airingCache);
@@ -256,6 +262,18 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
   const [view, setView]       = useState(readSavedView);
   const [dayIdx, setDayIdx]   = useState(todayIdx);
   const changeView = (v) => { setView(v); saveView(v); };
+
+  const [seenRows, setSeenRows] = useState([]);
+  useEffect(() => {
+    const ids = [...new Set([
+      ...(Array.isArray(me?.watched) ? me.watched.map(Number) : []),
+      ...Object.entries(me?.statuses || {}).filter(([, st]) => st === "completed" || st === "watching").map(([id]) => Number(id)),
+    ])].filter(Boolean);
+    if(!ids.length) return;
+    let cancelled = false;
+    loadSeenTitles(ids).then(rows => { if(!cancelled) setSeenRows(rows); });
+    return () => { cancelled = true; };
+  }, [me?.watched, me?.statuses]);
 
   useEffect(() => {
     let cancelled = false;
@@ -283,31 +301,47 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
 
   if(loading) return <Spinner label={t.loading} />;
 
-  // "My anime":
-  // 1. Anime currently in watching/onhold/watchlist
-  // 2. Airing anime whose base title matches a completed/watching series
+  // "My anime": en cours / en pause / à voir, ou nouvelle saison d'une œuvre déjà vue
   const myStatuses = me?.statuses || {};
-  const myWatched  = me?.watched  || {};
+  const myRatings  = me?.ratings  || {};
   const myIds = new Set(Object.keys(myStatuses).map(Number));
-  const myBaseTitles = new Set();
-  Object.values(myWatched).forEach(a => {
-    if(a?.title) myBaseTitles.add(baseTitle(a.title));
-    if(a?.title_en) myBaseTitles.add(baseTitle(a.title_en));
-  });
+  const seenEarlier = (a) => seenRows.some(r => r.mal_id !== a.mal_id && sameFamily(a, r));
 
   function isMyAnime(a) {
     const status = myStatuses[a.mal_id];
     if(["watching","onhold","watchlist"].includes(status)) return true;
     if(myIds.has(a.mal_id)) return false; // already seen, same anime — skip
-    const bt = baseTitle(a.title);
-    const bte = baseTitle(a.title_en || "");
-    return myBaseTitles.has(bt) || (bte && myBaseTitles.has(bte));
+    return seenEarlier(a);
   }
 
-  const displayed = anime.filter(a => (!myOnly || isMyAnime(a)) && matchesPlatforms(a, platformFilters));
+  // Ce qu'on garde dans le calendrier (sauf si c'est dans MA liste / noté par moi : alors toujours visible) :
+  //  · séries TV « classiques » : japonaises, avec une image, lancées il y a moins d'un an et demi OU bien notées (les longues séries type One Piece) ;
+  //  · quelques ONA/OAV de la saison (type JoJo SBR) : japonais, récents, bien notés, hebdomadaires, max 6 ;
+  //  · jamais : hentai/doujin, TV Short (< 15 min), ONA chinois en 3D & co, vieilles séries restées « en cours » sans intérêt.
+  const acted = (a) => !!myStatuses[a.mal_id] || myRatings[a.mal_id]?.score != null;
+  const recent = (a) => (a.year || 0) >= currentYear - 1;
+  const japanese = (a) => !a.country || a.country === "JP";
+  const hasImage = (a) => !!(a.image_url || a.large_image || a.images?.jpg?.image_url);
+  const classicTv = (a) => japanese(a) && hasImage(a) && (recent(a) || (a.score || 0) >= 7);
+  const seasonalSpecial = (a) => japanese(a) && hasImage(a) && recent(a) && (a.score || 0) >= 7.3;
+  const topSpecials = new Set(
+    [...anime, ...finished].filter(a => SPECIAL_TYPES.has(a.type) && !isTvShort(a) && seasonalSpecial(a))
+      .sort((x, y) => (y.score || 0) - (x.score || 0)).slice(0, 6).map(a => a.mal_id)
+  );
+  const passesRules = (a) => {
+    if(!isVisibleInCalendar(a, myStatuses)) return false;
+    if(acted(a)) return true;
+    if(isTvShort(a)) return false;
+    if(SPECIAL_TYPES.has(a.type)) return topSpecials.has(a.mal_id) || (a.type === "ONA" && seenEarlier(a));
+    if(a.type === "TV") return classicTv(a) || seenEarlier(a);
+    return true;
+  };
+  const visibleAnime = anime.filter(passesRules);
+  const finishedShown = finished.filter(passesRules).slice(0, 30);
+  const displayed = visibleAnime.filter(a => (!myOnly || isMyAnime(a)) && matchesPlatforms(a, platformFilters));
   const filtersActive = platformFilters.size > 0;
   // Only offer platforms that at least one airing anime is actually on
-  const availablePlatforms = PLATFORMS.filter(p => anime.some(a => platformIds(a).has(p.id)));
+  const availablePlatforms = PLATFORMS.filter(p => visibleAnime.some(a => platformIds(a).has(p.id)));
   const togglePlatform = (id) => setPlatformFilters(prev => {
     const next = new Set(prev);
     if(next.has(id)) next.delete(id); else next.add(id);
@@ -375,15 +409,15 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
     </div>
   );
 
-  const finishedSection = finished.length > 0 && (
+  const finishedSection = finishedShown.length > 0 && (
     <div style={{marginTop:24}}>
       <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 4px",marginBottom:6,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
         <span style={{fontSize:11}}>🎬</span>
         <span style={{fontSize:12,fontWeight:900,color:"var(--text-2)"}}>{t.finishedTitle}</span>
-        <span style={{fontSize:9,color:"var(--text-5)",marginLeft:4}}>{t.finishedCount(finished.length)}</span>
+        <span style={{fontSize:9,color:"var(--text-5)",marginLeft:4}}>{t.finishedCount(finishedShown.length)}</span>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(150px, 1fr))",gap:4}}>
-        {finished.map(a => (
+        {finishedShown.map(a => (
           <button key={a.mal_id} onClick={()=>onOpenDetail(a)} style={{
             display:"flex",gap:7,alignItems:"center",background:"none",border:"none",cursor:"pointer",
             textAlign:"left",padding:4,borderRadius:8,transition:"background 0.12s",width:"100%",
@@ -406,21 +440,20 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
       </div>
     </div>
   );
-  const myCount   = anime.filter(isMyAnime).length;
+  const myCount   = visibleAnime.filter(isMyAnime).length;
 
   const byDay = {};
   DAYS_EN.forEach(d => { byDay[d] = []; });
-  const unknownDay = [];
+  // Les animés sans jour de diffusion connu ne sont plus listés (pas de place dans un calendrier)
   displayed.forEach(a => {
     const local = broadcastLocal(a);
     if(local) byDay[DAYS_EN[local.dayIdx]].push(a);
-    else      unknownDay.push(a);
   });
   DAYS_EN.forEach(d => byDay[d].sort(byLocalTime));
 
   // Judged on the unfiltered list, so a filter that empties the week keeps
   // the normal layout (and its filter bar) instead of the fallback grid.
-  const hasDayData = anime.some(a => broadcastLocal(a));
+  const hasDayData = visibleAnime.some(a => broadcastLocal(a));
   const totalWithDay = Object.values(byDay).reduce((s, arr) => s + arr.length, 0);
 
   // Fallback grid when no broadcast data
@@ -642,40 +675,6 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
         })}
       </div>
       </div>
-      )}
-
-      {/* Animés en cours sans jour de diffusion connu (sorties par lot, ONA…) */}
-      {unknownDay.length > 0 && (
-        <div style={{marginTop:24}}>
-          <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 4px",marginBottom:6,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
-            <span style={{fontSize:12,fontWeight:900,color:"var(--text-2)"}}>{t.unknownDay(unknownDay.length)}</span>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(150px, 1fr))",gap:4}}>
-            {unknownDay.map(a => (
-              <button key={a.mal_id} onClick={()=>onOpenDetail(a)} style={{
-                display:"flex",gap:7,alignItems:"center",background:"none",border:"none",cursor:"pointer",
-                textAlign:"left",padding:4,borderRadius:8,transition:"background 0.12s",width:"100%",
-              }}
-              onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.06)";}}
-              onMouseLeave={e=>{e.currentTarget.style.background="none";}}>
-                <img loading="lazy" decoding="async" src={a.image_url||a.large_image} alt="" style={{
-                  width:32,height:44,objectFit:"cover",borderRadius:5,flexShrink:0,
-                  border:`${statusDot(myStatuses[a.mal_id]) ? "2px" : "1px"} solid ${statusDot(myStatuses[a.mal_id]) || "rgba(255,255,255,0.1)"}`,display:"block",
-                }} onError={e=>{e.target.style.display="none";}}/>
-                <div style={{minWidth:0,flex:1}}>
-                  <div style={{fontSize:10,fontWeight:700,color:"var(--text-1)",overflow:"hidden",textOverflow:"ellipsis",
-                    display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",lineHeight:1.3,marginBottom:2}}>
-                    {a.title_en||a.title}
-                  </div>
-                  <div style={{display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}>
-                    {a.score && <span style={{fontSize:8,color:"#fbbf24",fontWeight:700}}>★ {a.score}</span>}
-                    {typeTag(a) && <TypeTag a={a} />}
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
       )}
 
       {finishedSection}

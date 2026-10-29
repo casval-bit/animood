@@ -4,6 +4,7 @@ import "./index.css";
 import AniMoodApp from "./App.jsx";
 import { isDesktopApp } from "./utils/streamingLinks.js";
 import { captureInstallPrompt } from "./utils/installPrompt.js";
+import { DesktopWindowControls } from "./components/DesktopWindowControls.jsx";
 
 // Avant le rendu : Chrome peut proposer l'installation dès le chargement de la page
 captureInstallPrompt();
@@ -39,5 +40,6 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <AniMoodApp />
+    <DesktopWindowControls />
   </React.StrictMode>
 );

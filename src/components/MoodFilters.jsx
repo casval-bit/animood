@@ -5,8 +5,8 @@
 import { GRADIENT_PRIMARY } from "../constants/theme.js";
 
 const HINTS = {
-  fr: { all: "", short: "≤ 13 ép.", medium: "14 – 50 ép.", long: "50+ ép." },
-  en: { all: "", short: "≤ 13 eps", medium: "14 – 50 eps", long: "50+ eps" },
+  fr: { all: "", short: "< 15 ép.", medium: "15 – 50 ép.", long: "50+ ép." },
+  en: { all: "", short: "< 15 eps", medium: "15 – 50 eps", long: "50+ eps" },
 };
 
 function SectionHead({ icon, label, hint }) {

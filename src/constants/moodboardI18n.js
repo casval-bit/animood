@@ -48,6 +48,8 @@ export const MOODBOARD_I18N = {
     friendLikedOne: (u) => `@${u} l'a aimé`,
     friendLikedFew: (n) => `${n} l'ont aimé`,
     friendLikedMany: "Plusieurs amis l'ont aimé",
+    friendRated: (avg, n) => `${avg} chez tes amis (${n})`,
+    durationRelaxed: "Pas assez d'œuvres de cette durée pour ces moods : la sélection est élargie.",
 
     recommendedForYou: "Recommandé pour toi",
     alignedWithMood: (pct, m) => `${pct}% aligné avec ton mood ${m.emoji} ${m.label}`,
@@ -113,6 +115,8 @@ export const MOODBOARD_I18N = {
     friendLikedOne: (u) => `@${u} liked this`,
     friendLikedFew: (n) => `${n} liked this`,
     friendLikedMany: "Several friends liked this",
+    friendRated: (avg, n) => `${avg} from your friends (${n})`,
+    durationRelaxed: "Not enough titles of this length for these moods: the selection has been widened.",
 
     recommendedForYou: "Recommended for you",
     alignedWithMood: (pct, m) => `${pct}% aligned with your ${m.emoji} ${m.label} mood`,
