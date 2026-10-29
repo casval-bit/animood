@@ -1,7 +1,7 @@
 // ─── MOODBOARD / SEARCH FILTERS ───────────────────────────────────────────────
 const LABELS = {
-  fr: { all:"Tout", short:"Court", medium:"Moyen", long:"Long", TV:"Animé",  Movie:"Film",  OVA:"OAV", JP:"Japonais",  other:"Autres" },
-  en: { all:"All",  short:"Short", medium:"Medium", long:"Long", TV:"Anime", Movie:"Movie", OVA:"OVA", JP:"Japanese", other:"Other" },
+  fr: { all:"Tout", short:"Court", medium:"Moyen", long:"Long", TV:"Animé",  Movie:"Film",  OVA:"OAV / ONA", JP:"Japonais",  other:"Autres" },
+  en: { all:"All",  short:"Short", medium:"Medium", long:"Long", TV:"Anime", Movie:"Movie", OVA:"OVA / ONA", JP:"Japanese", other:"Other" },
 };
 
 const DURATION_META   = [{id:"all",emoji:"🔀"},{id:"short",emoji:"⚡"},{id:"medium",emoji:"📺"},{id:"long",emoji:"📚"}];
