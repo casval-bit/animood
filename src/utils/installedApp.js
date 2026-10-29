@@ -9,3 +9,15 @@ export function isInstalledApp() {
     || window.navigator.standalone === true               // iOS « Sur l'écran d'accueil »
     || document.referrer.startsWith("android-app://");    // APK Android (TWA)
 }
+
+/**
+ * Détecte si on est sur un grand écran (PC/tablette paysage) via le web,
+ * pour afficher la version adaptée sans être dans Electron (isDesktopApp).
+ * Utile pour le responsive : les composants web peuvent s'adapter à la
+ * largeur de l'écran comme le ferait la version desktop.
+ */
+export function isWebDesktop() {
+  if (typeof window === "undefined") return false;
+  if (isDesktopApp()) return false; // déjà en mode desktop Electron
+  return window.matchMedia?.("(min-width: 1024px) and (hover: hover)").matches;
+}

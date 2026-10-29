@@ -14,6 +14,7 @@ import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constant
 import { ChipGroup, StatPill, StarRatingDisplay, GradientButton, QuickActionIcons } from "../components/ui.jsx";
 import { MOODBOARD_I18N } from "../constants/moodboardI18n.js";
 import { isDesktopApp } from "../utils/streamingLinks.js";
+import { isWebDesktop } from "../utils/installedApp.js";
 import { MoodStage } from "../components/MoodStage.jsx";
 
 const MOOD_GENRES = {
@@ -83,7 +84,7 @@ function ClickBurst({ color, strong }) {
 }
 
 function DesktopMoodCard({ mood, selected, onClick }) {
-  const desktop = isDesktopApp();
+  const desktop = isDesktopApp() || isWebDesktop();
   const [burst, setBurst] = useState(0);
   const handle = (e) => {
     if (desktop) setBurst(k => k + 1);
@@ -153,9 +154,11 @@ function WebMoodCard({ mood, selected, onClick }) {
   );
 }
 
-// Site web : carte d'origine (inchangée). Appli de bureau : carte animée.
+// Carte adaptative : appli de bureau ou grand écran web (PC) → DesktopMoodCard animée,
+// téléphone → WebMoodCard légère.
+// isWebDesktop détecte un écran large avec souris (PC/tablette paysage) sur le site web.
 function MoodCard(props) {
-  return isDesktopApp() ? <DesktopMoodCard {...props} /> : <WebMoodCard {...props} />;
+  return (isDesktopApp() || isWebDesktop()) ? <DesktopMoodCard {...props} /> : <WebMoodCard {...props} />;
 }
 
 function MoodGuideTile({ onClick, t }) {
@@ -302,7 +305,7 @@ export function MoodboardView({ onOpenDetail }) {
   const generate = async (reroll=false) => {
     playSound(reroll ? "click" : "confirm");
     setGenerating(true); setHasSearched(true);
-    const desktop = isDesktopApp();
+    const desktop = isDesktopApp() || isWebDesktop(); // grand écran : même scène que l'appli de bureau
     const startedAt = Date.now();
     (desktop ? stageRef.current : resultsRef.current)?.scrollIntoView({ behavior: "smooth", block: "start" });
     try {
@@ -461,8 +464,13 @@ export function MoodboardView({ onOpenDetail }) {
     </div>
   );
 
-  // ── WEB VERSION — unchanged ───────────────────────────────────────────────────
-  if (!isDesktopApp()) {
+  // ── WEB VERSION — responsive : s'adapte à la largeur de l'écran ──────────────
+  // Sur téléphone : présentation classique (panneau gauche + panel droit empilés).
+  // Sur grand écran web (PC/tablette) : mêmes composants que la version desktop
+  // (grille 3×3, MoodStage, ClickBurst…) pour une expérience optimale sans Electron.
+  const isLargeScreen = isDesktopApp() || isWebDesktop();
+  if (!isLargeScreen) {
+    // ── VERSION TÉLÉPHONE (web mobile) ──────────────────────────────────
     return (
       <div className="min-h-screen w-full px-6 py-10 md:px-10">
         <div className="mx-auto max-w-7xl">
@@ -543,7 +551,7 @@ export function MoodboardView({ onOpenDetail }) {
     );
   }
 
-  // ── DESKTOP VERSION — grille 3×3 d'origine + scène de tarot à droite ──────────
+  // ── VERSION GRAND ÉCRAN (desktop Electron + web PC/tablette) ─────────────
   return (
     <div className="min-h-screen w-full px-6 py-8 md:px-10">
       <div className="mx-auto max-w-7xl">
