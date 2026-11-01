@@ -34,3 +34,6 @@ signing-key-info.txt
 android/*.aab
 dist-electron
 android/*.apk
+
+# Fichiers de progression des anciens scripts de synchro (locaux)
+seasons_*.json

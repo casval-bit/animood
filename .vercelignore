@@ -8,6 +8,6 @@ supabase
 *.bat
 *.mjs
 seasons_*.json
-reroll-method.txt
+docs
 android
 build-hooks

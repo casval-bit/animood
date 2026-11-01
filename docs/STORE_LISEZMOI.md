@@ -19,7 +19,7 @@ Colle-les dans `electron-builder.store.yml` (section `appx`, à la place des « 
 
 ## 3. Construire le paquet
 ```powershell
-cd "C:\Users\brice maillard\animoodv12\animoodv12"
+cd chemin\vers\animood
 npm run electron:build:store
 ```
 Le fichier `.appx` est créé dans `dist-store\`. Depuis la v12, l'appli installée **affiche le site en ligne** (`https://animood-rho.vercel.app`) :

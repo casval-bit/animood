@@ -1,6 +1,6 @@
 # ─── Paquet pour le MICROSOFT STORE (MSIX/AppX) ─────────────────────────────────────────────────────────────────
 # Commande (sur Windows) :  npm run electron:build:store      → fichier .appx dans dist-store\
-# Le guide complet est dans STORE_LISEZMOI.md. Le Store signe lui-même le paquet : aucun certificat à acheter.
+# Le guide complet est dans docs/STORE_LISEZMOI.md. Le Store signe lui-même le paquet : aucun certificat à acheter.
 #
 # ⚠️ Remplace les 3 valeurs « REMPLACE… » ci-dessous par celles de Partner Center
 #    (ton app → Gestion des produits → Identité du produit). Ce ne sont pas des secrets.
