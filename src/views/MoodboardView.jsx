@@ -363,6 +363,22 @@ export function MoodboardView({ onOpenDetail }) {
     </Modal>
   );
 
+  // ── « Autres suggestions » : à côté du bouton « Trouver mon anime » ────────────
+  const OtherSuggestionsBtn = (!generating && hasSearched && results.length > 0) ? (() => {
+    const locked = rerollCount >= 3;
+    const label = rerollCount <= 1 ? t.otherSuggestions
+                : rerollCount === 2 ? t.moreSuggestions
+                : t.lockedSuggestions;
+    return locked ? (
+      <div className="flex flex-col items-center gap-1">
+        <button disabled className="cursor-not-allowed rounded-full border-2 border-white/8 px-8 py-3.5 text-base font-extrabold text-slate-600">{label}</button>
+        <span className="text-[10px] text-slate-600">{t.lockedHint}</span>
+      </div>
+    ) : (
+      <button onClick={() => generate(true)} className="rounded-full border-2 border-indigo-400/30 px-8 py-3.5 text-base font-extrabold text-indigo-400 transition hover:border-indigo-400/60">{label}</button>
+    );
+  })() : null;
+
   // ── RESULTS PANEL (shared between web & desktop) ─────────────────────────────
   const ResultsPanel = (
     <div ref={resultsRef} className="min-h-[420px] animate-slide-up" style={{ scrollMarginTop: "96px" }}>
@@ -380,20 +396,6 @@ export function MoodboardView({ onOpenDetail }) {
                 <span key={mid} className="rounded-full px-2.5 py-1 text-xs font-bold" style={{ background:`${m.color}22`, border:`1px solid ${m.color}44`, color:m.color }}>{m.emoji} {m.label}</span>
               ); })}
             </div>
-            {results.length > 0 && (() => {
-              const locked = rerollCount >= 3;
-              const label = rerollCount <= 1 ? t.otherSuggestions
-                          : rerollCount === 2 ? t.moreSuggestions
-                          : t.lockedSuggestions;
-              return locked ? (
-                <div className="flex flex-col items-end gap-1">
-                  <button disabled className="cursor-not-allowed rounded-full border-2 border-white/8 px-4 py-2 text-xs font-extrabold text-slate-600">{label}</button>
-                  <span className="text-[10px] text-slate-600">{t.lockedHint}</span>
-                </div>
-              ) : (
-                <button onClick={() => generate(true)} className="rounded-full border-2 border-indigo-400/30 px-4 py-2 text-xs font-extrabold text-indigo-400 transition hover:border-indigo-400/60">{label}</button>
-              );
-            })()}
           </div>
           {results.length > 0 && info.durationRelaxed && (
             <div className="rounded-xl border border-amber-400/20 bg-amber-400/6 px-3 py-2 text-[11px] text-amber-300">{t.durationRelaxed}</div>
@@ -539,10 +541,11 @@ export function MoodboardView({ onOpenDetail }) {
           </div>
 
           {/* ── CTA ── */}
-          <div className="mt-10 flex justify-center">
+          <div className="mt-10 flex flex-wrap items-start justify-center gap-3">
             <GradientButton onClick={() => generate(false)} disabled={selectedMoods.length===0} className="px-10 py-4 text-base">
               {selectedMoods.length>0 ? t.findBtn : t.pickMoodBtn}
             </GradientButton>
+            {OtherSuggestionsBtn}
           </div>
         </div>
 
@@ -612,10 +615,11 @@ export function MoodboardView({ onOpenDetail }) {
               {ResultsPanel}
             </MoodStage>
 
-            <div className="flex justify-center">
+            <div className="flex flex-wrap items-start justify-center gap-3">
               <GradientButton onClick={() => generate(false)} disabled={selectedMoods.length===0 || generating} className="px-10 py-4 text-base">
                 {selectedMoods.length>0 ? t.findBtn : t.pickMoodBtn}
               </GradientButton>
+              {OtherSuggestionsBtn}
             </div>
           </div>
         </div>

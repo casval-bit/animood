@@ -59,7 +59,7 @@ alter table game_elo add column if not exists pts_cluescale    integer not null 
 alter table game_elo add column if not exists pts_undercover   integer not null default 0;
 
 create table if not exists game_rooms (
-  id           bigint generated always as identity primary key,
+  id           uuid primary key default gen_random_uuid(),   -- uuid sur la base en ligne (game_invites.room_id y fait référence)
   game_type    text not null,               -- 'chain' | 'timeline' | 'cluescale'
   player1      text not null,
   player2      text,

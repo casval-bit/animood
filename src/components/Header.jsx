@@ -714,18 +714,6 @@ function WebHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings, onOpenD
 
         <WebNotificationBell onChangeTab={onChangeTab} onJoinGame={onJoinGame} />
 
-        {onOpenSettings && (
-          <button
-            onClick={onOpenSettings}
-            title={lang === "en" ? "Settings" : "Paramètres"}
-            aria-label={lang === "en" ? "Settings" : "Paramètres"}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[15px] transition hover:scale-110"
-            style={{ background: "rgba(var(--fg-rgb),.06)" }}
-          >
-            ⚙️
-          </button>
-        )}
-
         <button
           onClick={() => onChangeTab("messages")}
           title={t.messages}
@@ -748,6 +736,18 @@ function WebHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings, onOpenD
             </span>
           )}
         </button>
+
+        {onOpenSettings && (
+          <button
+            onClick={onOpenSettings}
+            title={lang === "en" ? "Settings" : "Paramètres"}
+            aria-label={lang === "en" ? "Settings" : "Paramètres"}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[15px] transition hover:scale-110"
+            style={{ background: "rgba(var(--fg-rgb),.06)" }}
+          >
+            ⚙️
+          </button>
+        )}
 
         <div className="hidden shrink-0 items-center gap-2 pl-2 border-l border-white/8 sm:flex">
           <div className="h-7 w-7 rounded-full overflow-hidden flex items-center justify-center text-sm shrink-0"
@@ -1078,6 +1078,23 @@ function DesktopHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
             )}
           </div>
 
+          {/* Paramètres — en premier, la messagerie est à côté de la photo de profil */}
+          {onOpenSettings && (
+            <DesktopIconBtn
+              onClick={() => { playSound("click"); onOpenSettings(); }}
+              title={lang === "en" ? "Settings" : "Paramètres"}
+              aura={aura}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3.1" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </DesktopIconBtn>
+          )}
+
+          {/* Notifications */}
+          <DesktopNotificationBell onChangeTab={onChangeTab} onJoinGame={onJoinGame} />
+
           {/* Messages */}
           <DesktopIconBtn
             active={activeTab === "messages"}
@@ -1092,23 +1109,6 @@ function DesktopHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
               <path d="M3.5 6l7.7 6a1.5 1.5 0 0 0 1.8 0l7.7-6" />
             </svg>
           </DesktopIconBtn>
-
-          {/* Notifications */}
-          <DesktopNotificationBell onChangeTab={onChangeTab} onJoinGame={onJoinGame} />
-
-          {/* Paramètres — entre les notifications et la photo de profil */}
-          {onOpenSettings && (
-            <DesktopIconBtn
-              onClick={() => { playSound("click"); onOpenSettings(); }}
-              title={lang === "en" ? "Settings" : "Paramètres"}
-              aura={aura}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3.1" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
-            </DesktopIconBtn>
-          )}
 
           {/* Séparateur */}
           <div style={{ width: 1, height: 32, background: "rgba(255,255,255,0.05)", margin: "0 4px" }} />

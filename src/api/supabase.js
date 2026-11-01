@@ -532,7 +532,9 @@ export const gameInvites = {
   },
   async getPending(username) {
     try {
-      return await sb.query(`game_invites?to_user=eq.${encodeURIComponent(username)}&status=eq.pending&order=created_at.desc&limit=20`) || [];
+      // Invitations de moins de 30 min : au-delà, la salle n'existe presque jamais encore (et le ménage les supprime après 24 h)
+      const fresh = encodeURIComponent(new Date(Date.now() - 30 * 60_000).toISOString());
+      return await sb.query(`game_invites?to_user=eq.${encodeURIComponent(username)}&status=eq.pending&created_at=gte.${fresh}&order=created_at.desc&limit=20`) || [];
     } catch { return []; }
   },
   // status: "accepted" | "declined"

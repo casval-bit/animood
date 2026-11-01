@@ -14,6 +14,7 @@ import { Spinner } from "./components/Spinner.jsx";
 import { LoginView } from "./views/LoginView.jsx";
 import { MoodboardView } from "./views/MoodboardView.jsx";
 import { DesktopUpdateBanner } from "./components/DesktopUpdateBanner.jsx";
+import { AppleLogo, AndroidLogo, LinuxLogo, WindowsLogo, PlatformBadge } from "./components/PlatformLogos.jsx";
 
 // ── Découpage par page ───────────────────────────────────────────────────────────────────────────────────
 // Chaque vue lourde est un fichier JS à part, chargé au moment où on en a besoin (le visiteur non connecté ne télécharge
@@ -481,8 +482,8 @@ function InstallQrCode({ en }) {
         alt={en ? "QR code to download the Android app" : "QR code pour télécharger l'appli Android"}
         style={{width:112,height:112,flexShrink:0,padding:6,borderRadius:12,background:"#fff",display:"block"}} />
       <div style={{fontSize:12,color:"var(--text-4, #64748b)",lineHeight:1.6}}>
-        <div style={{fontWeight:800,color:"var(--text-1, #f1f5f9)",marginBottom:2}}>
-          📱 {en ? "Scan with your Android phone" : "Scanne avec ton téléphone Android"}
+        <div style={{fontWeight:800,color:"var(--text-1, #f1f5f9)",marginBottom:2,display:"flex",alignItems:"center",gap:6}}>
+          <AndroidLogo size={15} /> {en ? "Scan with your Android phone" : "Scanne avec ton téléphone Android"}
         </div>
         {en
           ? "The APK downloads right away: open it and tap \"Install\" (the first time, allow installing from this source)."
@@ -629,9 +630,9 @@ function DownloadPage({ onClose }) {
   }, []);
 
   const platforms = [
-    { id: "win",   icon: "🪟", label: "Windows", hint: "Windows 10 / 11" },
-    { id: "mac",   icon: "🍎", label: "macOS",   hint: en ? "Intel & Apple Silicon" : "Intel et Apple Silicon" },
-    { id: "linux", icon: "🐧", label: "Linux",   hint: "AppImage / .deb" },
+    { id: "win",   icon: <WindowsLogo />, label: "Windows", hint: "Windows 10 / 11" },
+    { id: "mac",   icon: <AppleLogo />,   label: "macOS",   hint: en ? "Intel & Apple Silicon" : "Intel et Apple Silicon" },
+    { id: "linux", icon: <LinuxLogo />,   label: "Linux",   hint: "AppImage / .deb" },
   ].sort((a, b) => (b.id === os) - (a.id === os)); // le système détecté en premier
 
   const assetLabel = (name) => {
@@ -659,8 +660,8 @@ function DownloadPage({ onClose }) {
       <Section title={en ? "On your phone" : "Sur téléphone"}>
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {[
-            { id: "android", icon: "🤖", label: "Android", hint: en ? "APK · updates itself with the website" : "APK · se met à jour avec le site" },
-            { id: "ios",     icon: "🍏", label: "iPhone / iPad", hint: en ? "Safari → Share → Add to Home Screen" : "Safari → Partager → Sur l'écran d'accueil" },
+            { id: "android", icon: <AndroidLogo />, label: "Android", hint: en ? "APK · updates itself with the website" : "APK · se met à jour avec le site" },
+            { id: "ios",     icon: <AppleLogo />, label: "iPhone / iPad", hint: en ? "Safari → Share → Add to Home Screen" : "Safari → Partager → Sur l'écran d'accueil" },
           ].sort((a, b) => (b.id === os) - (a.id === os)).map(p => {
             const mine = p.id === os;
             return (
@@ -670,7 +671,7 @@ function DownloadPage({ onClose }) {
                 background: mine ? "rgba(124,58,237,0.10)" : "rgba(255,255,255,0.03)",
                 border: `1px solid ${mine ? "rgba(124,58,237,0.35)" : "rgba(255,255,255,0.06)"}`,
               }}>
-                <span style={{fontSize:26}}>{p.icon}</span>
+                <PlatformBadge highlight={mine}>{p.icon}</PlatformBadge>
                 <div style={{flex:1,minWidth:140}}>
                   <div style={{fontSize:14,fontWeight:800,color:"var(--text-1, #f1f5f9)"}}>
                     {p.label}{mine && <span style={{marginLeft:8,fontSize:10,fontWeight:800,color:"#c084fc"}}>{en ? "YOUR DEVICE" : "TON APPAREIL"}</span>}
@@ -732,7 +733,7 @@ function DownloadPage({ onClose }) {
                   background: mine ? "rgba(124,58,237,0.10)" : "rgba(255,255,255,0.03)",
                   border: `1px solid ${mine ? "rgba(124,58,237,0.35)" : "rgba(255,255,255,0.06)"}`,
                 }}>
-                  <span style={{fontSize:26}}>{p.icon}</span>
+                  <PlatformBadge highlight={mine}>{p.icon}</PlatformBadge>
                   <div style={{flex:1,minWidth:140}}>
                     <div style={{fontSize:14,fontWeight:800,color:"var(--text-1, #f1f5f9)"}}>
                       {p.label}{mine && <span style={{marginLeft:8,fontSize:10,fontWeight:800,color:"#c084fc"}}>{en ? "YOUR SYSTEM" : "TON SYSTÈME"}</span>}

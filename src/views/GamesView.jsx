@@ -4,6 +4,7 @@ import { useApp } from "../context/useApp.js";
 import { useLang } from "../context/useLang.js";
 import { WordleGame, PosterGame, OpQuizGame } from "../components/MiniGames.jsx";
 import { Matchmaking, ChainGame, TimelineGame, CluescaleMatchmaking, CluescaleGame, UndercoverLobby, UndercoverGame } from "../components/GameSystem.jsx";
+import { joinFromInvite, joinErrorText } from "../utils/gameRooms.js";
 import { TierlistStudio } from "../components/Tierlist.jsx";
 import { GameModal } from "../components/Modal.jsx";
 import { FORUM_I18N } from "../constants/forumI18n.js";
@@ -88,7 +89,7 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
         <div style={{marginTop:7,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",borderRadius:9,
           background:"linear-gradient(90deg,rgba(124,58,237,0.08),rgba(56,189,248,0.05))",border:"1px solid rgba(255,255,255,0.06)"}}>
           <div style={{fontSize:9,color:"var(--text-5)",fontWeight:700}}>{t.unlocksFramesLabel}</div>
-          <div style={{fontSize:13,fontWeight:900,color:"var(--text-1)"}}>{elo ? (elo.elo_chain||400)+(elo.elo_timeline||400)+(elo.pts_wordle||0)+(elo.pts_poster||0)+(elo.pts_opquiz||0)+(elo.pts_cluescale||0)+(elo.pts_undercover||0)+(elo.pts_undercover||0) : 0}</div>
+          <div style={{fontSize:13,fontWeight:900,color:"var(--text-1)"}}>{elo ? (elo.elo_chain||400)+(elo.elo_timeline||400)+(elo.pts_wordle||0)+(elo.pts_poster||0)+(elo.pts_opquiz||0)+(elo.pts_cluescale||0)+(elo.pts_undercover||0) : 0}</div>
         </div>
       )}
 
@@ -230,48 +231,40 @@ export function GamesView({ pendingJoinGame, onClearPendingJoin }) {
   const chainCloseRef    = useRef(null);
   const timelineCloseRef = useRef(null);
 
-  // Auto-join from invite
+  // Rejoindre une partie après avoir accepté une invitation dans la cloche : prise de place atomique (gameRooms.js),
+  // et un message clair si la partie n'existe plus, est déjà prise ou déjà commencée.
+  const [joinNotice, setJoinNotice] = useState("");
+  const [cluescaleInvite, setCluescaleInvite] = useState(null);
+  useEffect(() => {
+    if(!joinNotice) return;
+    const id = setTimeout(() => setJoinNotice(""), 6000);
+    return () => clearTimeout(id);
+  }, [joinNotice]);
   useEffect(() => {
     if(!pendingJoinGame) return;
     const { gameType, roomId, privateCode } = pendingJoinGame;
     onClearPendingJoin?.();
-    if(gameType === "cluescale") {
-      sb.query(`game_rooms?id=eq.${roomId}&limit=1`).then(async rows => {
-        const r = rows?.[0];
-        if(!r) return;
-        const currentPlayers = r.state?.players || [r.player1, r.player2, r.player3, r.player4].filter(Boolean);
-        if(currentPlayers.includes(myUsername) || currentPlayers.length >= 4) {
-          setCluescaleRoom({...r, players: currentPlayers});
-          return;
-        }
-        const newPlayers = [...currentPlayers, myUsername];
-        const playerField = `player${newPlayers.length}`;
-        await sb.query(`game_rooms?id=eq.${r.id}`, {
-          method: "PATCH", headers: { ...sb.headers, "Prefer": "return=minimal" },
-          body: JSON.stringify({ [playerField]: myUsername, state: {...r.state, players: newPlayers} }),
-        }).catch(()=>{});
-        setCluescaleRoom({...r, [playerField]: myUsername, state: {...r.state, players: newPlayers}, players: newPlayers});
-      }).catch(()=>{});
-    } else {
-      sb.query(`game_rooms?private_code=eq.${encodeURIComponent(privateCode)}&status=eq.waiting&limit=1`).then(async rows => {
-        const r = rows?.[0];
-        if(!r) return;
-        await sb.query(`game_rooms?id=eq.${r.id}`, {
-          method: "PATCH", headers: { ...sb.headers, "Prefer": "return=minimal" },
-          body: JSON.stringify({ player2: myUsername, elo2: 400, status: "active" }),
-        }).catch(()=>{});
-        setActiveRoom({...r, player2: myUsername, elo2: 400});
+    joinFromInvite({ gameType, roomId, privateCode, me: myUsername }).then(res => {
+      if(!res.ok) { setJoinNotice(joinErrorText(res.reason, lang)); return; }
+      if(gameType === "cluescale") {
+        if(res.room.status === "active") setCluescaleRoom(res.room);
+        else { setCluescaleInvite(res.room); setShowCluescale(true); }
+      } else {
+        setActiveRoom(res.room);
         setActiveGame(gameType);
-      }).catch(()=>{});
-    }
+      }
+    }).catch(() => setJoinNotice(joinErrorText("invalid", lang)));
   }, [pendingJoinGame]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGameClose = async (gameRef) => {
-    if(gameRef) {
+    // Partie déjà terminée (ou contre l'IA) : on ferme sans rien demander ; sinon quitter = abandon
+    if(gameRef && !gameRef.isOver?.()) {
       const confirmed = window.confirm("Êtes-vous sûr de vouloir quitter ? Cela comptera comme un abandon.");
       if(!confirmed) return;
       await gameRef();
     }
+    chainCloseRef.current = null;
+    timelineCloseRef.current = null;
     setActiveRoom(null);
     setActiveGame(null);
   };
@@ -348,11 +341,19 @@ export function GamesView({ pendingJoinGame, onClearPendingJoin }) {
             onReady={(forfaitFn)=>{ timelineCloseRef.current = forfaitFn; }}/>}
         </GameModal>
       )}
+      {joinNotice && (
+        <div onClick={()=>setJoinNotice("")} role="alert"
+          style={{position:"fixed",top:76,left:"50%",transform:"translateX(-50%)",zIndex:3000,maxWidth:"90vw",
+            padding:"10px 18px",borderRadius:12,background:"rgba(15,12,30,0.96)",border:"1px solid rgba(251,191,36,0.4)",
+            color:"#fbbf24",fontSize:13,fontWeight:700,boxShadow:"0 8px 30px rgba(0,0,0,0.5)",cursor:"pointer"}}>
+          {joinNotice}
+        </div>
+      )}
       {showCluescale && !cluescaleRoom && (
-        <GameModal onClose={()=>setShowCluescale(false)} title={`🎭 ${t.cluescaleLabel}`} maxWidth="400px">
-          {() => <CluescaleMatchmaking
-            onClose={()=>setShowCluescale(false)}
-            onMatch={room=>{setCluescaleRoom(room);setShowCluescale(false);}}/>}
+        <GameModal onClose={()=>{setShowCluescale(false);setCluescaleInvite(null);}} title={`🎭 ${t.cluescaleLabel}`} maxWidth="400px">
+          {() => <CluescaleMatchmaking initialRoom={cluescaleInvite}
+            onClose={()=>{setShowCluescale(false);setCluescaleInvite(null);}}
+            onMatch={room=>{setCluescaleRoom(room);setShowCluescale(false);setCluescaleInvite(null);}}/>}
         </GameModal>
       )}
       {cluescaleRoom && (
