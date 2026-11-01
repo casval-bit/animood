@@ -4,4 +4,4 @@ User-agent: *
 Allow: /
 Disallow: /downloads/
 
-Sitemap: https://animood-rho.vercel.app/sitemap.xml
+Sitemap: https://animood.me/sitemap.xml

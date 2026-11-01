@@ -3,7 +3,7 @@
 // ⚠️ Les trois adresses e-mail doivent être de VRAIES boîtes que tu consultes (obligation RGPD : les utilisateurs
 //    doivent pouvoir te joindre). Remplace-les ici si le domaine animood.app n'est pas à toi.
 export const SITE_INFO = {
-  url: "https://animood-rho.vercel.app",
+  url: "https://animood.me",
   contactEmail: "contact@animood.app",   // contact général
   legalEmail: "legal@animood.app",       // droits d'auteur, signalement de contenu illicite
   privacyEmail: "privacy@animood.app",   // données personnelles (RGPD)

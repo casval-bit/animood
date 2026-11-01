@@ -435,7 +435,7 @@ async function jobLivechart() {
   const started = [];
   let xml;
   try {
-    const r = await fetch("https://www.livechart.me/feeds/episodes", { headers: { "User-Agent": "AniMood-sync (+https://animood-rho.vercel.app)", "Accept": "application/rss+xml, application/xml, text/xml" } });
+    const r = await fetch("https://www.livechart.me/feeds/episodes", { headers: { "User-Agent": "AniMood-sync (+https://animood.me)", "Accept": "application/rss+xml, application/xml, text/xml" } });
     if(!r.ok) { log(`  ⚠️ LiveChart indisponible (HTTP ${r.status}) — on continue sans`); return started; }
     xml = await r.text();
   } catch(e) { log(`  ⚠️ LiveChart injoignable (${e.message}) — on continue sans`); return started; }

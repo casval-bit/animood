@@ -448,7 +448,7 @@ function ModerationPage({ onClose }) {
 const RELEASES_URL = "https://github.com/casval-bit/animood/releases/latest";
 const RELEASES_API = "https://api.github.com/repos/casval-bit/animood/releases/latest";
 const APK_URL = "/downloads/AniMood.apk"; // public/downloads/ — remplacer le fichier pour une nouvelle version
-const SITE_URL = "https://animood-rho.vercel.app";
+const SITE_URL = "https://animood.me";
 
 // Lien du QR code : l'APK lui-même, le téléchargement démarre dès le scan
 // (en local, celui du site en ligne : le téléphone ne voit pas localhost)
