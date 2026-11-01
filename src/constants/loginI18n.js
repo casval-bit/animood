@@ -1,15 +1,41 @@
 export const LOGIN_I18N = {
   fr: {
-    tagline: "Découvre des animés selon ton mood",
+    heroLine1: "Dis-nous ton mood,",
+    heroLine2: "on trouve ton prochain animé.",
+    heroSub: "Pas envie de scroller des heures ? Choisis ce que tu ressens, AniMood te sort les animés qui collent.",
+    pickMood: "T'es plutôt…",
+    teaserCta: "Connecte-toi pour ton Moodboard perso →",
+    cardTitle: "Rejoins AniMood",
+    cardSub: "Une seule étape : ton compte Google.",
     googleBtn: "Se connecter avec Google",
+    inBrowser: "Termine la connexion dans ton navigateur — AniMood se rouvrira tout seul.",
     disclaimer: "En te connectant tu acceptes que tes données soient stockées dans AniMood.",
     disclaimer2: "Aucune donnée n'est partagée avec des tiers.",
+    features: [
+      { icon: "🎭", title: "Moodboard",   text: "Des recos selon ton humeur du moment" },
+      { icon: "🏆", title: "Tierlists",   text: "Classe tes animés, exporte ta tierlist" },
+      { icon: "🎵", title: "Mini-jeux",   text: "Quiz d'openings, LinkUp, Timeline…" },
+      { icon: "💬", title: "Communauté",  text: "Feed, forum et messages entre fans" },
+    ],
   },
 
   en: {
-    tagline: "Discover anime based on your mood",
+    heroLine1: "Tell us your mood,",
+    heroLine2: "we'll find your next anime.",
+    heroSub: "Tired of scrolling for hours? Pick how you feel, AniMood finds the anime that fit.",
+    pickMood: "Feeling…",
+    teaserCta: "Sign in for your own Moodboard →",
+    cardTitle: "Join AniMood",
+    cardSub: "Just one step: your Google account.",
     googleBtn: "Sign in with Google",
+    inBrowser: "Finish signing in in your browser — AniMood will open again automatically.",
     disclaimer: "By signing in, you agree that your data will be stored in AniMood.",
     disclaimer2: "No data is shared with third parties.",
+    features: [
+      { icon: "🎭", title: "Moodboard",   text: "Picks that match how you feel right now" },
+      { icon: "🏆", title: "Tierlists",   text: "Rank your anime, export your tierlist" },
+      { icon: "🎵", title: "Mini-games",  text: "Opening quiz, LinkUp, Timeline…" },
+      { icon: "💬", title: "Community",   text: "Feed, forum and messages between fans" },
+    ],
   },
 };

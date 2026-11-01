@@ -4,7 +4,7 @@
   "version": "14.0.0",
   "description": "AniMood — découvre des animés selon ton humeur",
   "author": "AniMood <mousjabie@gmail.com>",
-  "homepage": "https://animood-rho.vercel.app",
+  "homepage": "https://animood.me",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {

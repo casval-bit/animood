@@ -162,6 +162,38 @@ body {
 }
 .animate-float { animation: float 3s ease-in-out infinite; }
 
+/* ─── PAGE DE CONNEXION (LoginView) ──────────────────────────────────────────
+   Mur d'affiches qui défile en fond + entrées animées. Le voile reprend la couleur du fond
+   du thème pour que les affiches restent une ambiance et ne gênent pas la lecture. */
+:root { --login-veil: 7,11,23; }
+:root[data-theme="light"] { --login-veil: 207,200,232; }
+.login-veil {
+  background:
+    radial-gradient(ellipse 75% 65% at 38% 45%, rgba(var(--login-veil),.72) 0%, rgba(var(--login-veil),.9) 60%, rgba(var(--login-veil),.97) 100%);
+}
+@keyframes login-wall-up { from { transform: translateY(0); } to { transform: translateY(-50%); } }
+.login-wall-col { animation: login-wall-up 80s linear infinite; will-change: transform; }
+.login-wall-col--down { animation-direction: reverse; }
+
+@keyframes login-rise {
+  from { opacity: 0; transform: translateY(22px); }
+  to   { opacity: 1; transform: none; }
+}
+.login-rise { animation: login-rise .7s cubic-bezier(.22,1,.36,1) both; }
+
+@keyframes login-poster-in {
+  from { opacity: 0; transform: translateY(14px) scale(.92); }
+  to   { opacity: 1; transform: none; }
+}
+.login-poster-in { animation: login-poster-in .5s cubic-bezier(.34,1.4,.64,1) both; }
+
+@keyframes login-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.login-fade-in { animation: login-fade-in .4s ease both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .login-wall-col, .login-rise, .login-poster-in, .login-fade-in { animation: none; }
+}
+
 /* Thin, unobtrusive scrollbars everywhere — desktop-grid layout has a lot of scroll areas */
 * {
   scrollbar-width: thin;
