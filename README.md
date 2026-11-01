@@ -2,7 +2,7 @@
 
 **Découvre des animés selon ton humeur.** Moodboard, feed, forum, mini-jeux, profils et messages.
 
-🌐 **Site :** https://animood-rho.vercel.app
+🌐 **Site :** https://animood.me
 📲 **Applis :** sur le site, bouton « Télécharger l'appli » (header ou footer)
 
 React + Vite + Tailwind · Supabase (base de données) · Jikan / AniList / AnimeThemes (catalogue)
@@ -13,7 +13,7 @@ React + Vite + Tailwind · Supabase (base de données) · Jikan / AniList / Anim
 
 | Plateforme | Comment l'avoir |
 |---|---|
-| 🌐 Web | https://animood-rho.vercel.app |
+| 🌐 Web | https://animood.me |
 | 🤖 Android | APK à télécharger sur le site |
 | 🍏 iPhone / iPad | Safari → Partager → « Sur l'écran d'accueil » |
 | 🪟 Windows · 🍎 Mac · 🐧 Linux | Installateurs sur le site (releases GitHub) |
@@ -110,8 +110,8 @@ Fichiers SQL dans `supabase/`, à lancer dans l'éditeur SQL de Supabase.
 `security_rls_1_private` → `security_rls_2_reference` (retour en arrière : `security_rls_rollback`)
 
 **Réglages Supabase** (Authentication → URL Configuration)
-- Site URL : `https://animood-rho.vercel.app`
-- Redirect URLs : `https://animood-rho.vercel.app/**` et `animood://**` (connexion depuis l'appli de bureau)
+- Site URL : `https://animood.me`
+- Redirect URLs : `https://animood.me/**`, `https://www.animood.me/**`, `https://animood-rho.vercel.app/**` (encore chargée par l'appli de bureau et l'APK) et `animood://**` (connexion depuis l'appli de bureau)
 
 ---
 
