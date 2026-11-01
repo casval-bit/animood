@@ -168,8 +168,8 @@ function ContactPage({ onClose }) {
             icon:"📧",
             title:"Email",
             desc:"Pour toute question générale",
-            action:"contact@animood.app",
-            href:"mailto:contact@animood.app",
+            action:"animood.officiel@gmail.com",
+            href:"mailto:animood.officiel@gmail.com",
           },
           {
             icon:"🐛",
