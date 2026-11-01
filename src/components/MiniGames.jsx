@@ -233,6 +233,23 @@ export function WordleGame({ onClose }) {
     await evaluateGuess(anime);
   };
 
+  // Partage façon Wordle : une ligne de carrés par essai, sans dévoiler l'animé.
+  const [shared, setShared] = useState(false);
+  const shareResult = async () => {
+    const emoji = { correct:"🟩", close:"🟧", wrong:"🟥" };
+    const rows = guesses.map(g => g.cells.map(c => emoji[c.status] || "⬛").join("")).join("\n");
+    const text = `${t.shareTitle} #${getDayIndex() + 1} · ${status === "won" ? guesses.length : "X"}/${MAX_TRIES}\n\n${rows}\n\nhttps://animood.me`;
+    // Sur mobile : feuille de partage native. Ailleurs (PC, appli de bureau) : presse-papiers.
+    if(navigator.share && window.matchMedia?.("(pointer: coarse)").matches) {
+      try { await navigator.share({ text }); return; }
+      catch(e) { if(e?.name === "AbortError") return; }
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setShared(true); setTimeout(() => setShared(false), 2500);
+    } catch(e) { console.error(e); }
+  };
+
   if(loading) return (
     <div style={{padding:32,textAlign:"center",color:"var(--text-3)"}}>
       <div style={{fontSize:32,marginBottom:8}}>🎮</div>
@@ -262,6 +279,16 @@ export function WordleGame({ onClose }) {
           <div style={{fontSize:16,marginBottom:4,color:RED}}>{t.lostTitle}</div>
           <div style={{fontSize:13,fontWeight:700,color:"var(--text-1)"}}>{target?.title}</div>
           <div style={{fontSize:11,color:"var(--text-4)",marginTop:4}}>{target?.year} · {(target?.studios||[]).map(s=>s.name||s).join(", ")}</div>
+        </div>
+      )}
+      {status !== "playing" && guesses.length > 0 && (
+        <div style={{textAlign:"center",marginTop:-6,marginBottom:16}}>
+          <button type="button" onClick={shareResult}
+            style={{padding:"9px 18px",borderRadius:999,border:"none",cursor:"pointer",fontSize:12,fontWeight:800,
+              color:"#fff",background:shared?GREEN:"linear-gradient(135deg,#7c3aed,#c026d3)",
+              boxShadow:"0 4px 16px rgba(124,58,237,0.35)"}}>
+            {shared ? t.shareCopied : `📤 ${t.share}`}
+          </button>
         </div>
       )}
 

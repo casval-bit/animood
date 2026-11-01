@@ -418,7 +418,7 @@ export function TierlistStudio() {
               </div>
             ))}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, fontSize: 9, letterSpacing: 2, fontWeight: 800, textTransform: "uppercase", color: "rgba(167,139,250,.55)" }}>
-              <span>AniMood</span><span>{L.placed(rankedCount, totalCount)}</span>
+              <span>AniMood · <span style={{ fontSize: 11, color: "#c4b5fd", textTransform: "none", letterSpacing: 1 }}>animood.me</span></span><span>{L.placed(rankedCount, totalCount)}</span>
             </div>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, padding: "6px 12px 14px" }}>
