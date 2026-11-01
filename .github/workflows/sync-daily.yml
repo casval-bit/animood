@@ -42,6 +42,11 @@ jobs:
         id: daily
         run: node scripts/animood_sync.mjs --job=daily 2>&1 | tee /tmp/daily_log.txt
 
+      - name: Ménage des parties fantômes et des invitations périmées
+        if: always()
+        continue-on-error: true
+        run: node scripts/cleanup_game_rooms.mjs 2>&1 | tee -a /tmp/daily_log.txt
+
       - name: Write summary
         if: always()
         run: |

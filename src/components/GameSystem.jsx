@@ -1,83 +1,31 @@
-// ─── GAME SYSTEM — Matchmaking + Chain + Timeline ─────────────────────────────
+// ─── GAME SYSTEM — Matchmaking + Chain + Timeline + Cluescale + Undercover ───────
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useApp } from "../context/useApp.js";
 import { sb, supabase, gameInvites } from "../api/supabase.js";
 import { Spinner } from "./Spinner.jsx";
 import { useLang } from "../context/useLang.js";
 import { GAME_SYSTEM_I18N } from "../constants/gameSystemI18n.js";
+import {
+  FORFEIT_PENALTY, FORFEIT_BONUS, isRankedRoom, chainGameOutcome, timelineGameOutcome,
+  chainAfterRoundLoss, chainAiPick, chainLinkForTurn, isChainLinkValid, dealTimeline, timelineMove, timelineAiMove,
+  cluescaleScoreRound, cluescaleWinnerPoints,
+} from "../utils/gameRules.js";
+import { UNDERCOVER_WORDS } from "../constants/undercoverWords.js";
+import { isGuessCorrect, isClueForbidden, pickEntry, undercoverPoints, tallyVotes } from "../utils/undercoverRules.js";
+import {
+  RANKED_FRESH_MS, HEARTBEAT_PRIVATE_MS, agoIso, claimSeat, heartbeatRoom,
+  deleteWaitingRoom, deleteMyWaitingRooms, getOrCreateElo, updateElo, claimFinish, newRoomCode, cleanRoomCode,
+  joinPrivateRoom, joinCluescaleRoom, joinErrorText, roomPlayers,
+} from "../utils/gameRooms.js";
 
 const GREEN  = "#22c55e";
 const ORANGE = "#f97316";
 const RED    = "#ef4444";
 const sleep  = ms => new Promise(r => setTimeout(r, ms));
+const aiRoomId = () => "ai-" + Date.now();   // identifiant d'une partie contre l'IA (jamais envoyée à la base)
 
-// ─── ELO helpers ──────────────────────────────────────────────────────────────
-// Chain Elo rules:
-// Same bracket: +20/-18 for 2-1, +23/-22 for 2-0
-// Higher bracket vs lower: higher wins +10/-30, lower wins +30/-10
-// Forfait/cheat: cheater -40, victim +5
-// Timeline Elo rules:
-// Same bracket: +20/-20
-// Different bracket: higher wins +15/-25, lower wins +25/-15
+// Les règles (ELO, manches, cartes, IA) sont dans src/utils/gameRules.js ; l'accès aux salles dans src/utils/gameRooms.js.
 
-async function getOrCreateElo(username) {
-  const rows = await sb.query(`game_elo?username=eq.${encodeURIComponent(username)}&limit=1`).catch(()=>[]);
-  if(rows?.[0]) return rows[0];
-  await sb.query("game_elo", {
-    method: "POST",
-    headers: { ...sb.headers, "Prefer": "resolution=ignore-duplicates,return=minimal" },
-    body: JSON.stringify({ username, elo_chain:400, elo_timeline:400, points_total:0 }),
-  }).catch(()=>{});
-  return { username, elo_chain:400, elo_timeline:400, points_total:0 };
-}
-
-function getEloBracket(elo, waitTime=0) {
-  // Brackets expand with wait time: starts at ±50, grows by 5 per 2s
-  const range = Math.min(50 + waitTime * 5, 400);
-  return Math.floor(elo / range);
-}
-
-function calcChainElo(eloA, eloB, resultA, score) {
-  // resultA: 1=win, 0=loss, 0.5=draw
-  // score: "2-0" or "2-1"
-  const bracketA = Math.floor(eloA / 100);
-  const bracketB = Math.floor(eloB / 100);
-  const sameBracket = bracketA === bracketB;
-
-  if(resultA === 1) {
-    if(sameBracket) return score === "2-0" ? 23 : 20;
-    return eloA > eloB ? 10 : 30;
-  } else if(resultA === 0) {
-    if(sameBracket) return score === "2-0" ? -22 : -18;
-    return eloA > eloB ? -30 : -10;
-  }
-  return 0;
-}
-
-function calcTimelineElo(eloA, eloB, resultA) {
-  const bracketA = Math.floor(eloA / 100);
-  const bracketB = Math.floor(eloB / 100);
-  const sameBracket = bracketA === bracketB;
-  if(resultA === 1) return sameBracket ? 20 : (eloA > eloB ? 15 : 25);
-  if(resultA === 0) return sameBracket ? -20 : (eloA > eloB ? -25 : -15);
-  return 0; // draw
-}
-
-async function updateElo(username, field, delta, pointsDelta=0) {
-  const row = await getOrCreateElo(username);
-  const current = row[field] || 400;
-  const newElo = Math.max(0, current + delta); // never below 0
-  await sb.query(`game_elo?username=eq.${encodeURIComponent(username)}`, {
-    method: "PATCH",
-    headers: { ...sb.headers, "Prefer": "return=minimal" },
-    body: JSON.stringify({
-      [field]: newElo,
-      points_total: Math.max(0, (row.points_total||0) + pointsDelta),
-      updated_at: new Date().toISOString()
-    }),
-  }).catch(()=>{});
-  return newElo;
-}
 
 // ─── FRIEND INVITE LIST — invite a follower/following into a private room ─────
 function FriendInviteList({ myUsername, gameType, roomId, privateCode }) {
@@ -146,194 +94,234 @@ function FriendInviteList({ myUsername, gameType, roomId, privateCode }) {
   );
 }
 
+
 // ─── MATCHMAKING ──────────────────────────────────────────────────────────────
-function generateCode() {
-  return Math.random().toString(36).substring(2,7).toUpperCase();
-}
+// Garanties (voir src/utils/gameRooms.js) : une place ne se prend qu'une fois (prise atomique côté base), une salle qui
+// attend est « réveillée » en continu (une salle sans réveil depuis 25 s est ignorée), et ce client ne supprime que SA
+// salle en attente — jamais celle d'un autre.
+const BTN_PRIMARY = { padding:"12px 20px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer" };
+
+// Textes ajoutés pour la fiabilité des parties (FR / EN)
+const GS_EXTRA = {
+  fr: {
+    aiPickLevel: "Choisis la difficulté", aiEasy: "🟢 Facile", aiMedium: "🟡 Moyen", aiHard: "🔴 Difficile", aiName: "IA",
+    aiEasyDesc: "L'IA rate 30% du temps", aiMediumDesc: "L'IA rate 15% du temps", aiHardDesc: "L'IA rate 5% du temps",
+    launching: "Lancement… ⚔️", netError: "Connexion impossible — réessaie dans un instant.", retry: "Réessayer",
+    roomGone: "La salle n'existe plus.",
+    youForfeited: "Partie abandonnée — défaite", opponentGone: "Adversaire parti — Victoire !",
+    confirmForfeit: "Abandonner la partie ? Ça comptera comme une défaite.",
+    idleWarnMe: (s) => `⏳ Joue vite : abandon automatique dans ${s} s`,
+    idleWarnOpp: (s) => `L'adversaire semble parti — victoire automatique dans ${s} s`,
+    dealing: "Distribution des cartes…", dealFail: "La partie n'a pas pu démarrer (cartes introuvables). Aucun ELO n'est modifié.",
+    dealWait: "En attente de la distribution…", leave: "Quitter",
+    cluIdle: "Un joueur semble absent (aucune action depuis 1 min 30).", cluReveal: "Révéler avec les votes reçus", cluEnd: "Terminer la partie",
+    cluNext: "Tour suivant →", cluRoomGone: "La salle n'existe plus (l'hôte est parti).", cluLeave: "Quitter la salle",
+    ucForbidden: "Tu ne peux pas écrire le mot secret : trouve un autre indice.",
+  },
+  en: {
+    aiPickLevel: "Pick a difficulty", aiEasy: "🟢 Easy", aiMedium: "🟡 Medium", aiHard: "🔴 Hard", aiName: "AI",
+    aiEasyDesc: "The AI misses 30% of the time", aiMediumDesc: "The AI misses 15% of the time", aiHardDesc: "The AI misses 5% of the time",
+    launching: "Launching… ⚔️", netError: "Connection failed — try again in a moment.", retry: "Retry",
+    roomGone: "The room no longer exists.",
+    youForfeited: "Game forfeited — defeat", opponentGone: "Opponent left — Victory!",
+    confirmForfeit: "Forfeit the game? It will count as a loss.",
+    idleWarnMe: (s) => `⏳ Play fast: automatic forfeit in ${s}s`,
+    idleWarnOpp: (s) => `Your opponent seems gone — automatic win in ${s}s`,
+    dealing: "Dealing the cards…", dealFail: "The game couldn't start (no cards found). No ELO was changed.",
+    dealWait: "Waiting for the deal…", leave: "Leave",
+    cluIdle: "A player seems to be away (no action for 1 min 30).", cluReveal: "Reveal with the votes received", cluEnd: "End the game",
+    cluNext: "Next turn →", cluRoomGone: "The room no longer exists (the host left).", cluLeave: "Leave the room",
+    ucForbidden: "You can't write the secret word: find another clue.",
+  },
+};
 
 export function Matchmaking({ gameType, onMatch, onClose }) {
   const { myUsername } = useApp();
   const { lang } = useLang();
   const t = (GAME_SYSTEM_I18N[lang] || GAME_SYSTEM_I18N.fr).matchmaking;
   const tc = (GAME_SYSTEM_I18N[lang] || GAME_SYSTEM_I18N.fr).common;
-  const [mode, setMode]           = useState(null); // null | ranked | private-create | private-join
-  const [status, setStatus]       = useState("searching");
+  const x = GS_EXTRA[lang] || GS_EXTRA.fr;
+  const eloField = gameType === "chain" ? "elo_chain" : "elo_timeline";
+  const [mode, setMode]           = useState(null); // null | ranked | vs-ai | private-create | private-join
+  const [status, setStatus]       = useState("searching"); // searching | found | error
   const [waitTime, setWaitTime]   = useState(0);
   const [myElo, setMyElo]         = useState(400);
   const [privateCode, setPrivateCode] = useState("");
   const [myRoomId, setMyRoomId]   = useState(null);
   const [joinCode, setJoinCode]   = useState("");
   const [joinError, setJoinError] = useState("");
-  const roomRef = useRef(null);
-  const subRef  = useRef(null);
+  const [retryKey, setRetryKey]   = useState(0);
+  const ownRoomRef = useRef(null);   // ma salle qui attend un adversaire (à supprimer si je pars)
+  const subsRef    = useRef([]);     // canaux temps réel ouverts
+  const timersRef  = useRef([]);     // délais en cours (ouverture de la partie)
+  const matchedRef = useRef(false);
 
-  const cancelAndClose = () => {
-    if(subRef.current) supabase.removeChannel(subRef.current);
-    if(roomRef.current) sb.query(`game_rooms?id=eq.${roomRef.current}&status=eq.waiting`,{method:"DELETE"}).catch(()=>{});
-    onClose();
+  const stopSubs = () => { subsRef.current.forEach(c => supabase.removeChannel(c)); subsRef.current = []; };
+  const leave = () => {
+    stopSubs();
+    timersRef.current.forEach(clearTimeout); timersRef.current = [];
+    const id = ownRoomRef.current; ownRoomRef.current = null;
+    if(id && !matchedRef.current) deleteWaitingRoom(id);
   };
+  const matched = (room, delay = 500) => {
+    if(matchedRef.current) return;
+    matchedRef.current = true;
+    ownRoomRef.current = null;
+    stopSubs();
+    setStatus("found");
+    timersRef.current.push(setTimeout(() => onMatch(room), delay));
+  };
+  const cancelAndClose = () => { leave(); onClose(); };
+  // Fermeture de la fenêtre sans passer par « Annuler » : on retire quand même ma salle
+  useEffect(() => leave, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── RANKED ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     if(mode !== "ranked") return;
-    let cancelled = false, interval;
-    (async () => {
-      const elo = await getOrCreateElo(myUsername);
-      const eloField = gameType === "chain" ? "elo_chain" : "elo_timeline";
-      const eloVal = elo[eloField] || 400;
-      setMyElo(eloVal);
+    let cancelled = false, busy = false, waited = 0, myRoom = null, myEloVal = 400;
+    const ids = [];
+    const stopLocal = () => { ids.forEach(clearInterval); ids.length = 0; };
 
-      // Random delay 0-1s so players don't all create rooms simultaneously
-      await new Promise(r => setTimeout(r, Math.random() * 1000));
+    // Salles en attente compatibles. Quand j'attends moi-même, je ne rejoins que les salles créées AVANT la mienne :
+    // sinon deux joueurs qui se trouvent en même temps rejoindraient chacun la salle de l'autre (deux parties fantômes).
+    const findCandidates = async (range) => {
+      const rows = await sb.query(
+        `game_rooms?game_type=eq.${gameType}&status=eq.waiting&player1=neq.${encodeURIComponent(myUsername)}&private_code=is.null&player2=is.null` +
+        `&updated_at=gte.${encodeURIComponent(agoIso(RANKED_FRESH_MS))}&order=created_at.asc&limit=10`
+      ).catch(() => []);
+      return (rows || [])
+        .filter(r => Math.abs((r.elo1 || 400) - myEloVal) <= range)
+        .filter(r => !myRoom || r.created_at < myRoom.created_at || (r.created_at === myRoom.created_at && String(r.id) < String(myRoom.id)))
+        .sort((a, b) => Math.abs((a.elo1 || 400) - myEloVal) - Math.abs((b.elo1 || 400) - myEloVal));
+    };
+    const tryClaim = async (range) => {
+      for(const cand of await findCandidates(range)) {
+        const claimed = await claimSeat(cand.id, { player2: myUsername, elo2: myEloVal, status: "active" });
+        if(claimed) return claimed;
+      }
+      return null;
+    };
+
+    const host = async () => {
       if(cancelled) return;
-
-      // First check if there's already a room to join
-      const findRoom = async (range) => {
-        const twoMinAgo = new Date(Date.now() - 120000).toISOString();
-        const rooms = await sb.query(`game_rooms?game_type=eq.${gameType}&status=eq.waiting&player1=neq.${encodeURIComponent(myUsername)}&private_code=is.null&player2=is.null&updated_at=gte.${encodeURIComponent(twoMinAgo)}&limit=10`).catch(()=>[]);
-        return (rooms||[]).filter(r=>Math.abs((r.elo1||400)-eloVal)<=range).sort((a,b)=>Math.abs((a.elo1||400)-eloVal)-Math.abs((b.elo1||400)-eloVal))[0]||null;
-      };
-
-      // Try joining immediately before creating own room
-      const immediate = await findRoom(400);
-      if(immediate && !cancelled) {
-        if(subRef.current) supabase.removeChannel(subRef.current);
-        const joinSub = supabase.channel(`room_${immediate.id}`)
-          .on("postgres_changes",{event:"UPDATE",schema:"public",table:"game_rooms",filter:`id=eq.${immediate.id}`},
-            p=>{const r=p.new;if(r.status==="active"&&r.player2&&!cancelled){setStatus("found");setTimeout(()=>onMatch(r),500);}})
-          .subscribe();
-        subRef.current = joinSub;
-        roomRef.current = immediate.id;
-        const patched = await sb.query(`game_rooms?id=eq.${immediate.id}`,{
-          method:"PATCH",
-          headers:{...sb.headers,"Prefer":"return=representation"},
-          body:JSON.stringify({player2:myUsername,elo2:eloVal,status:"active",updated_at:new Date().toISOString()})
-        }).catch(()=>null);
-        if(patched?.[0]&&!cancelled){
-          setStatus("found");
-          setTimeout(()=>onMatch({...immediate,player2:myUsername,elo2:eloVal,status:"active"}),500);
-        }
-        return;
-      }
-      // Clean up old phantom waiting rooms from this user
-      sb.query(`game_rooms?player1=eq.${encodeURIComponent(myUsername)}&status=eq.waiting&game_type=eq.${gameType}`,
-        {method:"DELETE"}).catch(()=>{});
-
-      const created = await sb.query("game_rooms",{method:"POST",headers:{...sb.headers,"Prefer":"return=representation"},body:JSON.stringify({game_type:gameType,player1:myUsername,elo1:eloVal,status:"waiting",state:{},ranked:true,updated_at:new Date().toISOString()})}).catch(()=>null);
-      const myRoom = created?.[0];
-      if(!myRoom||cancelled) return;
-      roomRef.current = myRoom.id;
-      const sub = supabase.channel(`room_${myRoom.id}`)
-        .on("postgres_changes",{event:"UPDATE",schema:"public",table:"game_rooms",filter:`id=eq.${myRoom.id}`},
-          p=>{const r=p.new;if(r.status==="active"&&r.player2&&!cancelled){setStatus("found");setTimeout(()=>onMatch(r),1000);}})
-        .subscribe();
-      subRef.current = sub;
-      let waited = 0;
-
-      // Polling fallback for creator — in case Realtime misses the update
-      const creatorPoll = setInterval(async () => {
-        if(cancelled) return;
-        const rows = await sb.query(`game_rooms?id=eq.${myRoom.id}&limit=1`).catch(()=>[]);
-        const r = rows?.[0];
-        if(r?.status === "active" && r?.player2 && !cancelled) {
-          clearInterval(creatorPoll);
-          clearInterval(interval);
-          setStatus("found");
-          setTimeout(()=>onMatch(r), 500);
-        } else if(r?.status === "waiting") {
-          // Heartbeat — keep room fresh so other players can find it
-          sb.query(`game_rooms?id=eq.${myRoom.id}`,{method:"PATCH",headers:{...sb.headers,"Prefer":"return=minimal"},body:JSON.stringify({updated_at:new Date().toISOString()})}).catch(()=>{});
-        }
-      }, 2000);
-
-      interval = setInterval(async()=>{
-        if(cancelled) return;
-        waited+=2; setWaitTime(waited);
-        const range = Math.min(50+waited*5,400);
-        const existing = await findRoom(range);
-        if(existing&&!cancelled){
-          clearInterval(interval);
-          // Subscribe to the existing room BEFORE patching
-          if(subRef.current) supabase.removeChannel(subRef.current);
-          const joinSub = supabase.channel(`room_${existing.id}`)
-            .on("postgres_changes",{event:"UPDATE",schema:"public",table:"game_rooms",filter:`id=eq.${existing.id}`},
-              p=>{const r=p.new;if(r.status==="active"&&r.player2&&!cancelled){setStatus("found");setTimeout(()=>onMatch(r),500);}})
-            .subscribe();
-          subRef.current = joinSub;
-          roomRef.current = existing.id;
-          // Delete own waiting room
-          await sb.query(`game_rooms?id=eq.${myRoom.id}`,{method:"DELETE"}).catch(()=>{});
-          // Patch the existing room to active
-          const patched = await sb.query(`game_rooms?id=eq.${existing.id}`,{
-            method:"PATCH",
-            headers:{...sb.headers,"Prefer":"return=representation"},
-            body:JSON.stringify({player2:myUsername,elo2:eloVal,status:"active",updated_at:new Date().toISOString()})
-          }).catch(()=>null);
-          // Trigger onMatch directly for the joiner since we won't receive our own UPDATE
-          if(patched?.[0]&&!cancelled){
-            setStatus("found");
-            setTimeout(()=>onMatch({...existing,player2:myUsername,elo2:eloVal,status:"active"}),500);
+      const created = await sb.query("game_rooms", {
+        method: "POST", headers: { ...sb.headers, Prefer: "return=representation" },
+        body: JSON.stringify({ game_type: gameType, player1: myUsername, elo1: myEloVal, status: "waiting", state: {}, ranked: true, updated_at: new Date().toISOString() }),
+      }).catch(() => null);
+      myRoom = created?.[0];
+      if(!myRoom) { if(!cancelled) setStatus("error"); return; }
+      if(cancelled) { deleteWaitingRoom(myRoom.id); return; }
+      ownRoomRef.current = myRoom.id;
+      const roomId = myRoom.id;
+      // Temps réel (rapide) + sondage (filet de sécurité)
+      stopSubs();
+      subsRef.current.push(supabase.channel(`room_${roomId}`)
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "game_rooms", filter: `id=eq.${roomId}` },
+          p => { const r = p.new; if(r.status === "active" && r.player2 && !cancelled) { stopLocal(); matched(r, 800); } })
+        .subscribe());
+      ids.push(setInterval(async () => {
+        if(cancelled || busy) return;
+        busy = true;
+        try {
+          const rows = await sb.query(`game_rooms?id=eq.${roomId}&limit=1`).catch(() => null);
+          if(rows === null) return;                          // erreur réseau passagère : on réessaie au prochain tour
+          const r = rows[0];
+          if(!r || r.status === "finished") {                // ma salle a disparu (nettoyage, abandon) : j'en recrée une
+            stopLocal(); ownRoomRef.current = null; await host(); return;
           }
-        }
-      },2000);
+          if(r.status === "active" && r.player2) { stopLocal(); matched(r, 500); return; }
+          heartbeatRoom(roomId);                             // « je suis toujours là » : la salle reste visible
+          waited += 2; setWaitTime(waited);
+          const cands = await findCandidates(Math.min(50 + waited * 5, 400));
+          if(!cands.length || cancelled) return;
+          // 1) je retire ma salle (atomique : échoue si quelqu'un vient de la prendre), 2) je prends celle d'un autre
+          const gone = await sb.query(`game_rooms?id=eq.${roomId}&status=eq.waiting`, { method: "DELETE", headers: { ...sb.headers, Prefer: "return=representation" } }).catch(() => null);
+          if(!gone?.[0]) {                                   // quelqu'un m'a rejoint pile à ce moment : c'est ma partie
+            const again = await sb.query(`game_rooms?id=eq.${roomId}&limit=1`).catch(() => []);
+            if(again?.[0]?.status === "active" && again[0].player2) { stopLocal(); matched(again[0], 500); }
+            return;
+          }
+          ownRoomRef.current = null; stopLocal(); stopSubs();
+          let claimed = null;
+          for(const cand of cands) {
+            claimed = await claimSeat(cand.id, { player2: myUsername, elo2: myEloVal, status: "active" });
+            if(claimed) break;
+          }
+          if(cancelled) { if(claimed) claimFinish(claimed.id); return; }
+          if(claimed) matched(claimed, 500); else await host(); // tous pris entre-temps : je me remets en attente
+        } finally { busy = false; }
+      }, 2000));
+    };
+
+    (async () => {
+      setStatus("searching"); setWaitTime(0);
+      const elo = await getOrCreateElo(myUsername);
+      myEloVal = elo[eloField] || 400;
+      setMyElo(myEloVal);
+      await deleteMyWaitingRooms(myUsername, gameType);      // mes anciennes salles oubliées (onglet fermé, plantage…)
+      await sleep(Math.random() * 800);                       // évite que tout le monde crée sa salle au même instant
+      if(cancelled) return;
+      const claimed = await tryClaim(400);                    // d'abord : rejoindre quelqu'un qui attend déjà
+      if(claimed) { if(cancelled) { claimFinish(claimed.id); return; } matched(claimed, 500); return; }
+      await host();
     })();
-    return ()=>{cancelled=true;clearInterval(interval);if(subRef.current)supabase.removeChannel(subRef.current);if(roomRef.current)sb.query(`game_rooms?id=eq.${roomRef.current}&status=eq.waiting`,{method:"DELETE"}).catch(()=>{});};
-  },[mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── CREATE PRIVATE ───────────────────────────────────────────────────────────
+    return () => { cancelled = true; stopLocal(); leave(); };
+  }, [mode, retryKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── PRIVATE : créer ──────────────────────────────────────────────────────────
   const createPrivateRoom = async () => {
-    const code = generateCode();
+    setJoinError("");
+    await deleteMyWaitingRooms(myUsername, gameType);
+    const code = newRoomCode();
+    const created = await sb.query("game_rooms", {
+      method: "POST", headers: { ...sb.headers, Prefer: "return=representation" },
+      body: JSON.stringify({ game_type: gameType, player1: myUsername, elo1: 400, status: "waiting", state: {}, ranked: false, private_code: code, updated_at: new Date().toISOString() }),
+    }).catch(() => null);
+    const myRoom = created?.[0];
+    if(!myRoom) { setJoinError(x.netError); return; }
+    ownRoomRef.current = myRoom.id;
     setPrivateCode(code);
-    const created = await sb.query("game_rooms",{method:"POST",headers:{...sb.headers,"Prefer":"return=representation"},body:JSON.stringify({game_type:gameType,player1:myUsername,elo1:400,status:"waiting",state:{},ranked:false,private_code:code})}).catch(()=>null);
-    const myRoom = created?.[0]; if(!myRoom) return;
-    roomRef.current = myRoom.id;
     setMyRoomId(myRoom.id);
-    const sub = supabase.channel(`room_${myRoom.id}`)
-      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"game_rooms",filter:`id=eq.${myRoom.id}`},
-        p=>{const r=p.new;if(r.status==="active"&&r.player2){setStatus("found");setTimeout(()=>onMatch(r),500);}})
-      .subscribe();
-    subRef.current = sub;
-
-    // Polling fallback in case Realtime misses the update
-    const pollInterval = setInterval(async () => {
-      const rows = await sb.query(`game_rooms?id=eq.${myRoom.id}&limit=1`).catch(()=>[]);
-      const r = rows?.[0];
-      if(r?.status === "active" && r?.player2) {
-        clearInterval(pollInterval);
-        setStatus("found");
-        setTimeout(()=>onMatch(r), 500);
-      }
-    }, 2000);
     setMode("private-create");
   };
-  const joinPrivateRoom = async () => {
-    setJoinError("");
-    const code = joinCode.trim().toUpperCase();
-    if(!code) return;
-    const rooms = await sb.query(`game_rooms?private_code=eq.${code}&status=eq.waiting&limit=1`).catch(()=>[]);
-    const room = rooms?.[0];
-if(!room){setJoinError(t.errInvalidCode);return;}
-    if(room.player1===myUsername){setJoinError(t.errOwnRoom);return;}
-
-    // Subscribe to the room BEFORE patching so both players get the update
-    const joinSub = supabase.channel(`room_join_${room.id}`)
-      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"game_rooms",filter:`id=eq.${room.id}`},
-        p=>{const r=p.new;if(r.status==="active"&&r.player2){setStatus("found");setTimeout(()=>onMatch(r),500);}})
+  useEffect(() => {
+    if(mode !== "private-create" || !myRoomId) return;
+    let ticks = 0, busy = false;
+    const roomId = myRoomId;
+    const sub = supabase.channel(`room_${roomId}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "game_rooms", filter: `id=eq.${roomId}` },
+        p => { const r = p.new; if(r.status === "active" && r.player2) matched(r, 500); })
       .subscribe();
-    subRef.current = joinSub;
-    roomRef.current = room.id;
+    subsRef.current.push(sub);
+    const id = setInterval(async () => {
+      if(busy) return; busy = true;
+      try {
+        const rows = await sb.query(`game_rooms?id=eq.${roomId}&limit=1`).catch(() => null);
+        if(rows === null) return;
+        const r = rows[0];
+        if(!r || r.status === "finished") { ownRoomRef.current = null; setJoinError(x.roomGone); setMode(null); return; }
+        if(r.status === "active" && r.player2) { matched(r, 500); return; }
+        if(++ticks % 2 === 0) heartbeatRoom(roomId);          // toutes les 4 s : la salle privée reste « fraîche »
+      } finally { busy = false; }
+    }, 2000);
+    return () => { clearInterval(id); supabase.removeChannel(sub); subsRef.current = subsRef.current.filter(c => c !== sub); };
+  }, [mode, myRoomId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Patch the room
-    const patched = await sb.query(`game_rooms?id=eq.${room.id}`,{
-      method:"PATCH",
-      headers:{...sb.headers,"Prefer":"return=representation"},
-      body:JSON.stringify({player2:myUsername,elo2:400,status:"active",updated_at:new Date().toISOString()})
-    }).catch(()=>null);
+  // ── PRIVATE : rejoindre ──────────────────────────────────────────────────────
+  const joinPrivate = async () => {
+    setJoinError("");
+    const res = await joinPrivateRoom({ code: joinCode, gameType, me: myUsername });
+    if(res.ok) { matched(res.room, 500); return; }
+    setJoinError(res.reason === "invalid" ? t.errInvalidCode : res.reason === "own" ? t.errOwnRoom : joinErrorText(res.reason, lang));
+  };
 
-    if(patched?.[0]){
-      setStatus("found");
-      setTimeout(()=>onMatch({...room,player2:myUsername,elo2:400,status:"active"}),500);
-    }
+  // ── VS IA ────────────────────────────────────────────────────────────────────
+  const startAI = (diff, label) => {
+    matched({
+      id: aiRoomId(), game_type: gameType, player1: myUsername, player2: `🤖 ${x.aiName} (${label})`,
+      elo1: 400, elo2: 400, status: "active", ranked: false, _isAI: true, _aiDiff: diff,
+    }, 600);
   };
 
   // ── RENDER ───────────────────────────────────────────────────────────────────
@@ -342,58 +330,43 @@ if(!room){setJoinError(t.errInvalidCode);return;}
       <div style={{fontSize:24,fontWeight:900,color:"var(--text-1)",marginBottom:20}}>
         ⚔️ {t.gameTypeName(gameType)}
       </div>
+      {joinError && <div style={{fontSize:11,color:RED,marginBottom:10}}>{joinError}</div>}
       <div style={{display:"flex",flexDirection:"column",gap:10,maxWidth:240,margin:"0 auto"}}>
-        <button onClick={()=>setMode("ranked")} style={{padding:"12px 20px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>
-          {t.rankedBtn}
-        </button>
+        <button onClick={()=>{setJoinError("");setMode("ranked");}} style={BTN_PRIMARY}>{t.rankedBtn}</button>
         <button onClick={()=>setMode("vs-ai")} style={{padding:"12px 20px",borderRadius:12,border:"2px solid rgba(251,191,36,0.4)",background:"rgba(251,191,36,0.08)",color:"#fbbf24",fontWeight:800,fontSize:13,cursor:"pointer"}}>
-          🤖 vs IA
+          🤖 vs {x.aiName}
         </button>
         <button onClick={createPrivateRoom} style={{padding:"12px 20px",borderRadius:12,border:"2px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"var(--text-2)",fontWeight:700,fontSize:13,cursor:"pointer"}}>
           {t.createPrivateBtn}
         </button>
-        <button onClick={()=>setMode("private-join")} style={{padding:"12px 20px",borderRadius:12,border:"2px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"var(--text-2)",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+        <button onClick={()=>{setJoinError("");setMode("private-join");}} style={{padding:"12px 20px",borderRadius:12,border:"2px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.04)",color:"var(--text-2)",fontWeight:700,fontSize:13,cursor:"pointer"}}>
           {t.joinPrivateBtn}
         </button>
-        <button onClick={onClose} style={{padding:"8px",background:"none",border:"none",color:"var(--text-4)",cursor:"pointer",fontSize:12}}>{tc.cancel}</button>
+        <button onClick={cancelAndClose} style={{padding:"8px",background:"none",border:"none",color:"var(--text-4)",cursor:"pointer",fontSize:12}}>{tc.cancel}</button>
       </div>
     </div>
   );
 
   if(mode==="vs-ai") return (
     <div style={{padding:32,textAlign:"center"}}>
-      <div style={{fontSize:24,fontWeight:900,color:"var(--text-1)",marginBottom:8}}>🤖 vs IA</div>
-      <div style={{fontSize:12,color:"var(--text-4)",marginBottom:20}}>Choisis la difficulté</div>
+      <div style={{fontSize:24,fontWeight:900,color:"var(--text-1)",marginBottom:8}}>🤖 vs {x.aiName}</div>
+      <div style={{fontSize:12,color:"var(--text-4)",marginBottom:20}}>{x.aiPickLevel}</div>
       <div style={{display:"flex",flexDirection:"column",gap:10,maxWidth:240,margin:"0 auto"}}>
         {[
-          {label:"🟢 Facile",diff:"easy",desc:"L'IA rate 30% du temps"},
-          {label:"🟡 Moyen",diff:"medium",desc:"L'IA rate 15% du temps"},
-          {label:"🔴 Difficile",diff:"hard",desc:"L'IA rate 5% du temps"},
+          {label:x.aiEasy,diff:"easy",desc:x.aiEasyDesc},
+          {label:x.aiMedium,diff:"medium",desc:x.aiMediumDesc},
+          {label:x.aiHard,diff:"hard",desc:x.aiHardDesc},
         ].map(({label,diff,desc})=>(
-          <button key={diff} onClick={()=>{
-            const aiRoom = {
-              id:"ai-"+Date.now(),
-              game_type:gameType,
-              player1:myUsername,
-              player2:`🤖 IA (${label.split(" ")[1]})`,
-              elo1:400, elo2:400,
-              status:"active",
-              ranked:false,
-              _isAI:true,
-              _aiDiff:diff,
-            };
-            setStatus("found");
-            setTimeout(()=>onMatch(aiRoom),600);
-          }}
-          style={{padding:"12px 20px",borderRadius:12,border:"2px solid rgba(255,255,255,0.1)",
-            background:"rgba(255,255,255,0.04)",color:"var(--text-1)",fontWeight:700,fontSize:13,cursor:"pointer",textAlign:"left"}}>
+          <button key={diff} disabled={status==="found"} onClick={()=>startAI(diff,label.split(" ").slice(1).join(" "))}
+            style={{padding:"12px 20px",borderRadius:12,border:"2px solid rgba(255,255,255,0.1)",
+              background:"rgba(255,255,255,0.04)",color:"var(--text-1)",fontWeight:700,fontSize:13,cursor:"pointer",textAlign:"left"}}>
             <div style={{fontWeight:800}}>{label}</div>
             <div style={{fontSize:10,color:"var(--text-4)",marginTop:2}}>{desc}</div>
           </button>
         ))}
         <button onClick={()=>setMode(null)} style={{padding:"8px",background:"none",border:"none",color:"var(--text-4)",cursor:"pointer",fontSize:12}}>{tc.cancel}</button>
       </div>
-      {status==="found" && <div style={{marginTop:20,fontSize:16,fontWeight:900,color:GREEN}}>Lancement… ⚔️</div>}
+      {status==="found" && <div style={{marginTop:20,fontSize:16,fontWeight:900,color:GREEN}}>{x.launching}</div>}
     </div>
   );
 
@@ -425,16 +398,18 @@ if(!room){setJoinError(t.errInvalidCode);return;}
       ) : (
         <>
           <div style={{fontSize:24,marginBottom:16}}>{t.joinRoomTitle}</div>
-          <input value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} placeholder={t.joinCodePlaceholder} maxLength={6}
+          <input value={joinCode} onChange={e=>setJoinCode(cleanRoomCode(e.target.value))} onKeyDown={e=>e.key==="Enter"&&joinPrivate()}
+            placeholder={t.joinCodePlaceholder} maxLength={6} autoFocus
             style={{width:"100%",boxSizing:"border-box",padding:"12px 16px",borderRadius:12,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",color:"var(--text-1)",fontSize:18,fontWeight:900,textAlign:"center",letterSpacing:4,outline:"none",marginBottom:8}}/>
           {joinError&&<div style={{fontSize:11,color:RED,marginBottom:8}}>{joinError}</div>}
-          <button onClick={joinPrivateRoom} style={{width:"100%",padding:"12px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer",marginBottom:8}}>{t.joinBtn}</button>
-          <button onClick={onClose} style={{padding:"8px",background:"none",border:"none",color:"var(--text-4)",cursor:"pointer",fontSize:12}}>{tc.cancel}</button>
+          <button onClick={joinPrivate} style={{...BTN_PRIMARY,width:"100%",padding:"12px",marginBottom:8}}>{t.joinBtn}</button>
+          <button onClick={()=>setMode(null)} style={{padding:"8px",background:"none",border:"none",color:"var(--text-4)",cursor:"pointer",fontSize:12}}>{tc.cancel}</button>
         </>
       )}
     </div>
   );
 
+  // ranked
   return (
     <div style={{padding:32,textAlign:"center"}}>
       {status==="searching" ? (
@@ -445,6 +420,15 @@ if(!room){setJoinError(t.errInvalidCode);return;}
           <div style={{fontSize:11,color:"#c084fc",marginBottom:20}}>{t.myElo(myElo)}</div>
           <button onClick={cancelAndClose} style={{padding:"8px 20px",borderRadius:20,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:"var(--text-3)",cursor:"pointer",fontSize:12}}>{tc.cancel}</button>
         </>
+      ) : status==="error" ? (
+        <>
+          <div style={{fontSize:32,marginBottom:12}}>⚠️</div>
+          <div style={{fontSize:13,color:RED,marginBottom:16}}>{x.netError}</div>
+          <div style={{display:"flex",gap:8,justifyContent:"center"}}>
+            <button onClick={()=>setRetryKey(k=>k+1)} style={{...BTN_PRIMARY,padding:"8px 20px",borderRadius:20}}>{x.retry}</button>
+            <button onClick={cancelAndClose} style={{padding:"8px 20px",borderRadius:20,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:"var(--text-3)",cursor:"pointer",fontSize:12}}>{tc.cancel}</button>
+          </div>
+        </>
       ) : (
         <><div style={{fontSize:48,marginBottom:12}}>⚔️</div><div style={{fontSize:18,fontWeight:900,color:GREEN}}>{t.opponentFound}</div><div style={{fontSize:12,color:"var(--text-4)",marginTop:8}}>{tc.starting}</div></>
       )}
@@ -452,10 +436,20 @@ if(!room){setJoinError(t.errInvalidCode);return;}
   );
 }
 
+
 // ─── CHAIN GAME ───────────────────────────────────────────────────────────────
-function seededPick(arr, seed) {
-  const s = seed * 2654435761 & 0xffffffff;
-  return arr[Math.abs(s) % arr.length];
+// Fiabilité : une seule copie « à jour » de l'état (stateRef) lue par tous les minuteurs (plus de valeurs périmées) ;
+// la fin de partie et l'abandon passent par claimFinish() — la partie ne se termine, et l'ELO ne change, qu'UNE fois ;
+// un adversaire silencieux (plus aucun changement observé) fait gagner la partie par abandon ; l'IA ne touche jamais la base.
+const CHAIN_IDLE_MS = { play: 55_000, choose: 75_000, roundEnd: 20_000 }; // 40 s de manche + marge ; choix du lien ; transition
+const HIDDEN_FORFEIT_MS = 8_000;                                          // onglet masqué plus de 8 s en partie classée
+
+// Abandon : celui qui part perd 40 ELO, celui qui reste gagne 5 ELO et 5 points (calculé une seule fois, par celui qui clôt la salle).
+async function applyForfeitElo(field, leaver, stayer) {
+  await Promise.all([
+    updateElo(leaver, field, -FORFEIT_PENALTY, 0),
+    updateElo(stayer, field, FORFEIT_BONUS, FORFEIT_BONUS),
+  ]);
 }
 
 export function ChainGame({ room, onClose, onReady }) {
@@ -463,332 +457,263 @@ export function ChainGame({ room, onClose, onReady }) {
   const { lang } = useLang();
   const t = (GAME_SYSTEM_I18N[lang] || GAME_SYSTEM_I18N.fr).chain;
   const tc = (GAME_SYSTEM_I18N[lang] || GAME_SYSTEM_I18N.fr).common;
+  const x = GS_EXTRA[lang] || GS_EXTRA.fr;
   const isAI = !!room._isAI;
   const aiDiff = room._aiDiff || "medium";
   const aiFailRate = aiDiff === "easy" ? 0.30 : aiDiff === "medium" ? 0.15 : 0.05;
   const aiDelay   = aiDiff === "easy" ? 3500 : aiDiff === "medium" ? 2000 : 1000;
   const isP1 = room.player1 === myUsername;
   const oppUsername = isP1 ? room.player2 : room.player1;
-  const myElo  = isP1 ? (room.elo1||400) : (room.elo2||400);
-  const oppElo = isP1 ? (room.elo2||400) : (room.elo1||400);
+  const ranked = isRankedRoom(room);
 
   const defaultState = {
-    round: 1,
-    scores: [0, 0],
-    linkType: null,
-    currentAnime: null,
-    chain: [],
-    turn: null,
-    chooser: room.player1,
-    phase: "choose",
-    timer: 40,
-    roundStart: null,
-    times: [0, 0],
+    round: 1, scores: [0, 0], linkType: null, currentAnime: null, chain: [],
+    turn: null, chooser: room.player1, phase: "choose", timer: 40, roundStart: null, times: [0, 0],
   };
-  const [state, setState] = useState(
-    (room.state && room.state.scores) ? room.state : defaultState
-  );
+  const initial = (room.state && room.state.scores) ? room.state : defaultState;
+  const [state, setStateRaw] = useState(initial);
+  const stateRef  = useRef(initial);
+  const endedRef  = useRef(initial.phase === "gameEnd");
+  const [mountedAt] = useState(Date.now);
+  const lastChangeRef = useRef(mountedAt);      // dernière fois où la partie a bougé (coup à moi ou à l'adversaire)
+  const commit = useCallback((next) => { stateRef.current = next; lastChangeRef.current = Date.now(); setStateRaw(next); }, []);
 
   const [query, setQuery]       = useState("");
   const [suggestions, setSugs]  = useState([]);
   const [pool, setPool]         = useState([]);
   const [timerVal, setTimerVal] = useState(40);
   const [msg, setMsg]           = useState("");
-  const subRef = useRef(null);
-  const timerRef = useRef(null);
+  const [lastGuess, setLastGuess] = useState(null); // {anime, valid, linkUsed}
   const searchTimer = useRef(null);
-  const startTsRef = useRef(null);
+  const startTsRef  = useRef(null);
+  const lastPollRef   = useRef(mountedAt);
+  const transitionRef = useRef(null);
+  const [idleInfo, setIdleInfo] = useState(null);   // { actor, left } : qui doit agir et dans combien de secondes l'abandon tombe
+  const lastRemoteRef = useRef("");                // dernier état vu côté base (comparé à lui-même : l'ordre des clés JSON y est stable)
 
-  const isRanked = room.ranked !== false;
-
-  // Anti-cheat: if ranked, forfait when tab becomes hidden
-  useEffect(() => {
-    if(!isRanked) return;
-    const handleVisibility = async () => {
-      if(document.hidden && state.phase === "play") {
-        await sb.query(`game_rooms?id=eq.${room.id}`, {
-          method: "PATCH",
-          headers: { ...sb.headers, "Prefer": "return=minimal" },
-          body: JSON.stringify({ status: "waiting", updated_at: new Date().toISOString() }),
-        }).catch(()=>{});
-        onClose();
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [state.phase, isRanked]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const isMyTurn = state.turn === myUsername;
+  const isMyTurn  = state.turn === myUsername;
   const amChooser = state.chooser === myUsername;
 
-  // Load TV pool
+  // ── chargement des animés (liste des TV connus) ───────────────────────────────
   useEffect(() => {
     sb.query("anime_cache?type=eq.TV&score=gte.6.5&scored_by=gte.3000&select=mal_id,title,studios,genres,image_url&order=scored_by.desc&limit=5000")
-      .then(r => setPool(r||[])).catch(()=>{});
+      .then(r => setPool(r || [])).catch(()=>{});
   }, []);
 
-  // Sync state from Supabase via polling (more reliable than Realtime)
-  const lastStateRef = useRef(JSON.stringify(state));
+  // ── écriture de l'état partagé (jamais dans une salle déjà terminée) ──────────────
+  const pushState = useCallback(async (next) => {
+    if(isAI) return;
+    await sb.query(`game_rooms?id=eq.${room.id}&status=eq.active`, {
+      method: "PATCH", headers: { ...sb.headers, "Prefer": "return=minimal" },
+      body: JSON.stringify({ state: next, updated_at: new Date().toISOString() }),
+    }).catch(()=>{});
+  }, [isAI, room.id]);
+
+  // ── fin de partie normale : on « clôt » la salle ; seul celui qui la clôt applique l'ELO ─────────────────
+  const finishGame = useCallback(async (winner, scores) => {
+    if(endedRef.current) return;
+    endedRef.current = true;
+    const final = { ...stateRef.current, phase: "gameEnd", scores, winner, turn: null, opponentLeft: false };
+    commit(final);
+    if(isAI) return;
+    const row = await claimFinish(room.id, { winner, state: final });
+    if(row && ranked) {
+      const o = chainGameOutcome(room, winner, scores);
+      await Promise.all([
+        updateElo(room.player1, "elo_chain", o.delta1, o.pts1),
+        updateElo(room.player2, "elo_chain", o.delta2, o.pts2),
+      ]);
+    }
+  }, [commit, isAI, ranked, room]);
+
+  // ── abandon (moi) ───────────────────────────────────────────────────────────────
+  const forfeit = useCallback(async () => {
+    if(endedRef.current) return;
+    endedRef.current = true;
+    const cur = stateRef.current;
+    const final = { ...cur, phase: "gameEnd", winner: oppUsername, forfeitBy: myUsername, turn: null };
+    commit(final);
+    if(isAI) return;
+    const row = await claimFinish(room.id, { winner: oppUsername, state: final });
+    if(row && ranked) await applyForfeitElo("elo_chain", myUsername, oppUsername);
+  }, [commit, isAI, myUsername, oppUsername, ranked, room.id]);
+
+  // ── victoire par abandon de l'adversaire (parti, déconnecté, silencieux) ─────────────────
+  const claimWin = useCallback(async () => {
+    if(endedRef.current) return;
+    endedRef.current = true;
+    const cur = stateRef.current;
+    const final = { ...cur, phase: "gameEnd", winner: myUsername, forfeitBy: oppUsername, turn: null };
+    commit(final);
+    const row = await claimFinish(room.id, { winner: myUsername, state: final });
+    if(row && ranked) await applyForfeitElo("elo_chain", oppUsername, myUsername);
+  }, [commit, myUsername, oppUsername, ranked, room.id]);
+
+  // ── manche perdue par `loser` : manche suivante ou fin de partie ──────────────────
+  const endRound = useCallback(async (loser) => {
+    const cur = stateRef.current;
+    if(endedRef.current || cur.phase !== "play") return;
+    const res = chainAfterRoundLoss(cur, loser, room);
+    if(res.over) { await finishGame(res.winner, res.scores); return; }
+    const roundEnd = { ...cur, round: res.round, scores: res.scores, phase: "roundEnd", linkType: null, currentAnime: null,
+      chain: [], turn: null, timer: 40, chooser: res.chooser, times: [0, 0] };
+    commit(roundEnd);
+    await pushState(roundEnd);
+    clearTimeout(transitionRef.current);
+    transitionRef.current = setTimeout(async () => {
+      if(endedRef.current || stateRef.current.phase !== "roundEnd") return;
+      const choose = { ...stateRef.current, phase: "choose" };
+      commit(choose);
+      await pushState(choose);
+    }, 3000);
+  }, [commit, finishGame, pushState, room]);
+  useEffect(() => () => clearTimeout(transitionRef.current), []);
+
+  // Dernières versions des fonctions, lues par les minuteurs (évite de les relancer à chaque rendu)
+  const claimWinRef = useRef(claimWin);  const endRoundRef = useRef(endRound);
+  useEffect(() => { claimWinRef.current = claimWin; endRoundRef.current = endRound; });
+
+  // ── synchronisation avec l'adversaire (sondage 1,5 s) ────────────────────────────
   useEffect(() => {
+    if(isAI) return;
+    let stopped = false;
     const poll = setInterval(async () => {
       try {
-        const rows = await sb.query(`game_rooms?id=eq.${room.id}&select=state,status,winner,updated_at&limit=1`);
+        const now = Date.now();
+        const frozen = now - lastPollRef.current > 6000;         // onglet gelé / réseau coupé : on repart sur une base saine
+        lastPollRef.current = now;
+        if(frozen) lastChangeRef.current = now;
+        const rows = await sb.query(`game_rooms?id=eq.${room.id}&select=state,status,winner&limit=1`);
         const r = rows?.[0];
-        if(!r) return;
-        // Check if opponent left
-        const opponentForfait = r.status === "finished" && r.winner === myUsername;
-        const opponentLeft = r.status === "waiting" || opponentForfait;
-        if(opponentLeft) {
-          clearInterval(poll);
-          setState(s => ({...s, phase:"gameEnd", winner: myUsername, opponentLeft: true}));
+        if(stopped || !r) return;
+        const cur = stateRef.current;
+        if(cur.phase === "gameEnd") { clearInterval(poll); return; }
+        if(r.status === "finished") {
+          clearInterval(poll); endedRef.current = true;
+          if(r.state?.phase === "gameEnd" && r.state?.scores) commit(r.state);           // fin normale ou abandon (déjà détaillé)
+          else commit({ ...cur, phase: "gameEnd", winner: r.winner, forfeitBy: r.winner === myUsername ? oppUsername : myUsername, turn: null });
           return;
         }
-        // Stale detection: opponent's client went silent (crash, dead network,
-        // sleep) mid-turn without ever triggering the visibilitychange forfeit
-        // above — if it's their turn and nothing has moved in 45s, claim the win.
-        if(r.updated_at && !isMyTurn) {
-          const stale = Date.now() - new Date(r.updated_at).getTime() > 45000;
-          if(stale) {
-            await sb.query(`game_rooms?id=eq.${room.id}`, { method: "PATCH", headers: { ...sb.headers, "Prefer": "return=minimal" }, body: JSON.stringify({ status: "finished", winner: myUsername }) }).catch(()=>{});
-            clearInterval(poll);
-            setState(s => ({...s, phase:"gameEnd", winner: myUsername, opponentLeft: true}));
-            return;
-          }
+        if(r.status === "waiting") {                                                  // anciennes versions : salle remise en attente = parti
+          clearInterval(poll); await claimWinRef.current(); return;
         }
-        const newState = r.state;
-        if(!newState?.scores) return;
-        const str = JSON.stringify(newState);
-        if(str !== lastStateRef.current) {
-          lastStateRef.current = str;
-          setState(newState);
-          setTimerVal(newState.timer || 40);
+        const next = r.state;
+        if(next?.scores) {
+          const str = JSON.stringify(next);
+          if(str !== lastRemoteRef.current) { lastRemoteRef.current = str; commit(next); }
         }
-      } catch {}
+        // Adversaire silencieux : c'est à lui d'agir et plus rien ne bouge depuis trop longtemps
+        const s = stateRef.current;
+        const actor = s.phase === "play" ? s.turn : s.phase === "choose" ? s.chooser : null;
+        const limit = CHAIN_IDLE_MS[s.phase];
+        if(limit && actor && actor !== myUsername && now - lastChangeRef.current > limit) { clearInterval(poll); await claimWinRef.current(); }
+      } catch { /* réseau : on réessaie au prochain tour */ }
     }, 1500);
-    return () => clearInterval(poll);
-  }, [room.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { stopped = true; clearInterval(poll); };
+  }, [room.id, isAI, commit, myUsername, oppUsername]);
 
-  // Timer countdown
+  // ── minuterie de 40 s par tour (calculée sur l'heure réelle, donc juste même si l'onglet ralentit) ─────
+  const turnKey = state.phase === "play" ? `${state.round}|${state.turn}|${state.chain.length}` : null;
   useEffect(() => {
-    clearInterval(timerRef.current);
-    if(state.phase === "play" && state.turn) {
-      startTsRef.current = Date.now();
-      timerRef.current = setInterval(() => {
-        setTimerVal(v => {
-          if(v <= 1) {
-            clearInterval(timerRef.current);
-            if(isMyTurn) handleTimeout();
-            return 0;
-          }
-          return v - 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(timerRef.current);
-  }, [state.phase, state.turn]); // eslint-disable-line react-hooks/exhaustive-deps
+    if(!turnKey) return;
+    const deadline = Date.now() + (stateRef.current.timer || 40) * 1000;
+    startTsRef.current = Date.now();
+    let fired = false;
+    const id = setInterval(() => {
+      const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setTimerVal(left);
+      if(left === 0 && !fired) {
+        fired = true; clearInterval(id);
+        if(stateRef.current.turn === myUsername) endRoundRef.current(myUsername); // seul le joueur concerné déclare sa propre défaite
+      }
+    }, 250);
+    return () => clearInterval(id);
+  }, [turnKey, myUsername]);
 
-  const pushState = async (newState) => {
-    if(isAI) return; // AI mode: no DB sync needed
-    await sb.query(`game_rooms?id=eq.${room.id}`, {
-      method: "PATCH",
-      headers: { ...sb.headers, "Prefer": "return=minimal" },
-      body: JSON.stringify({ state: newState, updated_at: new Date().toISOString() }),
-    }).catch(()=>{});
-  };
-
-  // AI turn logic
-  const aiTurnRef = useRef(false);
+  // ── compte à rebours d'inactivité (affiché seulement pendant les 20 dernières secondes) ───────
   useEffect(() => {
-    if(!isAI || state.phase !== "play" || state.turn === myUsername || aiTurnRef.current) return;
-    aiTurnRef.current = true;
-    const doAITurn = async () => {
-      await sleep(aiDelay + Math.random() * 800);
-      if(pool.length === 0) { aiTurnRef.current = false; return; }
-      // Fail check — IA loses the round (no "pass" mechanic)
-      if(Math.random() < aiFailRate) {
-        // AI times out = loses current round
-        const newScores = isP1 ? [state.scores[0]+1, state.scores[1]] : [state.scores[0], state.scores[1]+1];
-        const over = newScores[0]>=2 || newScores[1]>=2;
-        setState(s => ({...s, scores:newScores, phase:over?"gameEnd":"choose",
-          turn:null, chooser:myUsername, linkType:null, currentAnime:null, chain:[]}));
-        aiTurnRef.current = false;
-        return;
+    if(isAI) return;
+    const id = setInterval(() => {
+      const s = stateRef.current;
+      const actor = s.phase === "play" ? s.turn : s.phase === "choose" ? s.chooser : null;
+      const limit = CHAIN_IDLE_MS[s.phase];
+      setIdleInfo(actor && limit ? { actor, left: Math.ceil((limit - (Date.now() - lastChangeRef.current)) / 1000) } : null);
+    }, 1000);
+    return () => clearInterval(id);
+  }, [isAI]);
+
+  // ── abandon automatique si l'onglet reste masqué (partie classée) ───────────────────────
+  const forfeitRef = useRef(forfeit);  const onCloseRef = useRef(onClose);
+  useEffect(() => { forfeitRef.current = forfeit; onCloseRef.current = onClose; });
+  useEffect(() => {
+    if(!ranked) return;
+    let timer;
+    const onVisibility = () => {
+      clearTimeout(timer);
+      if(document.hidden && stateRef.current.phase === "play") {
+        timer = setTimeout(async () => {
+          if(document.hidden && !endedRef.current) { await forfeitRef.current(); onCloseRef.current(); }
+        }, HIDDEN_FORFEIT_MS);
       }
-      // Pick valid anime
-      const cur = state.currentAnime;
-      const curStudios = (cur.studios||[]).map(s=>s.name||s);
-      const curGenres  = (cur.genres||[]).map(g=>g.name||g);
-      const usedIds    = new Set(state.chain.map(a=>a.mal_id));
-      const linkType   = currentLinkType === "studio" ? "studio" : "genre";
-      const candidates = pool.filter(a => {
-        if(usedIds.has(a.mal_id)) return false;
-        const s = (a.studios||[]).map(x=>x.name||x);
-        const g = (a.genres||[]).map(x=>x.name||x);
-        return linkType === "studio"
-          ? s.some(x=>curStudios.includes(x)) && !g.every(x=>curGenres.includes(x))
-          : g.some(x=>curGenres.includes(x)) && !s.every(x=>curStudios.includes(x));
-      });
-      if(candidates.length === 0) {
-        // No valid move — AI loses the round
-        const newScores = isP1 ? [state.scores[0]+1, state.scores[1]] : [state.scores[0], state.scores[1]+1];
-        const over = newScores[0]>=2 || newScores[1]>=2;
-        setState(s => ({...s, scores:newScores, phase:over?"gameEnd":"choose",
-          turn:null, chooser:myUsername, linkType:null, currentAnime:null, chain:[]}));
-        aiTurnRef.current = false;
-        return;
-      }
-      const pick = candidates[Math.floor(Math.random() * Math.min(candidates.length, 20))];
-      setState(s => ({...s, currentAnime:pick, chain:[...s.chain, pick], turn:myUsername, timer:40}));
-      aiTurnRef.current = false;
     };
-    doAITurn();
-  }, [state.turn, state.phase, isAI]); // eslint-disable-line react-hooks/exhaustive-deps
-  const doForfait = async () => {
-    if(state.phase !== "gameEnd") {
-      if(room.ranked) {
-        const victim = myUsername === room.player1 ? room.player2 : room.player1;
-        await Promise.all([
-          updateElo(myUsername, "elo_chain", -40, 0),
-          updateElo(victim, "elo_chain", 5, 5),
-        ]);
-      }
-      await sb.query(`game_rooms?id=eq.${room.id}`, {
-        method: "PATCH",
-        headers: { ...sb.headers, "Prefer": "return=minimal" },
-        body: JSON.stringify({ status: "finished", winner: myUsername === room.player1 ? room.player2 : room.player1, updated_at: new Date().toISOString() }),
-      }).catch(()=>{});
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => { clearTimeout(timer); document.removeEventListener("visibilitychange", onVisibility); };
+  }, [ranked]);
+
+  // ── le parent appelle cette fonction avant de fermer la fenêtre ───────────────────────
+  useEffect(() => {
+    const fn = () => forfeitRef.current();
+    fn.isOver = () => isAI || endedRef.current || stateRef.current.phase === "gameEnd";
+    onReady?.(fn);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── début de manche : le joueur qui a choisi le type de lien lance la partie ──────────
+  const startRound = useCallback(async (type) => {
+    const cur = stateRef.current;
+    if(endedRef.current || cur.phase !== "choose" || !pool.length) return;
+    const start = pool[Math.floor(Math.random() * pool.length)];
+    const next = { ...cur, linkType: type, currentAnime: start, chain: [start], turn: cur.chooser, phase: "play", timer: 40 };
+    commit(next);
+    await pushState(next);
+  }, [commit, pool, pushState]);
+  const handleChooseLinkType = (type) => { if(amChooser) startRound(type); };
+
+  // ── IA : choisit le type de lien quand c'est à elle, puis joue ses tours ─────────────
+  useEffect(() => {
+    if(!isAI || !pool.length) return;
+    let cancelled = false, timer;
+    if(state.phase === "choose" && state.chooser === oppUsername) {
+      timer = setTimeout(() => { if(!cancelled && stateRef.current.chooser === oppUsername) startRound(Math.random() < 0.5 ? "studio" : "genre"); }, 900 + Math.random() * 600);
+    } else if(state.phase === "play" && state.turn === oppUsername) {
+      timer = setTimeout(() => {
+        const s = stateRef.current;
+        if(cancelled || s.phase !== "play" || s.turn !== oppUsername) return;
+        if(Math.random() < aiFailRate) { endRound(oppUsername); return; }          // l'IA rate : elle perd la manche
+        const pick = chainAiPick(s, pool);
+        if(!pick) { endRound(oppUsername); return; }                              // plus de coup possible : elle perd la manche
+        commit({ ...s, currentAnime: pick, chain: [...s.chain, pick], turn: myUsername, timer: 40 });
+      }, aiDelay + Math.random() * 800);
     }
-  };
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [state.phase, state.turn, state.chooser, state.round, isAI, pool.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Expose forfait so ForumView can call it before closing
-  if(typeof onClose._chainRef === "undefined") onClose._chainRef = doForfait;
-  useEffect(() => { onReady?.(doForfait); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const handleChooseLinkType = async (type) => {
-    if(!amChooser || state.phase !== "choose") return;
-    const seed = Date.now();
-    const start = seededPick(pool, seed);
-    const newState = {
-      ...state,
-      linkType: type,
-      currentAnime: start,
-      chain: [start],
-      turn: state.chooser,
-      phase: "play",
-      timer: 40,
-    };
-    setState(newState);
-    await pushState(newState);
-  };
-
-  const [lastGuess, setLastGuess] = useState(null); // {anime, valid, linkUsed}
-
-  // ABBA pattern: chooser always plays their chosen type, opponent always plays the opposite
-  // e.g. chooser picked "studio" → chooser plays studio, opponent plays genre, always
-  const currentLinkType = state.linkType
-    ? (state.turn === state.chooser
-        ? state.linkType
-        : state.linkType === "studio" ? "genre" : "studio")
-    : null;
-
-  const isValidLink = (guess) => {
-    const cur = state.currentAnime;
-    if(!cur || !currentLinkType) return false;
-    const curStudios = (cur.studios||[]).map(s=>s.name||s);
-    const curGenres  = (cur.genres||[]).map(g=>g.name||g);
-    const gStudios   = (guess.studios||[]).map(s=>s.name||s);
-    const gGenres    = (guess.genres||[]).map(g=>g.name||g);
-    if(currentLinkType === "studio") {
-      const sameStudio = curStudios.some(s => gStudios.includes(s));
-      const diffGenre  = !curGenres.every(g => gGenres.includes(g)) || !gGenres.every(g => curGenres.includes(g));
-      return sameStudio && diffGenre;
-    } else {
-      const sameGenre  = curGenres.some(g => gGenres.includes(g));
-      const diffStudio = !curStudios.every(s => gStudios.includes(s)) || !gStudios.every(s => curStudios.includes(s));
-      return sameGenre && diffStudio;
-    }
-  };
-
+  // ── mon coup ──────────────────────────────────────────────────────────────────────
+  const currentLinkType = chainLinkForTurn(state);
   const handleGuess = async (anime) => {
-    if(!isMyTurn || state.phase !== "play") return;
-    if(state.chain.some(a => a.mal_id === anime.mal_id)) {
-setMsg(t.errAlreadyUsed);
-      setLastGuess(null);
-      return;
-    }
-    const valid = isValidLink(anime);
-    setLastGuess({ anime, valid, linkUsed: currentLinkType });
+    const cur = stateRef.current;
+    if(cur.turn !== myUsername || cur.phase !== "play" || endedRef.current) return;
+    if(cur.chain.some(a => a.mal_id === anime.mal_id)) { setMsg(t.errAlreadyUsed); setLastGuess(null); return; }
+    const linkUsed = chainLinkForTurn(cur);
+    const valid = isChainLinkValid(cur.currentAnime, anime, linkUsed);
+    setLastGuess({ anime, valid, linkUsed });
     setQuery(""); setSugs([]);
-    if(!valid) {
-setMsg(t.errInvalidLink);
-      return;
-    }
+    if(!valid) { setMsg(t.errInvalidLink); return; }
     setMsg("");
-    const elapsed = Math.round((Date.now() - (startTsRef.current||Date.now())) / 1000);
-    const newTimes = isP1 ? [state.times[0]+elapsed, state.times[1]] : [state.times[0], state.times[1]+elapsed];
-    const nextTurn = state.turn === myUsername ? oppUsername : myUsername;
-    const newState = { ...state, currentAnime: anime, chain: [...state.chain, anime], turn: nextTurn, timer: 40, times: newTimes };
-    setState(newState);
-    await pushState(newState);
-  };
-
-  const handleTimeout = async () => {
-    // Current player loses the round
-    const loser = state.turn;
-    const winner = loser === room.player1 ? room.player2 : room.player1;
-    const winIdx = winner === room.player1 ? 0 : 1;
-    const newScores = [...state.scores];
-    newScores[winIdx]++;
-    const newRound = state.round + 1;
-    const gameOver = newScores[0] >= 2 || newScores[1] >= 2 || newRound > 3;
-
-    if(gameOver) {
-      const gameWinner = newScores[0] > newScores[1] ? room.player1 : newScores[1] > newScores[0] ? room.player2 : null;
-      await handleGameEnd(gameWinner, newScores);
-    } else {
-      // Determine next chooser
-      const chooser = newRound === 2 ? room.player2
-        : myElo !== oppElo ? (myElo > oppElo ? myUsername : oppUsername)
-        : null; // tiebreak by times handled separately
-      const newState = { ...state, round: newRound, scores: newScores, phase: "roundEnd",
-        linkType: null, currentAnime: null, chain: [], turn: null, timer: 40,
-        chooser: chooser || room.player1, times: [0,0] };
-      setState(newState);
-      await pushState(newState);
-      setTimeout(async () => {
-        const chooseState = { ...newState, phase: "choose" };
-        setState(chooseState);
-        await pushState(chooseState);
-      }, 3000);
-    }
-  };
-
-  const handleGameEnd = async (winner, scores) => {
-    if(!room.ranked) {
-      // Private room — no Elo change
-      await sb.query(`game_rooms?id=eq.${room.id}`, {
-        method: "PATCH",
-        headers: { ...sb.headers, "Prefer": "return=minimal" },
-        body: JSON.stringify({ status: "finished", winner, state: { ...state, phase: "gameEnd", scores } }),
-      }).catch(()=>{});
-      return;
-    }
-    const elo1 = room.elo1||400, elo2 = room.elo2||400;
-    const p1Won = winner === room.player1;
-    const p2Won = winner === room.player2;
-    // Determine score string (2-0 or 2-1)
-    const minScore = Math.min(scores[0], scores[1]);
-    const scoreStr = minScore === 0 ? "2-0" : "2-1";
-    const delta1 = calcChainElo(elo1, elo2, p1Won?1:p2Won?0:0.5, scoreStr);
-    const delta2 = calcChainElo(elo2, elo1, p2Won?1:p1Won?0:0.5, scoreStr);
-    await Promise.all([
-      updateElo(room.player1, "elo_chain", delta1, p1Won?20:5),
-      updateElo(room.player2, "elo_chain", delta2, p2Won?20:5),
-    ]);
-    await sb.query(`game_rooms?id=eq.${room.id}`, {
-      method: "PATCH",
-      headers: { ...sb.headers, "Prefer": "return=minimal" },
-      body: JSON.stringify({ status: "finished", winner, state: { ...state, phase: "gameEnd", scores } }),
-    }).catch(()=>{});
+    const elapsed = Math.round((Date.now() - (startTsRef.current || Date.now())) / 1000);
+    const newTimes = isP1 ? [cur.times[0] + elapsed, cur.times[1]] : [cur.times[0], cur.times[1] + elapsed];
+    const next = { ...cur, currentAnime: anime, chain: [...cur.chain, anime], turn: oppUsername, timer: 40, times: newTimes };
+    commit(next);
+    await pushState(next);
   };
 
   const search = (q) => {
@@ -797,11 +722,14 @@ setMsg(t.errInvalidLink);
     if(!q.trim()) { setSugs([]); return; }
     searchTimer.current = setTimeout(async () => {
       const rows = await sb.query(`anime_cache?title=ilike.*${encodeURIComponent(q)}*&type=eq.TV&order=score.desc.nullslast&limit=8&select=mal_id,title,studios,genres,image_url`).catch(()=>[]);
-      setSugs(rows||[]);
+      setSugs(rows || []);
     }, 300);
   };
 
   const linkLabel = currentLinkType === "studio" ? (t.linkLabelStudio||"🏢 Même studio, genre différent") : currentLinkType === "genre" ? (t.linkLabelGenre||"🎌 Même genre, studio différent") : "";
+
+  const idleNote = idleInfo && idleInfo.left <= 20 && idleInfo.left > 0
+    ? (idleInfo.actor === myUsername ? x.idleWarnMe(idleInfo.left) : x.idleWarnOpp(idleInfo.left)) : null;
 
   return (
     <div style={{padding:16,maxWidth:640,margin:"0 auto"}}>
@@ -811,7 +739,7 @@ setMsg(t.errInvalidLink);
           ⚔️ {myUsername} <span style={{color:"var(--text-4)"}}>vs</span> {oppUsername}
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <span style={{fontSize:11,color:"var(--text-4)"}}>{t.round(state.round)}</span>
+          <span style={{fontSize:11,color:"var(--text-4)"}}>{t.round(Math.min(state.round, 3))}</span>
           <div style={{display:"flex",gap:4}}>
             {[0,1,2].map(i=>(
               <div key={i} style={{width:10,height:10,borderRadius:"50%",
@@ -820,6 +748,8 @@ setMsg(t.errInvalidLink);
           </div>
         </div>
       </div>
+
+      {idleNote && <div style={{textAlign:"center",fontSize:11,fontWeight:700,color:ORANGE,marginBottom:8}}>{idleNote}</div>}
 
       {/* Phase: choose link type */}
       {state.phase === "choose" && (
@@ -852,6 +782,11 @@ setMsg(t.errInvalidLink);
             </div>
           )}
         </div>
+      )}
+
+      {/* Between rounds */}
+      {state.phase === "roundEnd" && (
+        <div style={{textAlign:"center",padding:24}}><Spinner/></div>
       )}
 
       {/* Phase: play */}
@@ -908,7 +843,7 @@ onKeyDown={e=>{if(e.key==="Enter"&&suggestions.length>0)handleGuess(suggestions[
                   <div style={{flex:1}}>
                     <div style={{fontSize:11,fontWeight:800,color:"var(--text-1)"}}>{lastGuess.anime.title}</div>
                     <div style={{fontSize:10,color:lastGuess.valid?"#22c55e":"#ef4444"}}>
-{lastGuess.valid?"✅ Valide":"❌ Invalide"} · Studio: {(lastGuess.anime.studios||[]).map(s=>s.name||s).join(", ")||"?"} · Genres: {(lastGuess.anime.genres||[]).map(g=>g.name||g).join(", ")||"?"}
+{lastGuess.valid?(t.guessValid||"✅ Valide"):(t.guessInvalid||"❌ Invalide")} · {t.guessStudioLabel||"Studio"}: {(lastGuess.anime.studios||[]).map(s=>s.name||s).join(", ")||"?"} · {t.guessGenresLabel||"Genres"}: {(lastGuess.anime.genres||[]).map(g=>g.name||g).join(", ")||"?"}
                     </div>
                   </div>
                 </div>
@@ -937,7 +872,7 @@ onKeyDown={e=>{if(e.key==="Enter"&&suggestions.length>0)handleGuess(suggestions[
 
           {/* Chain history */}
           <div style={{display:"flex",flexDirection:"column",gap:4,maxHeight:200,overflowY:"auto"}}>
-            {[...state.chain].reverse().map((a,i)=>(
+            {[...state.chain].reverse().map((a)=>(
               <div key={a.mal_id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",
                 borderRadius:8,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.05)"}}>
                 <img src={a.image_url} alt="" style={{width:18,height:26,objectFit:"cover",borderRadius:3}}
@@ -955,13 +890,15 @@ onKeyDown={e=>{if(e.key==="Enter"&&suggestions.length>0)handleGuess(suggestions[
           {(() => {
             const myScore = state.scores[isP1?0:1];
             const oppScore = state.scores[isP1?1:0];
-            const won = state.winner === myUsername || myScore > oppScore;
-            const draw = !state.winner && myScore === oppScore;
+            const iForfeited = state.forfeitBy === myUsername;
+            const oppLeft = !!state.forfeitBy && !iForfeited;
+            const won = !iForfeited && (oppLeft || state.winner === myUsername || (!state.winner && myScore > oppScore));
+            const draw = !state.forfeitBy && !state.winner && myScore === oppScore;
             return (
               <>
-<div style={{fontSize:48,marginBottom:12}}>{state.opponentLeft?"🏃":won?"🏆":draw?"🤝":"😢"}</div>
-                <div style={{fontSize:20,fontWeight:900,color:state.opponentLeft||won?"#22c55e":draw?ORANGE:RED,marginBottom:8}}>
-                  {state.opponentLeft?"Adversaire déconnecté — Victoire !":(won?(tc?.victory||"Victoire !"):(draw?(tc?.draw||"Égalité"):(tc?.defeat||"Défaite")))}
+<div style={{fontSize:48,marginBottom:12}}>{iForfeited?"🏳️":oppLeft?"🏃":won?"🏆":draw?"🤝":"😢"}</div>
+                <div style={{fontSize:20,fontWeight:900,color:won?"#22c55e":draw?ORANGE:RED,marginBottom:8}}>
+                  {iForfeited ? x.youForfeited : oppLeft ? x.opponentGone : (won?(tc?.victory||"Victoire !"):(draw?(tc?.draw||"Égalité"):(tc?.defeat||"Défaite")))}
                 </div>
                 <div style={{fontSize:14,color:"var(--text-3)",marginBottom:20}}>
                   {myScore} – {oppScore}
@@ -981,280 +918,238 @@ onKeyDown={e=>{if(e.key==="Enter"&&suggestions.length>0)handleGuess(suggestions[
   );
 }
 
+
 // ─── TIMELINE GAME ────────────────────────────────────────────────────────────
-function getDayIndex() {
-  return Math.floor((Date.now() - new Date("2026-01-01").getTime()) / 86400000);
-}
-function seededRand(seed) {
-  let s = seed;
-  return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
-}
+// Les règles (placement, fin de partie, IA) vivent dans src/utils/gameRules.js (testées) ; ce composant ne fait que les afficher
+// et synchroniser. Même fiabilité que Chain : état lu par les minuteurs via une référence, fin de partie et abandon « une seule
+// fois » (claimFinish), adversaire silencieux = victoire par abandon, l'IA ne touche jamais la base.
+const TIMELINE_IDLE_MS = 90_000;      // sans coup de l'adversaire pendant 90 s : victoire par abandon
 
 export function TimelineGame({ room, onClose, onReady }) {
   const { myUsername } = useApp();
   const { lang } = useLang();
   const t = (GAME_SYSTEM_I18N[lang] || GAME_SYSTEM_I18N.fr).timeline;
   const tc = (GAME_SYSTEM_I18N[lang] || GAME_SYSTEM_I18N.fr).common;
+  const x = GS_EXTRA[lang] || GS_EXTRA.fr;
   const isAI = !!room._isAI;
   const aiDiff = room._aiDiff || "medium";
   const aiFailRate = aiDiff === "easy" ? 0.30 : aiDiff === "medium" ? 0.15 : 0.05;
   const aiDelay   = aiDiff === "easy" ? 3000 : aiDiff === "medium" ? 1800 : 900;
   const isP1 = room.player1 === myUsername;
   const oppUsername = isP1 ? room.player2 : room.player1;
+  const ranked = isRankedRoom(room);
 
-  const defaultTimelineState = {
-    timeline: [],
-    hand1: [], hand2: [],
-    placed1: 0, placed2: 0,
-    currentTurn: room.player1,
-    phase: "play", winner: null, skipped: null,
-  };
-  const [state, setState] = useState(
-    (room.state && room.state.hand1?.length) ? room.state : defaultTimelineState
-  );
+  const empty = { timeline: [], hand1: [], hand2: [], placed1: 0, placed2: 0, currentTurn: room.player1, phase: "play", winner: null, isDraw: false, skipped: null, lastChance: false };
+  const initial = (room.state && room.state.hand1?.length) ? room.state : empty;
+  const [state, setStateRaw] = useState(initial);
+  const stateRef = useRef(initial);
+  const endedRef = useRef(initial.phase === "gameEnd");
+  const [mountedAt] = useState(Date.now);
+  const lastChangeRef = useRef(mountedAt);
+  const lastRemoteRef = useRef("");
+  const lastPollRef   = useRef(mountedAt);
+  const commit = useCallback((next) => { stateRef.current = next; lastChangeRef.current = Date.now(); setStateRaw(next); }, []);
 
-  const [pool, setPool]   = useState([]);
-  const [dragging, setDragging] = useState(null);
-  const [selectedCard, setSelectedCard] = useState(0); // index in hand
-  const [msg, setMsg]     = useState("");
-  const subRef = useRef(null);
+  const [selectedCard, setSelectedCard] = useState(0);
+  const [msg, setMsg]       = useState("");
+  const [startFailed, setStartFailed] = useState(false);
+  const [idleInfo, setIdleInfo] = useState(null);
 
-  const myHand    = isP1 ? state.hand1 : state.hand2;
+  const myHand    = (isP1 ? state.hand1 : state.hand2) || [];
   const myPlaced  = isP1 ? state.placed1 : state.placed2;
-  const isMyTurn  = state.currentTurn === myUsername;
-  const myHandLeft = myHand.slice(myPlaced);
+  const oppPlaced = isP1 ? state.placed2 : state.placed1;
+  const isMyTurn  = state.currentTurn === myUsername && state.phase === "play";
+  const dealt     = (state.hand1?.length || 0) + (state.hand2?.length || 0) + state.timeline.length > 0;
+  const sel       = Math.min(selectedCard, Math.max(0, myHand.length - 1));
+  const currentAnimeToPlace = myHand[sel];
 
-  useEffect(() => {
-    (async () => {
-      const rows = await sb.query("anime_cache?type=eq.TV&score=gte.6&scored_by=gte.2000&select=mal_id,title,year,image_url&order=scored_by.desc&limit=3000").catch(()=>[]);
-      setPool(rows||[]);
-      // Only P1 initializes the game state
-      if(!isP1) return;
-      if(room.state && room.state.hand1?.length) return;
-      if(!rows?.length) return;
-      const rand = seededRand(getDayIndex() * 999 + room.id.charCodeAt(0));
-      const shuffled = [...rows].sort(()=>rand()-0.5);
-      const picks = shuffled.slice(0,11);
-      const init = {
-        timeline: [picks[0]],
-        hand1: picks.slice(1,6),
-        hand2: picks.slice(6,11),
-        placed1:0, placed2:0,
-        currentTurn: room.player1,
-        phase:"play", winner:null, skipped:null,
-      };
-      setState(init);
-      await pushState(init);
-    })();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Polling sync
-  const lastTLStateRef = useRef(JSON.stringify(state));
-  useEffect(() => {
-    const poll = setInterval(async () => {
-      try {
-        const rows = await sb.query(`game_rooms?id=eq.${room.id}&select=state,status,winner&limit=1`);
-        const r = rows?.[0];
-        if(!r) return;
-        const opponentForfaitTL = r.status === "finished" && r.winner === myUsername;
-        if(r.status === "waiting" || opponentForfaitTL) {
-          clearInterval(poll);
-          setState(s => ({...s, phase:"gameEnd", winner: myUsername, opponentLeft: true}));
-          return;
-        }
-        const newState = r.state;
-        if(!newState?.hand1) return;
-        const str = JSON.stringify(newState);
-        if(str !== lastTLStateRef.current) {
-          lastTLStateRef.current = str;
-          setState(newState);
-        }
-      } catch {}
-    }, 1500);
-    return () => clearInterval(poll);
-  }, [room.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const pushState = async (newState) => {
+  const pushState = useCallback(async (next) => {
     if(isAI) return;
-    await sb.query(`game_rooms?id=eq.${room.id}`, {
-      method: "PATCH",
-      headers: { ...sb.headers, "Prefer": "return=minimal" },
-      body: JSON.stringify({ state: newState, updated_at: new Date().toISOString() }),
+    await sb.query(`game_rooms?id=eq.${room.id}&status=eq.active`, {
+      method: "PATCH", headers: { ...sb.headers, "Prefer": "return=minimal" },
+      body: JSON.stringify({ state: next, updated_at: new Date().toISOString() }),
     }).catch(()=>{});
-  };
+  }, [isAI, room.id]);
 
-  // AI turn for Timeline
-  const aiTLRef = useRef(false);
+  // ── distribution : seul le joueur 1 la fait, avec plusieurs essais ───────────────────
   useEffect(() => {
-    if(!isAI || state.phase !== "play" || state.currentTurn === myUsername || aiTLRef.current) return;
-    aiTLRef.current = true;
-    const doAITurn = async () => {
-      await sleep(aiDelay + Math.random() * 800);
-      // AI hand = opponent hand
-      const aiHandAll  = isP1 ? state.hand2 : state.hand1;
-      const aiPlaced   = isP1 ? state.placed2 : state.placed1;
-      const aiHandLeft = aiHandAll.slice(aiPlaced);
-      if(aiHandLeft.length === 0) { aiTLRef.current = false; return; }
-
-      const cardIdx = 0; // AI always plays first card in hand
-      const anime   = aiHandLeft[cardIdx];
-      const fails   = Math.random() < aiFailRate;
-
-      if(fails) {
-        // AI places wrong (pass turn)
-        const next = isP1 ? myUsername : room.player1;
-        setState(s => ({...s, currentTurn:myUsername, skipped:oppUsername}));
-        aiTLRef.current = false;
+    if(!isP1 || (room.state && room.state.hand1?.length)) return;
+    let cancelled = false;
+    (async () => {
+      let rows = null;
+      for(let attempt = 0; attempt < 3 && !cancelled; attempt++) {
+        rows = await sb.query("anime_cache?type=eq.TV&year=not.is.null&score=gte.6&scored_by=gte.2000&select=mal_id,title,year,image_url&order=scored_by.desc&limit=3000").catch(()=>null);
+        if(rows?.length >= 11) break;
+        await sleep(1500);
+      }
+      if(cancelled) return;
+      const deal = rows?.length ? dealTimeline(rows, room.player1) : null;
+      if(!deal) {                                           // pas de cartes : on annule proprement, sans toucher à l'ELO
+        setStartFailed(true); endedRef.current = true;
+        if(!isAI) claimFinish(room.id, { winner: null, state: { ...empty, phase: "gameEnd", startFailed: true } });
         return;
       }
+      commit(deal);
+      await pushState(deal);
+    })();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-      // Find correct position
-      const tl = state.timeline;
-      let bestPos = tl.length;
-      for(let i = 0; i <= tl.length; i++) {
-        const test = [...tl]; test.splice(i, 0, anime);
-        if(test.every((a,j) => j===0 || (a.year||0) >= (test[j-1].year||0))) {
-          bestPos = i; break;
-        }
-      }
+  // Le joueur 2 attend la distribution : au-delà de 30 s, on abandonne l'attente
+  useEffect(() => {
+    if(isP1) return;
+    const id = setTimeout(() => { if(!stateRef.current.hand1?.length && !endedRef.current) setStartFailed(true); }, 30_000);
+    return () => clearTimeout(id);
+  }, [isP1]);
 
-      const newTimeline = [...tl]; newTimeline.splice(bestPos, 0, anime);
-      const newPlaced1 = isP1 ? state.placed1 : state.placed1;
-      const newPlaced2 = isP1 ? state.placed2+1 : state.placed2;
-      // Actually fix: AI is always opponent
-      const aiNewPlaced = (isP1 ? state.placed2 : state.placed1) + 1;
-      const myNewPlaced = isP1 ? state.placed1 : state.placed2;
-
-      const np1 = isP1 ? state.placed1 : aiNewPlaced;
-      const np2 = isP1 ? aiNewPlaced : state.placed2;
-      const newHand1 = isP1 ? state.hand1 : state.hand1.filter(a=>a.mal_id!==anime.mal_id);
-      const newHand2 = isP1 ? state.hand2.filter(a=>a.mal_id!==anime.mal_id) : state.hand2;
-
-      const gameOver = aiNewPlaced >= 5;
-      const newState = {
-        ...state,
-        timeline: newTimeline,
-        hand1: newHand1, hand2: newHand2,
-        placed1: np1, placed2: np2,
-        currentTurn: myUsername,
-        skipped: null,
-        phase: gameOver ? "gameEnd" : "play",
-        winner: gameOver ? oppUsername : null,
-      };
-      setState(newState);
-      aiTLRef.current = false;
-    };
-    doAITurn();
-  }, [state.currentTurn, state.phase, isAI]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const placeAnime = async (handIdx, timelinePos) => {
-    const anime = myHandLeft[handIdx];
-    if(!anime) return;
-    // Check if position is correct
-    const newTimeline = [...state.timeline];
-    newTimeline.splice(timelinePos, 0, anime);
-    // Validate: timeline must be sorted by year
-    const valid = newTimeline.every((a,i) =>
-      i===0 || (a.year||0) >= (newTimeline[i-1].year||0)
-    );
-    if(!valid) {
-setMsg(t.errWrongPosition||"❌ Mauvaise position !");
-      const next = state.currentTurn === room.player1 ? room.player2 : room.player1;
-      const newState = { ...state, currentTurn: next, skipped: myUsername };
-      setState(newState);
-      await pushState(newState);
-      setTimeout(()=>setMsg(""), 2000);
-      return;
-    }
-    setMsg("");
-    const newPlaced1 = isP1 ? state.placed1+1 : state.placed1;
-    const newPlaced2 = isP1 ? state.placed2 : state.placed2+1;
-    const next = state.currentTurn === room.player1 ? room.player2 : room.player1;
-
-    // Win condition: placed all 5 cards
-    // If P1 finishes first, P2 gets one more turn to equalize
-    // If P2 finishes, game ends immediately
-    const myNewPlaced = isP1 ? newPlaced1 : newPlaced2;
-    const oppNewPlaced = isP1 ? newPlaced2 : newPlaced1;
-    
-    let iWon = false;
-    let isDraw = false;
-    
-    if(myNewPlaced >= 5) {
-      if(isP1) {
-        // P1 finished — P2 gets one more turn (don't end yet, pass turn)
-        // But if P2 also has 5, it's a draw
-        if(oppNewPlaced >= 5) isDraw = true;
-        // else just pass turn, P2 will get their last chance
-      } else {
-        // P2 finished — game ends now
-        iWon = true;
-      }
-    }
-    // Special: if we're P2 and P1 already finished (placed1 >= 5)
-    if(!isP1 && state.placed1 >= 5 && myNewPlaced >= 5) {
-      isDraw = newPlaced1 === newPlaced2;
-      iWon = !isDraw;
-    }
-    // If P1 finished last turn and now P2 finishes too
-    if(isP1 && newPlaced1 >= 5 && newPlaced2 >= 5) isDraw = true;
-
-    const gameOver = iWon || isDraw || (newPlaced1 >= 5 && !isP1);
-    const winner = isDraw ? null : iWon ? myUsername : (newPlaced1 >= 5 && !isP1 ? room.player1 : null);
-
-    // Remove the specific card from the hand
-    const newHand1 = isP1 ? [...state.hand1.filter(a=>a.mal_id!==anime.mal_id)] : state.hand1;
-    const newHand2 = isP1 ? state.hand2 : [...state.hand2.filter(a=>a.mal_id!==anime.mal_id)];
-
-    const newState = {
-      ...state,
-      timeline: newTimeline,
-      hand1: newHand1,
-      hand2: newHand2,
-      placed1: newPlaced1,
-      placed2: newPlaced2,
-      currentTurn: next,
-      skipped: null,
-      phase: gameOver ? "gameEnd" : "play",
-      winner,
-      isDraw,
-    };
-    setState(newState);
-    setSelectedCard(0);
-    if(gameOver && room.ranked) {
-      const p1Won = winner === room.player1;
-      const p2Won = winner === room.player2;
-      const delta1 = calcTimelineElo(room.elo1||400, room.elo2||400, p1Won?1:isDraw?0.5:0);
-      const delta2 = calcTimelineElo(room.elo2||400, room.elo1||400, p2Won?1:isDraw?0.5:0);
+  // ── fin de partie normale / abandon (une seule fois) ───────────────────────────────
+  const finishGame = useCallback(async (final) => {
+    endedRef.current = true;
+    if(isAI) return;
+    const row = await claimFinish(room.id, { winner: final.winner || null, state: final });
+    if(row && ranked) {
+      const o = timelineGameOutcome(room, final.winner, final.isDraw);
       await Promise.all([
-        updateElo(room.player1, "elo_timeline", delta1, p1Won?20:isDraw?10:5),
-        updateElo(room.player2, "elo_timeline", delta2, p2Won?20:isDraw?10:5),
+        updateElo(room.player1, "elo_timeline", o.delta1, o.pts1),
+        updateElo(room.player2, "elo_timeline", o.delta2, o.pts2),
       ]);
     }
-    await pushState(newState);
-    setDragging(null);
-  };
+  }, [isAI, ranked, room]);
 
-  const doForfaitTL = async () => {
-    if(state.phase !== "gameEnd") {
-      if(room.ranked) {
-        const victim = myUsername === room.player1 ? room.player2 : room.player1;
-        await Promise.all([
-          updateElo(myUsername, "elo_timeline", -40, 0),
-          updateElo(victim, "elo_timeline", 5, 5),
-        ]);
+  const forfeit = useCallback(async () => {
+    if(endedRef.current) return;
+    endedRef.current = true;
+    const final = { ...stateRef.current, phase: "gameEnd", winner: oppUsername, isDraw: false, forfeitBy: myUsername, currentTurn: null };
+    commit(final);
+    if(isAI) return;
+    const row = await claimFinish(room.id, { winner: oppUsername, state: final });
+    if(row && ranked) await applyForfeitElo("elo_timeline", myUsername, oppUsername);
+  }, [commit, isAI, myUsername, oppUsername, ranked, room.id]);
+
+  const claimWin = useCallback(async () => {
+    if(endedRef.current) return;
+    endedRef.current = true;
+    const final = { ...stateRef.current, phase: "gameEnd", winner: myUsername, isDraw: false, forfeitBy: oppUsername, currentTurn: null };
+    commit(final);
+    const row = await claimFinish(room.id, { winner: myUsername, state: final });
+    if(row && ranked) await applyForfeitElo("elo_timeline", oppUsername, myUsername);
+  }, [commit, myUsername, oppUsername, ranked, room.id]);
+
+  const forfeitRef = useRef(forfeit);  const claimWinRef = useRef(claimWin);  const onCloseRef = useRef(onClose);
+  useEffect(() => { forfeitRef.current = forfeit; claimWinRef.current = claimWin; onCloseRef.current = onClose; });
+
+  useEffect(() => {
+    const fn = () => forfeitRef.current();
+    fn.isOver = () => isAI || endedRef.current || stateRef.current.phase === "gameEnd" || startFailed;
+    onReady?.(fn);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Onglet masqué plus de 8 s en partie classée : abandon (comme Chain)
+  useEffect(() => {
+    if(!ranked) return;
+    let timer;
+    const onVisibility = () => {
+      clearTimeout(timer);
+      if(document.hidden && stateRef.current.phase === "play" && stateRef.current.hand1?.length) {
+        timer = setTimeout(async () => {
+          if(document.hidden && !endedRef.current) { await forfeitRef.current(); onCloseRef.current(); }
+        }, HIDDEN_FORFEIT_MS);
       }
-      await sb.query(`game_rooms?id=eq.${room.id}`, {
-        method: "PATCH",
-        headers: { ...sb.headers, "Prefer": "return=minimal" },
-        body: JSON.stringify({ status: "finished", winner: myUsername === room.player1 ? room.player2 : room.player1, updated_at: new Date().toISOString() }),
-      }).catch(()=>{});
-    }
-  };
-  if(typeof onClose._timelineRef === "undefined") onClose._timelineRef = doForfaitTL;
-  useEffect(() => { onReady?.(doForfaitTL); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => { clearTimeout(timer); document.removeEventListener("visibilitychange", onVisibility); };
+  }, [ranked]);
 
-  const currentAnimeToPlace = myHandLeft[selectedCard] || myHandLeft[0];
+  // ── synchronisation (sondage 1,5 s) + adversaire silencieux ─────────────────────────
+  useEffect(() => {
+    if(isAI) return;
+    let stopped = false;
+    const poll = setInterval(async () => {
+      try {
+        const now = Date.now();
+        if(now - lastPollRef.current > 6000) lastChangeRef.current = now;   // onglet gelé : base saine
+        lastPollRef.current = now;
+        const rows = await sb.query(`game_rooms?id=eq.${room.id}&select=state,status,winner&limit=1`);
+        const r = rows?.[0];
+        if(stopped || !r) return;
+        const cur = stateRef.current;
+        if(cur.phase === "gameEnd") { clearInterval(poll); return; }
+        if(r.status === "finished") {
+          clearInterval(poll); endedRef.current = true;
+          if(r.state?.startFailed) { setStartFailed(true); return; }
+          if(r.state?.phase === "gameEnd") commit(r.state);
+          else commit({ ...cur, phase: "gameEnd", winner: r.winner, forfeitBy: r.winner === myUsername ? oppUsername : myUsername, currentTurn: null });
+          return;
+        }
+        if(r.status === "waiting") { clearInterval(poll); await claimWinRef.current(); return; }   // anciennes versions
+        if(r.state?.hand1) {
+          const str = JSON.stringify(r.state);
+          if(str !== lastRemoteRef.current) { lastRemoteRef.current = str; commit(r.state); }
+        }
+        const s = stateRef.current;
+        if(s.hand1?.length && s.phase === "play" && s.currentTurn !== myUsername && now - lastChangeRef.current > TIMELINE_IDLE_MS) {
+          clearInterval(poll); await claimWinRef.current();
+        }
+      } catch { /* réseau : au prochain tour */ }
+    }, 1500);
+    return () => { stopped = true; clearInterval(poll); };
+  }, [room.id, isAI, commit, myUsername, oppUsername]);
+
+  // compte à rebours d'inactivité (20 dernières secondes)
+  useEffect(() => {
+    if(isAI) return;
+    const id = setInterval(() => {
+      const s = stateRef.current;
+      setIdleInfo(s.hand1?.length && s.phase === "play"
+        ? { actor: s.currentTurn, left: Math.ceil((TIMELINE_IDLE_MS - (Date.now() - lastChangeRef.current)) / 1000) } : null);
+    }, 1000);
+    return () => clearInterval(id);
+  }, [isAI]);
+
+  // ── mon coup ──────────────────────────────────────────────────────────────────────
+  const applyMove = useCallback(async (by, cardId, pos) => {
+    const res = timelineMove(stateRef.current, { by, cardId, pos, p1: room.player1, p2: room.player2 });
+    if(res.ignored) return null;
+    commit(res.state);
+    if(res.ended) await finishGame(res.state); else await pushState(res.state);
+    return res;
+  }, [commit, finishGame, pushState, room.player1, room.player2]);
+
+  const placeAnime = async (pos) => {
+    const card = currentAnimeToPlace;
+    if(!card || !isMyTurn || endedRef.current) return;
+    const res = await applyMove(myUsername, card.mal_id, pos);
+    if(!res) return;
+    setSelectedCard(0);
+    if(!res.valid) { setMsg(t.errWrongPosition || "❌ Mauvaise position !"); setTimeout(() => setMsg(""), 2000); } else setMsg("");
+  };
+
+  // ── IA : joue toujours sa première carte ─────────────────────────────────────────
+  useEffect(() => {
+    if(!isAI || state.phase !== "play" || state.currentTurn !== oppUsername || !state.hand1?.length) return;
+    const timer = setTimeout(() => {
+      const s = stateRef.current;
+      if(endedRef.current || s.phase !== "play" || s.currentTurn !== oppUsername) return;
+      const res = timelineAiMove(s, { ai: oppUsername, p1: room.player1, p2: room.player2, failRate: aiFailRate });
+      if(res.ignored) return;
+      commit(res.state);
+      if(res.ended) endedRef.current = true;
+    }, aiDelay + Math.random() * 800);
+    return () => clearTimeout(timer);
+  }, [state.currentTurn, state.phase, state.hand1?.length, isAI]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const confirmForfeit = () => { if(window.confirm(x.confirmForfeit)) forfeit(); };
+
+  const idleNote = idleInfo && idleInfo.left <= 20 && idleInfo.left > 0
+    ? (idleInfo.actor === myUsername ? x.idleWarnMe(idleInfo.left) : x.idleWarnOpp(idleInfo.left)) : null;
+
+  if(startFailed) return (
+    <div style={{padding:32,textAlign:"center"}}>
+      <div style={{fontSize:32,marginBottom:10}}>⚠️</div>
+      <div style={{fontSize:13,color:"var(--text-3)",marginBottom:16}}>{x.dealFail}</div>
+      <button onClick={onClose} style={{...BTN_PRIMARY,padding:"10px 24px",borderRadius:20}}>{tc.back}</button>
+    </div>
+  );
 
   return (
     <div style={{padding:16,maxWidth:900,margin:"0 auto"}}>
@@ -1265,23 +1160,32 @@ setMsg(t.errWrongPosition||"❌ Mauvaise position !");
         </div>
 <div style={{display:"flex",alignItems:"center",gap:12}}>
           <div style={{fontSize:11,color:"var(--text-4)"}}>
-            {t.placed(isP1?state.placed1:state.placed2, isP1?state.placed2:state.placed1, oppUsername)}
+            {t.placed(myPlaced, oppPlaced, oppUsername)}
           </div>
-          <button onClick={doForfaitTL}
-            style={{fontSize:9,padding:"3px 8px",borderRadius:8,border:"1px solid rgba(239,68,68,0.3)",
-              background:"rgba(239,68,68,0.08)",color:"#ef4444",cursor:"pointer"}}>
-            {t.forfeitBtn}
-          </button>
+          {state.phase === "play" && (
+            <button onClick={confirmForfeit}
+              style={{fontSize:9,padding:"3px 8px",borderRadius:8,border:"1px solid rgba(239,68,68,0.3)",
+                background:"rgba(239,68,68,0.08)",color:"#ef4444",cursor:"pointer"}}>
+              {t.forfeitBtn}
+            </button>
+          )}
         </div>
       </div>
 
+      {!dealt && state.phase === "play" && (
+        <div style={{textAlign:"center",padding:32}}><Spinner label={isP1 ? x.dealing : x.dealWait}/></div>
+      )}
+
+      {idleNote && <div style={{textAlign:"center",fontSize:11,fontWeight:700,color:ORANGE,marginBottom:8}}>{idleNote}</div>}
+
       {/* Turn indicator */}
-      {state.phase === "play" && (
+      {state.phase === "play" && dealt && (
         <div style={{textAlign:"center",marginBottom:12,padding:"6px 14px",borderRadius:20,display:"inline-block",
           background:isMyTurn?"rgba(34,197,94,0.1)":"rgba(255,255,255,0.04)",
           border:`1px solid ${isMyTurn?"rgba(34,197,94,0.3)":"rgba(255,255,255,0.08)"}`,
           color:isMyTurn?GREEN:"var(--text-4)",fontSize:11,fontWeight:700}}>
 {state.skipped ? (t.skippedTurn?t.skippedTurn(state.skipped):`⏩ ${state.skipped} a raté — `) : ""}
+          {state.lastChance && state.currentTurn !== null && `${state.currentTurn === myUsername ? "⚡ " : ""}`}
           {isMyTurn ? (t.yourTurn||"🎯 Ton tour — clique sur une carte puis sur une position") : (t.turnOf?t.turnOf(oppUsername):`⏳ Tour de ${oppUsername}`)}
         </div>
       )}
@@ -1289,14 +1193,14 @@ setMsg(t.errWrongPosition||"❌ Mauvaise position !");
       {msg && <div style={{textAlign:"center",fontSize:12,color:RED,marginBottom:8,fontWeight:700}}>{msg}</div>}
 
       {/* My hand — selectable */}
-      {myHandLeft.length > 0 && state.phase==="play" && (
+      {myHand.length > 0 && state.phase==="play" && (
         <div style={{marginBottom:16}}>
           <div style={{fontSize:10,color:"var(--text-4)",marginBottom:8}}>
 {isMyTurn ? t.selectCardPrompt : t.remainingAnimeLabel}
           </div>
           <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-            {myHandLeft.map((a,i)=>{
-              const selected = i === selectedCard;
+            {myHand.map((a,i)=>{
+              const selected = i === sel;
               return (
                 <div key={a.mal_id}
                   onClick={()=>isMyTurn && setSelectedCard(i)}
@@ -1325,7 +1229,7 @@ setMsg(t.errWrongPosition||"❌ Mauvaise position !");
       )}
 
       {/* Card to place preview */}
-      {isMyTurn && currentAnimeToPlace && state.phase==="play" && (
+      {isMyTurn && currentAnimeToPlace && (
         <div style={{marginBottom:12,padding:"8px 14px",borderRadius:12,display:"flex",alignItems:"center",gap:10,
           background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)"}}>
 <div style={{fontSize:10,color:"var(--text-4)",marginBottom:6}}>{t.placeThisAnime}</div>
@@ -1343,8 +1247,8 @@ setMsg(t.errWrongPosition||"❌ Mauvaise position !");
       {/* Timeline */}
       <div style={{overflowX:"auto",paddingBottom:8}}>
         <div style={{display:"flex",alignItems:"stretch",gap:0,minWidth:"max-content"}}>
-          {isMyTurn && state.phase==="play" && (
-            <DropZone onDrop={()=>placeAnime(selectedCard, 0)}/>
+          {isMyTurn && (
+            <DropZone onDrop={()=>placeAnime(0)}/>
           )}
           {state.timeline.map((a,i)=>(
             <div key={a.mal_id} style={{display:"flex",alignItems:"stretch"}}>
@@ -1355,8 +1259,8 @@ setMsg(t.errWrongPosition||"❌ Mauvaise position !");
                 <div style={{fontSize:8,color:"var(--text-4)",textAlign:"center",maxWidth:86,overflow:"hidden",
                   textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.title}</div>
               </div>
-              {isMyTurn && state.phase==="play" && (
-                <DropZone onDrop={()=>placeAnime(selectedCard, i+1)}/>
+              {isMyTurn && (
+                <DropZone onDrop={()=>placeAnime(i+1)}/>
               )}
             </div>
           ))}
@@ -1364,35 +1268,35 @@ setMsg(t.errWrongPosition||"❌ Mauvaise position !");
       </div>
 
       {/* Game End */}
-      {state.phase === "gameEnd" && (
-        <div style={{textAlign:"center",padding:24,marginTop:16,background:"rgba(255,255,255,0.03)",
-          borderRadius:16,border:"1px solid rgba(255,255,255,0.07)"}}>
-          <div style={{fontSize:40,marginBottom:8}}>
-            {state.opponentLeft?"🏃":state.isDraw?"🤝":state.winner===myUsername?"🏆":"😢"}
+      {state.phase === "gameEnd" && (() => {
+        const iForfeited = state.forfeitBy === myUsername;
+        const oppLeft = !!state.forfeitBy && !iForfeited;
+        const iWon = !iForfeited && (oppLeft || state.winner === myUsername);
+        return (
+          <div style={{textAlign:"center",padding:24,marginTop:16,background:"rgba(255,255,255,0.03)",
+            borderRadius:16,border:"1px solid rgba(255,255,255,0.07)"}}>
+            <div style={{fontSize:40,marginBottom:8}}>
+              {iForfeited?"🏳️":oppLeft?"🏃":state.isDraw?"🤝":iWon?"🏆":"😢"}
+            </div>
+            <div style={{fontSize:18,fontWeight:900,marginBottom:16,color:iWon?GREEN:state.isDraw?ORANGE:RED}}>
+              {iForfeited ? x.youForfeited : oppLeft ? x.opponentGone : state.isDraw?(tc?.draw||"Égalité !"):(iWon?(tc?.victory||"Victoire !"):(tc?.defeat||"Défaite"))}
+            </div>
+            <div style={{fontSize:12,color:"var(--text-4)",marginBottom:20}}>
+              {state.forfeitBy||state.isDraw||!state.winner?"":t.wonFirst?t.wonFirst(state.winner):(state.winner+" a placé tous ses animés en premier")}
+            </div>
+            <button onClick={onClose}
+              style={{padding:"10px 24px",borderRadius:20,border:"none",
+                background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",
+                fontWeight:800,fontSize:13,cursor:"pointer"}}>
+              {tc.back}
+            </button>
           </div>
-          <div style={{fontSize:18,fontWeight:900,marginBottom:16,
-            color:state.opponentLeft||state.winner===myUsername?GREEN:state.isDraw?ORANGE:RED}}>
-            {state.opponentLeft?(tc?.opponentLeftVictory||"Adversaire déconnecté — Victoire !"):state.isDraw?(tc?.draw||"Égalité !"):(state.winner===myUsername?(tc?.victory||"Victoire !"):(tc?.defeat||"Défaite"))}
-          </div>
-          <div style={{fontSize:12,color:"var(--text-4)",marginBottom:20}}>
-            {state.opponentLeft||state.isDraw?"":t.wonFirst?t.wonFirst(state.winner):(state.winner+" a placé tous ses animés en premier")}
-          </div>
-          <button onClick={async()=>{
-              if(state.phase!=="gameEnd"){
-                // game already finished — no need to patch
-              }
-              onClose();
-            }}
-            style={{padding:"10px 24px",borderRadius:20,border:"none",
-              background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",
-              fontWeight:800,fontSize:13,cursor:"pointer"}}>
-            {tc.back}
-          </button>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
+
 
 function DropZone({ onDrop }) {
   const [hovered, setHover] = useState(false);
@@ -1431,19 +1335,66 @@ function pickRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+const CLUE_IDLE_SECS = 90;   // sans aucune action pendant 1 min 30 : on propose de passer / terminer
+
 export function CluescaleGame({ room, onClose }) {
   const { myUsername } = useApp();
-  const players = room.players || [room.player1, room.player2, room.player3, room.player4].filter(Boolean);
+  const { lang } = useLang();
+  const x = GS_EXTRA[lang] || GS_EXTRA.fr;
+  const players = room.players || roomPlayers(room);
   const isHost  = myUsername === players[0];
 
-  const [state, setState] = useState(room.state || null);
+  const [state, setStateRaw] = useState(room.state || null);
+  const stateRef = useRef(room.state || null);
   const [clue, setClue]   = useState("");
   const [guess, setGuess] = useState(10);
-  const [hasGuessed, setHasGuessed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const lastStateRef = useRef("");
+  const myGuessRef = useRef(null);     // { round, value } : mon vote, pour le renvoyer s'il a été écrasé par celui d'un autre juré
+  const busyRef = useRef(false);
+  const [mountedAt] = useState(Date.now);
+  const lastChangeRef = useRef(mountedAt);
+  const [idleSecs, setIdleSecs] = useState(0);
+  const apply = useCallback((next) => { stateRef.current = next; lastChangeRef.current = Date.now(); setStateRaw(next); }, []);
 
-  // Poll for state updates
+  const pushState = useCallback(async (newState) => {
+    await sb.query(`game_rooms?id=eq.${room.id}&status=eq.active`, {
+      method: "PATCH",
+      headers: { ...sb.headers, "Prefer": "return=minimal" },
+      body: JSON.stringify({ state: newState, updated_at: new Date().toISOString() }),
+    }).catch(()=>{});
+  }, [room.id]);
+
+  const fetchFresh = useCallback(async () => {
+    const rows = await sb.query(`game_rooms?id=eq.${room.id}&select=state,status&limit=1`).catch(()=>null);
+    return rows?.[0]?.state || null;
+  }, [room.id]);
+
+  // Fin de manche : points + passage à l'écran de révélation
+  const revealState = useCallback((s) => ({
+    ...s,
+    scores: cluescaleScoreRound({ players, judge: s.judge, answer: s.score, guesses: s.guesses || {}, scores: s.scores || {} }),
+    phase: "reveal",
+    nextPhase: (s.judgeRound || 0) >= players.length * 2 ? "gameEnd" : "next",
+  }), [players]);
+
+  // Vote : on repart de la copie la plus récente de la base (deux jurés qui votent en même temps ne s'écrasent plus)
+  const commitGuess = useCallback(async () => {
+    const mine = myGuessRef.current;
+    if(!mine || busyRef.current) return;
+    busyRef.current = true;
+    try {
+      const fresh = (await fetchFresh()) || stateRef.current;
+      if(fresh.phase !== "vote" || fresh.judgeRound !== mine.round) { apply(fresh); return; }
+      const guesses = { ...(fresh.guesses || {}), [myUsername]: mine.value };
+      let next = { ...fresh, guesses };
+      if(players.filter(p => p !== fresh.judge).every(p => guesses[p] !== undefined)) next = revealState(next);
+      apply(next);
+      await pushState(next);
+    } finally { busyRef.current = false; }
+  }, [apply, fetchFresh, myUsername, players, pushState, revealState]);
+
+  // Synchronisation (1,5 s) + renvoi automatique d'un vote écrasé
   useEffect(() => {
     const poll = setInterval(async () => {
       try {
@@ -1453,23 +1404,22 @@ export function CluescaleGame({ room, onClose }) {
         const str = JSON.stringify(r.state);
         if(str !== lastStateRef.current) {
           lastStateRef.current = str;
-          setState(r.state);
-          setHasGuessed(false);
-          setClue("");
-          setGuess(10);
+          const prev = stateRef.current;
+          apply(r.state);
+          if(!prev || prev.judgeRound !== r.state.judgeRound) { setClue(""); setGuess(10); }
         }
-      } catch {}
+        const cur = stateRef.current, mine = myGuessRef.current;
+        if(mine && cur.phase === "vote" && cur.judgeRound === mine.round && cur.guesses?.[myUsername] === undefined) commitGuess();
+      } catch { /* réseau : au prochain tour */ }
     }, 1500);
     return () => clearInterval(poll);
-  }, [room.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [room.id, apply, commitGuess, myUsername]);
 
-  const pushState = async (newState) => {
-    await sb.query(`game_rooms?id=eq.${room.id}`, {
-      method: "PATCH",
-      headers: { ...sb.headers, "Prefer": "return=minimal" },
-      body: JSON.stringify({ state: newState, updated_at: new Date().toISOString() }),
-    }).catch(()=>{});
-  };
+  // Compte des secondes sans aucune action (pour proposer de passer si quelqu'un est parti)
+  useEffect(() => {
+    const id = setInterval(() => setIdleSecs(Math.floor((Date.now() - lastChangeRef.current) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   function buildNextTurn(prev, players) {
     const totalTurns = players.length * 2;
@@ -1494,56 +1444,47 @@ export function CluescaleGame({ room, onClose }) {
     if(!clue.trim() || submitting) return;
     setSubmitting(true);
     const newState = { ...state, phase: "vote", clue: clue.trim() };
+    apply(newState);
     await pushState(newState);
-    setState(newState);
     setSubmitting(false);
   };
 
   const submitGuess = async () => {
-    if(hasGuessed || submitting) return;
+    if(submitting || state?.guesses?.[myUsername] !== undefined) return;
     setSubmitting(true);
-    setHasGuessed(true);
-    const newGuesses = { ...state.guesses, [myUsername]: Number(guess) };
-    const allVoted = players.filter(p => p !== state.judge).every(p => newGuesses[p] !== undefined);
-
-    let newState;
-    if(allVoted) {
-      // Calculate points
-      const newScores = { ...state.scores };
-      let judgeGetsPoints = false;
-      players.filter(p => p !== state.judge).forEach(p => {
-        const g = newGuesses[p];
-        const diff = Math.abs(g - state.score);
-        if(diff === 0) { newScores[p] = (newScores[p]||0) + 3; judgeGetsPoints = true; }
-        else if(diff === 1) { newScores[p] = (newScores[p]||0) + 1; judgeGetsPoints = true; }
-      });
-      if(judgeGetsPoints) newScores[state.judge] = (newScores[state.judge]||0) + 2;
-
-      // Check if game over
-      const totalTurns = players.length * 2;
-      if((state.judgeRound || 0) >= totalTurns) {
-        newState = { ...state, guesses: newGuesses, scores: newScores, phase: "reveal", nextPhase: "gameEnd" };
-      } else {
-        newState = { ...state, guesses: newGuesses, scores: newScores, phase: "reveal", nextPhase: "next" };
-      }
-    } else {
-      newState = { ...state, guesses: newGuesses };
-    }
-    await pushState(newState);
-    setState(newState);
+    myGuessRef.current = { round: state.judgeRound, value: Number(guess) };
+    await commitGuess();
     setSubmitting(false);
   };
 
+  // Tour suivant : l'hôte, ou n'importe qui si l'hôte est resté inactif ; on relit d'abord la base (jamais deux tours d'avance)
   const nextTurn = async () => {
-    if(!isHost) return;
-    if(state.nextPhase === "gameEnd") {
-      await pushState({ ...state, phase: "gameEnd" });
-      setState(s => ({...s, phase:"gameEnd"}));
-    } else {
-      const next = buildNextTurn(state, players);
-      await pushState(next);
-      setState(next);
-    }
+    if(!isHost && idleSecs < CLUE_IDLE_SECS) return;
+    const fresh = (await fetchFresh()) || stateRef.current;
+    if(fresh.phase !== "reveal") { apply(fresh); return; }
+    if(fresh.nextPhase === "gameEnd") { await endGame({ ...fresh, phase: "gameEnd" }); return; }
+    const next = buildNextTurn(fresh, players);
+    apply(next);
+    await pushState(next);
+  };
+
+  // Joueur absent : révéler avec les votes reçus, ou terminer la partie
+  const forceAct = async (kind) => {
+    const fresh = (await fetchFresh()) || stateRef.current;
+    const cur = stateRef.current;
+    if(fresh.judgeRound !== cur.judgeRound || fresh.phase !== cur.phase) { apply(fresh); return; }   // quelqu'un a déjà avancé
+    if(kind !== "reveal") { await endGame({ ...fresh, phase: "gameEnd" }); return; }
+    const next = revealState(fresh);
+    apply(next);
+    await pushState(next);
+  };
+
+  // Fin de partie : l'état final et la clôture de la salle (« finished ») s'écrivent EN UNE SEULE requête atomique.
+  // (Deux requêtes séparées pouvaient s'inverser : la salle se fermait avant que l'écran de fin soit enregistré, et les autres
+  // joueurs restaient bloqués sur la dernière manche.) Plus de partie fantôme : une salle terminée n'est plus « active ».
+  const endGame = async (finalState) => {
+    apply(finalState);
+    await claimFinish(room.id, { winner: cluescaleWinnerPoints(finalState.scores).winner, state: finalState });
   };
 
   // Award pts_cluescale to the winner on game end — only once per game
@@ -1551,11 +1492,8 @@ export function CluescaleGame({ room, onClose }) {
   useEffect(() => {
     if(state?.phase !== "gameEnd" || awardedCluescaleRef.current) return;
     awardedCluescaleRef.current = true;
-    const sorted = Object.entries(state.scores||{}).sort((a,b)=>b[1]-a[1]);
-    if(sorted.length < 2) return;
-    const [[winner, winScore], [, secondScore]] = sorted;
-    if(winner !== myUsername) return; // only the winner gets points
-    const earned = (winScore - secondScore) * 3;
+    const { winner, earned } = cluescaleWinnerPoints(state.scores);
+    if(winner !== myUsername) return; // seul le vainqueur marque des points
     if(earned <= 0) return;
     sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&limit=1`)
       .then(rows => {
@@ -1583,11 +1521,24 @@ export function CluescaleGame({ room, onClose }) {
 
   const isJudge = state.judge === myUsername;
   const otherPlayers = players.filter(p => p !== state.judge);
+  const idleBox = (idleSecs >= CLUE_IDLE_SECS && state.phase !== "gameEnd") ? (
+    <div style={{margin:"0 0 14px",padding:"10px 14px",borderRadius:12,background:"rgba(249,115,22,0.08)",
+      border:"1px solid rgba(249,115,22,0.3)",textAlign:"center"}}>
+      <div style={{fontSize:11,color:ORANGE,fontWeight:700,marginBottom:8}}>{x.cluIdle}</div>
+      <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+        {state.phase === "vote" && Object.keys(state.guesses||{}).length > 0 && (
+          <button onClick={()=>forceAct("reveal")} style={{...BTN_PRIMARY,padding:"6px 12px",fontSize:11,borderRadius:8}}>{x.cluReveal}</button>
+        )}
+        <button onClick={()=>forceAct("end")}
+          style={{padding:"6px 12px",fontSize:11,fontWeight:700,borderRadius:8,cursor:"pointer",
+            border:"1px solid rgba(239,68,68,0.3)",background:"rgba(239,68,68,0.08)",color:RED}}>{x.cluEnd}</button>
+      </div>
+    </div>
+  ) : null;
 
   // ── GAME END ──
   if(state.phase === "gameEnd") {
     const sorted = Object.entries(state.scores||{}).sort((a,b)=>b[1]-a[1]);
-    const winner = sorted[0]?.[0];
     return (
       <div style={{padding:32,textAlign:"center"}}>
         <div style={{fontSize:48,marginBottom:8}}>🏆</div>
@@ -1648,13 +1599,15 @@ export function CluescaleGame({ room, onClose }) {
             </div>
           )}
         </div>
-        {isHost && (
+        {idleBox}
+        {(isHost || idleSecs >= CLUE_IDLE_SECS) ? (
           <button onClick={nextTurn} style={{width:"100%",padding:"12px",borderRadius:12,border:"none",
             background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",fontWeight:800,cursor:"pointer"}}>
-            {state.nextPhase==="gameEnd"?"Voir les résultats 🏆":"Tour suivant →"}
+            {state.nextPhase==="gameEnd"?"Voir les résultats 🏆":x.cluNext}
           </button>
+        ) : (
+          <div style={{textAlign:"center",fontSize:11,color:"var(--text-4)"}}>En attente de {players[0]} pour continuer…</div>
         )}
-        {!isHost && <div style={{textAlign:"center",fontSize:11,color:"var(--text-4)"}}>En attente de {players[0]} pour continuer…</div>}
       </div>
     );
   }
@@ -1674,6 +1627,7 @@ export function CluescaleGame({ room, onClose }) {
           </div>
           <div style={{fontSize:10,color:"var(--text-4)"}}>Indice de {state.judge}</div>
         </div>
+        {idleBox}
 
         {isJudge ? (
           <div style={{textAlign:"center",padding:24,background:"rgba(255,255,255,0.03)",borderRadius:12}}>
@@ -1740,6 +1694,7 @@ export function CluescaleGame({ room, onClose }) {
         </div>
         <div style={{fontSize:18,fontWeight:900,color:"var(--text-1)",marginBottom:8}}>{state.theme}</div>
       </div>
+      {idleBox}
 
       {isJudge ? (
         <div>
@@ -1777,102 +1732,118 @@ export function CluescaleGame({ room, onClose }) {
 }
 
 // ─── CLUESCALE MATCHMAKING ────────────────────────────────────────────────────
-export function CluescaleMatchmaking({ onMatch, onClose }) {
+// Salon de 2 à 4 joueurs. Rejoindre = prise de place atomique (gameRooms.js), l'hôte « réveille » la salle toutes les 5 s
+// (une salle sans réveil depuis 90 s n'accepte plus de code), et si l'hôte quitte le salon avant le début, la salle est supprimée.
+export function CluescaleMatchmaking({ onMatch, onClose, initialRoom = null }) {
   const { myUsername } = useApp();
-  const [mode, setMode]       = useState(null); // null | create | join
-  const [code, setCode]       = useState("");
+  const { lang } = useLang();
+  const x = GS_EXTRA[lang] || GS_EXTRA.fr;
+  const [mode, setMode]       = useState(initialRoom ? "create" : null); // null | create | join  ("create" = salon d'attente)
+  const [code, setCode]       = useState(initialRoom?.private_code || "");
   const [joinCode, setJoinCode] = useState("");
   const [joinError, setJoinError] = useState("");
-  const [room, setRoom]       = useState(null);
-  const [players, setPlayers] = useState([]);
-  const roomRef = useRef(null);
+  const [room, setRoom]       = useState(initialRoom);
+  const [players, setPlayers] = useState(initialRoom ? roomPlayers(initialRoom) : []);
+  const [busy, setBusy]       = useState(false);
+  const roomRef    = useRef(initialRoom?.id || null);
+  const startedRef = useRef(false);                     // la partie a commencé : ne rien supprimer en quittant
+  const hostRef    = useRef(!!initialRoom && initialRoom.player1 === myUsername);
+
+  // Quitter le salon avant le début : l'hôte supprime sa salle (les invités n'ont pas à la retrouver vide)
+  useEffect(() => () => {
+    if(!startedRef.current && hostRef.current && roomRef.current) deleteWaitingRoom(roomRef.current);
+  }, []);
 
   const createRoom = async () => {
-    const c = generateCode();
-    setCode(c);
+    if(busy) return;
+    setBusy(true); setJoinError("");
+    await deleteMyWaitingRooms(myUsername, "cluescale");              // anciennes salles restées ouvertes
+    const c = newRoomCode();
     const created = await sb.query("game_rooms", {
       method:"POST",
       headers:{...sb.headers,"Prefer":"return=representation"},
       body:JSON.stringify({
-        game_type:"cluescale",
-        player1:myUsername,
-        status:"waiting",
-        ranked:false,
-        private_code:c,
+        game_type:"cluescale", player1:myUsername, status:"waiting", ranked:false, private_code:c,
         state:{players:[myUsername]},
       }),
     }).catch(()=>null);
+    setBusy(false);
     if(created?.[0]) {
-      roomRef.current = created[0].id;
-      setRoom(created[0]);
-      setPlayers([myUsername]);
-      setMode("create");
-    }
+      roomRef.current = created[0].id; hostRef.current = true;
+      setCode(c); setRoom(created[0]); setPlayers([myUsername]); setMode("create");
+    } else setJoinError(x.netError);
   };
 
   const joinRoom = async () => {
-    const rooms = await sb.query(`game_rooms?private_code=eq.${joinCode}&status=eq.waiting&game_type=eq.cluescale&limit=1`).catch(()=>[]);
-    const r = rooms?.[0];
-    if(!r) { setJoinError("Code invalide."); return; }
-    const currentPlayers = r.state?.players || [r.player1];
-    if(currentPlayers.includes(myUsername)) { setJoinError("Tu es déjà dans cette room."); return; }
-    if(currentPlayers.length >= 4) { setJoinError("Room complète (4 joueurs max)."); return; }
-    const newPlayers = [...currentPlayers, myUsername];
-    const playerField = `player${newPlayers.length}`;
-    await sb.query(`game_rooms?id=eq.${r.id}`, {
-      method:"PATCH",
-      headers:{...sb.headers,"Prefer":"return=minimal"},
-      body:JSON.stringify({[playerField]:myUsername, state:{...r.state, players:newPlayers}}),
-    }).catch(()=>{});
-    roomRef.current = r.id;
-    setRoom({...r, state:{...r.state,players:newPlayers}});
-    setPlayers(newPlayers);
-    setMode("create"); // reuse lobby UI
-    setCode(joinCode);
+    if(busy) return;
+    setBusy(true); setJoinError("");
+    const res = await joinCluescaleRoom({ me: myUsername, code: cleanRoomCode(joinCode) });
+    setBusy(false);
+    if(!res.ok) { setJoinError(joinErrorText(res.reason, lang)); return; }
+    roomRef.current = res.room.id; hostRef.current = res.room.player1 === myUsername;
+    setRoom(res.room); setPlayers(res.room.players); setCode(res.room.private_code || cleanRoomCode(joinCode));
+    if(res.room.status === "active") { startedRef.current = true; onMatch({ ...res.room, players: res.room.players }); return; }
+    setMode("create"); // même écran de salon
   };
 
-  // Poll for players joining / host starting
+  // Hôte : réveille la salle pour qu'elle reste « fraîche »
   useEffect(() => {
-    if(!roomRef.current) return;
+    if(mode !== "create" || !room?.id || room.player1 !== myUsername) return;
+    const id = setInterval(() => heartbeatRoom(room.id), HEARTBEAT_PRIVATE_MS);
+    return () => clearInterval(id);
+  }, [mode, room?.id, room?.player1, myUsername]);
+
+  // Tous : suivre les joueurs qui arrivent, le lancement par l'hôte, ou la disparition de la salle
+  useEffect(() => {
+    if(mode !== "create" || !room?.id) return;
+    const id = room.id;
     const poll = setInterval(async () => {
-      const rows = await sb.query(`game_rooms?id=eq.${roomRef.current}&limit=1`).catch(()=>[]);
-      const r = rows?.[0];
-      if(!r) return;
-      const pl = r.state?.players || [];
+      const rows = await sb.query(`game_rooms?id=eq.${encodeURIComponent(id)}&limit=1`).catch(()=>null);
+      if(rows === null) return;                                   // erreur réseau : on réessaie
+      const r = rows[0];
+      if(!r || r.status === "finished") {                         // l'hôte est parti
+        clearInterval(poll); roomRef.current = null; hostRef.current = false;
+        setRoom(null); setPlayers([]); setCode(""); setMode(null); setJoinError(x.cluRoomGone);
+        return;
+      }
+      const pl = roomPlayers(r);
       setPlayers(pl);
       if(r.status === "active") {
-        clearInterval(poll);
-        onMatch({...r, players:pl});
+        clearInterval(poll); startedRef.current = true;
+        onMatch({ ...r, players: pl });
       }
     }, 1500);
     return () => clearInterval(poll);
-  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode, room?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startGame = async () => {
-    if(players.length < 2) return;
-    // Build initial game state here so it's written to DB atomically with status:active
+    if(busy) return;
+    setBusy(true);
+    // Liste des joueurs relue juste avant le lancement : un invité arrivé il y a une seconde n'est pas oublié
+    const rows = await sb.query(`game_rooms?id=eq.${encodeURIComponent(roomRef.current)}&status=eq.waiting&limit=1`).catch(()=>null);
+    const fresh = rows?.[0];
+    const list = fresh ? roomPlayers(fresh) : players;
+    if(!fresh || list.length < 2) { setBusy(false); if(!fresh && rows) setJoinError(x.cluRoomGone); return; }
     const initState = {
       phase: "clue",
       judgeRound: 1,
-      judge: players[0],
-      theme: CLUESCALE_THEMES[Math.floor(Math.random() * CLUESCALE_THEMES.length)],
+      judge: list[0],
+      theme: pickRandom(CLUESCALE_THEMES),
       score: Math.floor(Math.random() * 20) + 1,
       clue: null,
       guesses: {},
-      scores: Object.fromEntries(players.map(p=>[p,0])),
+      scores: Object.fromEntries(list.map(p=>[p,0])),
       history: [],
-      players,
+      players: list,
     };
-    await sb.query(`game_rooms?id=eq.${roomRef.current}`, {
+    const started = await sb.query(`game_rooms?id=eq.${encodeURIComponent(roomRef.current)}&status=eq.waiting`, {
       method:"PATCH",
-      headers:{...sb.headers,"Prefer":"return=minimal"},
-      body:JSON.stringify({
-        status:"active",
-        player1:players[0], player2:players[1],
-        player3:players[2]||null, player4:players[3]||null,
-        state: initState,
-      }),
-    }).catch(()=>{});
+      headers:{...sb.headers,"Prefer":"return=representation"},
+      body:JSON.stringify({ status:"active", state: initState, updated_at: new Date().toISOString() }),
+    }).catch(()=>null);
+    setBusy(false);
+    if(started?.[0]) { startedRef.current = true; onMatch({ ...started[0], players: list }); }
+    else setJoinError(x.netError);
   };
 
   if(!mode) return (
@@ -1880,12 +1851,12 @@ export function CluescaleMatchmaking({ onMatch, onClose }) {
       <div style={{fontSize:24,fontWeight:900,color:"var(--text-1)",marginBottom:8}}>🎭 Cluescale</div>
       <div style={{fontSize:12,color:"var(--text-4)",marginBottom:20}}>2 à 4 joueurs · Juge & Jury</div>
       <div style={{display:"flex",flexDirection:"column",gap:10,maxWidth:240,margin:"0 auto"}}>
-        <button onClick={createRoom}
-          style={{padding:"12px 20px",borderRadius:12,border:"none",
+        <button onClick={createRoom} disabled={busy}
+          style={{opacity:busy?0.6:1,padding:"12px 20px",borderRadius:12,border:"none",
             background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>
           Créer une room
         </button>
-        <button onClick={()=>setMode("join")}
+        <button onClick={()=>{setJoinError("");setMode("join");}}
           style={{padding:"12px 20px",borderRadius:12,border:"2px solid rgba(255,255,255,0.1)",
             background:"rgba(255,255,255,0.04)",color:"var(--text-2)",fontWeight:700,fontSize:13,cursor:"pointer"}}>
           Rejoindre avec un code
@@ -1894,6 +1865,7 @@ export function CluescaleMatchmaking({ onMatch, onClose }) {
           style={{padding:"8px",background:"none",border:"none",color:"var(--text-4)",cursor:"pointer",fontSize:12}}>
           Annuler
         </button>
+        {joinError && <div style={{fontSize:11,color:"#ef4444"}}>{joinError}</div>}
       </div>
     </div>
   );
@@ -1901,15 +1873,15 @@ export function CluescaleMatchmaking({ onMatch, onClose }) {
   if(mode === "join") return (
     <div style={{padding:32,textAlign:"center"}}>
       <div style={{fontSize:20,fontWeight:900,color:"var(--text-1)",marginBottom:16}}>Rejoindre une room</div>
-      <input value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())}
+      <input value={joinCode} onChange={e=>setJoinCode(cleanRoomCode(e.target.value))}
         placeholder="CODE" maxLength={6}
         style={{width:"100%",boxSizing:"border-box",padding:"12px 16px",borderRadius:12,
           background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",
           color:"var(--text-1)",fontSize:22,fontWeight:900,textAlign:"center",letterSpacing:6,
           outline:"none",marginBottom:8}}/>
       {joinError && <div style={{fontSize:11,color:"#ef4444",marginBottom:8}}>{joinError}</div>}
-      <button onClick={joinRoom}
-        style={{width:"100%",padding:"12px",borderRadius:12,border:"none",
+      <button onClick={joinRoom} disabled={busy||joinCode.length<4}
+        style={{opacity:busy||joinCode.length<4?0.6:1,width:"100%",padding:"12px",borderRadius:12,border:"none",
           background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer",marginBottom:8}}>
         Rejoindre
       </button>
@@ -1954,7 +1926,7 @@ export function CluescaleMatchmaking({ onMatch, onClose }) {
       )}
 
       {isHost ? (
-        <button onClick={startGame} disabled={players.length < 2}
+        <button onClick={startGame} disabled={players.length < 2 || busy}
           style={{width:"100%",padding:"12px",borderRadius:12,border:"none",
             background:players.length<2?"rgba(255,255,255,0.06)":"linear-gradient(135deg,#7c3aed,#4f46e5)",
             color:players.length<2?"var(--text-4)":"#fff",fontWeight:800,fontSize:13,
@@ -1964,6 +1936,10 @@ export function CluescaleMatchmaking({ onMatch, onClose }) {
       ) : (
         <div style={{fontSize:11,color:"var(--text-4)"}}>En attente que {players[0]} lance la partie…</div>
       )}
+      <button onClick={onClose}
+        style={{marginTop:12,padding:"8px",background:"none",border:"none",color:"var(--text-4)",cursor:"pointer",fontSize:12}}>
+        {x.cluLeave}
+      </button>
     </div>
   );
 }
@@ -1976,42 +1952,8 @@ export function CluescaleMatchmaking({ onMatch, onClose }) {
 // impostor is caught they get one last chance to guess the word.
 // Only the signed-in account's points are saved (pts_undercover + points_total)
 // — the other seats are just names typed in the lobby, not real accounts.
-const UNDERCOVER_WORDS = [
-  { word:"Naruto",              hint:{ fr:"Shonen ninja",                        en:"Ninja shonen" } },
-  { word:"One Piece",           hint:{ fr:"Aventure en mer",                     en:"Adventure at sea" } },
-  { word:"Dragon Ball Z",       hint:{ fr:"Combats surpuissants",                en:"Overpowered fights" } },
-  { word:"Death Note",          hint:{ fr:"Thriller psychologique",              en:"Psychological thriller" } },
-  { word:"Attack on Titan",     hint:{ fr:"Anime sombre post-apocalyptique",     en:"Dark post-apocalyptic anime" } },
-  { word:"Demon Slayer",        hint:{ fr:"Combat de démons",                    en:"Demon hunting" } },
-  { word:"My Hero Academia",    hint:{ fr:"École de super-héros",                en:"Superhero school" } },
-  { word:"Fullmetal Alchemist", hint:{ fr:"Alchimie et frères",                  en:"Alchemy and brothers" } },
-  { word:"Sword Art Online",    hint:{ fr:"Jeu vidéo virtuel",                   en:"Virtual video game" } },
-  { word:"Hunter x Hunter",     hint:{ fr:"Aventure et chasseurs",               en:"Adventure and hunters" } },
-  { word:"Bleach",              hint:{ fr:"Combat de shinigami",                 en:"Shinigami battles" } },
-  { word:"Tokyo Ghoul",         hint:{ fr:"Monstres urbains",                    en:"Urban monsters" } },
-  { word:"Re:Zero",             hint:{ fr:"Boucle temporelle isekai",            en:"Isekai time loop" } },
-  { word:"Steins;Gate",         hint:{ fr:"Science-fiction temporelle",          en:"Time-travel sci-fi" } },
-  { word:"Code Geass",          hint:{ fr:"Pouvoir mental et politique",         en:"Mind power and politics" } },
-  { word:"Evangelion",          hint:{ fr:"Mechas et psychologie",               en:"Mechas and psychology" } },
-  { word:"Jujutsu Kaisen",      hint:{ fr:"Exorcisme de malédictions",           en:"Exorcising curses" } },
-  { word:"Spy x Family",        hint:{ fr:"Famille secrète et espionnage",       en:"Secret family and spies" } },
-  { word:"Haikyuu",             hint:{ fr:"Sport de filet",                      en:"Net sport" } },
-  { word:"Goku",                hint:{ fr:"Héros de Dragon Ball",                en:"Dragon Ball hero" } },
-  { word:"Luffy",               hint:{ fr:"Capitaine pirate élastique",          en:"Rubber pirate captain" } },
-  { word:"Light Yagami",        hint:{ fr:"Génie qui juge la mort",              en:"Genius who judges death" } },
-  { word:"Levi Ackerman",       hint:{ fr:"Soldat d'élite contre les titans",    en:"Elite soldier against titans" } },
-  { word:"Eren Yeager",         hint:{ fr:"Protagoniste d'un anime de titans",   en:"Lead of a titan anime" } },
-  { word:"Itadori Yuji",        hint:{ fr:"Hôte d'une malédiction",              en:"Host of a curse" } },
-  { word:"Tanjiro Kamado",      hint:{ fr:"Chasseur de démons au grand cœur",    en:"Kind-hearted demon hunter" } },
-  { word:"L",                   hint:{ fr:"Détective mystérieux assis bizarrement", en:"Mysterious detective who sits oddly" } },
-  { word:"Edward Elric",        hint:{ fr:"Alchimiste au bras de métal",         en:"Alchemist with a metal arm" } },
-  { word:"Killua",              hint:{ fr:"Jeune assassin aux cheveux blancs",   en:"Young white-haired assassin" } },
-  { word:"Zero Two",            hint:{ fr:"Pilote aux cornes",                   en:"Horned pilot" } },
-  { word:"Anya Forger",         hint:{ fr:"Petite fille télépathe",              en:"Little telepathic girl" } },
-  { word:"Shoyo Hinata",        hint:{ fr:"Petit volleyeur qui saute haut",      en:"Short volleyball jumper" } },
-  { word:"Rimuru Tempest",      hint:{ fr:"Slime réincarné",                     en:"Reincarnated slime" } },
-  { word:"Kaguya Shinomiya",    hint:{ fr:"Étudiante brillante et fière",        en:"Brilliant, proud student" } },
-];
+// Banque de mots (+ variantes d'écriture et indices FR/EN) : src/constants/undercoverWords.js ; règles testées : src/utils/undercoverRules.js
+let undercoverRecent = [];   // derniers mots tirés pendant cette session : on évite de les retirer tout de suite
 const UNDERCOVER_MIN = 3, UNDERCOVER_MAX = 6, UNDERCOVER_ROUNDS = 2, UNDERCOVER_GUESS_SECS = 30;
 
 const ucInputStyle = {flex:1,padding:"9px 12px",borderRadius:10,fontSize:12,
@@ -2035,7 +1977,8 @@ export function UndercoverLobby({ onStart }) {
 
   const startGame = () => {
     if(players.length < UNDERCOVER_MIN) return;
-    const entry = UNDERCOVER_WORDS[Math.floor(Math.random() * UNDERCOVER_WORDS.length)];
+    const entry = pickEntry(UNDERCOVER_WORDS, undercoverRecent);
+    undercoverRecent = [...undercoverRecent, entry.word].slice(-12);
     const impostorIdx = Math.floor(Math.random() * players.length);
     onStart(players.map((username, i) => ({
       username,
@@ -2099,16 +2042,15 @@ export function UndercoverGame({ players, onClose, onReplay }) {
 
   const impostor  = players.find(p => p.isImpostor);
   const crewWord  = players.find(p => !p.isImpostor)?.word || "";
+  const crewEntry = UNDERCOVER_WORDS.find(e => e.word === crewWord) || { word: crewWord, aliases: [] };
+  const [clueError, setClueError] = useState("");
   const turnIdx   = clues.length;
   const current   = players[turnIdx % players.length];
 
   const finalize = useCallback((impostorFound, impostorGuessed) => {
     if(finishedRef.current) return;
     finishedRef.current = true;
-    const pts = {};
-    if(!impostorFound)       pts[impostor.username] = 5;
-    else if(impostorGuessed) { players.forEach(p => { pts[p.username] = p.isImpostor ? 2 : 1; }); }
-    else                     { players.forEach(p => { if(!p.isImpostor) pts[p.username] = 3; }); }
+    const pts = undercoverPoints(players, impostorFound, impostorGuessed);
     setResult({ impostorFound, impostorGuessed, pts });
     setPhase("result");
     // Save only the signed-in account's points
@@ -2129,7 +2071,7 @@ export function UndercoverGame({ players, onClose, onReplay }) {
               body:JSON.stringify({ username:myUsername, elo_chain:400, elo_timeline:400, ...patch }) });
       }).catch(()=>{});
     }
-  }, [impostor, players, myUsername]);
+  }, [players, myUsername]);
 
   // Impostor's last-chance countdown (timer is reset when entering the phase)
   useEffect(() => {
@@ -2150,6 +2092,9 @@ export function UndercoverGame({ players, onClose, onReplay }) {
   const submitClue = () => {
     const word = input.trim();
     if(!word) return;
+    // Un membre de l'équipage ne peut pas dire le mot secret lui-même (l'imposteur, lui, ne le connaît pas : jamais bloqué)
+    if(!current.isImpostor && isClueForbidden(word, crewEntry)) { setClueError(GS_EXTRA[lang]?.ucForbidden || GS_EXTRA.fr.ucForbidden); return; }
+    setClueError("");
     const next = [...clues, { username: current.username, word }];
     setClues(next);
     setInput("");
@@ -2161,18 +2106,13 @@ export function UndercoverGame({ players, onClose, onReplay }) {
     const next = { ...votes, [voter]: suspect };
     setVotes(next);
     if(voteIdx + 1 < players.length) { setVoteIdx(i => i + 1); return; }
-    // Everyone voted — a unique top suspect is required to catch the impostor
-    const counts = {};
-    Object.values(next).forEach(v => { counts[v] = (counts[v] || 0) + 1; });
-    const max = Math.max(...Object.values(counts));
-    const top = Object.keys(counts).filter(k => counts[k] === max);
-    if(top.length === 1 && top[0] === impostor.username) { setTimer(UNDERCOVER_GUESS_SECS); setPhase("guess"); }
+    // Tout le monde a voté : l'imposteur n'est démasqué que s'il est seul en tête
+    if(tallyVotes(next, impostor.username).impostorFound) { setTimer(UNDERCOVER_GUESS_SECS); setPhase("guess"); }
     else finalize(false, false);
   };
 
   const submitGuess = () => {
-    const ok = guessInput.trim().toLowerCase() === crewWord.toLowerCase();
-    finalize(true, ok);
+    finalize(true, isGuessCorrect(guessInput, crewEntry));
   };
 
   const cluesByPlayer = (
@@ -2237,6 +2177,7 @@ export function UndercoverGame({ players, onClose, onReplay }) {
           style={{...ucInputStyle,border:"1px solid rgba(124,58,237,0.4)",background:"rgba(124,58,237,0.08)"}}/>
         <button onClick={submitClue} style={ucPrimaryBtn}>{t.ok}</button>
       </div>
+      {clueError && <div style={{marginTop:8,fontSize:11,color:RED,textAlign:"center"}}>{clueError}</div>}
     </div>
   );
 
