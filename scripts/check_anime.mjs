@@ -1,6 +1,7 @@
 // Diagnostic : pourquoi un anime n'apparaît pas (ou apparaît à tort) dans le calendrier ?
 // Usage : node --env-file=.env scripts/check_anime.mjs "steel ball run"
-// Affiche la ligne de la base (type, statut, jour de diffusion…) ET ce que disent AniList / Jikan en direct.
+// Affiche la ligne de la base (type, statut, jour de diffusion…) ET ce que disent AniList / Tenrai (MyAnimeList) en direct.
+import { malData } from "./lib/malApi.mjs";
 const URL_ = process.env.SUPABASE_URL;
 const KEY  = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON;
 const q = process.argv.slice(2).join(" ").trim();
@@ -24,9 +25,9 @@ for(const a of rows) {
     console.log("   AniList :", m ? `statut=${m.status} format=${m.format} épisodes=${m.episodes ?? "?"} prochain épisode=${m.nextAiringEpisode ? `n°${m.nextAiringEpisode.episode} le ${new Date(m.nextAiringEpisode.airingAt*1000).toISOString().slice(0,16)}Z` : "aucun"}` : "introuvable");
   } catch(e) { console.log("   AniList : erreur", e.message); }
   try {
-    const j = await fetch(`https://api.jikan.moe/v4/anime/${a.mal_id}`); const d = (await j.json())?.data;
-    console.log("   Jikan/MAL :", d ? `statut=${d.status} type=${d.type} épisodes=${d.episodes ?? "?"} diffusion=${d.broadcast?.string || "aucune"}` : "introuvable");
-  } catch(e) { console.log("   Jikan : erreur", e.message); }
+    const d = await malData(`/anime/${a.mal_id}`);
+    console.log("   Tenrai/MAL :", d ? `statut=${d.status} type=${d.type} épisodes=${d.episodes ?? "?"} diffusion=${d.broadcast?.string || "aucune"}` : "introuvable");
+  } catch(e) { console.log("   Tenrai : erreur", e.message); }
   await new Promise(r => setTimeout(r, 1200));
 }
-console.log("\nSi AniList/Jikan disent « en cours » mais la base dit autre chose : lance run_refresh_airing.bat.");
+console.log("\nSi AniList/Tenrai disent « en cours » mais la base dit autre chose : lance run_refresh_airing.bat.");
