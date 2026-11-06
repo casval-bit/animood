@@ -4,13 +4,13 @@
 // 3. Fetches season labels from AniList for new anime
 
 import { buildAltTitles, jikanTitleList } from "./lib/altTitles.mjs";
+import { malGet, malIsDown, malStats, MalApiDown } from "./lib/malApi.mjs";
 
 const SUPABASE_URL  = process.env.SUPABASE_URL;
 // clé de service si disponible (nécessaire une fois security_rls_2_reference.sql exécuté), sinon clé publique
 const SUPABASE_ANON = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON;
-const JIKAN_BASE    = "https://api.jikan.moe/v4";
 const ANILIST_URL   = "https://graphql.anilist.co";
-const DELAY_MS      = 1100;
+const DELAY_MS      = 0;       // le rythme est réglé par scripts/lib/malApi.mjs (TENRAI_GAP_MS)
 const BATCH_SIZE    = 10;
 const MAX_CONSECUTIVE_KNOWN = 3;
 
@@ -104,18 +104,8 @@ async function applyAniList(seasons, byId = {}) {
   return n;
 }
 
-async function jikanGet(path) {
-  for(let attempt=0; attempt<4; attempt++) {
-    let r;
-    try { r = await fetch(`${JIKAN_BASE}${path}`); }
-    catch { await sleep(3000*Math.pow(2,attempt)); continue; } // network hiccup — retry
-    if(r.status === 429 || r.status >= 500) { await sleep(3000*Math.pow(2,attempt)); continue; } // rate limit or Jikan-side flakiness (504s are common on their free tier)
-    if(r.status === 404) return null;
-    if(!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.json();
-  }
-  throw new Error(`Jikan unavailable after retries: ${path}`);
-}
+// Tenrai (successeur de Jikan, même format) — malGet gère délai, nouveaux essais et « API en panne » (voir scripts/lib/malApi.mjs)
+const jikanGet = (path) => malGet(path).catch(e => { if(e instanceof MalApiDown) return null; throw e; }); // API en panne → null : on sort des boucles, on enregistre ce qui est prêt
 
 function parseAnime(a) {
   return {
@@ -170,6 +160,7 @@ async function addNewAnime(existingIds) {
   while(consecutiveKnown < MAX_CONSECUTIVE_KNOWN) {
     const data = await jikanGet(`/anime?page=${page}&limit=25&order_by=start_date&sort=desc&sfw=false`);
     await sleep(DELAY_MS);
+    if(malIsDown()) { console.log("\n  ⛔ Tenrai indisponible — ajout interrompu (ce qui est déjà récupéré est enregistré)"); break; }
     if(!data?.data?.length) break;
 
     const allKnown = data.data.every(a => existingIds.has(a.mal_id));
@@ -183,6 +174,7 @@ async function addNewAnime(existingIds) {
         try {
           const full = await jikanGet(`/anime/${anime.mal_id}/full`);
           await sleep(DELAY_MS);
+          if(malIsDown()) break;
           if(full?.data) {
             batch.push(parseAnime(full.data));
             existingIds.add(anime.mal_id);
@@ -198,6 +190,7 @@ async function addNewAnime(existingIds) {
           batch = [];
         }
         } catch(e) { console.error(`\n  Error ${anime.mal_id}: ${e.message}`); }
+        if(malIsDown()) break;
       }
     }
     if(!data.pagination?.has_next_page) break;
@@ -223,6 +216,7 @@ async function refreshScores(existingIds) {
   while(true) {
     const data = await jikanGet(`/anime?page=${page}&limit=25&order_by=score&sort=desc&sfw=false`);
     await sleep(DELAY_MS);
+    if(malIsDown()) { console.log("\n  ⛔ Tenrai indisponible — mise à jour des scores interrompue"); break; }
     if(!data?.data?.length) break;
 
     for(const a of data.data) {
@@ -300,6 +294,9 @@ async function main() {
   console.log(`   New anime added    : ${added}`);
   console.log(`   Scores refreshed  : ${refreshed}`);
   console.log(`   Seasons updated   : ${seasons}`);
+  const st = malStats();
+  console.log(`   Tenrai            : ${st.ok}/${st.calls} requêtes réussies${st.withKey ? " (avec Server Key)" : " (sans Server Key)"}`);
+  if(malIsDown()) { console.error("⚠️ Tenrai (MyAnimeList) était indisponible : nouveaux animés et scores seront refaits au prochain passage."); process.exitCode = 1; }
 }
 
 main().catch(e => { console.error(e); process.exit(1); }); // code d'erreur : le workflow GitHub passe au rouge

@@ -30,6 +30,7 @@ jobs:
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
       OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
       OPENROUTER_MODEL: ${{ secrets.OPENROUTER_MODEL }}
+      TENRAI_SERVER_KEY: ${{ secrets.TENRAI_SERVER_KEY }}   # facultatif : relève les limites de Tenrai (voir docs/MAINTENANCE.md)
 
     steps:
       - uses: actions/checkout@v4
@@ -40,11 +41,15 @@ jobs:
 
       - name: New anime, statuts (LiveChart/AniList), broadcast, scores, moods v4, rescore
         id: daily
+        timeout-minutes: 45
+        env:
+          SYNC_BUDGET_MIN: '35'      # le script s'arrête proprement avant la limite de l'étape
         run: node scripts/animood_sync.mjs --job=daily 2>&1 | tee /tmp/daily_log.txt
 
       - name: Ménage des parties fantômes et des invitations périmées
         if: always()
         continue-on-error: true
+        timeout-minutes: 5
         run: node scripts/cleanup_game_rooms.mjs 2>&1 | tee -a /tmp/daily_log.txt
 
       - name: Write summary

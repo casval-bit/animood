@@ -57,6 +57,15 @@ Fichiers SQL dans `supabase/`, à lancer dans l'éditeur SQL de Supabase.
   ```
   Raccourcis Windows : `run_weekly.bat`, `run_new_anime.bat`, `run_moods.bat`, `run_scores.bat`, `run_broadcast.bat`, `run_streaming.bat`, `run_streaming_regions.bat`, `run_trailers.bat`.
 
+### Sources de données des scripts : Tenrai + AniList (plus de Jikan)
+
+- **Tenrai** (`https://api.tenrai.org/v1`, successeur de Jikan, mêmes chemins et même format) : scores MyAnimeList, fiches complètes des nouveaux animés, trailers, jours de diffusion. Client commun : `scripts/lib/malApi.mjs` (délai de 20 s par requête, 3 essais, et « disjoncteur » : après 6 échecs d'affilée l'API est déclarée en panne et le script passe à la suite au lieu d'attendre).
+- **AniList** (GraphQL) : statuts, horaires, humeurs et **plateformes de streaming** (50 animés par requête : ~5 minutes pour toute la base, contre plus d'1 h 45 avant).
+- **Server Key Tenrai (facultative)** : relève les limites de requêtes. Si tu en as une, ajoute-la comme secret GitHub `TENRAI_SERVER_KEY` (et `TENRAI_SERVER_KEY=…` dans `.env` pour les lancements à la main). Sans clé, tout fonctionne, un peu plus lentement (pause de 0,7 s entre requêtes ; réglable avec `TENRAI_GAP_MS`).
+- **Vérifier que tout répond** : `node --env-file=.env scripts/check_tenrai.mjs` (lecture seule).
+- **Temps imparti** : chaque étape des workflows a sa limite (`timeout-minutes`) et un budget interne (`SYNC_BUDGET_MIN`) : un script s'arrête proprement un peu avant d'être coupé, et le « Write summary » s'exécute toujours.
+- Les colonnes `jikan_weight` / `jikan_score` de la base gardent leur nom historique (elles contiennent maintenant des valeurs MyAnimeList via Tenrai).
+
 ---
 
 ## 💡 Bon à savoir
