@@ -9,13 +9,17 @@ setlocal
 REM ── 1. Trouver electron ──────────────────────────────────────────────────────
 SET ELECTRON_BIN=
 
+SET LOCAL_ELECTRON=0
+
 REM Electron local (node_modules)
 IF EXIST "%~dp0node_modules\.bin\electron.cmd" (
   SET "ELECTRON_BIN=%~dp0node_modules\.bin\electron.cmd"
+  SET LOCAL_ELECTRON=1
   GOTO found_electron
 )
 IF EXIST "%~dp0node_modules\.bin\electron" (
   SET "ELECTRON_BIN=%~dp0node_modules\.bin\electron"
+  SET LOCAL_ELECTRON=1
   GOTO found_electron
 )
 
@@ -35,6 +39,18 @@ EXIT /B 1
 
 :found_electron
 ECHO [OK] Electron : %ELECTRON_BIN%
+
+REM ── 1b. Electron du projet : verifier qu'il est complet, le reparer sinon ────
+REM (l'installateur d'Electron plante en silence sous Node 24 : voir scripts/ensure-electron.mjs)
+IF "%LOCAL_ELECTRON%"=="1" (
+  node "%~dp0scripts\ensure-electron.mjs"
+  IF ERRORLEVEL 1 (
+    ECHO.
+    ECHO [ERREUR] Electron n'est pas utilisable. Lis le message ci-dessus.
+    PAUSE
+    EXIT /B 1
+  )
+)
 
 REM ── 2. Démarrer Vite en arrière-plan ────────────────────────────────────────
 ECHO.
