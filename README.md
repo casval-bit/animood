@@ -87,6 +87,7 @@ Ouvre `http://localhost:5173`. Aucune config nécessaire : la clé Supabase pré
 | `npm run build` | Build du site |
 | `npm run lint` | Vérifie le code |
 | `npm run electron:dev` | Appli de bureau en mode dev (ou `run_desktop.bat`) |
+| `npm run electron:fix` | Répare Electron s'il ne démarre pas (« failed to install correctly », bug de son installateur avec Node 24) — `electron:dev` le fait déjà tout seul |
 
 ### Organisation du dépôt
 

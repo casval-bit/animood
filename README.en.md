@@ -87,6 +87,7 @@ Open `http://localhost:5173`. No setup needed: the Supabase key in the code is t
 | `npm run build` | Build the site |
 | `npm run lint` | Lint the code |
 | `npm run electron:dev` | Desktop app in dev mode (or `run_desktop.bat`) |
+| `npm run electron:fix` | Repairs Electron if it won't start ("failed to install correctly": Electron's installer silently fails on Node 24) — `electron:dev` already does it automatically |
 
 ### Repository layout
 
