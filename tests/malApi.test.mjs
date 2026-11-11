@@ -1,4 +1,5 @@
-// Tests du client Tenrai (scripts/lib/malApi.mjs) contre un faux serveur local : réponses normales, 404, limite 429, panne et « disjoncteur ».
+// Tests du client MyAnimeList (scripts/lib/malApi.mjs), Tenrai SEUL, contre un faux serveur local : réponses normales, 404, limite 429,
+// panne et « disjoncteur ». (Le secours Jikan est testé dans tests/malFallback.test.mjs.)
 import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
@@ -17,6 +18,7 @@ const server = http.createServer((req, res) => {
 });
 await new Promise((r) => server.listen(0, r));
 process.env.TENRAI_BASE = `http://127.0.0.1:${server.address().port}/v1/`;
+process.env.MAL_SOURCES = "tenrai";
 process.env.TENRAI_SERVER_KEY = "secret";
 process.env.TENRAI_GAP_MS = "1";
 const { malGet, malData, malIsDown, malStats, MalApiDown } = await import("../scripts/lib/malApi.mjs");

@@ -3,8 +3,8 @@
 // Jobs:
 //   --job=new-anime     Weekly: add new anime from AniList to DB (not already there)
 //   --job=broadcast     Weekly: patch missing broadcast days
-//   --job=streaming     Weekly: fetch streaming platforms via AniList (batches of 50)
-//   --job=trailers      Monthly: fetch missing trailers via Tenrai (MyAnimeList), AniList as fallback
+//   --job=streaming     Weekly: fetch streaming platforms via AniList (batches of 50), MyAnimeList as backup
+//   --job=trailers      Monthly: fetch missing trailers via MyAnimeList (Tenrai, Jikan as backup), AniList as fallback
 //   --job=new-scores    Weekly: update scores/moods for newly airing anime
 //   --job=rescore-2w    Run 2 weeks after first airing: refresh scores/moods
 //   --job=rescore-2m    Run 2 months after first airing: final refresh
@@ -27,7 +27,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { buildAltTitles } from "./lib/altTitles.mjs";
-import { malData, malIsDown, malStats, MalApiDown } from "./lib/malApi.mjs";
+import { malData, malIsDown, malSource, malSummary, MalApiDown } from "./lib/malApi.mjs";
 
 // Aucune requête ne doit pouvoir bloquer le script indéfiniment (un serveur qui ne répond pas = script figé sans message) :
 // toutes les requêtes réseau de ce fichier abandonnent au bout de 30 s (les appels qui le gèrent déjà réessaient ou passent au suivant).
@@ -209,7 +209,7 @@ function alSeason(a) {
 }
 
 // ── JOB: new-anime ────────────────────────────────────────────────────────────
-// Fetches recently added anime from Tenrai (MyAnimeList) and inserts new ones only
+// Fetches recently added anime from AniList and inserts new ones only
 async function jobNewAnime() {
   log("=== JOB: new-anime ===");
 
@@ -310,7 +310,7 @@ async function jobNewAnime() {
 // Sans ça, une série terminée reste dans le calendrier pour toujours, et une série qui vient de commencer
 // (ex. JoJo Steel Ball Run) reste « Not yet aired » donc n'apparaît jamais ; et les films / spéciaux « à venir » ne passent jamais à « sortis » : les autres jobs ne le font
 // que pour les anime notés (top 5000) ou à 2 semaines / 2 mois après la 1re diffusion.
-// Source : AniList (50 anime par requête, rapide) ; Tenrai (MyAnimeList) en secours pour ceux qu'AniList ne connaît pas.
+// Source : AniList (50 anime par requête, rapide) ; MyAnimeList (Tenrai, puis Jikan en secours) pour ceux qu'AniList ne connaît pas.
 const AL_STATUS = { RELEASING:"Currently Airing", HIATUS:"Currently Airing", FINISHED:"Finished Airing", CANCELLED:"Finished Airing", NOT_YET_RELEASED:"Not yet aired" };
 const DAYS_EN = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 // Jour + heure de diffusion au format du site (heure du Japon ; le calendrier la convertit à ton fuseau)
@@ -383,25 +383,25 @@ async function jobRefreshAiring() {
     }
   }
 
-  // Inconnus d'AniList : on demande à Tenrai (MyAnimeList), avec un budget de temps, et on tourne d'un jour à l'autre pour couvrir tout le monde.
+  // Inconnus d'AniList : on demande à MyAnimeList (Tenrai, puis Jikan en secours), avec un budget de temps, et on tourne d'un jour à l'autre pour couvrir tout le monde.
   const MAL_BUDGET_MS = 150_000;
   if(unknown.length) {
     const shift = (Math.floor(Date.now()/86_400_000) * 100) % unknown.length; // départ différent chaque jour
     const queue = [...unknown.slice(shift), ...unknown.slice(0, shift)].slice(0, 150);
-    log(`  ${unknown.length} anime inconnus d'AniList → vérification via Tenrai (${queue.length} max, 2 min 30 max)`);
+    log(`  ${unknown.length} anime inconnus d'AniList → vérification via MyAnimeList (${queue.length} max, 2 min 30 max)`);
     const t0 = Date.now(); let n = 0;
     for(const r of queue) {
       if(Date.now() - t0 > MAL_BUDGET_MS) { log(`  ⏱️ budget de temps atteint après ${n} vérifications — la suite sera vue demain`); break; }
-      if(malIsDown()) { log(`  ⛔ Tenrai indisponible — vérifications interrompues après ${n}`); break; }
+      if(malIsDown()) { log(`  ⛔ MyAnimeList (Tenrai et Jikan) indisponible — vérifications interrompues après ${n}`); break; }
       n++;
       try {
         const st = (await malData(`/anime/${r.mal_id}`))?.status;
         if(st && st !== r.status && !(st==="Not yet aired" && r.status!=="Not yet aired")) {
           await updateAnimeCache(r.mal_id, {status: st}); changed++; noteStatus(r, st);
-          log(`  ✅ [Tenrai] ${r.title} : ${r.status} → ${st}`);
+          log(`  ✅ [${malSource()}] ${r.title} : ${r.status} → ${st}`);
         }
       } catch(e) { if(!(e instanceof MalApiDown)) log(`  ⚠️ ${r.title} : ${e.message}`); }
-      if(n % 20 === 0) log(`  Tenrai : ${n}/${queue.length} vérifiés`);
+      if(n % 20 === 0) log(`  MyAnimeList : ${n}/${queue.length} vérifiés`);
     }
   }
   log(`=== refresh-airing done: ${changed} mis à jour sur ${rows.length} (${unknown.length} inconnus d'AniList) — ${started.length} démarrés, ${finished.length} terminés, ${slotFixed} jours/heures de diffusion corrigés ===`);
@@ -490,7 +490,7 @@ async function jobBroadcast() {
         try {
           const m = await malData(`/anime/${anime.mal_id}`); const b = m?.broadcast?.day;
           // MAL donne aussi l'heure (JST) : on la garde, le calendrier s'en sert pour convertir à ton fuseau et trier
-          if(b) { day=b.replace(/s$/i,""); src="tenrai"; if(m.broadcast.time) slot={day, time:m.broadcast.time, timezone:m.broadcast.timezone||"Asia/Tokyo"}; }
+          if(b) { day=b.replace(/s$/i,""); src="mal"; if(m.broadcast.time) slot={day, time:m.broadcast.time, timezone:m.broadcast.timezone||"Asia/Tokyo"}; }
         } catch {}
       }
     }
@@ -541,22 +541,61 @@ async function saveStreaming(a, platforms) {
   return true;
 }
 
-// Traite une liste de lignes { mal_id, title, streaming } par lots de 50. Renvoie { updated, aborted }.
+// ── Secours : plateformes via MyAnimeList (Tenrai, puis Jikan) ────────────────────────────────────────────────
+// AniList ne connaît pas tous les anime (ou n'a pas de lien de streaming pour certains) et peut être en panne. Pour ceux-là on
+// interroge MyAnimeList (/anime/{id}/streaming) : un anime par requête, donc lent. C'est borné par passage (MAL_STREAMING_MAX,
+// 250 par défaut ; 0 = pas de secours) et par le budget de temps, et on tourne d'une semaine à l'autre pour couvrir tout le monde.
+const MAL_STREAMING_MAX = process.env.MAL_STREAMING_MAX === undefined || process.env.MAL_STREAMING_MAX === "" ? 250 : Math.max(0, Number(process.env.MAL_STREAMING_MAX) || 0);
+let malStreamingLeft = MAL_STREAMING_MAX;
+
+async function streamingViaMal(rows) {
+  const todo = rows.filter(r => !(Array.isArray(r.streaming) && r.streaming.length));     // seulement ceux qui n'ont encore AUCUNE plateforme
+  if(!todo.length || malStreamingLeft <= 0 || overBudget() || malIsDown()) return 0;
+  const shift = (Math.floor(Date.now()/604_800_000) * MAL_STREAMING_MAX) % todo.length;   // départ différent chaque semaine
+  const queue = [...todo.slice(shift), ...todo.slice(0, shift)].slice(0, malStreamingLeft);
+  log(`  ↪️ ${todo.length} anime sans plateforme côté AniList → secours MyAnimeList (${queue.length} requêtes max)`);
+  let updated = 0;
+  for(const r of queue) {
+    if(overBudget() || malIsDown()) break;
+    malStreamingLeft--;
+    try {
+      const list = await malData(`/anime/${r.mal_id}/streaming`);
+      const platforms = (Array.isArray(list) ? list : []).filter(x => x?.name && x?.url).map(x => ({name:x.name, url:x.url}));
+      if(await saveStreaming(r, platforms)) updated++;
+    } catch(e) { if(!(e instanceof MalApiDown)) log(`  ⚠️ ${r.title} : ${e.message}`); }
+  }
+  return updated;
+}
+
+// Traite une liste de lignes { mal_id, title, streaming } par lots de 50 (AniList), puis tente MyAnimeList pour les anime restés sans
+// plateforme (ou non traités parce qu'AniList ne répondait plus). Renvoie { updated, aborted }.
 async function streamingForRows(rows) {
   let updated = 0, failedInARow = 0;
+  const missed = [];
   for(let i=0; i<rows.length; i+=50) {
     if(overBudget()) { log("  ⏱️ budget de temps atteint — la suite au prochain passage"); return { updated, aborted:true }; }
     const chunk = rows.slice(i, i+50);
     try {
       const found = await streamingBatch(chunk.map(r => r.mal_id));
       failedInARow = 0;
-      for(const r of chunk) if(await saveStreaming(r, found.get(r.mal_id))) updated++;
+      for(const r of chunk) {
+        const platforms = found.get(r.mal_id);
+        if(await saveStreaming(r, platforms)) updated++;
+        else if(!platforms?.length) missed.push(r);
+      }
     } catch(e) {
       log(`  ⚠️ AniList (lot de ${chunk.length}) : ${e.message}`);
-      if(++failedInARow >= 3) { log("  ⛔ AniList ne répond pas — étape interrompue (reprise au prochain passage)"); return { updated, aborted:true }; }
+      missed.push(...chunk);
+      if(++failedInARow >= 3) {
+        log("  ⛔ AniList ne répond pas — on continue avec MyAnimeList pour ce qu'on peut (le reste au prochain passage)");
+        missed.push(...rows.slice(i + 50));
+        updated += await streamingViaMal(missed);
+        return { updated, aborted:true };
+      }
     }
     await sleep(1100);                                // AniList : 90 requêtes/minute maximum
   }
+  updated += await streamingViaMal(missed);
   return { updated, aborted:false };
 }
 
@@ -571,7 +610,7 @@ async function jobStreamingFor(ids) {
 // ── JOB: streaming ──────────────────────────────────────────────────────────────
 // Safe: merges with existing data, never removes platforms already in streaming
 async function jobStreaming() {
-  log("=== JOB: streaming (AniList) ===");
+  log("=== JOB: streaming (AniList, MyAnimeList en secours) ===");
   let total = 0, updated = 0;
   // En cours + à venir d'abord, puis les séries terminées
   for(const status of ["Currently Airing", "Not yet aired", "Finished Airing"]) {
@@ -622,7 +661,7 @@ async function jobTrailers(onlyIds = null) {
   for(const a of toFetch) {
     if(overBudget()) { log("  ⏱️ budget de temps atteint — la suite au prochain passage"); break; }
     let found = false, malAnswered = false;
-    // 1. Tenrai (MyAnimeList)
+    // 1. MyAnimeList (Tenrai, puis Jikan en secours)
     if(!malIsDown()) {
       try {
         const t = (await malData(`/anime/${a.mal_id}`))?.trailer;
@@ -631,7 +670,7 @@ async function jobTrailers(onlyIds = null) {
         if(t?.url || ytId) {
           const trailer = {url:t?.url||(ytId?`https://www.youtube.com/watch?v=${ytId}`:null),youtube_id:ytId};
           await supabase.from("anime_cache").update({trailer}).eq("mal_id",a.mal_id);
-          log(`  ✅ [tenrai] ${a.title}`);
+          log(`  ✅ [${malSource().toLowerCase()}] ${a.title}`);
           fetched++; found = true;
         }
       } catch {}
@@ -710,8 +749,8 @@ async function jobNewScores() {
   log(`${toScore.length} newly airing anime to score`);
 
   for(const a of toScore) {
-    // Score frais depuis Tenrai (MyAnimeList)
-    if(overBudget() || malIsDown()) { log("  ⏭️ scores MAL ignorés (budget de temps atteint ou Tenrai indisponible)"); }
+    // Score frais depuis MyAnimeList (Tenrai, puis Jikan en secours)
+    if(overBudget() || malIsDown()) { log("  ⏭️ scores MAL ignorés (budget de temps atteint ou MyAnimeList indisponible)"); }
     else try {
       const m = await malData(`/anime/${a.mal_id}`);
       if(m) {
@@ -764,7 +803,7 @@ async function jobRescore2w() {
 
   log(`${toRescore?.length||0} anime to rescore at 2w`);
   for(const row of (toRescore||[])) {
-    if(overBudget() || malIsDown()) { log("  ⏭️ rescore interrompu (budget de temps ou Tenrai indisponible) — repris au prochain passage"); break; }
+    if(overBudget() || malIsDown()) { log("  ⏭️ rescore interrompu (budget de temps ou MyAnimeList indisponible) — repris au prochain passage"); break; }
     if(await rescoreAnime(row.mal_id)) await supabase.from("anime_sync_log").update({rescored_2w:true}).eq("mal_id",row.mal_id);
   }
   log("=== rescore-2w done ===");
@@ -782,7 +821,7 @@ async function jobRescore2m() {
 
   log(`${toRescore?.length||0} anime to rescore at 2m`);
   for(const row of (toRescore||[])) {
-    if(overBudget() || malIsDown()) { log("  ⏭️ rescore interrompu (budget de temps ou Tenrai indisponible) — repris au prochain passage"); break; }
+    if(overBudget() || malIsDown()) { log("  ⏭️ rescore interrompu (budget de temps ou MyAnimeList indisponible) — repris au prochain passage"); break; }
     if(await rescoreAnime(row.mal_id, true)) await supabase.from("anime_sync_log").update({rescored_2m:true}).eq("mal_id",row.mal_id); // keepWeight=true : à 2 mois on garde le poids MAL déjà calculé
   }
   log("=== rescore-2m done ===");
@@ -901,9 +940,9 @@ Jobs:
   livechart    Daily   — LiveChart RSS (episodes aired in the last 24 h): flips "Not yet aired" → airing, fills broadcast slot
   daily        Daily   — same as weekly (see below)
   refresh-airing Daily — update status (airing / finished / upcoming), episodes, broadcast day of everything airing or upcoming
-  broadcast    Weekly  — patch missing broadcast days (Tenrai + AniList)
-  streaming    Weekly  — fetch streaming platforms (AniList, 50 anime per request)
-  trailers     Monthly — fetch missing trailers (Tenrai, AniList fallback; upcoming first)
+  broadcast    Weekly  — patch missing broadcast days (MyAnimeList: Tenrai/Jikan, + AniList)
+  streaming    Weekly  — fetch streaming platforms (AniList, 50 anime per request; MyAnimeList as backup)
+  trailers     Monthly — fetch missing trailers (MyAnimeList: Tenrai/Jikan, AniList fallback; upcoming first)
   new-scores   Weekly  — score/mood newly airing anime (tracked in sync log)
   rescore-2w   Weekly  — refresh score/status 2 weeks after first airing
   rescore-2m   Weekly  — refresh score/status 2 months after first airing
@@ -912,8 +951,8 @@ Jobs:
 `);
 }
 
-{ // Bilan des requêtes Tenrai (MyAnimeList), pour le rapport de la synchro
-  const st = malStats();
-  if(st.calls) log(`Tenrai : ${st.ok}/${st.calls} requêtes réussies${st.throttled?`, ${st.throttled}× « trop de requêtes »`:""}${st.withKey?" (avec Server Key)":" (sans Server Key)"}${st.down?" — ⚠️ API indisponible, une partie du travail sera refaite au prochain passage":""}`);
+{ // Bilan des requêtes MyAnimeList (Tenrai, Jikan en secours), pour le rapport de la synchro
+  const sum = malSummary();
+  if(sum) log(`${sum}${malIsDown() ? " — ⚠️ API indisponible, une partie du travail sera refaite au prochain passage" : ""}`);
 }
 log("=== Done ===");
