@@ -2,7 +2,7 @@
 // Sources : saison en cours, une année au choix, « ma liste » (notés / terminés / watchlist), ou une liste perso.
 // Glisser-déposer (avec position d'insertion) ou toucher une affiche puis un rang, annuler (Ctrl+Z), auto-classement par mes notes
 // ou par la note communautaire, rangs personnalisables (nom, couleur, ordre), taille des affiches, sauvegarde automatique par source,
-// export PNG fiable (les images passent par un proxy CORS le temps de l'export) et copie dans le presse-papiers.
+// export PNG fiable (les affiches sont relues via notre proxy d'images /api/img le temps de l'export, avec un secours) et copie dans le presse-papiers.
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { sb } from "../api/supabase.js";
 import { useApp } from "../context/useApp.js";
@@ -28,7 +28,42 @@ const freshBoard = () => ({ tiers: DEFAULT_TIERS.map(t => ({ ...t, items: [] }))
 const light = (r) => ({ mal_id: r.mal_id, title: r.title, title_en: r.title_en, image_url: r.image_url, large_image: r.large_image, score: r.score, year: r.year, type: r.type });
 const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* stockage plein ou bloqué : tant pis */ } };
-const proxied = (src, w = 260) => `https://images.weserv.nl/?url=${encodeURIComponent(String(src).replace(/^https?:\/\//, ""))}&w=${w}&output=jpg`;
+
+// ── Lecture des affiches pour l'export ──────────────────────────────────────────────────────────────────────────
+// Les serveurs d'images n'envoient pas toujours l'en-tête CORS : le navigateur sait les afficher mais pas les « lire » pour les
+// dessiner dans le PNG (résultat : des affiches toutes noires). On essaie donc, dans l'ordre :
+//   1. la lecture directe (marche quand le serveur d'images autorise le CORS) ;
+//   2. notre proxy /api/img (fonction Vercel / serveur de développement), qui renvoie l'image depuis notre propre domaine ;
+//   3. images.weserv.nl, un proxy public, en dernier secours.
+// Si rien ne marche pour une affiche, l'export y écrit le titre (comme à l'écran) au lieu d'un carré noir.
+const IMAGE_SOURCES = [
+  (s) => s,
+  (s) => `/api/img?u=${encodeURIComponent(s)}`,
+  (s) => `https://images.weserv.nl/?url=${encodeURIComponent(String(s).replace(/^https?:\/\//, ""))}&w=260&output=jpg`,
+];
+const blobToDataUrl = (blob) => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(blob); });
+async function posterToDataUrl(src) {
+  if(String(src).startsWith("data:")) return src;
+  for(const build of IMAGE_SOURCES) {
+    const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const r = await fetch(build(src), { signal: ctrl.signal, ...(build === IMAGE_SOURCES[0] ? { mode: "cors", referrerPolicy: "no-referrer" } : {}) });
+      if(!r.ok) continue;
+      const blob = await r.blob();
+      if(blob.size < 64 || !String(blob.type).startsWith("image/")) continue;   // page d'erreur / réponse vide
+      return await blobToDataUrl(blob);
+    } catch { /* source suivante */ } finally { clearTimeout(to); }
+  }
+  return null;
+}
+/** Charge toutes les adresses avec au plus `n` requêtes en parallèle (évite de saturer le serveur avec 150 affiches d'un coup). */
+async function loadPosters(srcs, n = 8) {
+  const out = {}; let next = 0;
+  await Promise.all(Array.from({ length: Math.min(n, srcs.length) }, async () => {
+    while(next < srcs.length) { const s = srcs[next++]; out[s] = await posterToDataUrl(s); }
+  }));
+  return out;
+}
 
 // ── Affiche : essaie image_url puis large_image ; titre écrit sur la case si rien ne charge ──────────────────
 function Poster({ anime, name, w }) {
@@ -247,23 +282,24 @@ export function TierlistStudio() {
   }); setEditTier(null); };
   const addTier = () => commit(b => ({ ...b, tiers: [...b.tiers, { id: `t${Date.now()}`, label: "?", color: PALETTE[b.tiers.length % PALETTE.length], items: [] }] }));
 
-  // ── Export PNG / presse-papiers : les affiches passent par un proxy CORS (data URL) pour ne pas être « bloquées » ──
+  // ── Export PNG / presse-papiers : les affiches sont relues via un proxy (voir loadPosters) puis écrites en « data URL » ──
   const renderCanvas = async () => {
     const { default: html2canvas } = await import("html2canvas");
-    const srcs = [...new Set([...boardRef.current.querySelectorAll("img[data-raw]")].map(i => i.dataset.raw))];
-    const data = {};
-    await Promise.all(srcs.map(async (s) => {
-      try {
-        const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 9000);
-        const r = await fetch(proxied(s), { signal: ctrl.signal }); clearTimeout(to);
-        if(!r.ok) return;
-        const blob = await r.blob();
-        data[s] = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
-      } catch { /* image gardée telle quelle */ }
-    }));
+    const imgs = [...boardRef.current.querySelectorAll("img[data-raw]")];
+    const data = await loadPosters([...new Set(imgs.map(i => i.dataset.raw))]);
     return html2canvas(boardRef.current, {
       backgroundColor: "#0f0a1e", scale: 2, useCORS: true, ignoreElements: (el) => el.dataset?.noExport === "1",
-      onclone: (doc) => doc.querySelectorAll("img[data-raw]").forEach(img => { const d = data[img.dataset.raw]; if(d) img.src = d; }),
+      onclone: (doc) => doc.querySelectorAll("img[data-raw]").forEach(img => {
+        const d = data[img.dataset.raw];
+        if(d) { img.removeAttribute("loading"); img.src = d; return; }
+        // Affiche introuvable : on écrit le titre, comme à l'écran (jamais de carré noir)
+        const box = doc.createElement("div");
+        box.textContent = img.alt || "";
+        Object.assign(box.style, { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center",
+          boxSizing: "border-box", padding: "2px", overflow: "hidden", fontSize: "8px", lineHeight: "1.1", color: "rgba(255,255,255,.75)",
+          background: "linear-gradient(160deg,#2a1850,#150c30)" });
+        img.replaceWith(box);
+      }),
     });
   };
   const savePng = async () => {
