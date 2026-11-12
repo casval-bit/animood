@@ -21,12 +21,19 @@ const MOODS = {
 
 let indexCache = { html: null, at: 0 };
 
-async function getIndexHtml(host) {
+// Page de l'appli du déploiement en cours. Les déploiements de prévisualisation sont protégés par Vercel : on transmet
+// l'autorisation reçue (cookie / jeton de contournement), sinon on récupèrerait la page de connexion de Vercel.
+async function getIndexHtml(req) {
   if(indexCache.html && Date.now() - indexCache.at < 60_000) return indexCache.html;
-  const r = await fetch(`https://${host}/index.html`);
-  if(!r.ok) throw new Error(`index.html ${r.status}`);
-  indexCache = { html: await r.text(), at: Date.now() };
-  return indexCache.html;
+  const host = req.headers["x-forwarded-host"] || req.headers.host;
+  const headers = {};
+  if(req.headers.cookie) headers.cookie = req.headers.cookie;
+  if(req.headers["x-vercel-protection-bypass"]) headers["x-vercel-protection-bypass"] = req.headers["x-vercel-protection-bypass"];
+  const r = await fetch(`https://${host}/index.html`, { headers, redirect: "manual" });
+  const html = r.ok ? await r.text() : "";
+  if(!html.includes('<div id="root">') || !html.includes("/assets/")) throw new Error(`index.html ${r.status}`);
+  indexCache = { html, at: Date.now() };
+  return html;
 }
 
 async function db(path) {
@@ -163,7 +170,7 @@ export default async function handler(req, res) {
   const { type, id } = req.query || {};
   let html;
   try {
-    html = await getIndexHtml(req.headers["x-forwarded-host"] || req.headers.host);
+    html = await getIndexHtml(req);
   } catch {
     // Page de l'appli introuvable : retour à l'accueil plutôt qu'une erreur
     res.statusCode = 302;
