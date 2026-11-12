@@ -14,6 +14,8 @@ import { Spinner } from "./components/Spinner.jsx";
 import { LoginView } from "./views/LoginView.jsx";
 import { MoodboardView } from "./views/MoodboardView.jsx";
 import { DesktopUpdateBanner } from "./components/DesktopUpdateBanner.jsx";
+import { GuestLockedView } from "./components/GuestGate.jsx";
+import { GUEST_TABS } from "./constants/guestI18n.js";
 
 // ── Découpage par page ───────────────────────────────────────────────────────────────────────────────────
 // Chaque vue lourde est un fichier JS à part, chargé au moment où on en a besoin (le visiteur non connecté ne télécharge
@@ -804,11 +806,11 @@ function LegalPage({ type, onClose }) {
 }
 
 function Shell() {
-  const { session, profileReady } = useApp();
+  const { session, profileReady, guest } = useApp();
   const { lang } = useLang();
   const { playSound } = useSound();
-  // Desktop démarre sur le profil, web sur moodboard
-  const [activeTab, setActiveTab]   = useState(() => window.history.state?.tab || (isDesktopApp() ? "profile" : "moodboard"));
+  // Desktop démarre sur le profil, web sur moodboard (l'invité aussi, le profil lui est fermé)
+  const [activeTab, setActiveTab]   = useState(() => window.history.state?.tab || (isDesktopApp() && !guest ? "profile" : "moodboard"));
   const [showSettings, setShowSettings] = useState(false);
   const [settingsCat, setSettingsCat] = useState(null); // catégorie à ouvrir directement (ex. "profile")
   const [detailAnime, setDetailAnime]   = useState(null);
@@ -847,8 +849,8 @@ function Shell() {
   if (installer) {
     return <InstallPage onContinue={() => { window.history.replaceState(window.history.state, "", "/"); setInstaller(false); }} />;
   }
-  if(!session && !window.__SKIP_AUTH__) return <LoginView />;
-  if(!profileReady && !window.__SKIP_AUTH__) {
+  if(!session && !guest && !window.__SKIP_AUTH__) return <LoginView />;
+  if(!profileReady && !guest && !window.__SKIP_AUTH__) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4">
         <img src="/logo-mark.png" alt="AniMood" className="h-16 w-16 rounded-2xl object-cover" />
@@ -858,12 +860,14 @@ function Shell() {
   }
 
   const openDetail = (anime) => setDetailAnime({ mal_id: anime.mal_id, seedData: anime });
+  // Invité : profils des membres non lisibles sans compte → pseudos non cliquables
+  const openUserFn = guest ? undefined : setOpenUser;
   const closeDetail = () => setDetailAnime(null);
 
   const pages = {
     moodboard: <MoodboardView onOpenDetail={openDetail} />,
-    search:    <SearchView onOpenDetail={openDetail} onOpenUser={setOpenUser} />,
-    forum:     <ForumView onOpenDetail={openDetail} onOpenUser={setOpenUser}
+    search:    <SearchView onOpenDetail={openDetail} onOpenUser={openUserFn} />,
+    forum:     <ForumView onOpenDetail={openDetail} onOpenUser={openUserFn}
                  pendingJoinGame={pendingJoinGame} onClearPendingJoin={() => setPendingJoinGame(null)} />,
     // Onglet JEUX : appli de bureau uniquement (le site garde les jeux dans le forum)
     ...(isDesktopApp() ? { games: <GamesView
@@ -872,6 +876,8 @@ function Shell() {
   };
 
   const desktop = isDesktopApp();
+  // Invité : Moodboard, recherche, fil et forum ouverts (lecture seule), les autres onglets invitent à se connecter
+  const locked = guest && !GUEST_TABS.includes(activeTab);
 
   return (
     // Web : place réservée sous la barre d'onglets du bas (WebBottomNav) sur téléphone uniquement.
@@ -884,20 +890,24 @@ function Shell() {
         {/* Feed and Profile stay mounted for cross-sync */}
         <Suspense fallback={null}>
           <div style={{display: activeTab==="feed" ? "block" : "none"}}>
-            <FeedView onOpenUser={setOpenUser} onOpenDetail={openDetail}/>
+            <FeedView onOpenUser={openUserFn} onOpenDetail={openDetail}/>
           </div>
-          <div style={{display: activeTab==="profile" ? "block" : "none"}}>
-            <ProfileView onOpenDetail={openDetail} onOpenSettings={(cat) => { setSettingsCat(typeof cat === "string" ? cat : null); setShowSettings(true); }} onOpenUser={setOpenUser} />
-          </div>
+          {!guest && (
+            <div style={{display: activeTab==="profile" ? "block" : "none"}}>
+              <ProfileView onOpenDetail={openDetail} onOpenSettings={(cat) => { setSettingsCat(typeof cat === "string" ? cat : null); setShowSettings(true); }} onOpenUser={setOpenUser} />
+            </div>
+          )}
         </Suspense>
         {/* Other pages unmount when hidden — no sync needed */}
-        <Suspense fallback={<div className="py-24"><Spinner /></div>}>
-          {pages[activeTab]}
-        </Suspense>
+        {locked ? <GuestLockedView tab={activeTab} /> : (
+          <Suspense fallback={<div className="py-24"><Spinner /></div>}>
+            {pages[activeTab]}
+          </Suspense>
+        )}
       </main>
       <Footer onOpenPage={(p) => { if(p==="legal"||p==="privacy") setLegalPage(p); else setActivePage(p); }}/>
       <Suspense fallback={null}>
-        <ChatBubble hidden={activeTab === "messages"} />
+        {!guest && <ChatBubble hidden={activeTab === "messages"} />}
 
         {showSettings && <SettingsView initialCategory={settingsCat} onClose={() => setShowSettings(false)} />}
 
@@ -907,7 +917,7 @@ function Shell() {
             seedData={detailAnime.seedData}
             onClose={closeDetail}
             onOpenDetail={openDetail}
-            onOpenUser={setOpenUser}
+            onOpenUser={openUserFn}
           />
         )}
       </Suspense>
@@ -920,7 +930,7 @@ function Shell() {
       {activePage === "download"   && <DownloadPage   onClose={()=>setActivePage(null)}/>}
       {legalPage && <LegalPage type={legalPage} onClose={()=>setLegalPage(null)}/>}
 
-      {openUser && (
+      {openUser && !guest && (
         <Suspense fallback={null}>
           <UserProfileModal username={openUser} onClose={() => setOpenUser(null)} onOpenDetail={openDetail} onOpenUser={setOpenUser} />
         </Suspense>

@@ -11,6 +11,8 @@ import { findBannedWord } from "../utils/contentFilter.js";
 import { isDesktopApp } from "../utils/streamingLinks.js";
 import { openWebUrl } from "../utils/safeUrl.js";
 import { GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
+import { GuestSignInCard } from "../components/GuestGate.jsx";
+import { useGuestT } from "../hooks/useGuestT.js";
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function timeAgo(ts, lang) {
   const t = FEED_I18N[lang] || FEED_I18N.fr;
@@ -305,7 +307,7 @@ function PostComposer({ onPost }) {
 }
 // ─── CommentSection ───────────────────────────────────────────────────────────
 function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommentAdded, onLoadProfiles }) {
-  const { blockedUsers } = useApp();
+  const { blockedUsers, guest } = useApp();
   const { lang } = useLang();
   const t = FEED_I18N[lang] || FEED_I18N.fr;
   const [commentList, setCommentList] = useState(null);
@@ -344,6 +346,7 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
     setPosting(false);
   };
   const toggleLike = async (id) => {
+    if(guest) return; // invité : lecture seule
     const target = commentList.find(c => c.id === id);
     const likes = target?.likes || [];
     const newLikes = likes.includes(myUsername) ? likes.filter(u=>u!==myUsername) : [...likes, myUsername];
@@ -383,7 +386,7 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
         </div>
       ))}
       {filterError && <p style={{fontSize:10,color:"#ef4444",margin:"0 0 6px 34px"}}>⚠️ {filterError}</p>}
-      <div style={{display:"flex",gap:8,marginTop:8}}>
+      {!guest && <div style={{display:"flex",gap:8,marginTop:8}}>
         <Avatar profile={profileCache[myUsername]||{avatar:"👤"}} size={26}/>
         <div style={{flex:1,display:"flex",gap:6,position:"relative"}}>
           <input value={newComment} onChange={e=>{setNewComment(e.target.value.slice(0,280));setFilterError(null);}}
@@ -400,12 +403,13 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
             ↑
           </button>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
 // ─── PollDisplay ──────────────────────────────────────────────────────────────
 function PollDisplay({ postId, myUsername }) {
+  const { guest } = useApp();
   const [poll, setPoll] = useState(null);
   const [voted, setVoted] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -425,7 +429,7 @@ function PollDisplay({ postId, myUsername }) {
   }, [postId, myUsername]);
 
   const vote = async (optionId) => {
-    if(!poll || voted) return;
+    if(!poll || voted || guest) return; // invité : lecture seule
     if(!poll.multi) {
       // Single vote — add username to chosen option
       const newOptions = poll.options.map(o=>
@@ -515,6 +519,7 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
   const [showComments, setShowComments] = useState(false);
   const [revealed, setRevealed] = useState(!post.spoiler);
   const [commentCount, setCommentCount] = useState(post.comment_count||0);
+  const { guest } = useApp();
 
   // Re-sync when likes change from elsewhere (e.g. liked from "Mes Posts" in Profile)
   useEffect(() => {
@@ -523,6 +528,7 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
   }, [post.likes, myUsername]);
 
   const toggleLike = async () => {
+    if(guest) return; // invité : lecture seule
     const newLiked = !liked;
     setLiked(newLiked); setLikeCount(c => c + (newLiked?1:-1));
     const result = await postsApi.toggleLike(post.id, myUsername);
@@ -634,9 +640,10 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
 }
 // ─── FEED VIEW ────────────────────────────────────────────────────────────────
 export function FeedView({ onOpenDetail, onOpenUser }) {
-  const { me, myUsername, blockedUsers } = useApp();
+  const { me, myUsername, blockedUsers, guest } = useApp();
   const { lang } = useLang();
   const t = FEED_I18N[lang] || FEED_I18N.fr;
+  const gt = useGuestT();
   const [feed, setFeed]           = useState([]);
   const [loading, setLoading]     = useState(true);
   const [channel, setChannel]     = useState("general");
@@ -699,8 +706,10 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
   const CHANNELS = [
     { id:"general",   label:t.channelGeneral,   emoji:"🌐" },
     { id:"recent",    label:t.channelRecent,    emoji:"✨" },
-    { id:"following", label:t.channelFollowing, emoji:"👥" },
+    // Invité : pas d'abonnements, donc pas de canal « Abonnements »
+    ...(guest ? [] : [{ id:"following", label:t.channelFollowing, emoji:"👥" }]),
   ];
+  const composer = guest ? <GuestSignInCard text={gt.writeText} className="mb-4" /> : <PostComposer onPost={handlePost}/>;
   const desktop = isDesktopApp();
   if(desktop) {
     const fr = lang !== "en";
@@ -738,7 +747,7 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
           {/* MAIN — composer + posts */}
           <div style={{display:"flex",flexDirection:"column",gap:14,minWidth:0}}>
-            <PostComposer onPost={handlePost}/>
+            {composer}
             {channel==="recent" && (
               <div style={{fontSize:11,color:"var(--text-4)",textAlign:"center"}}>{t.recentSeasonsNote(RECENT_SEASONS.join(", "))}</div>
             )}
@@ -831,7 +840,7 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
   }
   return (
     <div style={{maxWidth:600,margin:"0 auto",padding:"16px 16px 80px"}}>
-      <PostComposer onPost={handlePost}/>
+      {composer}
       <div style={{display:"flex",gap:6,marginBottom:16,borderBottom:"1px solid rgba(var(--fg-rgb),0.06)",paddingBottom:12}}>
         {CHANNELS.map(c => (
           <button key={c.id} onClick={()=>setChannel(c.id)}

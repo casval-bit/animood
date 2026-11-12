@@ -352,10 +352,12 @@ export function ForumExplorer({ lang = "fr", unreadCounts = {}, blockedUsers, on
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] font-bold text-slate-600" title={t.focus}>/</span>
           )}
         </div>
-        <button type="button" onClick={onNewThread}
-          className="shrink-0 rounded-2xl px-5 py-3 text-[13px] font-black text-white shadow-lg transition hover:scale-[1.03]" style={{ background: GRADIENT_PRIMARY }}>
-          {t.newTopic}
-        </button>
+        {onNewThread && (
+          <button type="button" onClick={onNewThread}
+            className="shrink-0 rounded-2xl px-5 py-3 text-[13px] font-black text-white shadow-lg transition hover:scale-[1.03]" style={{ background: GRADIENT_PRIMARY }}>
+            {t.newTopic}
+          </button>
+        )}
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
@@ -387,7 +389,7 @@ export function ForumExplorer({ lang = "fr", unreadCounts = {}, blockedUsers, on
             </div>
           </Block>
           <Block title={t.quick}>
-            {[[unanswered, setUnanswered, t.unanswered], [mine, setMine, t.mine], [withAnime, setWithAnime, t.withAnime]].map(([v, set, label]) => (
+            {[[unanswered, setUnanswered, t.unanswered], ...(myUsername ? [[mine, setMine, t.mine]] : []), [withAnime, setWithAnime, t.withAnime]].map(([v, set, label]) => (
               <label key={label} className="flex cursor-pointer items-center gap-2 py-1 text-[12px] font-semibold text-slate-300">
                 <input type="checkbox" checked={v} onChange={e => set(e.target.checked)} className="h-3.5 w-3.5 accent-violet-500" />{label}
               </label>

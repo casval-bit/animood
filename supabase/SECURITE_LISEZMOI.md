@@ -11,6 +11,8 @@ lire les messages privés et modifier / supprimer le contenu des autres.
 | `security_rls_2_reference.sql` | **Étape 2** : tables de référence (animés, humeurs, quiz, artistes, streaming) : plus d'écriture par un visiteur non connecté. |
 | `security_rls_3_integrity.sql` | **Étape 3** : un compte connecté ne peut plus toucher à ce qui ne lui appartient pas : j'aime et votes de sondage (seulement les siens), ELO / points (±40 d'ELO, et seulement après une partie jouée ensemble), salles de jeu (seulement les joueurs), messages / invitations vers quelqu'un qui nous a bloqué (refusés), fiches d'animés existantes (seulement les scripts), compteurs d'humeurs / quiz (petites variations), images de posts / sujets (`https://` seulement). |
 | `security_rls_3_rollback.sql` | Retour en arrière de **l'étape 3 seule** (les messages privés restent protégés). |
+| `security_rls_4_guest_read.sql` | **Étape 4** (mode invité) : un visiteur non connecté peut **lire** le fil, ses commentaires et sondages, et le forum, plus le pseudo / nom / avatar des profils (rien d'autre du profil). Aucune écriture sans compte. |
+| `security_rls_4_rollback.sql` | Retour en arrière de **l'étape 4 seule** (le fil et le forum redeviennent réservés aux membres). |
 | `security_rls_rollback.sql` | **Retour en arrière complet** : remet l'ancien fonctionnement (tout ouvert, étapes 1 à 3). Aucune donnée n'est touchée. |
 | `scripts/check_rls.mjs` | Contrôle en lecture seule de ce qu'un visiteur peut lire : `node --env-file=.env scripts/check_rls.mjs` |
 
@@ -28,7 +30,10 @@ lire les messages privés et modifier / supprimer le contenu des autres.
 7. Étape 3 (une fois l'étape 2 en place) : lancer `security_rls_3_integrity.sql`. Tester : liker / retirer un j'aime, voter
    à un sondage, envoyer un message, une partie Chain ou Timeline jusqu'au bout (l'ELO doit bouger), un jeu solo (points),
    une partie Cluescale à 3. En cas de souci : `security_rls_3_rollback.sql`.
-8. Supabase → Authentication → Providers : **désactiver « Email »** si seul Google sert (sinon quelqu'un peut créer un compte avec
+8. Étape 4 (mode invité, quand le site avec le mode invité est en ligne ou juste avant) : lancer `security_rls_4_guest_read.sql`.
+   Tester en navigation privée : « Explorer sans compte » → Fil et Forum affichent les posts et sujets. Puis
+   `node scripts/check_rls.mjs` : posts / forum en « public (normal) », `profiles` toujours « fermé ».
+9. Supabase → Authentication → Providers : **désactiver « Email »** si seul Google sert (sinon quelqu'un peut créer un compte avec
    l'e-mail d'un autre, non vérifié, et prendre son identité).
 
 ## Limites connues
@@ -57,7 +62,7 @@ lire les messages privés et modifier / supprimer le contenu des autres.
 
 ## À faire à la main (impossible depuis le code)
 * Étapes SQL 1 → 3 ci-dessus, dans l'ordre.
-* Supabase → Authentication → Providers : désactiver « Email » si seul Google sert (point 8).
+* Supabase → Authentication → Providers : désactiver « Email » si seul Google sert (point 9).
 * Supabase → Authentication → URL Configuration : ne garder dans « Redirect URLs » que le site et `animood://auth-callback`.
 * Cloudinary → Settings → Upload → preset `animoodpic` (envoi sans signature, normal pour une appli web) : limiter les formats
   (jpg, png, webp, gif) et la taille (10 Mo) — sinon n'importe qui peut y déposer des fichiers avec ce nom de preset.

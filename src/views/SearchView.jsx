@@ -54,10 +54,11 @@ function getPopularLabels(t) {
 const searchTabFor = (tab) => tab === "season" ? "anime" : tab;
 
 export function SearchView({ onOpenDetail, onOpenUser }) {
-  const { me, myUsername, blockedUsers } = useApp();
+  const { me, myUsername, blockedUsers, guest } = useApp();
   const { lang } = useLang();
   const t = SEARCH_I18N[lang] || SEARCH_I18N.fr;
-  const TABS = getTabs(t);
+  // Invité : pas d'onglet Membres (les profils ne sont lisibles qu'avec un compte)
+  const TABS = getTabs(t).filter(tb => !guest || tb.id !== "members");
   const TYPE_FILTERS = getTypeFilters(t);
   const POPULAR_LABELS = getPopularLabels(t);
   const [tab, setTab]           = useState("anime");

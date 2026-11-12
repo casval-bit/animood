@@ -16,16 +16,28 @@ const activityReadKeyFns = {
   "post-mention": postMentionReadKey, "thread-mention": threadMentionReadKey,
 };
 const notificationsEnabledKey = (username) => `animood_notifications_enabled_${username}`;
+const GUEST_KEY = "animood_guest"; // mode invité gardé d'une visite à l'autre, jusqu'à la connexion
+
+function readGuest() {
+  try { return localStorage.getItem(GUEST_KEY) === "1"; } catch { return false; }
+}
+function writeGuest(on) {
+  try { if(on) localStorage.setItem(GUEST_KEY, "1"); else localStorage.removeItem(GUEST_KEY); } catch { /* ignore */ }
+}
 
 export function AppProvider({ children }) {
   const [session, setSession]         = useState(null);
   const [profileReady, setProfileReady] = useState(false);
   const [me, setMe]                   = useState(DEFAULT_PROFILE);
+  // Invité : visite sans compte. Rien n'est enregistré (pas de pseudo, donc aucune écriture en base) ;
+  // seules les tables publiques (animés, moods) sont lisibles sans connexion.
+  const [guest, setGuest]             = useState(readGuest);
 
   useEffect(() => {
     const { data: { subscription } } = onAuthChange(async (sess) => {
       setSession(sess);
       if(sess) {
+        setGuest(false); writeGuest(false);
         const email    = sess.user.email;
         const username = usernameFromEmail(email);
         const name     = sess.user.user_metadata?.full_name || username;
@@ -245,13 +257,18 @@ export function AppProvider({ children }) {
   // can accidentally save under the wrong (or a hardcoded) username.
   const saveMe = useCallback((updated) => {
     setMe(updated);
-    saveProfile(myUsername, updated);
+    if(myUsername) saveProfile(myUsername, updated);
   }, [myUsername]);
 
   const logout = async () => { await signOut(); setSession(null); setProfileReady(false); };
 
+  const enterGuest = useCallback(() => { writeGuest(true); setMe(DEFAULT_PROFILE); setGuest(true); }, []);
+  // Retour à la page de connexion (bouton « Se connecter » affiché à l'invité)
+  const leaveGuest = useCallback(() => { writeGuest(false); setMe(DEFAULT_PROFILE); setGuest(false); }, []);
+
   const ctx = {
     session, me, setMe, saveMe, myUsername, profileReady, logout,
+    guest: guest && !session, enterGuest, leaveGuest,
     unreadPeers, markRead, activityNotifications, markActivityRead, markAllActivityRead,
     gameInvites, dismissGameInvite,
     notificationsEnabled, setNotificationsEnabled,

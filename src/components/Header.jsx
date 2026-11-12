@@ -8,6 +8,7 @@ import { HEADER_I18N } from "../constants/headerI18n.js";
 import { SEARCH_I18N } from "../constants/searchI18n.js";
 import { isDesktopApp } from "../utils/streamingLinks.js";
 import { AiringCalendar } from "./search/AiringCalendar.jsx";
+import { useGuestT } from "../hooks/useGuestT.js";
 
 // ── Tab order desktop : Profil en premier ─────────────────────────────────────
 function getTabs(t) {
@@ -650,9 +651,10 @@ function WebNotificationBell({ onChangeTab, onJoinGame }) {
 }
 
 function WebHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings, onOpenDownload }) {
-  const { me, session, unreadPeers } = useApp();
+  const { me, session, unreadPeers, guest, leaveGuest } = useApp();
   const { lang } = useLang();
   const t = HEADER_I18N[lang] || HEADER_I18N.fr;
+  const gt = useGuestT();
   const TABS = getWebTabs(t);
   const unreadCount = unreadPeers?.size || 0;
 
@@ -712,7 +714,7 @@ function WebHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings, onOpenD
           </button>
         )}
 
-        <WebNotificationBell onChangeTab={onChangeTab} onJoinGame={onJoinGame} />
+        {!guest && <WebNotificationBell onChangeTab={onChangeTab} onJoinGame={onJoinGame} />}
 
         {onOpenSettings && (
           <button
@@ -726,6 +728,7 @@ function WebHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings, onOpenD
           </button>
         )}
 
+        {!guest && (
         <button
           onClick={() => onChangeTab("messages")}
           title={t.messages}
@@ -748,7 +751,15 @@ function WebHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings, onOpenD
             </span>
           )}
         </button>
+        )}
 
+        {guest ? (
+          <button onClick={leaveGuest}
+            className="shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-[12px] font-extrabold text-white transition hover:scale-105 sm:px-3.5"
+            style={{ background: GRADIENT_PRIMARY, boxShadow: "0 6px 18px rgba(109,91,255,.35)" }}>
+            {gt.signIn}
+          </button>
+        ) : (
         <div className="hidden shrink-0 items-center gap-2 pl-2 border-l border-white/8 sm:flex">
           <div className="h-7 w-7 rounded-full overflow-hidden flex items-center justify-center text-sm shrink-0"
             style={{background:"linear-gradient(135deg,#7c3aed,#4f46e5)"}}>
@@ -758,6 +769,7 @@ function WebHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings, onOpenD
           </div>
           <span className="hidden text-xs font-semibold text-slate-400 sm:inline">{me.name}</span>
         </div>
+        )}
       </header>
       <WebBottomNav tabs={TABS} activeTab={activeTab} onChangeTab={onChangeTab} />
     </div>
@@ -886,7 +898,8 @@ function AvatarChip({ me, onClick, aura }) {
 
 // ── DesktopHeader — header mystique cosmique ──────────────────────────────────
 function DesktopHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
-  const { me, unreadPeers } = useApp();
+  const { me, unreadPeers, guest, leaveGuest } = useApp();
+  const gt = useGuestT();
   const { lang } = useLang();
   const { playSound } = useSound();
   const t = HEADER_I18N[lang] || HEADER_I18N.fr;
@@ -1079,7 +1092,7 @@ function DesktopHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
           </div>
 
           {/* Messages */}
-          <DesktopIconBtn
+          {!guest && <DesktopIconBtn
             active={activeTab === "messages"}
             onClick={() => { playSound("click"); onChangeTab("messages"); }}
             title={t.messages}
@@ -1091,10 +1104,10 @@ function DesktopHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
               <path d="M3 5.5A2.5 2.5 0 0 1 5.5 3h13A2.5 2.5 0 0 1 21 5.5v11a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 16.5v-11z" />
               <path d="M3.5 6l7.7 6a1.5 1.5 0 0 0 1.8 0l7.7-6" />
             </svg>
-          </DesktopIconBtn>
+          </DesktopIconBtn>}
 
           {/* Notifications */}
-          <DesktopNotificationBell onChangeTab={onChangeTab} onJoinGame={onJoinGame} />
+          {!guest && <DesktopNotificationBell onChangeTab={onChangeTab} onJoinGame={onJoinGame} />}
 
           {/* Paramètres — entre les notifications et la photo de profil */}
           {onOpenSettings && (
@@ -1113,8 +1126,19 @@ function DesktopHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
           {/* Séparateur */}
           <div style={{ width: 1, height: 32, background: "rgba(255,255,255,0.05)", margin: "0 4px" }} />
 
-          {/* Avatar */}
-          <AvatarChip me={me} onClick={() => switchTab("profile")} aura={aura} />
+          {/* Avatar (invité : bouton de connexion) */}
+          {guest ? (
+            <button onClick={() => { playSound("click"); leaveGuest(); }}
+              style={{
+                padding: "8px 14px", borderRadius: 13, border: "none", cursor: "pointer",
+                fontSize: 12, fontWeight: 800, color: "#fff", background: GRADIENT_PRIMARY,
+                boxShadow: "0 6px 18px rgba(109,91,255,.35)", WebkitAppRegion: "no-drag",
+              }}>
+              {gt.signIn}
+            </button>
+          ) : (
+            <AvatarChip me={me} onClick={() => switchTab("profile")} aura={aura} />
+          )}
 
         </div>
       </div>

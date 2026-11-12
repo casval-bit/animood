@@ -106,9 +106,10 @@ function EyeIcon({ filled, color = "#818cf8" }) {
 // visible (not hover-only) so it works as well on mobile taps as on desktop clicks.
 // Highlights reuse the profile's 5-slot favorites showcase (first 5 auto-synced).
 export function QuickActionIcons({ anime, variant = "watched" }) {
-  const { me, saveMe } = useApp();
+  const { me, saveMe, guest } = useApp();
   const { lang } = useLang();
   const t = COMMON_I18N[lang] || COMMON_I18N.fr;
+  if(guest) return null; // invité : rien n'est enregistré, pas de raccourcis vu / à voir / favori
   const malId = anime.mal_id;
   const isWatched = me.watched.includes(malId);
   const isOnWatchlist = (me.statuses||{})[malId] === "watchlist";

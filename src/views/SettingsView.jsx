@@ -18,6 +18,8 @@ import { BADGES, getUnlockedBadges, getBestBadge, getBadgeLabel } from "../badge
 import { useModalBack } from "../hooks/useModalBack.js";
 import { isDesktopApp } from "../utils/streamingLinks.js";
 import { StreamingSettingsDesktop } from "../components/StreamingSettingsDesktop.jsx";
+import { GuestSignInCard } from "../components/GuestGate.jsx";
+import { useGuestT } from "../hooks/useGuestT.js";
 
 const LANG_OPTIONS = [
   { id: "fr", label: "Français", flag: "🇫🇷" },
@@ -56,7 +58,8 @@ export function SettingsView({ onClose, initialCategory = null }) {
   // Pushes a history entry on mount so the browser/device back button
   // closes this screen instead of navigating away from the page underneath.
   const requestClose = useModalBack(onClose);
-  const { me, saveMe, logout, myUsername, blockedUsers, unblockUser, notificationsEnabled, setNotificationsEnabled } = useApp();
+  const { me, saveMe, logout, myUsername, blockedUsers, unblockUser, notificationsEnabled, setNotificationsEnabled, guest } = useApp();
+  const gt = useGuestT();
   const { theme, setTheme } = useTheme();
   const { lang, setLang } = useLang();
   const { playSound, soundEnabled, setSoundEnabled, volume, setVolume, pack, setPack, packs } = useSound();
@@ -65,8 +68,13 @@ export function SettingsView({ onClose, initialCategory = null }) {
   const avatarRef = useRef(null);
 
   const desktop = isDesktopApp();
-  const [category, setCategory] = useState(initialCategory || "preferences");
-  const CATEGORY_TABS = desktop ? [
+  const [category, setCategory] = useState(guest ? "preferences" : (initialCategory || "preferences"));
+  // Invité : seulement l'apparence, la langue (et les sons sur l'appli de bureau), plus un encart de connexion
+  const CATEGORY_TABS = guest ? [
+    { id: "preferences", label: t.catPreferences },
+    ...(desktop ? [{ id: "sound", label: t.catSound }] : []),
+    { id: "guest",       label: gt.settingsAccount },
+  ] : desktop ? [
     { id: "preferences",   label: t.catPreferences },
     { id: "profile",       label: t.catProfile },
     { id: "sound",         label: t.catSound },
@@ -110,7 +118,7 @@ export function SettingsView({ onClose, initialCategory = null }) {
   const [unlockedFrames, setUnlockedFrames] = useState([]);
   const [allFrames, setAllFrames]           = useState([]);
   const [activeFrame,    setActiveFrame]    = useState(null);
-  const [framesLoading,  setFramesLoading]  = useState(true);
+  const [framesLoading,  setFramesLoading]  = useState(!guest); // invité : pas de cadres à charger
 
   // Banner
   const bannerRef = useRef(null);
@@ -130,6 +138,7 @@ export function SettingsView({ onClose, initialCategory = null }) {
   }, [framesLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    if(!myUsername) return; // invité : pas de cadres
     (async () => {
       try {
         const { FRAMES, getUnlockedFrames, getBestFrame } = await import("../frames/frames.js");
@@ -172,6 +181,7 @@ export function SettingsView({ onClose, initialCategory = null }) {
 
   // Load badges
   useEffect(() => {
+    if(!myUsername) return; // invité : pas de badges
     (async () => {
       try {
         const [followerRows, voteRows, gameEloRows] = await Promise.all([
@@ -663,6 +673,9 @@ export function SettingsView({ onClose, initialCategory = null }) {
           )}
         </Section>
         </>}
+
+        {/* ─── INVITÉ ─── */}
+        {category === "guest" && <GuestSignInCard text={gt.settingsGuestText} />}
 
         {/* ─── COMPTE ─── */}
         {category === "account" && <>

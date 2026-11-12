@@ -1,0 +1,64 @@
+// Mode invité : visite sans compte (Moodboard, recherche, fiches d'animés, fil et forum en lecture seule)
+// Onglets ouverts à l'invité ; les autres affichent <GuestLockedView> (components/GuestGate.jsx)
+export const GUEST_TABS = ["moodboard", "search", "feed", "forum"];
+
+export const GUEST_I18N = {
+  fr: {
+    enter: "Explorer sans compte",
+    enterHint: "Moodboard, recherche, fil et forum en lecture seule.",
+    signIn: "Se connecter",
+    signInGoogle: "Se connecter avec Google",
+    lockedTitle: "Réservé aux membres",
+    lockedFeatures: "Avec un compte, gratuit :",
+    perks: [
+      "Noter les animés et voter pour leurs moods",
+      "Tes listes : vus, à voir, favoris, tierlist",
+      "Des recos qui excluent ce que tu as déjà vu",
+      "Publier, commenter et jouer aux mini-jeux",
+      "Les messages privés entre membres",
+    ],
+    locked: {
+      feed:     { icon: "🏠", text: "Le fil d'actu montre ce que regardent et publient les membres que tu suis." },
+      forum:    { icon: "💬", text: "Le forum, ses discussions et les mini-jeux multijoueur sont réservés aux membres." },
+      games:    { icon: "⚔️", text: "Les mini-jeux comptent tes points et ton classement : il faut un compte pour jouer." },
+      profile:  { icon: "👤", text: "Ton profil garde tes listes, tes notes, ta tierlist et tes badges." },
+      messages: { icon: "✉️", text: "Les messages privés permettent de discuter avec les autres membres." },
+    },
+    writeText: "Connecte-toi pour publier, commenter, liker et voter aux sondages.",
+    playTitle: "Mini-jeux",
+    playText: "Connecte-toi pour jouer aux mini-jeux et entrer dans le classement.",
+    rateTitle: "Ta note",
+    rateText: "Connecte-toi pour noter cet animé, voter pour ses moods et l'ajouter à tes listes.",
+    settingsAccount: "Compte",
+    settingsGuestText: "Tu visites AniMood sans compte. Connecte-toi pour retrouver tes listes sur tous tes appareils.",
+  },
+  en: {
+    enter: "Explore without an account",
+    enterHint: "Moodboard, search, feed and forum, read-only.",
+    signIn: "Sign in",
+    signInGoogle: "Sign in with Google",
+    lockedTitle: "Members only",
+    lockedFeatures: "With a free account:",
+    perks: [
+      "Rate anime and vote for their moods",
+      "Your lists: watched, plan to watch, favorites, tierlist",
+      "Picks that skip what you've already seen",
+      "Post, comment and play mini-games",
+      "Private messages between members",
+    ],
+    locked: {
+      feed:     { icon: "🏠", text: "The feed shows what the members you follow watch and post." },
+      forum:    { icon: "💬", text: "The forum, its discussions and multiplayer mini-games are for members." },
+      games:    { icon: "⚔️", text: "Mini-games track your points and ranking: you need an account to play." },
+      profile:  { icon: "👤", text: "Your profile keeps your lists, ratings, tierlist and badges." },
+      messages: { icon: "✉️", text: "Private messages let you chat with other members." },
+    },
+    writeText: "Sign in to post, comment, like and vote in polls.",
+    playTitle: "Mini-games",
+    playText: "Sign in to play mini-games and join the leaderboard.",
+    rateTitle: "Your rating",
+    rateText: "Sign in to rate this anime, vote for its moods and add it to your lists.",
+    settingsAccount: "Account",
+    settingsGuestText: "You're browsing AniMood without an account. Sign in to keep your lists on all your devices.",
+  },
+};

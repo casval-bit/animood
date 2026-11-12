@@ -20,6 +20,8 @@ import { FORUM_I18N } from "../constants/forumI18n.js";
 import { isDesktopApp } from "../utils/streamingLinks.js";
 import { safeWebUrl } from "../utils/safeUrl.js";
 import { ForumExplorer } from "../components/ForumExplorer.jsx";
+import { GuestSignInCard } from "../components/GuestGate.jsx";
+import { useGuestT } from "../hooks/useGuestT.js";
 
 const FALLBACK_IMG = "https://placehold.co/64x92/1a1a2e/818cf8?text=?";
 const TYPE_EMOJI = { TV:"📺", Movie:"🎬", OVA:"💿", ONA:"🌐", Special:"✨" };
@@ -408,10 +410,12 @@ function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, profileC
     <div className={`mb-6 overflow-hidden ${GLASS}`} style={GLASS_STYLE}>
       <div className="flex items-center justify-between px-5 py-3.5" style={{ background: GRADIENT_PRIMARY }}>
         <div className="text-[13px] font-black uppercase tracking-wide text-white">{t.discussions}</div>
-        <button onClick={onNewThread}
-          className="shrink-0 rounded-full bg-white px-3.5 py-2 text-[12px] font-black text-violet-700 shadow-md transition hover:scale-105 hover:shadow-lg">
-          {t.newTopicBtn}
-        </button>
+        {onNewThread && (
+          <button onClick={onNewThread}
+            className="shrink-0 rounded-full bg-white px-3.5 py-2 text-[12px] font-black text-violet-700 shadow-md transition hover:scale-105 hover:shadow-lg">
+            {t.newTopicBtn}
+          </button>
+        )}
       </div>
 
       {!loaded ? (
@@ -420,10 +424,12 @@ function DiscussionsBlock({ threads, replyCounts, unreadCounts, loaded, profileC
         <div className="p-6 text-center">
           <div className="mb-1 text-sm font-bold text-slate-300">{t.noDiscussions}</div>
           <div className="mb-4 text-[11px] text-slate-500">{t.noDiscussionsSub}</div>
-          <button onClick={onNewThread}
-            className="rounded-xl bg-linear-to-r from-violet-600 to-fuchsia-500 px-4 py-2 text-sm font-bold text-white">
-            {t.createTopicBtn}
-          </button>
+          {onNewThread && (
+            <button onClick={onNewThread}
+              className="rounded-xl bg-linear-to-r from-violet-600 to-fuchsia-500 px-4 py-2 text-sm font-bold text-white">
+              {t.createTopicBtn}
+            </button>
+          )}
         </div>
       ) : (
         <div>
@@ -706,7 +712,10 @@ function EloLeaderboard({ gameType, myUsername, following }) {
 }
 
 export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPendingJoin }) {
-  const { myUsername, activityNotifications, markActivityRead, blockedUsers } = useApp();
+  const { myUsername, activityNotifications, markActivityRead, blockedUsers, guest } = useApp();
+  const gt = useGuestT();
+  // Invité : lecture seule, pas de nouveau sujet
+  const newThread = guest ? null : () => setShowNewThread(true);
   const [followingList, setFollowingList] = useState([]);
   useEffect(() => {
     if(!myUsername) return;
@@ -940,7 +949,7 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
 
           <ForumExplorer
             lang={lang} unreadCounts={unreadCounts} blockedUsers={blockedUsers}
-            onOpenThread={openThreadRead} onNewThread={() => setShowNewThread(true)} refreshKey={explorerKey}
+            onOpenThread={openThreadRead} onNewThread={newThread} refreshKey={explorerKey}
           />
 
           <div className="grid items-start gap-6 lg:grid-cols-2">
@@ -997,7 +1006,7 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
           {tab === "discussions" && (
             <DiscussionsBlock
               threads={threads} replyCounts={replyCounts} unreadCounts={unreadCounts} loaded={threadsLoaded}
-              profileCache={profileCache} onOpenThread={openThreadRead} onNewThread={() => setShowNewThread(true)}
+              profileCache={profileCache} onOpenThread={openThreadRead} onNewThread={newThread}
               t={t} lang={lang}
             />
           )}
@@ -1057,7 +1066,8 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
         </div>
 
         <aside className="flex w-full shrink-0 flex-col gap-4 lg:sticky lg:top-6 lg:w-[280px]">
-          {/* Mini-jeux + classement — en premier : c'est la partie interactive */}
+          {/* Mini-jeux + classement — en premier : c'est la partie interactive (invité : il faut un compte pour jouer) */}
+          {guest ? <GuestSignInCard title={gt.playTitle} text={gt.playText} /> : (
           <div className="rounded-2xl border border-white/8 bg-white/3 p-4">
             <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">{t.miniGamesTitle}</div>
             <GamePanel
@@ -1074,6 +1084,7 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
               t={t}
             />
           </div>
+          )}
 
           <CommunityMoodBlock loaded={moodLoaded} counts={moodCounts} total={moodTotal} t={t} />
         </aside>
