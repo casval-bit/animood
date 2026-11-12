@@ -21,6 +21,7 @@ import { canViewProfile } from "../utils/profilePrivacy.js";
 import { GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
 import { USER_PROFILE_MODAL_I18N } from "../constants/userProfileModalI18n.js";
 import { COMMON_I18N } from "../constants/commonI18n.js";
+import { linkPath } from "../utils/shareLinks.js";
 
 const getTabs = (t) => [
   {id:"profile", label:t.tabProfile},
@@ -196,7 +197,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
 
   return (
     <>
-    <Modal onClose={onClose} maxWidth="max-w-3xl">
+    <Modal onClose={onClose} maxWidth="max-w-3xl" url={linkPath.user(username)}>
       {loading ? <div className="p-8 flex justify-center"><Spinner label={t.loading}/></div> : !profile ? (
         <EmptyState emoji="😶" title={t.notFound} />
       ) : (

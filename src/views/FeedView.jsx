@@ -13,6 +13,9 @@ import { openWebUrl } from "../utils/safeUrl.js";
 import { GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
 import { GuestSignInCard } from "../components/GuestGate.jsx";
 import { useGuestT } from "../hooks/useGuestT.js";
+import { Modal } from "../components/Modal.jsx";
+import { ShareButton } from "../components/ShareButton.jsx";
+import { linkPath } from "../utils/shareLinks.js";
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function timeAgo(ts, lang) {
   const t = FEED_I18N[lang] || FEED_I18N.fr;
@@ -632,10 +635,60 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
           <span>{t.comments}{commentCount > 0 ? ` (${commentCount})` : ""}</span>
           <span style={{fontSize:10}}>{showComments?"▲":"▼"}</span>
         </button>
+        {post.id && <ShareButton path={linkPath.post(post.id)} title={post.anime_title || undefined} style={{marginLeft:"auto"}}/>}
       </div>
       {showComments && <CommentSection postId={post.id} myUsername={myUsername}
         profileCache={profileCache} onOpenUser={onOpenUser} onCommentAdded={handleCommentAdded} onLoadProfiles={onLoadProfiles}/>}
     </div>
+  );
+}
+// ─── Post ouvert depuis son lien (/post/123) ──────────────────────────────────
+export function PostLinkModal({ postId, onClose, onOpenUser }) {
+  const { myUsername, guest } = useApp();
+  const { lang } = useLang();
+  const [post, setPost] = useState(undefined); // undefined = chargement, null = introuvable
+  const [profileCache, setProfileCache] = useState({});
+
+  const loadProfiles = async (usernames) => {
+    const missing = [...new Set(usernames)].filter(u => u && !profileCache[u]);
+    if(!missing.length) return;
+    try {
+      const rows = await sb.query(`profiles?username=in.(${missing.map(u=>encodeURIComponent(u)).join(",")})&select=username,name,avatar,avatar_base64`);
+      if(rows?.length) setProfileCache(p => ({...p, ...Object.fromEntries(rows.map(r => [r.username, r]))}));
+    } catch {}
+  };
+  useEffect(() => {
+    let cancelled = false;
+    sb.query(`posts?id=eq.${postId}&select=*&limit=1`).then(rows => {
+      if(cancelled) return;
+      const p = rows?.[0] || null;
+      setPost(p);
+      if(p) loadProfiles([p.username]);
+    }).catch(() => { if(!cancelled) setPost(null); });
+    return () => { cancelled = true; };
+  }, [postId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleDelete = async (id) => {
+    await postsApi.delete(id);
+    dispatchPostEvent("delete", { id });
+    onClose();
+  };
+
+  return (
+    <Modal onClose={onClose} maxWidth="max-w-xl" url={linkPath.post(postId)}>
+      <div className="p-3">
+        {post === undefined && <div className="py-16 text-center text-sm text-slate-500">…</div>}
+        {post === null && (
+          <div className="py-14 text-center text-sm text-slate-400">
+            {lang === "en" ? "This post no longer exists." : "Ce post n'existe plus."}
+          </div>
+        )}
+        {post && (
+          <PostCard post={post} myUsername={guest ? null : myUsername} profileCache={profileCache}
+            onDelete={handleDelete} onOpenUser={onOpenUser} onLoadProfiles={loadProfiles}/>
+        )}
+      </div>
+    </Modal>
   );
 }
 // ─── FEED VIEW ────────────────────────────────────────────────────────────────

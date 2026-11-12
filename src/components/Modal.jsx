@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useModalBack } from "../hooks/useModalBack.js";
 import { useSound } from "../context/SoundContext.jsx";
 
-export function Modal({ onClose, children, maxWidth = "max-w-lg", bodyClassName = "" }) {
+export function Modal({ onClose, children, maxWidth = "max-w-lg", bodyClassName = "", url }) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
   const { playSound } = useSound();
@@ -10,7 +10,8 @@ export function Modal({ onClose, children, maxWidth = "max-w-lg", bodyClassName 
 
   // Pushes a history entry on mount so the browser/device back button
   // closes this modal instead of navigating away from the page underneath.
-  const requestClose = useModalBack(onClose);
+  // `url` : adresse partageable de la fenêtre (voir utils/shareLinks.js)
+  const requestClose = useModalBack(onClose, url);
 
   const close = () => {
     if(closing) return;

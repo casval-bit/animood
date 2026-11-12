@@ -31,6 +31,8 @@ export const GUEST_I18N = {
     rateText: "Connecte-toi pour noter cet animé, voter pour ses moods et l'ajouter à tes listes.",
     settingsAccount: "Compte",
     settingsGuestText: "Tu visites AniMood sans compte. Connecte-toi pour retrouver tes listes sur tous tes appareils.",
+    profileTitle: "Profil d'un membre",
+    profileText: "Connecte-toi pour voir le profil de ce membre : ses listes, ses notes, sa tierlist et ses badges.",
   },
   en: {
     enter: "Explore without an account",
@@ -60,5 +62,7 @@ export const GUEST_I18N = {
     rateText: "Sign in to rate this anime, vote for its moods and add it to your lists.",
     settingsAccount: "Account",
     settingsGuestText: "You're browsing AniMood without an account. Sign in to keep your lists on all your devices.",
+    profileTitle: "Member profile",
+    profileText: "Sign in to see this member's profile: their lists, ratings, tierlist and badges.",
   },
 };

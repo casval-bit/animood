@@ -27,6 +27,8 @@ import { isDesktopApp, normaliseServiceName } from "../utils/streamingLinks.js";
 import { safeWebUrl } from "../utils/safeUrl.js";
 import { GuestSignInCard } from "./GuestGate.jsx";
 import { useGuestT } from "../hooks/useGuestT.js";
+import { ShareButton } from "./ShareButton.jsx";
+import { linkPath } from "../utils/shareLinks.js";
 
 const FALLBACK = "https://placehold.co/700x300/1a1a2e/818cf8?text=?";
 
@@ -329,13 +331,16 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
 
   return (
     <>
-      <Modal onClose={onClose} maxWidth={desktop ? "max-w-5xl" : "max-w-4xl"}>
+      <Modal onClose={onClose} maxWidth={desktop ? "max-w-5xl" : "max-w-4xl"} url={linkPath.anime(malId)}>
         {close => (
           <>
             <div className="relative h-64 w-full overflow-hidden rounded-t-3xl">
               <img src={img} alt={title} onError={e=>{e.target.src=FALLBACK;}} className="h-full w-full object-cover" />
               <div className="absolute inset-0 bg-linear-to-t from-[#0d0b18] via-[#0d0b18]/30 to-transparent" />
-              <button onClick={close} className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-slate-200 backdrop-blur hover:bg-black/70">✕</button>
+              <div className="absolute right-4 top-4 flex items-center gap-2">
+                <ShareButton variant="icon" path={linkPath.anime(malId)} title={title} />
+                <button onClick={close} className="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-slate-200 backdrop-blur hover:bg-black/70">✕</button>
+              </div>
 
               {/* Score circles on banner */}
               {(() => {

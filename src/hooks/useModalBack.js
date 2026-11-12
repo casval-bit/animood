@@ -14,8 +14,11 @@ let nextModalId = 0;
  * Returns `requestClose`: call it from close buttons / backdrop clicks
  * instead of `onClose` directly — it triggers history.back(), and the
  * resulting popstate event calls `onClose`, so both paths converge.
+ *
+ * `url` (optionnel) : adresse affichée tant que la fenêtre est ouverte (ex. /anime/5114), pour que le lien
+ * de la barre d'adresse soit partageable. Le retour arrière remet l'adresse d'avant.
  */
-export function useModalBack(onClose) {
+export function useModalBack(onClose, url) {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const backRequestedRef = useRef(false);
@@ -25,7 +28,8 @@ export function useModalBack(onClose) {
     const id = ++nextModalId;
     idRef.current = id;
     modalStack.push(id);
-    window.history.pushState({ animoodOverlay: true, id }, "");
+    const prevUrl = window.location.pathname + window.location.search;
+    window.history.pushState({ animoodOverlay: true, id }, "", url || undefined);
 
     const handlePopState = () => {
       // Only the top-most still-open modal reacts to a given back navigation.
@@ -39,6 +43,8 @@ export function useModalBack(onClose) {
       window.removeEventListener("popstate", handlePopState);
       const idx = modalStack.indexOf(id);
       if (idx !== -1) modalStack.splice(idx, 1);
+      // Fenêtre fermée sans retour arrière (suppression, changement d'onglet…) : on ne laisse pas son adresse affichée
+      if (url && window.history.state?.id === id) window.history.replaceState(window.history.state, "", prevUrl);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

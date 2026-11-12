@@ -32,10 +32,13 @@ export function AppProvider({ children }) {
   // Invité : visite sans compte. Rien n'est enregistré (pas de pseudo, donc aucune écriture en base) ;
   // seules les tables publiques (animés, moods) sont lisibles sans connexion.
   const [guest, setGuest]             = useState(readGuest);
+  // Vrai dès que Supabase a dit si une session existe (avant : on ne sait pas encore si le visiteur est connecté)
+  const [authReady, setAuthReady]     = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = onAuthChange(async (sess) => {
       setSession(sess);
+      setAuthReady(true);
       if(sess) {
         setGuest(false); writeGuest(false);
         const email    = sess.user.email;
@@ -268,7 +271,7 @@ export function AppProvider({ children }) {
 
   const ctx = {
     session, me, setMe, saveMe, myUsername, profileReady, logout,
-    guest: guest && !session, enterGuest, leaveGuest,
+    guest: guest && !session, enterGuest, leaveGuest, authReady,
     unreadPeers, markRead, activityNotifications, markActivityRead, markAllActivityRead,
     gameInvites, dismissGameInvite,
     notificationsEnabled, setNotificationsEnabled,

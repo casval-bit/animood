@@ -13,6 +13,8 @@ import { FORUM_THREAD_I18N } from "../constants/forumThreadI18n.js";
 import { useSound } from "../context/SoundContext.jsx";
 import { GuestSignInCard } from "./GuestGate.jsx";
 import { useGuestT } from "../hooks/useGuestT.js";
+import { ShareButton } from "./ShareButton.jsx";
+import { linkPath } from "../utils/shareLinks.js";
 
 export function timeAgo(iso, lang = "fr") {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -390,13 +392,14 @@ export function ThreadModal({ thread, username, onClose, onOpenUser, onReply }) 
   const visibleReplies = blockedUsers?.size ? replies.filter(r => !blockedUsers.has(r.username)) : replies;
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-2xl">
+    <Modal onClose={onClose} maxWidth="max-w-2xl" url={linkPath.thread(thread.id)}>
       <div className="max-h-[80vh] overflow-y-auto p-5">
         <div className="mb-1.5 flex items-center gap-2">
           <Avatar profile={profileCache[thread.username]} size={22} fallback={thread.username.slice(0,2).toUpperCase()} className="text-[9px]"/>
           <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500 flex-1">
             <span className={GRADIENT_TEXT}>{profileCache[thread.username]?.name || thread.username}</span> · @{thread.username} · {timeAgo(thread.created_at, lang)}
           </div>
+          <ShareButton path={linkPath.thread(thread.id)} title={thread.title} style={{ fontSize: 11 }} />
           {isThreadOwner && (
             <button onClick={deleteThread}
               className="shrink-0 rounded px-2 py-0.5 text-[10px] text-slate-600 transition hover:text-red-400"

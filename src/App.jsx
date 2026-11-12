@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from "react";
+import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { ThemeProvider } from "./context/ThemeProvider.jsx";
 import { LangProvider } from "./context/LangProvider.jsx";
 import { AppProvider } from "./context/AppProvider.jsx";
@@ -16,6 +16,11 @@ import { MoodboardView } from "./views/MoodboardView.jsx";
 import { DesktopUpdateBanner } from "./components/DesktopUpdateBanner.jsx";
 import { GuestLockedView } from "./components/GuestGate.jsx";
 import { GUEST_TABS } from "./constants/guestI18n.js";
+import { GuestSignInCard } from "./components/GuestGate.jsx";
+import { useGuestT } from "./hooks/useGuestT.js";
+import { Modal } from "./components/Modal.jsx";
+import { sb } from "./api/supabase.js";
+import { parseRoute, linkPath } from "./utils/shareLinks.js";
 
 // ── Découpage par page ───────────────────────────────────────────────────────────────────────────────────
 // Chaque vue lourde est un fichier JS à part, chargé au moment où on en a besoin (le visiteur non connecté ne télécharge
@@ -44,6 +49,8 @@ const GamesView        = lazyNamed(() => import("./views/GamesView.jsx"), "Games
 const MessagesView     = lazyNamed(() => import("./views/MessagesView.jsx"), "MessagesView");
 const ProfileView      = lazyNamed(() => import("./views/ProfileView.jsx"), "ProfileView");
 const UserProfileModal = lazyNamed(() => import("./views/UserProfileModal.jsx"), "UserProfileModal");
+const ThreadModal      = lazyNamed(() => import("./components/ForumThreadModal.jsx"), "ThreadModal");
+const PostLinkModal    = lazyNamed(() => import("./views/FeedView.jsx"), "PostLinkModal");
 const SettingsView     = lazyNamed(() => import("./views/SettingsView.jsx"), "SettingsView");
 
 // ── Static Pages ──────────────────────────────────────────────────────────────
@@ -806,11 +813,22 @@ function LegalPage({ type, onClose }) {
 }
 
 function Shell() {
-  const { session, profileReady, guest } = useApp();
+  const { session, profileReady, guest, authReady, enterGuest, myUsername } = useApp();
   const { lang } = useLang();
   const { playSound } = useSound();
+  const gt = useGuestT();
+  // Adresse d'arrivée partagée (/anime/5114, /forum/12, /post/34, /u/pseudo) : voir utils/shareLinks.js
+  const [linkRoute] = useState(() => parseRoute());
+  const [linkThread, setLinkThread]   = useState(null);
+  const [linkPostId, setLinkPostId]   = useState(null);
+  const [linkUserLocked, setLinkUserLocked] = useState(null); // invité arrivé sur un profil : invitation à se connecter
+  const linkOpened = useRef(false);
+  const [autoGuestDone, setAutoGuestDone] = useState(false);
   // Desktop démarre sur le profil, web sur moodboard (l'invité aussi, le profil lui est fermé)
-  const [activeTab, setActiveTab]   = useState(() => window.history.state?.tab || (isDesktopApp() && !guest ? "profile" : "moodboard"));
+  const [activeTab, setActiveTab]   = useState(() =>
+    window.history.state?.tab
+    || (linkRoute?.type === "thread" ? "forum" : linkRoute?.type === "post" ? "feed" : null)
+    || (isDesktopApp() && !guest ? "profile" : "moodboard"));
   const [showSettings, setShowSettings] = useState(false);
   const [settingsCat, setSettingsCat] = useState(null); // catégorie à ouvrir directement (ex. "profile")
   const [detailAnime, setDetailAnime]   = useState(null);
@@ -839,6 +857,30 @@ function Shell() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
+  // Lien partagé ouvert sans compte : on entre directement en mode invité pour montrer le contenu
+  // (une seule fois : si le visiteur clique ensuite « Se connecter », il garde la page de connexion)
+  useEffect(() => {
+    if(!linkRoute || !authReady || session || guest || autoGuestDone || window.__SKIP_AUTH__) return;
+    setAutoGuestDone(true); // eslint-disable-line react-hooks/set-state-in-effect
+    enterGuest();
+  }, [linkRoute, authReady, session, guest, autoGuestDone, enterGuest]);
+
+  // Ouvre le contenu du lien une fois l'appli prête. L'adresse repasse à « / » : la fenêtre ouverte remet la sienne,
+  // et le retour arrière la referme en revenant sur l'accueil.
+  const appReady = (session && profileReady) || guest || window.__SKIP_AUTH__;
+  useEffect(() => {
+    if(!linkRoute || !appReady || linkOpened.current) return;
+    linkOpened.current = true;
+    window.history.replaceState(window.history.state, "", "/");
+    const { type, id } = linkRoute;
+    if(type === "anime") setDetailAnime({ mal_id: id, seedData: null }); // eslint-disable-line react-hooks/set-state-in-effect
+    else if(type === "post") setLinkPostId(id);
+    else if(type === "user") { if(guest) setLinkUserLocked(id); else setOpenUser(id); }
+    else if(type === "thread") {
+      sb.query(`forum_threads?id=eq.${id}&select=*&limit=1`).then(rows => { if(rows?.[0]) setLinkThread(rows[0]); }).catch(() => {});
+    }
+  }, [linkRoute, appReady, guest]);
+
   const changeTab = (tab) => {
     if (tab === activeTab) return;
     playSound("tab");
@@ -849,7 +891,18 @@ function Shell() {
   if (installer) {
     return <InstallPage onContinue={() => { window.history.replaceState(window.history.state, "", "/"); setInstaller(false); }} />;
   }
-  if(!session && !guest && !window.__SKIP_AUTH__) return <LoginView />;
+  if(!session && !guest && !window.__SKIP_AUTH__) {
+    // Arrivée par un lien partagé : petit écran d'attente le temps de savoir si le visiteur est connecté
+    if(linkRoute && !autoGuestDone) {
+      return (
+        <div className="flex min-h-screen flex-col items-center justify-center gap-4">
+          <img src="/logo-mark.png" alt="AniMood" className="h-16 w-16 rounded-2xl object-cover" />
+          <Spinner />
+        </div>
+      );
+    }
+    return <LoginView />;
+  }
   if(!profileReady && !guest && !window.__SKIP_AUTH__) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4">
@@ -929,6 +982,25 @@ function Shell() {
       {activePage === "moderation" && <ModerationPage onClose={()=>setActivePage(null)}/>}
       {activePage === "download"   && <DownloadPage   onClose={()=>setActivePage(null)}/>}
       {legalPage && <LegalPage type={legalPage} onClose={()=>setLegalPage(null)}/>}
+
+      {linkThread && (
+        <Suspense fallback={null}>
+          <ThreadModal thread={linkThread} username={myUsername} onClose={() => setLinkThread(null)} onOpenUser={openUserFn} />
+        </Suspense>
+      )}
+      {linkPostId && (
+        <Suspense fallback={null}>
+          <PostLinkModal postId={linkPostId} onClose={() => setLinkPostId(null)} onOpenUser={openUserFn} />
+        </Suspense>
+      )}
+      {linkUserLocked && guest && (
+        <Modal onClose={() => setLinkUserLocked(null)} url={linkPath.user(linkUserLocked)}>
+          <div className="p-5">
+            <div className="mb-3 text-center text-lg font-black text-slate-100">@{linkUserLocked}</div>
+            <GuestSignInCard title={gt.profileTitle} text={gt.profileText} />
+          </div>
+        </Modal>
+      )}
 
       {openUser && !guest && (
         <Suspense fallback={null}>
