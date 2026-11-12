@@ -14,6 +14,7 @@ import { MoodOctagon } from "../components/MoodOctagon.jsx";
 import { WordleGame, PosterGame, OpQuizGame } from "../components/MiniGames.jsx";
 import { Matchmaking, ChainGame, TimelineGame, CluescaleMatchmaking, CluescaleGame, UndercoverLobby, UndercoverGame } from "../components/GameSystem.jsx";
 import { joinFromInvite, joinErrorText } from "../utils/gameRooms.js";
+import { canLeaveGame } from "../utils/gameClose.js";
 import { TierlistStudio } from "../components/Tierlist.jsx";
 import { GameModal } from "../components/Modal.jsx";
 import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
@@ -782,8 +783,9 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
   }, [pendingJoinGame]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGameClose = async (gameRef) => {
-    // Partie déjà terminée (ou contre l'IA) : on ferme sans rien demander ; sinon quitter = abandon
-    if(gameRef && !gameRef.isOver?.()) {
+    // Partie déjà terminée (ou contre l'IA) : on ferme sans rien demander ; sinon quitter = abandon.
+    // Les jeux actuels ouvrent eux-mêmes leur fenêtre « Abandonner ? » (canClose ci-dessous) : plus de confirm() pour eux.
+    if(gameRef && !gameRef.isOver?.() && typeof gameRef.requestQuit !== "function") {
       const confirmed = window.confirm(t.confirmForfeit);
       if(!confirmed) return;
       await gameRef();
@@ -1111,20 +1113,16 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
         </GameModal>
       )}
       {activeRoom && activeGame === "chain" && (
-        <GameModal onClose={async()=>handleGameClose(chainCloseRef.current)} title={`⛓ ${t.chainLabel}`} maxWidth="896px">
-          {() => <ChainGame room={activeRoom}
-            onClose={async()=>{
-              await handleGameClose(chainCloseRef.current);
-            }}
+        <GameModal onClose={async()=>handleGameClose(chainCloseRef.current)} canClose={()=>canLeaveGame(chainCloseRef.current)} title={`⛓ ${t.chainLabel}`} maxWidth="896px">
+          {(_close, closeNow) => <ChainGame room={activeRoom}
+            onClose={closeNow}
             onReady={(forfaitFn)=>{ chainCloseRef.current = forfaitFn; }}/>}
         </GameModal>
       )}
       {activeRoom && activeGame === "timeline" && (
-        <GameModal onClose={async()=>handleGameClose(timelineCloseRef.current)} title={`📅 ${t.timelineLabel}`} maxWidth="1152px">
-          {() => <TimelineGame room={activeRoom}
-            onClose={async()=>{
-              await handleGameClose(timelineCloseRef.current);
-            }}
+        <GameModal onClose={async()=>handleGameClose(timelineCloseRef.current)} canClose={()=>canLeaveGame(timelineCloseRef.current)} title={`📅 ${t.timelineLabel}`} maxWidth="1152px">
+          {(_close, closeNow) => <TimelineGame room={activeRoom}
+            onClose={closeNow}
             onReady={(forfaitFn)=>{ timelineCloseRef.current = forfaitFn; }}/>}
         </GameModal>
       )}

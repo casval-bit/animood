@@ -5,6 +5,7 @@ import { useLang } from "../context/useLang.js";
 import { WordleGame, PosterGame, OpQuizGame } from "../components/MiniGames.jsx";
 import { Matchmaking, ChainGame, TimelineGame, CluescaleMatchmaking, CluescaleGame, UndercoverLobby, UndercoverGame } from "../components/GameSystem.jsx";
 import { joinFromInvite, joinErrorText } from "../utils/gameRooms.js";
+import { canLeaveGame } from "../utils/gameClose.js";
 import { TierlistStudio } from "../components/Tierlist.jsx";
 import { GameModal } from "../components/Modal.jsx";
 import { FORUM_I18N } from "../constants/forumI18n.js";
@@ -138,7 +139,22 @@ function TierlistPanel() {
   );
 }
 
-// ── EloLeaderboard — shown inside the LinkUp/Timeline matchmaking modal ───────
+// ── EloLeaderboard — affiché sous les modes de jeu dans le salon LinkUp / Timeline ─────────────────────────────
+// Dix premiers sur deux colonnes ; si je n'y suis pas, ma ligne est ajoutée en dessous.
+const TOP_ELO = 10;
+function EloRow({ rank, name, pts, me, friend }) {
+  const medal = rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":null;
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",borderRadius:10,breakInside:"avoid",marginBottom:3,
+      background:me?"rgba(139,92,246,0.14)":"rgba(var(--fg-rgb),0.035)",
+      border:me?"1px solid rgba(139,92,246,0.4)":"1px solid transparent"}}>
+      <div style={{fontSize:12,fontWeight:800,color:"var(--text-3)",width:22,textAlign:"center",flexShrink:0}}>{medal||rank}</div>
+      <div style={{flex:1,minWidth:0,fontSize:13,fontWeight:me||friend?800:600,color:me?"#c084fc":friend?"#22c55e":"var(--text-1)",
+        overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</div>
+      <div style={{fontSize:13,fontWeight:900,color:"var(--text-1)",flexShrink:0,fontVariantNumeric:"tabular-nums"}}>{pts}</div>
+    </div>
+  );
+}
 function EloLeaderboard({ gameType, myUsername, following }) {
   const { lang } = useLang();
   const t = FORUM_I18N[lang] || FORUM_I18N.fr;
@@ -148,58 +164,34 @@ function EloLeaderboard({ gameType, myUsername, following }) {
   const followingSet = new Set(following||[]);
 
   useEffect(() => {
+    let alive = true;
     sb.query(`game_elo?select=username,${field}&order=${field}.desc&limit=200`)
       .then(data => {
-        if(!data?.length) return;
+        if(!alive || !data?.length) return;
         const sorted = [...data].sort((a,b)=>(b[field]||400)-(a[field]||400));
-        setRows(sorted.slice(0,20).map((r,i)=>({username:r.username,pts:r[field]||400,rank:i+1})));
+        setRows(sorted.slice(0,TOP_ELO).map((r,i)=>({username:r.username,pts:r[field]||400,rank:i+1})));
         const pos = sorted.findIndex(r=>r.username===myUsername);
-        if(pos>=20) setMyRank({rank:pos+1,pts:sorted[pos][field]||400});
+        setMyRank(pos>=TOP_ELO ? {rank:pos+1,pts:sorted[pos][field]||400} : null);
       }).catch(()=>{});
-  }, [gameType, myUsername]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { alive = false; };
+  }, [field, myUsername]);
 
   if(!rows.length) return null;
 
-  function uColor(u) {
-    if(u===myUsername) return "#c084fc";
-    if(followingSet.has(u)) return "#22c55e";
-    return "var(--text-2)";
-  }
-
   return (
-    <div style={{marginTop:16,paddingTop:12,borderTop:"1px solid rgba(255,255,255,0.06)"}}>
-      <div style={{fontSize:9,fontWeight:800,color:"var(--text-5)",letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>
+    <div className="gm-card" style={{padding:"14px 14px 11px"}}>
+      <div className="gm-eyebrow" style={{marginBottom:10}}>
         {t.eloLeaderboardTitle(gameType==="chain" ? t.chainLabel : t.timelineLabel)}
       </div>
-      <div style={{display:"flex",flexDirection:"column",gap:2}}>
-        {rows.map(r=>{
-          const isMe=r.username===myUsername;
-          const medal=r.rank===1?"🥇":r.rank===2?"🥈":r.rank===3?"🥉":null;
-          return (
-            <div key={r.username} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:7,
-              background:isMe?"rgba(124,58,237,0.1)":"rgba(255,255,255,0.02)",
-              border:isMe?"1px solid rgba(124,58,237,0.2)":"1px solid transparent"}}>
-              <div style={{fontSize:9,color:"var(--text-5)",width:16,textAlign:"right",flexShrink:0}}>{medal||r.rank}</div>
-              <div style={{flex:1,fontSize:10,fontWeight:isMe||followingSet.has(r.username)?800:500,
-                color:uColor(r.username),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                {r.username}
-              </div>
-              <div style={{fontSize:10,fontWeight:800,color:"var(--text-2)",flexShrink:0}}>{r.pts}</div>
-            </div>
-          );
-        })}
-        {myRank && (
-          <>
-            <div style={{padding:"3px 8px",textAlign:"center",fontSize:9,color:"var(--text-6)"}}>· · ·</div>
-            <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:7,
-              background:"rgba(124,58,237,0.1)",border:"1px solid rgba(124,58,237,0.2)"}}>
-              <div style={{fontSize:9,color:"var(--text-5)",width:16,textAlign:"right",flexShrink:0}}>{myRank.rank}</div>
-              <div style={{flex:1,fontSize:10,fontWeight:800,color:"#c084fc",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{myUsername}</div>
-              <div style={{fontSize:10,fontWeight:800,color:"var(--text-2)",flexShrink:0}}>{myRank.pts}</div>
-            </div>
-          </>
-        )}
+      <div style={{columns:"2 240px",columnGap:14}}>
+        {rows.map(r => <EloRow key={r.username} rank={r.rank} name={r.username} pts={r.pts} me={r.username===myUsername} friend={followingSet.has(r.username)} />)}
       </div>
+      {myRank && (
+        <div style={{marginTop:6}}>
+          <div style={{textAlign:"center",fontSize:11,color:"var(--text-4)",lineHeight:1,marginBottom:4}}>· · ·</div>
+          <EloRow rank={myRank.rank} name={myUsername} pts={myRank.pts} me />
+        </div>
+      )}
     </div>
   );
 }
@@ -223,13 +215,29 @@ export function GamesView({ pendingJoinGame, onClearPendingJoin }) {
   const [showCluescale, setShowCluescale] = useState(false);
   const [cluescaleRoom, setCluescaleRoom] = useState(null);
   const [showUndercover, setShowUndercover] = useState(false);
-  const [undercoverPlayers, setUndercoverPlayers] = useState(null);
+  const [undercoverPlayers, setUndercoverPlayers] = useState(null);   // partie locale (un seul écran)
+  const [undercoverRoom, setUndercoverRoom]       = useState(null);   // partie en ligne en cours
+  const [undercoverInvite, setUndercoverInvite]   = useState(null);   // salon d'attente rejoint par invitation
+  const [undercoverNames, setUndercoverNames]     = useState(null);   // pseudos de la dernière partie locale (pour « Rejouer »)
   const [showTierlist, setShowTierlist]   = useState(false);
   const [matchmaking, setMatchmaking]     = useState(null);
   const [activeRoom, setActiveRoom]       = useState(null);
   const [activeGame, setActiveGame]       = useState(null);
-  const chainCloseRef    = useRef(null);
-  const timelineCloseRef = useRef(null);
+  // Fonction donnée par chaque jeu (onReady) : sert à savoir si la partie est finie et à ouvrir sa fenêtre « Abandonner ? »
+  const chainCloseRef     = useRef(null);
+  const timelineCloseRef  = useRef(null);
+  const cluescaleCloseRef = useRef(null);
+  const undercoverCloseRef = useRef(null);
+
+  // Une partie vient de se terminer : on relit l'ELO et le classement (une 2e fois un peu plus tard, le temps que l'ELO s'enregistre)
+  const [statsKey, setStatsKey] = useState(0);
+  const statsTimer = useRef(null);
+  useEffect(() => () => clearTimeout(statsTimer.current), []);
+  const refreshStats = () => {
+    setStatsKey(k => k + 1);
+    clearTimeout(statsTimer.current);
+    statsTimer.current = setTimeout(() => setStatsKey(k => k + 1), 2500);
+  };
 
   // Rejoindre une partie après avoir accepté une invitation dans la cloche : prise de place atomique (gameRooms.js),
   // et un message clair si la partie n'existe plus, est déjà prise ou déjà commencée.
@@ -240,15 +248,34 @@ export function GamesView({ pendingJoinGame, onClearPendingJoin }) {
     const id = setTimeout(() => setJoinNotice(""), 6000);
     return () => clearTimeout(id);
   }, [joinNotice]);
+
+  const gameInProgress = () =>
+    [chainCloseRef, timelineCloseRef, cluescaleCloseRef, undercoverCloseRef].some(r => r.current && !r.current.isOver?.());
+  // Ferme tout (salons d'attente et parties terminées) avant d'ouvrir la partie d'une invitation
+  const closeEverything = () => {
+    chainCloseRef.current = timelineCloseRef.current = cluescaleCloseRef.current = undercoverCloseRef.current = null;
+    setMatchmaking(null); setActiveRoom(null); setActiveGame(null);
+    setShowCluescale(false); setCluescaleRoom(null); setCluescaleInvite(null);
+    setShowUndercover(false); setUndercoverPlayers(null); setUndercoverRoom(null); setUndercoverInvite(null); setUndercoverNames(null);
+  };
   useEffect(() => {
     if(!pendingJoinGame) return;
     const { gameType, roomId, privateCode } = pendingJoinGame;
     onClearPendingJoin?.();
-    joinFromInvite({ gameType, roomId, privateCode, me: myUsername }).then(res => {
+    // Déjà en pleine partie : on ne prend pas de place dans une autre (l'adversaire attendrait pour rien)
+    const attempt = gameInProgress()
+      ? Promise.resolve({ ok: false, reason: "inGame" })
+      : joinFromInvite({ gameType, roomId, privateCode, me: myUsername });
+    attempt.then(res => {
       if(!res.ok) { setJoinNotice(joinErrorText(res.reason, lang)); return; }
+      closeEverything();
       if(gameType === "cluescale") {
         if(res.room.status === "active") setCluescaleRoom(res.room);
         else { setCluescaleInvite(res.room); setShowCluescale(true); }
+      } else if(gameType === "undercover") {
+        setShowUndercover(true);
+        if(res.room.status === "active") setUndercoverRoom(res.room);
+        else setUndercoverInvite(res.room);
       } else {
         setActiveRoom(res.room);
         setActiveGame(gameType);
@@ -256,17 +283,20 @@ export function GamesView({ pendingJoinGame, onClearPendingJoin }) {
     }).catch(() => setJoinNotice(joinErrorText("invalid", lang)));
   }, [pendingJoinGame]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleGameClose = async (gameRef) => {
-    // Partie déjà terminée (ou contre l'IA) : on ferme sans rien demander ; sinon quitter = abandon
-    if(gameRef && !gameRef.isOver?.()) {
-      const confirmed = window.confirm("Êtes-vous sûr de vouloir quitter ? Cela comptera comme un abandon.");
-      if(!confirmed) return;
-      await gameRef();
-    }
+  // Fermetures « pour de bon » : appelées par la fenêtre une fois la fermeture acceptée (partie finie, ou abandon confirmé dans le jeu).
+  const closeDuel = () => {
     chainCloseRef.current = null;
     timelineCloseRef.current = null;
     setActiveRoom(null);
     setActiveGame(null);
+    refreshStats();
+  };
+  const closeCluescaleLobby = () => { setShowCluescale(false); setCluescaleInvite(null); };
+  const closeCluescaleGame  = () => { cluescaleCloseRef.current = null; setCluescaleRoom(null); refreshStats(); };
+  const closeUndercover = () => {
+    undercoverCloseRef.current = null;
+    setShowUndercover(false); setUndercoverPlayers(null); setUndercoverRoom(null); setUndercoverInvite(null); setUndercoverNames(null);
+    refreshStats();
   };
 
   return (
@@ -297,6 +327,7 @@ export function GamesView({ pendingJoinGame, onClearPendingJoin }) {
         onUndercover: ()=>setShowUndercover(true),
         onTierlist: ()=>setShowTierlist(true),
         t,
+        refreshKey: statsKey,
       })}
 
       {showWordle && (
@@ -314,31 +345,28 @@ export function GamesView({ pendingJoinGame, onClearPendingJoin }) {
           {() => <OpQuizGame onClose={()=>setShowOpQuiz(false)}/>}
         </GameModal>
       )}
+      {/* Salon LinkUp / Timeline : 3 modes (classé, entre amis, IA) + classement. Fenêtre large pour que les cartes respirent. */}
       {matchmaking && !activeRoom && (
-        <GameModal onClose={()=>setMatchmaking(null)} title={matchmaking === "chain" ? `⛓ ${t.chainLabel}` : `📅 ${t.timelineLabel}`} maxWidth="400px">
+        <GameModal onClose={()=>setMatchmaking(null)} title={matchmaking === "chain" ? `⛓ ${t.chainLabel}` : `📅 ${t.timelineLabel}`} maxWidth="780px">
           {() => (
-            <div>
-              <Matchmaking gameType={matchmaking} onClose={()=>setMatchmaking(null)}
-                onMatch={room=>{setActiveRoom(room);setActiveGame(matchmaking);setMatchmaking(null);}}/>
-              <div style={{padding:"0 16px 16px"}}>
-                <EloLeaderboard gameType={matchmaking} myUsername={myUsername} following={followingList}/>
-              </div>
-            </div>
+            <Matchmaking gameType={matchmaking}
+              onMatch={room=>{setActiveRoom(room);setActiveGame(matchmaking);setMatchmaking(null);}}
+              footer={<EloLeaderboard gameType={matchmaking} myUsername={myUsername} following={followingList}/>}/>
           )}
         </GameModal>
       )}
+      {/* Partie en cours : la croix / le fond / « retour » ouvrent la fenêtre « Abandonner ? » du jeu (canClose refuse la fermeture) ;
+          une fois la partie finie (ou l'abandon confirmé dans le jeu), le bouton du jeu ferme pour de bon (closeNow). */}
       {activeRoom && activeGame === "chain" && (
-        <GameModal onClose={async()=>handleGameClose(chainCloseRef.current)} title={`⛓ ${t.chainLabel}`} maxWidth="896px">
-          {() => <ChainGame room={activeRoom}
-            onClose={async()=>{ await handleGameClose(chainCloseRef.current); }}
-            onReady={(forfaitFn)=>{ chainCloseRef.current = forfaitFn; }}/>}
+        <GameModal onClose={closeDuel} canClose={()=>canLeaveGame(chainCloseRef.current)} title={`⛓ ${t.chainLabel}`} maxWidth="900px">
+          {(_close, closeNow) => <ChainGame room={activeRoom} onClose={closeNow}
+            onReady={(fn)=>{ chainCloseRef.current = fn; }}/>}
         </GameModal>
       )}
       {activeRoom && activeGame === "timeline" && (
-        <GameModal onClose={async()=>handleGameClose(timelineCloseRef.current)} title={`📅 ${t.timelineLabel}`} maxWidth="1152px">
-          {() => <TimelineGame room={activeRoom}
-            onClose={async()=>{ await handleGameClose(timelineCloseRef.current); }}
-            onReady={(forfaitFn)=>{ timelineCloseRef.current = forfaitFn; }}/>}
+        <GameModal onClose={closeDuel} canClose={()=>canLeaveGame(timelineCloseRef.current)} title={`📅 ${t.timelineLabel}`} maxWidth="1120px">
+          {(_close, closeNow) => <TimelineGame room={activeRoom} onClose={closeNow}
+            onReady={(fn)=>{ timelineCloseRef.current = fn; }}/>}
         </GameModal>
       )}
       {joinNotice && (
@@ -350,23 +378,31 @@ export function GamesView({ pendingJoinGame, onClearPendingJoin }) {
         </div>
       )}
       {showCluescale && !cluescaleRoom && (
-        <GameModal onClose={()=>{setShowCluescale(false);setCluescaleInvite(null);}} title={`🎭 ${t.cluescaleLabel}`} maxWidth="400px">
-          {() => <CluescaleMatchmaking initialRoom={cluescaleInvite}
-            onClose={()=>{setShowCluescale(false);setCluescaleInvite(null);}}
+        <GameModal onClose={closeCluescaleLobby} title={`🎭 ${t.cluescaleLabel}`} maxWidth="680px">
+          {(close) => <CluescaleMatchmaking initialRoom={cluescaleInvite} onClose={close}
             onMatch={room=>{setCluescaleRoom(room);setShowCluescale(false);setCluescaleInvite(null);}}/>}
         </GameModal>
       )}
       {cluescaleRoom && (
-        <GameModal onClose={()=>setCluescaleRoom(null)} title={`🎭 ${t.cluescaleLabel}`} maxWidth="560px">
-          {() => <CluescaleGame room={cluescaleRoom} onClose={()=>setCluescaleRoom(null)}/>}
+        <GameModal onClose={closeCluescaleGame} canClose={()=>canLeaveGame(cluescaleCloseRef.current)} title={`🎭 ${t.cluescaleLabel}`} maxWidth="680px">
+          {(_close, closeNow) => <CluescaleGame room={cluescaleRoom} onClose={closeNow}
+            onReady={(fn)=>{ cluescaleCloseRef.current = fn; }}/>}
         </GameModal>
       )}
+      {/* Imposteur : une seule fenêtre pour le salon, la partie locale (un seul écran) et la partie en ligne (desktop) */}
       {showUndercover && (
-        <GameModal onClose={()=>{ setShowUndercover(false); setUndercoverPlayers(null); }} title={`🕵️ ${t.undercoverLabel}`} maxWidth="440px">
-          {(close) => undercoverPlayers
-            ? <UndercoverGame key={undercoverPlayers.map(p => p.username + (p.isImpostor ? "*" : "")).join("|")}
-                players={undercoverPlayers} onClose={close} onReplay={()=>setUndercoverPlayers(null)}/>
-            : <UndercoverLobby onStart={setUndercoverPlayers}/>}
+        <GameModal onClose={closeUndercover} canClose={(undercoverPlayers || undercoverRoom) ? ()=>canLeaveGame(undercoverCloseRef.current) : undefined}
+          title={`🕵️ ${t.undercoverLabel}`} maxWidth="700px">
+          {(close, closeNow) => undercoverRoom
+            ? <UndercoverGame key={undercoverRoom.id} room={undercoverRoom} players={undercoverRoom.players} onClose={closeNow}
+                onReady={(fn)=>{ undercoverCloseRef.current = fn; }}/>
+            : undercoverPlayers
+              ? <UndercoverGame key={undercoverPlayers.map(p => p.username + (p.isImpostor ? "*" : "")).join("|")}
+                  players={undercoverPlayers} onClose={closeNow}
+                  onReplay={()=>{ undercoverCloseRef.current = null; setUndercoverNames(undercoverPlayers.map(p => p.username)); setUndercoverPlayers(null); }}
+                  onReady={(fn)=>{ undercoverCloseRef.current = fn; }}/>
+              : <UndercoverLobby onStart={setUndercoverPlayers} initialRoom={undercoverInvite} localPlayers={undercoverNames} onClose={close}
+                  onStartOnline={room=>{ setUndercoverInvite(null); setUndercoverRoom(room); }}/>}
         </GameModal>
       )}
       {showTierlist && (
