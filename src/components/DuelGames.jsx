@@ -322,9 +322,9 @@ function DuelEnd({ core, scoreLine, subtitle, onClose, children }) {
   const iWon = res.winner === me && !iLeft;
   const draw = !!res.isDraw;
   const tone = draw ? "draw" : iWon ? "win" : "loss";
-  const icon = iLeft ? "🏳️" : oppLeft ? "🏃" : draw ? "🤝" : iWon ? "🏆" : "😢";
-  const title = iLeft ? d.titleForfeitMe : oppLeft ? (res.kind === "timeout" ? d.titleTimeout : d.titleForfeitOpp) : draw ? g.common.draw : iWon ? g.common.victory : g.common.defeat;
-  const sub = iLeft ? d.subForfeitMe : oppLeft ? (res.kind === "timeout" ? d.subTimeout(opp) : d.subForfeitOpp(opp)) : subtitle;
+  const icon = iLeft ? (res.kind === "timeout" ? "⌛" : "🏳️") : oppLeft ? "🏃" : draw ? "🤝" : iWon ? "🏆" : "😢";
+  const title = iLeft ? (res.kind === "timeout" ? d.titleTimeoutMe : d.titleForfeitMe) : oppLeft ? (res.kind === "timeout" ? d.titleTimeout : d.titleForfeitOpp) : draw ? g.common.draw : iWon ? g.common.victory : g.common.defeat;
+  const sub = iLeft ? (res.kind === "timeout" ? d.subTimeoutMe : d.subForfeitMe) : oppLeft ? (res.kind === "timeout" ? d.subTimeout(opp) : d.subForfeitOpp(opp)) : subtitle;
 
   const settlement = fin.status === "saving" ? { status: "pending" }
     : fin.status === "error" ? { status: "failed", error: d.closeError }
