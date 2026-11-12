@@ -127,6 +127,7 @@ export const GAME_UI_I18N = {
       penaltyRanked: (n) => `Abandon en partie classée : −${n} ELO.`, penaltyFriend: "Ton adversaire remporte les points de la partie.",
       titleForfeitMe: "Partie abandonnée", titleForfeitOpp: "Victoire par abandon", titleTimeout: "Victoire : adversaire parti",
       subForfeitMe: "Tu as abandonné la partie.", subForfeitOpp: (o) => `${o} a abandonné la partie.`, subTimeout: (o) => `${o} n'a plus joué depuis trop longtemps.`,
+      titleTimeoutMe: "Partie perdue (inactivité)", subTimeoutMe: "Tu n'as plus joué depuis trop longtemps : la partie est donnée à ton adversaire.",
       closeError: "connexion perdue", close: "Fermer",
     },
     chain: {
@@ -275,6 +276,7 @@ export const GAME_UI_I18N = {
       penaltyRanked: (n) => `Forfeit in a ranked game: −${n} ELO.`, penaltyFriend: "Your opponent takes the game's points.",
       titleForfeitMe: "Game forfeited", titleForfeitOpp: "Won by forfeit", titleTimeout: "Win: opponent gone",
       subForfeitMe: "You forfeited the game.", subForfeitOpp: (o) => `${o} forfeited the game.`, subTimeout: (o) => `${o} hasn't played for too long.`,
+      titleTimeoutMe: "Game lost (inactive)", subTimeoutMe: "You haven't played for too long: the game goes to your opponent.",
       closeError: "connection lost", close: "Close",
     },
     chain: {
