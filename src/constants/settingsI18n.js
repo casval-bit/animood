@@ -114,6 +114,13 @@ export const SETTINGS_I18N = {
     soundVolume: "Volume",
     soundPack: "Pack de sons",
     soundTestBtn: "Tester",
+
+    alertSoundTitle: "🔔 Son des notifications",
+    alertSoundOn: "Son activé",
+    alertSoundOff: "Son coupé",
+    alertSoundDesc: "Un petit son à chaque nouvelle notification et à chaque nouveau message privé.",
+    alertSoundTestNotif: "Notification",
+    alertSoundTestMsg: "Message",
   },
 
   en: {
@@ -231,5 +238,12 @@ export const SETTINGS_I18N = {
     soundVolume: "Volume",
     soundPack: "Sound pack",
     soundTestBtn: "Test",
+
+    alertSoundTitle: "🔔 Notification sound",
+    alertSoundOn: "Sound on",
+    alertSoundOff: "Sound off",
+    alertSoundDesc: "A short sound for every new notification and every new private message.",
+    alertSoundTestNotif: "Notification",
+    alertSoundTestMsg: "Message",
   },
 };

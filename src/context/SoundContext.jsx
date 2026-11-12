@@ -1,14 +1,17 @@
 // ─── ANIMOOD — Sound Context ───────────────────────────────────────────────────
 // Sons UI ultra-doux, ambiants — desktop uniquement.
 // Sur le web, playSound() est un no-op.
+// Exception : playAlert() (nouvelle notification, nouveau message privé) sonne aussi sur le site.
+// Réglage à part (animood_alert_sounds), dans Paramètres → Préférences.
 
-import { createContext, useContext, useCallback, useRef, useState } from "react";
+import { createContext, useContext, useCallback, useEffect, useRef, useState } from "react";
 import { isDesktopApp } from "../utils/streamingLinks.js";
 
 // ── LocalStorage ──────────────────────────────────────────────────────────────
 const KEY_ENABLED = "animood_sound_enabled";
 const KEY_VOLUME  = "animood_sound_volume";
 const KEY_PACK    = "animood_sound_pack";
+const KEY_ALERTS  = "animood_alert_sounds";
 
 function loadPref(key, fallback) {
   try { const v = localStorage.getItem(key); return v !== null ? JSON.parse(v) : fallback; } catch { return fallback; }
@@ -186,6 +189,24 @@ const SOUNDS = {
     },
   },
 
+  // ── message — nouveau message privé : « bloup » montant, distinct de notify ──
+  message: {
+    dreamy:  (c,g) => {
+      osc(c,g,{freq1:523,freq2:784,dur:0.16,vol:0.15,attack:0.008,decay:0.05,sustain:0.35,startAt:0});
+      osc(c,g,{freq1:1047,dur:0.20,vol:0.09,attack:0.010,decay:0.06,sustain:0.3,startAt:0.13});
+    },
+    crystal: (c,g) => {
+      osc(c,g,{freq1:1319,dur:0.10,vol:0.13,attack:0.003,decay:0.02,sustain:0.2,startAt:0});
+      osc(c,g,{freq1:1568,dur:0.10,vol:0.12,attack:0.003,decay:0.02,sustain:0.2,startAt:0.09});
+      osc(c,g,{freq1:2093,dur:0.16,vol:0.09,attack:0.003,startAt:0.18});
+    },
+    minimal: (c,g) => { osc(c,g,{freq1:587,freq2:880,dur:0.12,vol:0.06,attack:0.012}); },
+    cyber:   (c,g) => {
+      osc(c,g,{freq1:440,freq2:880,dur:0.09,type:"triangle",vol:0.11,attack:0.006});
+      osc(c,g,{freq1:1320,dur:0.08,type:"triangle",vol:0.08,attack:0.006,startAt:0.10});
+    },
+  },
+
   // ── error — tension très douce, pas agressive ────────────────────────────────
   error: {
     dreamy:  (c,g) => {
@@ -262,6 +283,8 @@ export function SoundProvider({ children }) {
   const [soundEnabled, _setSoundEnabled] = useState(() => loadPref(KEY_ENABLED, true));
   const [volume, _setVolume]             = useState(() => loadPref(KEY_VOLUME, 0.65));
   const [pack, _setPack]                 = useState(() => loadPref(KEY_PACK, "dreamy"));
+  const [alertsEnabled, _setAlertsEnabled] = useState(() => loadPref(KEY_ALERTS, true));
+  const alertsRef  = useRef(alertsEnabled);
   const enabledRef = useRef(soundEnabled);
   const volumeRef  = useRef(volume);
   const packRef    = useRef(pack);
@@ -312,12 +335,40 @@ export function SoundProvider({ children }) {
     } catch { /* silent */ }
   }, [isDesktop]);
 
+  // Son d'alerte (notification, message) : site ET appli de bureau.
+  // Sur le bureau, l'interrupteur général des sons le coupe aussi.
+  const playAlert = useCallback((name) => {
+    if (!alertsRef.current) return;
+    if (isDesktop && !enabledRef.current) return;
+    const fn = SOUNDS[name]?.[packRef.current] ?? SOUNDS[name]?.dreamy;
+    if (!fn) return;
+    try {
+      const ctx = getCtx();
+      if (!ctx || ctx.state !== "running") return; // navigateur : pas de son avant le premier clic sur la page
+      const vol = ctx.createGain();
+      vol.gain.value = volumeRef.current * 0.55;
+      vol.connect(dryGainRef.current);
+      vol.connect(reverbRef.current);
+      fn(ctx, vol);
+    } catch { /* silent */ }
+  }, [isDesktop]);
+
+  // Les navigateurs bloquent le son tant qu'on n'a pas interagi avec la page : on « réveille » l'audio au premier clic,
+  // pour que la première notification qui arrive ensuite soit bien entendue.
+  useEffect(() => {
+    const unlock = () => { try { getCtx(); } catch { /* ignore */ } };
+    window.addEventListener("pointerdown", unlock, { once: true });
+    window.addEventListener("keydown", unlock, { once: true });
+    return () => { window.removeEventListener("pointerdown", unlock); window.removeEventListener("keydown", unlock); };
+  }, []);
+
+  const setAlertsEnabled = useCallback((v) => { alertsRef.current = v; _setAlertsEnabled(v); savePref(KEY_ALERTS, v); }, []);
   const setSoundEnabled = useCallback((v) => { enabledRef.current = v; _setSoundEnabled(v); savePref(KEY_ENABLED, v); }, []);
   const setVolume       = useCallback((v) => { volumeRef.current = v; _setVolume(v); savePref(KEY_VOLUME, v); }, []);
   const setPack         = useCallback((v) => { packRef.current = v; _setPack(v); savePref(KEY_PACK, v); }, []);
 
   return (
-    <SoundCtx.Provider value={{ playSound, soundEnabled, setSoundEnabled, volume, setVolume, pack, setPack, packs: SOUND_PACKS }}>
+    <SoundCtx.Provider value={{ playSound, playAlert, alertsEnabled, setAlertsEnabled, soundEnabled, setSoundEnabled, volume, setVolume, pack, setPack, packs: SOUND_PACKS }}>
       {children}
     </SoundCtx.Provider>
   );
