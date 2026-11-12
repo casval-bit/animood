@@ -39,21 +39,25 @@ export function Modal({ onClose, children, maxWidth = "max-w-lg", bodyClassName 
 // ─── Game board modal — framed window with a title bar, used by the mini-games ─
 // Same back-button behaviour as Modal. `fullHeight` pins the window to the
 // viewport height so a game can manage its own internal scrolling (Tierlist).
-export function GameModal({ onClose, children, title, subtitle, maxWidth = "920px", fullHeight = false }) {
+// `canClose` (optionnel) : renvoie false pour refuser la fermeture (partie en cours → le jeu affiche sa propre fenêtre « Abandonner ? »).
+export function GameModal({ onClose, children, title, subtitle, maxWidth = "920px", fullHeight = false, canClose }) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
   const { playSound } = useSound();
   useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
 
-  const requestClose = useModalBack(onClose);
+  const requestClose = useModalBack(onClose, canClose);
 
-  const close = () => {
+  // `force === true` : fermeture sans redemander à `canClose` (bouton « Quitter » du jeu, une fois confirmé dans le jeu).
+  // Les clics de la croix / du fond transmettent l'événement en 1er argument : seul `true` compte.
+  const close = (force) => {
     if(closing) return;
+    if(requestClose(force === true) === false) return;     // fermeture refusée : la fenêtre reste affichée telle quelle
     playSound("back");
     setClosing(true);
     setVisible(false);
-    requestClose();
   };
+  const closeNow = () => close(true);
 
   return (
     <div onClick={close} style={{
@@ -99,7 +103,7 @@ export function GameModal({ onClose, children, title, subtitle, maxWidth = "920p
 
         {/* Content */}
         <div style={{flex:1,minHeight:0,overflowY: fullHeight ? "hidden" : "auto",display:"flex",flexDirection:"column"}}>
-          {typeof children === "function" ? children(close) : children}
+          {typeof children === "function" ? children(close, closeNow) : children}
         </div>
       </div>
     </div>

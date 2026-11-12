@@ -68,7 +68,7 @@ Every app shows the live site, so they're always up to date.
 
 ## 🛠️ For developers
 
-**Stack:** React + Vite + Tailwind · Supabase (database and accounts) · Electron (desktop app) · Jikan / AniList / AnimeThemes (catalogue) · Tenrai + AniList (sync scripts)
+**Stack:** React + Vite + Tailwind · Supabase (database and accounts) · Electron (desktop app) · Jikan / AniList / AnimeThemes (catalogue) · Tenrai (+ Jikan as backup) + AniList (sync scripts)
 
 ### Run locally
 
@@ -109,7 +109,8 @@ The `animood-v.XX` branches are older versions; the current version is on **`mai
 
 | Version | What's new |
 |---|---|
-| **v.14.01** | More reliable multiplayer mini-games (each seat can be taken only once, no more ghost games, automatic forfeit of an absent opponent, ELO and points applied exactly once, AI games never write to the database, Cluescale without lost votes, reviewed Undercover words/hints), official platform icons on the "App" page, "Other suggestions" button next to "Find my anime", Settings/Messages buttons swapped, `npm test` (game rules), daily cleanup of abandoned rooms, sync scripts moved from Jikan to Tenrai + AniList (streaming in batches of 50, outage breaker, per-step time limits) |
+| **v.14.02** | Mini-games reworked for the desktop app: new windows (Friends / Ranked / AI modes, same room with code and invitations for every game), always-visible "Forfeit" button, end screen showing the ELO and points won or lost, fixed Timeline (a missed card is replaced instead of vanishing, winner's points, second player's last chance), more believable AI (3 levels, record kept on the device), Cluescale ties, Tierlist: the saved image finally contains the posters, sync scripts: Jikan as backup behind Tenrai |
+| v.14.01 | More reliable multiplayer mini-games (each seat can be taken only once, no more ghost games, automatic forfeit of an absent opponent, ELO and points applied exactly once, AI games never write to the database, Cluescale without lost votes, reviewed Undercover words/hints), official platform icons on the "App" page, "Other suggestions" button next to "Find my anime", Settings/Messages buttons swapped, `npm test` (game rules), daily cleanup of abandoned rooms, sync scripts moved from Jikan to Tenrai + AniList (streaming in batches of 50, outage breaker, per-step time limits) |
 | v.14.00 | Reworked Moodboard (minimum mood threshold, friends' ratings, no more duplicate seasons, animated stage on large web screens too), Tierlist Studio, HUD-style profile, fixed calendar, frameless desktop window, new login page, animood.me domain |
 | v.13.00 | Stronger security (database, desktop app, site headers), QR-code install, mobile tab bar |
 | v.12.00 | Site goes live, Android / Windows / Mac / Linux apps, download page, Google sign-in on the desktop app |

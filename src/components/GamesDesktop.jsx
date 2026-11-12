@@ -53,7 +53,8 @@ function GameCard({ g, sub, ptsLabel, hasElo }) {
   );
 }
 
-export function GamePanelDesktop({ myUsername, following, onWordle, onPoster, onOpQuiz, onChain, onTimeline, onCluescale, onUndercover, onTierlist, t }) {
+// `refreshKey` (optionnel) : change quand une partie vient de se terminer → l'ELO et le classement sont relus.
+export function GamePanelDesktop({ myUsername, following, onWordle, onPoster, onOpQuiz, onChain, onTimeline, onCluescale, onUndercover, onTierlist, t, refreshKey = 0 }) {
   const { lang } = useLang();
   const x = TXT[lang] || TXT.fr;
   const [elo, setElo] = useState(null);
@@ -63,7 +64,7 @@ export function GamePanelDesktop({ myUsername, following, onWordle, onPoster, on
   useEffect(() => {
     if (!myUsername) return;
     sb.query(`game_elo?username=eq.${encodeURIComponent(myUsername)}&limit=1`).then((r) => { if (r?.[0]) setElo(r[0]); }).catch(() => {});
-  }, [myUsername]);
+  }, [myUsername, refreshKey]);
 
   useEffect(() => {
     sb.query("game_elo?select=username,elo_chain,elo_timeline,pts_wordle,pts_poster,pts_opquiz,pts_cluescale,pts_undercover&limit=200")
@@ -77,7 +78,7 @@ export function GamePanelDesktop({ myUsername, following, onWordle, onPoster, on
         const pos = ranked.findIndex((r) => r.username === myUsername);
         setMyRank(pos >= 0 ? { rank: pos + 1, total: ranked[pos].total } : null);
       }).catch(() => {});
-  }, [myUsername]);
+  }, [myUsername, refreshKey]);
 
   const followingSet = new Set(following || []);
   const color = (u) => (u === myUsername ? "#c084fc" : followingSet.has(u) ? "#22c55e" : "var(--text-2)");

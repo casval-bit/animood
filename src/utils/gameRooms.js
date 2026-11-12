@@ -5,6 +5,10 @@
 
 import { sb } from "../api/supabase.js";
 import { ELO_START, clampEloStep } from "./gameRules.js";
+import { makeSettler } from "./gameSettle.js";
+import { makeRoomTx } from "./roomTx.js";
+import { awardPoints } from "./awardPoints.js";
+import { isDesktopApp } from "./streamingLinks.js";
 
 export const RANKED_FRESH_MS  = 25_000;   // salle classée en attente : l'hôte la « réveille » toutes les 2 s
 export const PRIVATE_FRESH_MS = 90_000;   // salle privée en attente : toutes les 5 s
@@ -52,14 +56,19 @@ export async function joinPrivateRoom({ code, roomId = null, gameType, me }) {
   return claimed ? { ok: true, room: claimed } : { ok: false, reason: "taken" };
 }
 
-/** Rejoint un salon Cluescale (2 à 4 joueurs). Relit la salle à chaque essai : si deux invités arrivent en même temps,
- *  le second prend simplement la place suivante. */
-export async function joinCluescaleRoom({ me, roomId = null, code = null }) {
+/** Jeux « salon » (plusieurs joueurs, l'hôte lance la partie) : nombre maximum de places (player1 à player4). */
+export const MULTI_MAX = { cluescale: 4, undercover: 4 };
+export const isMultiGame = (gameType) => gameType in MULTI_MAX;
+
+/** Rejoint un salon (Cluescale, Imposteur en ligne : 2 à 4 joueurs). Relit la salle à chaque essai : si deux invités arrivent en
+ *  même temps, le second prend simplement la place suivante. */
+export async function joinMultiRoom({ gameType, me, roomId = null, code = null }) {
+  const max = MULTI_MAX[gameType] || 4;
   for (let attempt = 0; attempt < 4; attempt++) {
     const rows = await sb.query(
       roomId
-        ? `game_rooms?id=eq.${encodeURIComponent(roomId)}&game_type=eq.cluescale&limit=1`
-        : `game_rooms?private_code=eq.${cleanRoomCode(code)}&game_type=eq.cluescale&status=eq.waiting` +
+        ? `game_rooms?id=eq.${encodeURIComponent(roomId)}&game_type=eq.${encodeURIComponent(gameType)}&limit=1`
+        : `game_rooms?private_code=eq.${cleanRoomCode(code)}&game_type=eq.${encodeURIComponent(gameType)}&status=eq.waiting` +
           `&updated_at=gte.${encodeURIComponent(agoIso(PRIVATE_FRESH_MS))}&limit=1`
     ).catch(() => []);
     const r = rows?.[0];
@@ -67,7 +76,7 @@ export async function joinCluescaleRoom({ me, roomId = null, code = null }) {
     const players = roomPlayers(r);
     if (players.includes(me)) return { ok: true, room: { ...r, players } };            // déjà dedans
     if (r.status !== "waiting") return { ok: false, reason: "started" };
-    if (players.length >= 4) return { ok: false, reason: "full" };
+    if (players.length >= max) return { ok: false, reason: "full" };
     const seat = ["player2", "player3", "player4"].find((k) => !r[k]);
     if (!seat) return { ok: false, reason: "full" };
     const newPlayers = [...players, me];
@@ -81,11 +90,28 @@ export async function joinCluescaleRoom({ me, roomId = null, code = null }) {
   }
   return { ok: false, reason: "busy" };
 }
+export const joinCluescaleRoom = (args) => joinMultiRoom({ gameType: "cluescale", ...args });
 
-/** Accepte une invitation reçue dans la cloche. Mêmes réponses que les fonctions ci-dessus. */
+/** Crée un salon privé (en attente) pour un jeu à plusieurs. Renvoie { room, code } ou null si le réseau a échoué. */
+export async function createMultiRoom({ gameType, me }) {
+  await deleteMyWaitingRooms(me, gameType);                 // anciennes salles restées ouvertes
+  const code = newRoomCode();
+  const created = await sb.query("game_rooms", {
+    method: "POST", headers: REP(),
+    body: JSON.stringify({
+      game_type: gameType, player1: me, status: "waiting", ranked: false, private_code: code,
+      state: { players: [me] }, updated_at: new Date().toISOString(),
+    }),
+  }).catch(() => null);
+  return created?.[0] ? { room: created[0], code } : null;
+}
+
+/** Accepte une invitation reçue dans la cloche. Mêmes réponses que les fonctions ci-dessus.
+ *  L'Imposteur en ligne n'existe que dans l'application de bureau : sur le site, on ne prend pas de place pour rien. */
 export function joinFromInvite({ gameType, roomId, privateCode, me }) {
-  return gameType === "cluescale"
-    ? joinCluescaleRoom({ me, roomId })
+  if (gameType === "undercover" && !isDesktopApp()) return Promise.resolve({ ok: false, reason: "unsupported" });
+  return isMultiGame(gameType)
+    ? joinMultiRoom({ gameType, me, roomId })
     : joinPrivateRoom({ code: privateCode, roomId, gameType, me });
 }
 
@@ -97,6 +123,8 @@ export const JOIN_ERRORS = {
     started: "Cette partie a déjà commencé.",
     full:    "Cette salle est complète (4 joueurs maximum).",
     busy:    "Salle très demandée — réessaie dans un instant.",
+    unsupported: "Cette partie se joue dans l'application AniMood pour ordinateur.",
+    inGame:  "Tu es déjà dans une partie : termine-la (ou quitte-la) avant d'en rejoindre une autre.",
   },
   en: {
     invalid: "This game no longer exists (the host left or the code is wrong).",
@@ -105,6 +133,8 @@ export const JOIN_ERRORS = {
     started: "This game has already started.",
     full:    "This room is full (4 players maximum).",
     busy:    "This room is busy — try again in a moment.",
+    unsupported: "This game is played in the AniMood desktop app.",
+    inGame:  "You're already in a game: finish or leave it before joining another one.",
   },
 };
 export const joinErrorText = (reason, lang) => (JOIN_ERRORS[lang] || JOIN_ERRORS.fr)[reason] || JOIN_ERRORS.fr.invalid;
@@ -132,6 +162,43 @@ export async function claimFinish(roomId, body = {}) {
   }).catch(() => null);
   return rows?.[0] || null;
 }
+
+/** Comme claimFinish, mais distingue « perdu la course » de « réseau coupé » et réessaie en cas de coupure.
+ *  { ok:true, row } = CE client a terminé la partie ; { ok:false, lost:true } = quelqu'un l'avait déjà terminée ; { ok:false, error }. */
+export async function finishRoom(roomId, body = {}) {
+  let lastErr = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const rows = await sb.query(`game_rooms?id=eq.${encodeURIComponent(roomId)}&status=eq.active`, {
+        method: "PATCH", headers: REP(),
+        body: JSON.stringify({ ...body, status: "finished", updated_at: new Date().toISOString() }),
+      });
+      return rows?.[0] ? { ok: true, row: rows[0] } : { ok: false, lost: true };
+    } catch (e) {
+      lastErr = e;
+      if (/"code"\s*:\s*"42501"/.test(String(e?.message))) break;       // refus de sécurité : inutile de réessayer
+      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+    }
+  }
+  return { ok: false, error: String(lastErr?.message || lastErr || "réseau").slice(0, 160) };
+}
+
+/** Une salle (état, statut, vainqueur) ou null. */
+export const readRoom = (roomId) =>
+  sb.query(`game_rooms?id=eq.${encodeURIComponent(roomId)}&select=state,status,winner&limit=1`).then((r) => r?.[0] || null);
+
+// ─── Écriture simultanée de plusieurs joueurs dans l'état d'une salle (voir roomTx.js) ─────────────────────────────
+const tx = makeRoomTx({ db: sb });
+/** roomTx(roomId, mutate, { patch }) → { ok:true, state } | { ok:false, reason: gone | closed | refused | contended | network } */
+export const roomTx = tx.roomTx;
+
+/** Ajoute `amount` points à MA ligne (colonne pts_cluescale / pts_undercover + total). → { ok, added } | { ok:false, error } */
+export const addGamePoints = (user, column, amount) => awardPoints({ db: sb, user, column, amount });
+
+// ─── Enregistrement des points / de l'ELO (voir gameSettle.js) ───────────────────────────────────────────────────
+const settler = makeSettler({ db: sb });
+/** Enregistre `users` ({ pseudo: ligne }) pour une partie terminée ; renvoie { [pseudo]: { ok, … } } (jamais d'exception). */
+export const settleDuel = (args) => settler.settle(args);
 
 // ─── ELO / points ───────────────────────────────────────────────────────────────────────────────────────────
 export async function getOrCreateElo(username) {

@@ -15,7 +15,7 @@ export const HEADER_I18N = {
     gameInvite: (gameName, fromUser) => `🎮 ${gameName} — invitation de @${fromUser}`,
     gameInviteJoin: "Rejoindre",
     gameInviteDecline: "Refuser",
-    gameNames: { chain: "LinkUp", timeline: "Timeline", cluescale: "Cluescale" },
+    gameNames: { chain: "LinkUp", timeline: "Timeline", cluescale: "Cluescale", undercover: "Imposteur" },
 
     verb: (isMention, isThread) => isMention ? "t'a mentionné dans" : isThread ? "a répondu à" : "a commenté",
     place: (isMention, isThread, isMine) => isMention
@@ -41,7 +41,7 @@ export const HEADER_I18N = {
     gameInvite: (gameName, fromUser) => `🎮 ${gameName} — invite from @${fromUser}`,
     gameInviteJoin: "Join",
     gameInviteDecline: "Decline",
-    gameNames: { chain: "LinkUp", timeline: "Timeline", cluescale: "Cluescale" },
+    gameNames: { chain: "LinkUp", timeline: "Timeline", cluescale: "Cluescale", undercover: "Undercover" },
 
     verb: (isMention, isThread) => isMention ? "mentioned you in" : isThread ? "replied to" : "commented on",
     place: (isMention, isThread, isMine) => isMention

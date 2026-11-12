@@ -68,7 +68,7 @@ Toutes les applis affichent le site en ligne : elles sont toujours à jour.
 
 ## 🛠️ Pour les développeurs
 
-**Technos :** React + Vite + Tailwind · Supabase (base de données et comptes) · Electron (appli de bureau) · Jikan / AniList / AnimeThemes (catalogue) · Tenrai + AniList (scripts de synchro)
+**Technos :** React + Vite + Tailwind · Supabase (base de données et comptes) · Electron (appli de bureau) · Jikan / AniList / AnimeThemes (catalogue) · Tenrai (+ Jikan en secours) + AniList (scripts de synchro)
 
 ### Lancer en local
 
@@ -109,7 +109,8 @@ Les branches `animood-v.XX` sont les anciennes versions ; la version actuelle es
 
 | Version | Nouveautés |
 |---|---|
-| **v.14.01** | Mini-jeux multijoueur fiabilisés (une seule salle prise par place, plus de parties fantômes, abandon automatique d'un adversaire absent, ELO et points appliqués une seule fois, IA sans écriture en base, Cluescale sans vote perdu, mots/indices de l'Imposteur revus), icônes officielles dans la page « Appli », bouton « Autres suggestions » à côté de « Trouver mon anime », boutons Paramètres/Messagerie inversés, `npm test` (règles de jeu), ménage quotidien des salles abandonnées, scripts de synchro passés de Jikan à Tenrai + AniList (streaming par lots de 50, disjoncteur anti-panne, limites de temps par étape) |
+| **v.14.02** | Mini-jeux repensés pour l'appli de bureau : nouvelles fenêtres (modes Entre amis / Classé / IA, salon avec code et invitations identiques pour tous les jeux), bouton « Abandonner » toujours visible, écran de fin avec ELO et points gagnés ou perdus, Timeline corrigée (une carte ratée est remplacée au lieu de disparaître, points du gagnant, dernière chance du 2ᵉ joueur), IA plus crédible (3 niveaux, bilan gardé sur l'appareil), égalité de Cluescale, Tierlist : l'image enregistrée contient enfin les affiches, scripts de synchro : Jikan en secours derrière Tenrai |
+| v.14.01 | Mini-jeux multijoueur fiabilisés (une seule salle prise par place, plus de parties fantômes, abandon automatique d'un adversaire absent, ELO et points appliqués une seule fois, IA sans écriture en base, Cluescale sans vote perdu, mots/indices de l'Imposteur revus), icônes officielles dans la page « Appli », bouton « Autres suggestions » à côté de « Trouver mon anime », boutons Paramètres/Messagerie inversés, `npm test` (règles de jeu), ménage quotidien des salles abandonnées, scripts de synchro passés de Jikan à Tenrai + AniList (streaming par lots de 50, disjoncteur anti-panne, limites de temps par étape) |
 | v.14.00 | Moodboard refondu (palier de mood minimum, notes des amis, plus de doublon de saison, scène animée aussi sur grand écran web), Tierlist Studio, profil au style HUD, calendrier corrigé, fenêtre de bureau sans cadre, nouvelle page de connexion, nom de domaine animood.me |
 | v.13.00 | Sécurité renforcée (base de données, appli de bureau, en-têtes du site), installation par QR code, barre d'onglets mobile |
 | v.12.00 | Site en ligne, applis Android / Windows / Mac / Linux, page de téléchargement, connexion Google sur l'appli de bureau |
