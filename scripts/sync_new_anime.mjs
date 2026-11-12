@@ -104,7 +104,7 @@ async function applyAniList(seasons, byId = {}) {
   return n;
 }
 
-// MyAnimeList : Tenrai d'abord, Jikan en secours (même format) — malGet gère délai, nouveaux essais et « API en panne » (voir scripts/lib/malApi.mjs)
+// Tenrai (successeur de Jikan, même format) — malGet gère délai, nouveaux essais et « API en panne » (voir scripts/lib/malApi.mjs)
 const jikanGet = (path) => malGet(path).catch(e => { if(e instanceof MalApiDown) return null; throw e; }); // API en panne → null : on sort des boucles, on enregistre ce qui est prêt
 
 function parseAnime(a) {
@@ -128,7 +128,7 @@ function parseAnime(a) {
     rating:      a.rating,
     image_url:   a.images?.jpg?.image_url,
     large_image: a.images?.jpg?.large_image_url,
-    trailer_url: a.trailer?.url || a.trailer?.embed_url || null, // Jikan's trailer.url is null even when a trailer exists — embed_url is the real link
+    trailer_url: a.trailer?.url || a.trailer?.embed_url || null, // trailer.url can be null even when a trailer exists — embed_url is then the real link
     genres:      a.genres||[],
     themes:      a.themes||[],
     demographics:a.demographics||[],
@@ -160,7 +160,7 @@ async function addNewAnime(existingIds) {
   while(consecutiveKnown < MAX_CONSECUTIVE_KNOWN) {
     const data = await jikanGet(`/anime?page=${page}&limit=25&order_by=start_date&sort=desc&sfw=false`);
     await sleep(DELAY_MS);
-    if(malIsDown()) { console.log("\n  ⛔ MyAnimeList (Tenrai et Jikan) indisponible — ajout interrompu (ce qui est déjà récupéré est enregistré)"); break; }
+    if(malIsDown()) { console.log("\n  ⛔ Tenrai indisponible — ajout interrompu (ce qui est déjà récupéré est enregistré)"); break; }
     if(!data?.data?.length) break;
 
     const allKnown = data.data.every(a => existingIds.has(a.mal_id));
@@ -208,7 +208,7 @@ async function addNewAnime(existingIds) {
 }
 
 // ── PART 2: Refresh scores for all existing anime ────────────────────────────
-// Jikan list endpoint returns score — much faster than fetching each full page
+// The list endpoint returns the score — much faster than fetching each full page
 async function refreshScores(existingIds) {
   console.log("\n🔄 PART 2: Refreshing scores...");
   let page = 1, totalUpdated = 0, batch = [];
@@ -216,7 +216,7 @@ async function refreshScores(existingIds) {
   while(true) {
     const data = await jikanGet(`/anime?page=${page}&limit=25&order_by=score&sort=desc&sfw=false`);
     await sleep(DELAY_MS);
-    if(malIsDown()) { console.log("\n  ⛔ MyAnimeList (Tenrai et Jikan) indisponible — mise à jour des scores interrompue"); break; }
+    if(malIsDown()) { console.log("\n  ⛔ Tenrai indisponible — mise à jour des scores interrompue"); break; }
     if(!data?.data?.length) break;
 
     for(const a of data.data) {
@@ -296,7 +296,7 @@ async function main() {
   console.log(`   Seasons updated   : ${seasons}`);
   const sum = malSummary();
   if(sum) console.log(`   ${sum}`);
-  if(malIsDown()) { console.error("⚠️ MyAnimeList (Tenrai et Jikan) était indisponible : nouveaux animés et scores seront refaits au prochain passage."); process.exitCode = 1; }
+  if(malIsDown()) { console.error("⚠️ Tenrai (MyAnimeList) était indisponible : nouveaux animés et scores seront refaits au prochain passage."); process.exitCode = 1; }
 }
 
 main().catch(e => { console.error(e); process.exit(1); }); // code d'erreur : le workflow GitHub passe au rouge
