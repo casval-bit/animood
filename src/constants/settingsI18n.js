@@ -16,6 +16,11 @@ export const SETTINGS_I18N = {
     themeLight: "Clair",
     themeLightDesc: "Style réseau social",
 
+    palette: "🌈 Couleurs",
+    paletteHint: "Change les couleurs de toute l'appli (en plus du thème sombre / clair).",
+    paletteNames: { default: "Bleu / violet", sunset: "Jaune / orange", coral: "Rouge / saumon", garden: "Vert / rose" },
+    paletteDefaultHint: "Par défaut",
+
     language: "🌐 Langue",
 
     avatar: "🖼 Avatar",
@@ -132,6 +137,11 @@ export const SETTINGS_I18N = {
     themeDarkDesc: "Default theme",
     themeLight: "Light",
     themeLightDesc: "Social network style",
+
+    palette: "🌈 Colors",
+    paletteHint: "Changes the colors of the whole app (on top of the dark / light theme).",
+    paletteNames: { default: "Blue / violet", sunset: "Yellow / orange", coral: "Red / salmon", garden: "Green / pink" },
+    paletteDefaultHint: "Default",
 
     language: "🌐 Language",
 

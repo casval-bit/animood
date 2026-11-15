@@ -13,8 +13,8 @@ const HUD_CSS = `
   50%       { opacity: 0.3; }
 }
 @keyframes hud-glow-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(139,92,246,0); }
-  50%       { box-shadow: 0 0 0 6px rgba(139,92,246,0.08); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--ac-8b5cf6),0); }
+  50%       { box-shadow: 0 0 0 6px rgba(var(--ac-8b5cf6),0.08); }
 }
 @keyframes counter-up {
   0%   { opacity: 0; transform: translateY(10px); }
@@ -35,7 +35,7 @@ const HUD_CSS = `
 }
 @keyframes hud-corner-pulse {
   0%, 100% { opacity: 0.5; width: 12px; height: 12px; }
-  50% { opacity: 1; width: 16px; height: 16px; box-shadow: 0 0 6px rgba(139,92,246,0.6); }
+  50% { opacity: 1; width: 16px; height: 16px; box-shadow: 0 0 6px rgba(var(--ac-8b5cf6),0.6); }
 }
 @keyframes hud-data-stream {
   0% { transform: translateY(0); opacity: 0; }
@@ -62,10 +62,10 @@ const HUD_CSS = `
   50%      { opacity: 1;   transform: scale(1.12); }
 }
 @keyframes border-glow-sweep {
-  0% { box-shadow: 0 0 0 0 transparent, 0 0 15px rgba(139,92,246,0); }
-  25% { box-shadow: 0 -1px 0 0 rgba(168,85,247,0.6), 0 0 20px rgba(139,92,246,0.15); }
-  75% { box-shadow: 0 0 0 0 transparent, 0 0 10px rgba(139,92,246,0.08); }
-  100% { box-shadow: 0 0 0 0 transparent, 0 0 15px rgba(139,92,246,0); }
+  0% { box-shadow: 0 0 0 0 transparent, 0 0 15px rgba(var(--ac-8b5cf6),0); }
+  25% { box-shadow: 0 -1px 0 0 rgba(var(--ac-a855f7),0.6), 0 0 20px rgba(var(--ac-8b5cf6),0.15); }
+  75% { box-shadow: 0 0 0 0 transparent, 0 0 10px rgba(var(--ac-8b5cf6),0.08); }
+  100% { box-shadow: 0 0 0 0 transparent, 0 0 15px rgba(var(--ac-8b5cf6),0); }
 }
 `;
 

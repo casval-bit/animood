@@ -56,7 +56,7 @@ function PageWrapper({ title, onClose, children }) {
       {/* Back arrow */}
       <div style={{
         position:"sticky",top:0,
-        background:"rgba(10,7,20,0.9)",backdropFilter:"blur(12px)",
+        background:"rgba(var(--ac-0a0714),0.9)",backdropFilter:"blur(12px)",
         borderBottom:"1px solid rgba(255,255,255,0.06)",
         padding:"14px 24px",display:"flex",alignItems:"center",gap:12,
         zIndex:1,
@@ -67,7 +67,7 @@ function PageWrapper({ title, onClose, children }) {
           color:"var(--text-2, #cbd5e1)",padding:"4px 0",
           fontSize:14,fontWeight:700,transition:"color 0.15s",
         }}
-        onMouseEnter={e=>e.currentTarget.style.color="#c084fc"}
+        onMouseEnter={e=>e.currentTarget.style.color="rgb(var(--ac-c084fc))"}
         onMouseLeave={e=>e.currentTarget.style.color="var(--text-2, #cbd5e1)"}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -77,7 +77,7 @@ function PageWrapper({ title, onClose, children }) {
         </button>
         <div style={{
           fontSize:15,fontWeight:900,
-          background:"linear-gradient(135deg,#7c3aed,#ec4899)",
+          background:"linear-gradient(135deg,rgb(var(--ac-7c3aed)),rgb(var(--ac-ec4899)))",
           WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",
         }}>{title}</div>
       </div>
@@ -147,7 +147,7 @@ function AboutPage({ onClose }) {
         AniMood est un projet communautaire et open source.
         Le code est disponible sur{" "}
         <a href="https://github.com/casval-bit/animood" target="_blank" rel="noopener noreferrer"
-          style={{color:"#c084fc",textDecoration:"none",fontWeight:700}}>
+          style={{color:"rgb(var(--ac-c084fc))",textDecoration:"none",fontWeight:700}}>
           GitHub
         </a>.
       </Section>
@@ -207,14 +207,14 @@ function ContactPage({ onClose }) {
               border:"1px solid rgba(255,255,255,0.07)",
               transition:"all 0.15s",
             }}
-            onMouseEnter={e=>{e.currentTarget.style.background="rgba(124,58,237,0.08)";e.currentTarget.style.borderColor="rgba(124,58,237,0.25)";}}
+            onMouseEnter={e=>{e.currentTarget.style.background="rgba(var(--ac-7c3aed),0.08)";e.currentTarget.style.borderColor="rgba(var(--ac-7c3aed),0.25)";}}
             onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,0.03)";e.currentTarget.style.borderColor="rgba(255,255,255,0.07)";}}>
             <span style={{fontSize:24,flexShrink:0}}>{item.icon}</span>
             <div style={{flex:1}}>
               <div style={{fontSize:13,fontWeight:800,color:"var(--text-1, #f1f5f9)",marginBottom:2}}>{item.title}</div>
               <div style={{fontSize:11,color:"var(--text-5, #475569)"}}>{item.desc}</div>
             </div>
-            <div style={{fontSize:11,color:"#c084fc",fontWeight:600,flexShrink:0}}>{item.action} →</div>
+            <div style={{fontSize:11,color:"rgb(var(--ac-c084fc))",fontWeight:600,flexShrink:0}}>{item.action} →</div>
           </a>
         ))}
       </div>
@@ -351,7 +351,7 @@ After that it opens normally and updates itself.`),
           <div key={i} style={{
             borderRadius:12,overflow:"hidden",
             border:"1px solid rgba(255,255,255,0.07)",
-            background: open===i?"rgba(124,58,237,0.06)":"rgba(255,255,255,0.02)",
+            background: open===i?"rgba(var(--ac-7c3aed),0.06)":"rgba(255,255,255,0.02)",
             transition:"all 0.15s",
           }}>
             <button onClick={()=>setOpen(open===i?null:i)} style={{
@@ -362,7 +362,7 @@ After that it opens normally and updates itself.`),
                 {faq.q}
               </div>
               <div style={{
-                fontSize:16,color:"#c084fc",flexShrink:0,
+                fontSize:16,color:"rgb(var(--ac-c084fc))",flexShrink:0,
                 transform:open===i?"rotate(45deg)":"rotate(0deg)",
                 transition:"transform 0.2s",
               }}>+</div>
@@ -386,7 +386,7 @@ function Section({ title, children }) {
   return (
     <div style={{marginBottom:28}}>
       <div style={{
-        fontSize:12,fontWeight:900,color:"#c084fc",
+        fontSize:12,fontWeight:900,color:"rgb(var(--ac-c084fc))",
         letterSpacing:1,textTransform:"uppercase",marginBottom:10,
       }}>{title}</div>
       <div style={{fontSize:13,color:"var(--text-3, #94a3b8)",lineHeight:1.7}}>{children}</div>
@@ -518,18 +518,18 @@ function InstallPage({ onContinue }) {
   const btn = {
     display:"block",width:"100%",padding:"16px 20px",borderRadius:999,border:"none",cursor:"pointer",
     fontSize:16,fontWeight:900,textAlign:"center",textDecoration:"none",
-    color:"#fff",background:"linear-gradient(135deg,#7c3aed,#ec4899)",boxShadow:"0 10px 28px rgba(124,58,237,.4)",
+    color:"#fff",background:"linear-gradient(135deg,rgb(var(--ac-7c3aed)),rgb(var(--ac-ec4899)))",boxShadow:"0 10px 28px rgba(var(--ac-7c3aed),0.4)",
   };
   const card = {
     padding:"16px 18px",borderRadius:16,fontSize:13,lineHeight:1.7,textAlign:"left",
-    color:"var(--text-3, #94a3b8)",background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.25)",
+    color:"var(--text-3, #94a3b8)",background:"rgba(var(--ac-7c3aed),0.08)",border:"1px solid rgba(var(--ac-7c3aed),0.25)",
   };
-  const linkStyle = {color:"#c084fc",fontWeight:700,textDecoration:"none",fontSize:13};
+  const linkStyle = {color:"rgb(var(--ac-c084fc))",fontWeight:700,textDecoration:"none",fontSize:13};
 
   return (
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"32px 16px"}}>
       <div style={{width:"100%",maxWidth:380,display:"flex",flexDirection:"column",alignItems:"center",gap:20,textAlign:"center"}}>
-        <img src="/logo-mark.png" alt="" style={{width:88,height:88,borderRadius:24,objectFit:"cover",boxShadow:"0 12px 32px rgba(124,58,237,.35)"}}/>
+        <img src="/logo-mark.png" alt="" style={{width:88,height:88,borderRadius:24,objectFit:"cover",boxShadow:"0 12px 32px rgba(var(--ac-7c3aed),0.35)"}}/>
         <div>
           <div style={{fontSize:26,fontWeight:900,color:"var(--text-1, #f1f5f9)"}}>
             {done ? (en ? "AniMood is installed 🎉" : "AniMood est installée 🎉") : (en ? "Install AniMood" : "Installe AniMood")}
@@ -668,13 +668,13 @@ function DownloadPage({ onClose }) {
               <div key={p.id} style={{
                 display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",
                 padding:"14px 16px",borderRadius:14,
-                background: mine ? "rgba(124,58,237,0.10)" : "rgba(255,255,255,0.03)",
-                border: `1px solid ${mine ? "rgba(124,58,237,0.35)" : "rgba(255,255,255,0.06)"}`,
+                background: mine ? "rgba(var(--ac-7c3aed),0.1)" : "rgba(255,255,255,0.03)",
+                border: `1px solid ${mine ? "rgba(var(--ac-7c3aed),0.35)" : "rgba(255,255,255,0.06)"}`,
               }}>
                 <PlatformBadge highlight={mine}>{p.icon}</PlatformBadge>
                 <div style={{flex:1,minWidth:140}}>
                   <div style={{fontSize:14,fontWeight:800,color:"var(--text-1, #f1f5f9)"}}>
-                    {p.label}{mine && <span style={{marginLeft:8,fontSize:10,fontWeight:800,color:"#c084fc"}}>{en ? "YOUR DEVICE" : "TON APPAREIL"}</span>}
+                    {p.label}{mine && <span style={{marginLeft:8,fontSize:10,fontWeight:800,color:"rgb(var(--ac-c084fc))"}}>{en ? "YOUR DEVICE" : "TON APPAREIL"}</span>}
                   </div>
                   <div style={{fontSize:11,color:"var(--text-4, #64748b)"}}>{p.hint}</div>
                 </div>
@@ -682,14 +682,14 @@ function DownloadPage({ onClose }) {
                   <a href={APK_URL} download="AniMood.apk"
                     style={{
                       padding:"8px 14px",borderRadius:999,fontSize:12,fontWeight:800,textDecoration:"none",
-                      color:"#fff",background:"linear-gradient(135deg,#7c3aed,#ec4899)",
-                      boxShadow: mine ? "0 6px 18px rgba(124,58,237,.35)" : "none",
+                      color:"#fff",background:"linear-gradient(135deg,rgb(var(--ac-7c3aed)),rgb(var(--ac-ec4899)))",
+                      boxShadow: mine ? "0 6px 18px rgba(var(--ac-7c3aed),0.35)" : "none",
                     }}>
                     ⬇ {en ? "Download APK" : "Télécharger l'APK"}
                   </a>
                 )}
                 {p.id === "android" && mine && (
-                  <a href="/?installer" style={{fontSize:12,fontWeight:800,color:"#c084fc",textDecoration:"none"}}>
+                  <a href="/?installer" style={{fontSize:12,fontWeight:800,color:"rgb(var(--ac-c084fc))",textDecoration:"none"}}>
                     📲 {en ? "Install in one tap" : "Installer en un appui"}
                   </a>
                 )}
@@ -705,17 +705,17 @@ function DownloadPage({ onClose }) {
           {en
             ? "A dedicated Games tab, animated profile frames, sounds, quick anime search and automatic updates."
             : "Un onglet Jeux dédié, des cadres de profil animés, des sons, une recherche d'animés rapide et les mises à jour automatiques."}
-          {release?.version && <> · <b style={{color:"#c084fc"}}>{release.version}</b></>}
+          {release?.version && <> · <b style={{color:"rgb(var(--ac-c084fc))"}}>{release.version}</b></>}
         </div>
         {status === "loading" && <Spinner label={en ? "Looking for the latest version…" : "Recherche de la dernière version…"} />}
 
         {status === "none" && (
-          <div style={{padding:"18px 20px",borderRadius:14,background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.25)"}}>
+          <div style={{padding:"18px 20px",borderRadius:14,background:"rgba(var(--ac-7c3aed),0.08)",border:"1px solid rgba(var(--ac-7c3aed),0.25)"}}>
             <div style={{fontWeight:800,color:"var(--text-1, #f1f5f9)",marginBottom:4}}>
               {en ? "Coming soon 🚧" : "Bientôt disponible 🚧"}
             </div>
             {en ? "The first version of the desktop app hasn't been published yet. " : "La première version de l'appli de bureau n'a pas encore été publiée. "}
-            <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer" style={{color:"#c084fc",fontWeight:700,textDecoration:"none"}}>
+            <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer" style={{color:"rgb(var(--ac-c084fc))",fontWeight:700,textDecoration:"none"}}>
               {en ? "Check the releases on GitHub" : "Voir les versions sur GitHub"} →
             </a>
           </div>
@@ -730,13 +730,13 @@ function DownloadPage({ onClose }) {
                 <div key={p.id} style={{
                   display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",
                   padding:"14px 16px",borderRadius:14,
-                  background: mine ? "rgba(124,58,237,0.10)" : "rgba(255,255,255,0.03)",
-                  border: `1px solid ${mine ? "rgba(124,58,237,0.35)" : "rgba(255,255,255,0.06)"}`,
+                  background: mine ? "rgba(var(--ac-7c3aed),0.1)" : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${mine ? "rgba(var(--ac-7c3aed),0.35)" : "rgba(255,255,255,0.06)"}`,
                 }}>
                   <PlatformBadge highlight={mine}>{p.icon}</PlatformBadge>
                   <div style={{flex:1,minWidth:140}}>
                     <div style={{fontSize:14,fontWeight:800,color:"var(--text-1, #f1f5f9)"}}>
-                      {p.label}{mine && <span style={{marginLeft:8,fontSize:10,fontWeight:800,color:"#c084fc"}}>{en ? "YOUR SYSTEM" : "TON SYSTÈME"}</span>}
+                      {p.label}{mine && <span style={{marginLeft:8,fontSize:10,fontWeight:800,color:"rgb(var(--ac-c084fc))"}}>{en ? "YOUR SYSTEM" : "TON SYSTÈME"}</span>}
                     </div>
                     <div style={{fontSize:11,color:"var(--text-4, #64748b)"}}>{p.hint}</div>
                   </div>
@@ -745,8 +745,8 @@ function DownloadPage({ onClose }) {
                       <a key={f.name} href={f.browser_download_url} title={f.name}
                         style={{
                           padding:"8px 14px",borderRadius:999,fontSize:12,fontWeight:800,textDecoration:"none",
-                          color:"#fff",background:"linear-gradient(135deg,#7c3aed,#ec4899)",
-                          boxShadow: mine ? "0 6px 18px rgba(124,58,237,.35)" : "none",
+                          color:"#fff",background:"linear-gradient(135deg,rgb(var(--ac-7c3aed)),rgb(var(--ac-ec4899)))",
+                          boxShadow: mine ? "0 6px 18px rgba(var(--ac-7c3aed),0.35)" : "none",
                         }}>
                         ⬇ {assetLabel(f.name)} <span style={{opacity:.7,fontWeight:600}}>· {sizeMb(f.size)}</span>
                       </a>

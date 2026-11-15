@@ -27,7 +27,7 @@ export function ScoreChart({ ratings }) {
             className="w-full rounded-t"
             style={{
               height: `${Math.max((c/max)*42, c>0?4:2)}px`,
-              background: c > 0 ? "linear-gradient(180deg,#c084fc,#818cf8)" : "rgba(var(--fg-rgb),0.06)",
+              background: c > 0 ? "linear-gradient(180deg,rgb(var(--ac-c084fc)),rgb(var(--ac-818cf8)))" : "rgba(var(--fg-rgb),0.06)",
               transition: "height 0.3s",
             }}
           />

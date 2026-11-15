@@ -1,10 +1,11 @@
 @import "tailwindcss";
+@import "./palettes.css";
 
 @theme {
-  --color-brand-violet: #7c3aed;
-  --color-brand-indigo: #4f46e5;
-  --color-brand-purple: #c084fc;
-  --color-brand-periwinkle: #818cf8;
+  --color-brand-violet: rgb(var(--ac-7c3aed));
+  --color-brand-indigo: rgb(var(--ac-4f46e5));
+  --color-brand-purple: rgb(var(--ac-c084fc));
+  --color-brand-periwinkle: rgb(var(--ac-818cf8));
 
   --font-sans: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -17,13 +18,13 @@
    these via var() in inline styles; Tailwind's own `text-slate-*` /
    `bg-white/*` / `border-white/*` utilities are re-pointed further down. */
 :root {
-  --page-bg: radial-gradient(circle at top, #2A1D57 0%, transparent 35%),
-              radial-gradient(circle at bottom right, #163F6B 0%, transparent 40%),
-              #070B17;
-  --surface-1: rgba(17,24,39,.75);
-  --surface-1-strong: rgba(17,24,39,.92);
+  --page-bg: radial-gradient(circle at top, rgb(var(--ac-2a1d57)) 0%, transparent 35%),
+              radial-gradient(circle at bottom right, rgb(var(--ac-163f6b)) 0%, transparent 40%),
+              rgb(var(--ac-070b17));
+  --surface-1: rgba(var(--ac-111827),0.75);
+  --surface-1-strong: rgba(var(--ac-111827),0.92);
   --surface-2: rgba(255,255,255,.04);
-  --overlay: rgba(7,11,23,.92);
+  --overlay: rgba(var(--ac-070b17),0.92);
   --border-1: rgba(255,255,255,.07);
   --text-1: #f8fafc;
   --text-2: #94a3b8;
@@ -36,22 +37,22 @@
 
 :root[data-theme="light"] {
   --page-bg:
-    radial-gradient(circle at top, rgba(124,58,237,.22) 0%, transparent 42%),
-    radial-gradient(circle at bottom right, rgba(236,72,153,.14) 0%, transparent 40%),
-    radial-gradient(circle at bottom left, rgba(59,130,246,.14) 0%, transparent 38%),
-    linear-gradient(180deg, #d9d4ef 0%, #cfc8e8 45%, #c4bddf 100%);
+    radial-gradient(circle at top, rgba(var(--ac-7c3aed),0.22) 0%, transparent 42%),
+    radial-gradient(circle at bottom right, rgba(var(--ac-ec4899),0.14) 0%, transparent 40%),
+    radial-gradient(circle at bottom left, rgba(var(--ac-3b82f6),0.14) 0%, transparent 38%),
+    linear-gradient(180deg, rgb(var(--ac-d9d4ef)) 0%, rgb(var(--ac-cfc8e8)) 45%, rgb(var(--ac-c4bddf)) 100%);
   --surface-1: rgba(255,255,255,.42);
   --surface-1-strong: rgba(255,255,255,.62);
-  --surface-2: rgba(79,70,229,.12);
-  --overlay: rgba(224,219,243,.84);
-  --border-1: rgba(24,18,43,.14);
-  --text-1: #120f24;
-  --text-2: #30294a;
+  --surface-2: rgba(var(--ac-4f46e5),0.12);
+  --overlay: rgba(var(--ac-e0dbf3),0.84);
+  --border-1: rgba(var(--ac-18122b),0.14);
+  --text-1: rgb(var(--ac-120f24));
+  --text-2: rgb(var(--ac-30294a));
   --text-3: #5a5476;
   --text-4: #817a9b;
-  --fg-rgb: 24,18,43;
-  --shadow-card: 0 10px 36px rgba(45,27,105,.16), 0 2px 12px rgba(45,27,105,.08), inset 0 1px 0 rgba(255,255,255,.28);
-  --shadow-modal: 0 32px 80px rgba(32,18,74,.28);
+  --fg-rgb: var(--ac-18122b);
+  --shadow-card: 0 10px 36px rgba(var(--ac-2d1b69),0.16), 0 2px 12px rgba(var(--ac-2d1b69),0.08), inset 0 1px 0 rgba(255,255,255,.28);
+  --shadow-modal: 0 32px 80px rgba(var(--ac-20124a),0.28);
 }
 
 /* Smoked-glass boost — every card already carries Tailwind's backdrop-blur-xl/2xl
@@ -94,9 +95,9 @@ body {
    `border-white/*` utility actually used in the app, so components keep their
    original className and just render differently under data-theme="light". */
 :root[data-theme="light"] .text-slate-50,
-:root[data-theme="light"] .text-slate-100 { color: #120f24; }
-:root[data-theme="light"] .text-slate-200 { color: #1d1833; }
-:root[data-theme="light"] .text-slate-300 { color: #2b2445; }
+:root[data-theme="light"] .text-slate-100 { color: rgb(var(--ac-120f24)); }
+:root[data-theme="light"] .text-slate-200 { color: rgb(var(--ac-1d1833)); }
+:root[data-theme="light"] .text-slate-300 { color: rgb(var(--ac-2b2445)); }
 :root[data-theme="light"] .text-slate-400,
 :root[data-theme="light"] .hover\:text-slate-200:hover,
 :root[data-theme="light"] .hover\:text-slate-300:hover { color: #4b4468; }
@@ -104,34 +105,34 @@ body {
 :root[data-theme="light"] .text-slate-600 { color: #817a9b; }
 :root[data-theme="light"] .text-slate-700 { color: #b5afcb; }
 
-:root[data-theme="light"] .bg-white\/3  { background-color: rgba(24,18,43,.03); }
-:root[data-theme="light"] .bg-white\/4  { background-color: rgba(24,18,43,.04); }
+:root[data-theme="light"] .bg-white\/3  { background-color: rgba(var(--ac-18122b),0.03); }
+:root[data-theme="light"] .bg-white\/4  { background-color: rgba(var(--ac-18122b),0.04); }
 :root[data-theme="light"] .bg-white\/5,
-:root[data-theme="light"] .hover\:bg-white\/5:hover  { background-color: rgba(24,18,43,.05); }
+:root[data-theme="light"] .hover\:bg-white\/5:hover  { background-color: rgba(var(--ac-18122b),0.05); }
 :root[data-theme="light"] .bg-white\/6,
-:root[data-theme="light"] .hover\:bg-white\/6:hover  { background-color: rgba(24,18,43,.06); }
+:root[data-theme="light"] .hover\:bg-white\/6:hover  { background-color: rgba(var(--ac-18122b),0.06); }
 :root[data-theme="light"] .bg-white\/7,
-:root[data-theme="light"] .hover\:bg-white\/7:hover  { background-color: rgba(24,18,43,.07); }
+:root[data-theme="light"] .hover\:bg-white\/7:hover  { background-color: rgba(var(--ac-18122b),0.07); }
 :root[data-theme="light"] .bg-white\/8,
-:root[data-theme="light"] .hover\:bg-white\/8:hover  { background-color: rgba(24,18,43,.08); }
+:root[data-theme="light"] .hover\:bg-white\/8:hover  { background-color: rgba(var(--ac-18122b),0.08); }
 :root[data-theme="light"] .bg-white\/10,
-:root[data-theme="light"] .hover\:bg-white\/10:hover { background-color: rgba(24,18,43,.1); }
+:root[data-theme="light"] .hover\:bg-white\/10:hover { background-color: rgba(var(--ac-18122b),0.1); }
 :root[data-theme="light"] .bg-white\/12,
-:root[data-theme="light"] .hover\:bg-white\/12:hover { background-color: rgba(24,18,43,.12); }
+:root[data-theme="light"] .hover\:bg-white\/12:hover { background-color: rgba(var(--ac-18122b),0.12); }
 :root[data-theme="light"] .bg-white\/15,
-:root[data-theme="light"] .hover\:bg-white\/15:hover { background-color: rgba(24,18,43,.15); }
+:root[data-theme="light"] .hover\:bg-white\/15:hover { background-color: rgba(var(--ac-18122b),0.15); }
 
-:root[data-theme="light"] .border-white\/6  { border-color: rgba(24,18,43,.06); }
-:root[data-theme="light"] .border-white\/7  { border-color: rgba(24,18,43,.07); }
-:root[data-theme="light"] .border-white\/8  { border-color: rgba(24,18,43,.08); }
-:root[data-theme="light"] .border-white\/9  { border-color: rgba(24,18,43,.09); }
-:root[data-theme="light"] .border-white\/10 { border-color: rgba(24,18,43,.1); }
-:root[data-theme="light"] .border-white\/12 { border-color: rgba(24,18,43,.12); }
+:root[data-theme="light"] .border-white\/6  { border-color: rgba(var(--ac-18122b),0.06); }
+:root[data-theme="light"] .border-white\/7  { border-color: rgba(var(--ac-18122b),0.07); }
+:root[data-theme="light"] .border-white\/8  { border-color: rgba(var(--ac-18122b),0.08); }
+:root[data-theme="light"] .border-white\/9  { border-color: rgba(var(--ac-18122b),0.09); }
+:root[data-theme="light"] .border-white\/10 { border-color: rgba(var(--ac-18122b),0.1); }
+:root[data-theme="light"] .border-white\/12 { border-color: rgba(var(--ac-18122b),0.12); }
 :root[data-theme="light"] .border-white\/15,
-:root[data-theme="light"] .hover\:border-white\/15:hover { border-color: rgba(24,18,43,.15); }
+:root[data-theme="light"] .hover\:border-white\/15:hover { border-color: rgba(var(--ac-18122b),0.15); }
 :root[data-theme="light"] .border-white\/20,
-:root[data-theme="light"] .hover\:border-white\/20:hover { border-color: rgba(24,18,43,.2); }
-:root[data-theme="light"] .border-white\/30 { border-color: rgba(24,18,43,.3); }
+:root[data-theme="light"] .hover\:border-white\/20:hover { border-color: rgba(var(--ac-18122b),0.2); }
+:root[data-theme="light"] .border-white\/30 { border-color: rgba(var(--ac-18122b),0.3); }
 
 @keyframes slide-up {
   from { opacity: 0; transform: translateY(14px); }
@@ -165,8 +166,8 @@ body {
 /* ─── PAGE DE CONNEXION (LoginView) ──────────────────────────────────────────
    Mur d'affiches qui défile en fond + entrées animées. Le voile reprend la couleur du fond
    du thème pour que les affiches restent une ambiance et ne gênent pas la lecture. */
-:root { --login-veil: 7,11,23; }
-:root[data-theme="light"] { --login-veil: 207,200,232; }
+:root { --login-veil: var(--ac-070b17); }
+:root[data-theme="light"] { --login-veil: var(--ac-cfc8e8); }
 .login-veil {
   background:
     radial-gradient(ellipse 75% 65% at 38% 45%, rgba(var(--login-veil),.72) 0%, rgba(var(--login-veil),.9) 60%, rgba(var(--login-veil),.97) 100%);

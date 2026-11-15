@@ -99,7 +99,7 @@ Ouvre `http://localhost:5173`. Aucune config nécessaire : la clé Supabase pré
 | `scripts/` + `run_*.bat` | Scripts de synchronisation du catalogue d'animés |
 | `supabase/` | Schémas SQL et règles de sécurité de la base |
 | `.github/workflows/` | Synchros automatiques et compilation de l'appli de bureau |
-| `docs/` | Notes internes : [publication et maintenance](docs/MAINTENANCE.md), Microsoft Store, Moodboard |
+| `docs/` | Notes internes : [publication et maintenance](docs/MAINTENANCE.md), [palettes de couleurs](docs/PALETTES.md), Microsoft Store, Moodboard |
 
 Les branches `animood-v.XX` sont les anciennes versions ; la version actuelle est sur **`main`**.
 
@@ -109,7 +109,8 @@ Les branches `animood-v.XX` sont les anciennes versions ; la version actuelle es
 
 | Version | Nouveautés |
 |---|---|
-| **v.14.02** | Mini-jeux repensés pour l'appli de bureau : nouvelles fenêtres (modes Entre amis / Classé / IA, salon avec code et invitations identiques pour tous les jeux), bouton « Abandonner » toujours visible, écran de fin avec ELO et points gagnés ou perdus, Timeline corrigée (une carte ratée est remplacée au lieu de disparaître, points du gagnant, dernière chance du 2ᵉ joueur), IA plus crédible (3 niveaux, bilan gardé sur l'appareil), égalité de Cluescale, Tierlist : l'image enregistrée contient enfin les affiches, scripts de synchro : plateformes de streaming complétées via Tenrai quand AniList ne connaît pas un animé, clé Tenrai refusée = la synchro continue sans clé |
+| **v.14.03** | Appli de bureau : **nouvelle option « Couleurs » dans Paramètres → Préférences** pour changer les couleurs de toute l'appli (en plus du thème sombre / clair) : Bleu / violet (d'origine), Jaune / orange, Rouge / saumon, Vert / rose. Le choix est mémorisé, appliqué dès l'ouverture, et fonctionne en sombre comme en clair (fonds, boutons, dégradés, lueurs, jeux, profil…). Le texte blanc des boutons reste lisible sur les teintes claires. Le site web n'est pas concerné : il garde ses couleurs. Détails dans `docs/PALETTES.md` |
+| v.14.02 | Mini-jeux repensés pour l'appli de bureau : nouvelles fenêtres (modes Entre amis / Classé / IA, salon avec code et invitations identiques pour tous les jeux), bouton « Abandonner » toujours visible, écran de fin avec ELO et points gagnés ou perdus, Timeline corrigée (une carte ratée est remplacée au lieu de disparaître, points du gagnant, dernière chance du 2ᵉ joueur), IA plus crédible (3 niveaux, bilan gardé sur l'appareil), égalité de Cluescale, Tierlist : l'image enregistrée contient enfin les affiches, scripts de synchro : plateformes de streaming complétées via Tenrai quand AniList ne connaît pas un animé, clé Tenrai refusée = la synchro continue sans clé |
 | v.14.01 | Mini-jeux multijoueur fiabilisés (une seule salle prise par place, plus de parties fantômes, abandon automatique d'un adversaire absent, ELO et points appliqués une seule fois, IA sans écriture en base, Cluescale sans vote perdu, mots/indices de l'Imposteur revus), icônes officielles dans la page « Appli », bouton « Autres suggestions » à côté de « Trouver mon anime », boutons Paramètres/Messagerie inversés, `npm test` (règles de jeu), ménage quotidien des salles abandonnées, scripts de synchro passés de Jikan à Tenrai + AniList (streaming par lots de 50, disjoncteur anti-panne, limites de temps par étape) |
 | v.14.00 | Moodboard refondu (palier de mood minimum, notes des amis, plus de doublon de saison, scène animée aussi sur grand écran web), Tierlist Studio, profil au style HUD, calendrier corrigé, fenêtre de bureau sans cadre, nouvelle page de connexion, nom de domaine animood.me |
 | v.13.00 | Sécurité renforcée (base de données, appli de bureau, en-têtes du site), installation par QR code, barre d'onglets mobile |

@@ -166,10 +166,10 @@ function DayView({ byDay, dayIdx, setDayIdx, todayIdx, myStatuses, currentYear, 
             <button key={day} onClick={()=>setDayIdx(idx)} aria-pressed={selected} style={{
               padding:"8px 2px",borderRadius:12,cursor:"pointer",transition:"all 0.15s",
               display:"flex",flexDirection:"column",alignItems:"center",gap:2,minWidth:0,
-              background: selected ? "rgba(124,58,237,0.22)" : "rgba(255,255,255,0.03)",
-              border: `1px solid ${selected ? "rgba(124,58,237,0.5)" : isToday ? "rgba(124,58,237,0.25)" : "rgba(255,255,255,0.06)"}`,
+              background: selected ? "rgba(var(--ac-7c3aed),0.22)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${selected ? "rgba(var(--ac-7c3aed),0.5)" : isToday ? "rgba(var(--ac-7c3aed),0.25)" : "rgba(255,255,255,0.06)"}`,
             }}>
-              <span style={{fontSize:11,fontWeight:900,color: selected || isToday ? "#c084fc" : "var(--text-2)"}}>
+              <span style={{fontSize:11,fontWeight:900,color: selected || isToday ? "rgb(var(--ac-c084fc))" : "var(--text-2)"}}>
                 {t.days[idx].slice(0, 3)}
               </span>
               <span style={{fontSize:9,color: count ? "var(--text-4)" : "var(--text-6)"}}>{count || "—"}</span>
@@ -181,7 +181,7 @@ function DayView({ byDay, dayIdx, setDayIdx, todayIdx, myStatuses, currentYear, 
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
         <span style={{fontSize:13,fontWeight:900,color:"var(--text-1)"}}>{t.days[dayIdx]}</span>
         {dayIdx === todayIdx && (
-          <span style={{fontSize:8,fontWeight:800,background:"rgba(124,58,237,0.3)",color:"#c084fc",
+          <span style={{fontSize:8,fontWeight:800,background:"rgba(var(--ac-7c3aed),0.3)",color:"rgb(var(--ac-c084fc))",
             padding:"1px 6px",borderRadius:4,letterSpacing:0.5}}>{t.today}</span>
         )}
         {animes.length > 0 && <span style={{fontSize:10,color:"var(--text-5)"}}>{t.dayAnimeCount(animes.length)}</span>}
@@ -500,7 +500,7 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
       }}>
         <div style={{fontSize:11,color:"var(--text-4)"}}>
           <span style={{fontWeight:700,color:"var(--text-2)"}}>{totalWithDay}</span> {t.scheduledWord(totalWithDay)}
-          {filtersActive && <span style={{marginLeft:6,color:"#c084fc"}}>{t.filteredTag}</span>}
+          {filtersActive && <span style={{marginLeft:6,color:"rgb(var(--ac-c084fc))"}}>{t.filteredTag}</span>}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
           <div style={{fontSize:10,color:"var(--text-5)"}}>
@@ -513,8 +513,8 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
               <button key={id} onClick={()=>changeView(id)} aria-pressed={view===id} style={{
                 padding:"4px 11px",borderRadius:16,fontSize:10,fontWeight:800,
                 border:"none",cursor:"pointer",transition:"all 0.15s",
-                background: view===id ? "rgba(124,58,237,0.3)" : "transparent",
-                color: view===id ? "#c084fc" : "var(--text-4)",
+                background: view===id ? "rgba(var(--ac-7c3aed),0.3)" : "transparent",
+                color: view===id ? "rgb(var(--ac-c084fc))" : "var(--text-4)",
               }}>{label}</button>
             ))}
           </div>
@@ -523,13 +523,13 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
             display:"flex",alignItems:"center",gap:6,
             padding:"5px 12px",borderRadius:20,fontSize:10,fontWeight:800,
             cursor:"pointer",transition:"all 0.15s",
-            background: myOnly ? "rgba(124,58,237,0.25)" : "rgba(255,255,255,0.05)",
-            color: myOnly ? "#c084fc" : "var(--text-4)",
-            border: myOnly ? "1px solid rgba(124,58,237,0.4)" : "1px solid rgba(255,255,255,0.08)",
+            background: myOnly ? "rgba(var(--ac-7c3aed),0.25)" : "rgba(255,255,255,0.05)",
+            color: myOnly ? "rgb(var(--ac-c084fc))" : "var(--text-4)",
+            border: myOnly ? "1px solid rgba(var(--ac-7c3aed),0.4)" : "1px solid rgba(255,255,255,0.08)",
           }}>
             <div style={{
               width:14,height:14,borderRadius:4,flexShrink:0,
-              background: myOnly ? "#7c3aed" : "rgba(255,255,255,0.08)",
+              background: myOnly ? "rgb(var(--ac-7c3aed))" : "rgba(255,255,255,0.08)",
               border: myOnly ? "none" : "1px solid rgba(255,255,255,0.15)",
               display:"flex",alignItems:"center",justifyContent:"center",
             }}>
@@ -540,7 +540,7 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
             {t.myCalendar}
             {myCount > 0 && (
               <span style={{
-                background:"rgba(124,58,237,0.3)",color:"#c084fc",
+                background:"rgba(var(--ac-7c3aed),0.3)",color:"rgb(var(--ac-c084fc))",
                 fontSize:9,padding:"1px 5px",borderRadius:10,
               }}>{myCount}</span>
             )}
@@ -566,19 +566,19 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
           return (
             <div key={day} style={{
               borderRadius:14,overflow:"hidden",
-              border:`1px solid ${isToday ? "rgba(124,58,237,0.5)" : "rgba(255,255,255,0.06)"}`,
-              background: isToday ? "rgba(124,58,237,0.07)" : "rgba(255,255,255,0.015)",
-              boxShadow: isToday ? "0 0 0 1px rgba(124,58,237,0.15), 0 4px 20px rgba(124,58,237,0.08)" : "none",
+              border:`1px solid ${isToday ? "rgba(var(--ac-7c3aed),0.5)" : "rgba(255,255,255,0.06)"}`,
+              background: isToday ? "rgba(var(--ac-7c3aed),0.07)" : "rgba(255,255,255,0.015)",
+              boxShadow: isToday ? "0 0 0 1px rgba(var(--ac-7c3aed),0.15), 0 4px 20px rgba(var(--ac-7c3aed),0.08)" : "none",
             }}>
               {/* Day header */}
               <div style={{
                 padding:"10px 10px 8px",
-                borderBottom:`1px solid ${isToday ? "rgba(124,58,237,0.2)" : "rgba(255,255,255,0.05)"}`,
-                background: isToday ? "rgba(124,58,237,0.12)" : "rgba(255,255,255,0.02)",
+                borderBottom:`1px solid ${isToday ? "rgba(var(--ac-7c3aed),0.2)" : "rgba(255,255,255,0.05)"}`,
+                background: isToday ? "rgba(var(--ac-7c3aed),0.12)" : "rgba(255,255,255,0.02)",
               }}>
                 <div style={{
                   fontSize:13,fontWeight:900,
-                  color: isToday ? "#c084fc" : "var(--text-2)",
+                  color: isToday ? "rgb(var(--ac-c084fc))" : "var(--text-2)",
                   letterSpacing: isToday ? 0.3 : 0,
                 }}>
                   {t.days[idx]}
@@ -589,7 +589,7 @@ export function AiringCalendar({ onOpenDetail, me, t }) {
                   {isToday && (
                     <span style={{
                       fontSize:8,fontWeight:800,
-                      background:"rgba(124,58,237,0.3)",color:"#c084fc",
+                      background:"rgba(var(--ac-7c3aed),0.3)",color:"rgb(var(--ac-c084fc))",
                       padding:"1px 6px",borderRadius:4,letterSpacing:0.5,
                     }}>{t.today}</span>
                   )}

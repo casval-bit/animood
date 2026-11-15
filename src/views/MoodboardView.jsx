@@ -139,11 +139,11 @@ function DesktopMoodCard({ mood, selected, onClick }) {
 function WebMoodCard({ mood, selected, onClick }) {
   return (
     <button onClick={onClick}
-      className={`group relative flex aspect-square flex-col items-center justify-center gap-1.5 rounded-2xl px-1.5 text-center transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_10px_30px_rgba(139,92,246,.25)] ${selected ? "animate-mood-pop" : ""}`}
+      className={`group relative flex aspect-square flex-col items-center justify-center gap-1.5 rounded-2xl px-1.5 text-center transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_10px_30px_rgba(var(--ac-8b5cf6),0.25)] ${selected ? "animate-mood-pop" : ""}`}
       style={{
-        background: selected ? `linear-gradient(135deg, ${mood.color}2A, #6D5BFF33 60%, #EC489933)` : "rgba(var(--fg-rgb),0.03)",
+        background: selected ? `linear-gradient(135deg, ${mood.color}2A, rgba(var(--ac-6d5bff),.2) 60%, rgba(var(--ac-ec4899),.2))` : "rgba(var(--fg-rgb),0.03)",
         border: selected ? `2px solid ${mood.color}` : "1.5px solid rgba(var(--fg-rgb),0.07)",
-        boxShadow: selected ? "0 0 35px rgba(139,92,246,.35)" : "none",
+        boxShadow: selected ? "0 0 35px rgba(var(--ac-8b5cf6),0.35)" : "none",
       }}>
       {selected && (
         <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black text-white" style={{ background: mood.color, boxShadow: `0 0 10px ${mood.color}` }}>✓</span>
@@ -165,7 +165,7 @@ function MoodGuideTile({ onClick, t }) {
   return (
     <button onClick={onClick}
       className="group flex aspect-square flex-col items-center justify-center gap-1.5 rounded-2xl px-1.5 text-center transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02]"
-      style={{ background: "linear-gradient(135deg, rgba(109,91,255,.2), rgba(236,72,153,.2))", border: "1.5px solid rgba(139,92,246,.4)" }}>
+      style={{ background: "linear-gradient(135deg, rgba(var(--ac-6d5bff),0.2), rgba(var(--ac-ec4899),0.2))", border: "1.5px solid rgba(var(--ac-8b5cf6),0.4)" }}>
       <div className="text-2xl font-black text-violet-300">?</div>
       <div className="text-[11px] font-bold text-violet-300">{t.guideLabel}</div>
     </button>

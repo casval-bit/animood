@@ -58,11 +58,11 @@ export function StreamingPanelWeb({ anime, streamingNames = [], lang = "fr" }) {
             <span className="h-1.5 w-1.5 rounded-full" style={{ background: avail.known ? "#22c55e" : "#64748b" }} />
           </button>
           {menu && (
-            <div className="absolute right-0 top-10 z-30 w-48 rounded-xl border border-white/10 p-1.5 shadow-xl" style={{ background: "rgba(14,15,30,.98)" }}>
+            <div className="absolute right-0 top-10 z-30 w-48 rounded-xl border border-white/10 p-1.5 shadow-xl" style={{ background: "rgba(var(--ac-0e0f1e),0.98)" }}>
               {REGIONS.map((r) => (
                 <button key={r.code} onClick={() => { setUserRegion(r.code); setMenu(false); }}
                   className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12px] font-semibold hover:bg-white/8"
-                  style={{ color: r.code === region ? "#c4b5fd" : "rgb(203,213,225)" }}><span>{r.flag}</span>{en ? r.en : r.fr}</button>
+                  style={{ color: r.code === region ? "rgb(var(--ac-c4b5fd))" : "rgb(var(--ac-cbd5e1))" }}><span>{r.flag}</span>{en ? r.en : r.fr}</button>
               ))}
             </div>
           )}
@@ -87,7 +87,7 @@ export function StreamingPanelWeb({ anime, streamingNames = [], lang = "fr" }) {
                 </div>
                 <button onClick={() => openStreamingLink(id, anime, {})} title={en ? `Open ${svc.label}` : `Ouvrir ${svc.label}`}
                   className="h-8 shrink-0 rounded-lg px-3 text-[12px] font-bold transition hover:brightness-110"
-                  style={ok ? { background: c, color: "#fff" } : { border: "1px solid rgba(255,255,255,.14)", color: "rgb(203,213,225)" }}>
+                  style={ok ? { background: c, color: "#fff" } : { border: "1px solid rgba(255,255,255,.14)", color: "rgb(var(--ac-cbd5e1))" }}>
                   {ok ? (en ? "Watch" : "Regarder") : (en ? "Search" : "Chercher")}
                 </button>
               </div>
@@ -97,7 +97,7 @@ export function StreamingPanelWeb({ anime, streamingNames = [], lang = "fr" }) {
                 </button>
               )}
               {vpnFor === id && other.length > 0 && (
-                <div className="mt-2 rounded-xl border p-3" style={{ borderColor: "rgba(167,139,250,.35)", background: "rgba(124,58,237,.08)" }}>
+                <div className="mt-2 rounded-xl border p-3" style={{ borderColor: "rgba(var(--ac-a78bfa),0.35)", background: "rgba(var(--ac-7c3aed),0.08)" }}>
                   <p className="text-[11.5px] leading-relaxed text-slate-300">
                     {en ? <>Not offered on <b>{svc.label}</b> in {reg.en}, but available in <b>{other.map(regLabel).join(", ")}</b>. A VPN with a server in one of these countries lets you open it from there.</>
                         : <>Pas proposé sur <b>{svc.label}</b> en {reg.fr}, mais disponible en <b>{other.map(regLabel).join(", ")}</b>. Un VPN avec un serveur dans l'un de ces pays permet de le lancer depuis là-bas.</>}

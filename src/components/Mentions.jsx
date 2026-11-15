@@ -27,7 +27,7 @@ export function MentionText({ text, onOpenUser }) {
     return (
       <span key={i} role="button"
         onClick={e => { e.stopPropagation(); onOpenUser?.(m[1]); }}
-        style={{ color: "#818cf8", fontWeight: 700, cursor: onOpenUser ? "pointer" : "inherit" }}>
+        style={{ color: "rgb(var(--ac-818cf8))", fontWeight: 700, cursor: onOpenUser ? "pointer" : "inherit" }}>
         {part}
       </span>
     );
@@ -79,7 +79,7 @@ export function MentionSuggestions({ suggestions, onPick }) {
             background: "none", border: "none", borderRadius: 6, cursor: "pointer", textAlign: "left" }}
           onMouseEnter={e => { e.currentTarget.style.background = "rgba(var(--fg-rgb),0.06)"; }}
           onMouseLeave={e => { e.currentTarget.style.background = "none"; }}>
-          <span style={{ fontSize: 12, fontWeight: 700, background: "linear-gradient(90deg,#8B5CF6,#EC4899)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>{s.name || s.username}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, background: "linear-gradient(90deg,rgb(var(--ac-8b5cf6)),rgb(var(--ac-ec4899)))", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>{s.name || s.username}</span>
           <span style={{ fontSize: 11, color: "var(--text-3)" }}>@{s.username}</span>
         </button>
       ))}

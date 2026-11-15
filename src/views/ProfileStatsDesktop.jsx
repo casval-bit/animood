@@ -7,6 +7,7 @@ import { useLang } from "../context/useLang.js";
 import { STATUS_COLORS, getStatusLabel } from "../constants/statuses.js";
 import { HudCard, HudTitle, HudChip, HudKpi, GlossBars } from "./profileHud.jsx";
 import { useHudCss } from "./hudCss.js";
+import { withAlpha } from "../utils/withAlpha.js";
 
 const MOOD_META = {
   emotional:{emoji:"💔",color:"#A78BFA",fr:"Émouvant",en:"Emotional"},
@@ -43,7 +44,7 @@ function Donut({ slices, size = 164, thick = 20, centerValue, centerLabel }) {
   return (
     <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <circle cx={c} cy={c} r={r} fill="none" stroke="rgba(139,92,246,0.08)" strokeWidth={thick} />
+        <circle cx={c} cy={c} r={r} fill="none" stroke="rgba(var(--ac-8b5cf6),0.08)" strokeWidth={thick} />
         {slices.map((s, i) => {
           const len = (s.value / total) * circ;
           const dash = Math.max(len - gap, 0.5);
@@ -59,7 +60,7 @@ function Donut({ slices, size = 164, thick = 20, centerValue, centerLabel }) {
         })}
       </svg>
       <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none", textAlign: "center", padding: thick + 10 }}>
-        <div style={{ fontSize: active ? 18 : 22, fontWeight: 900, color: "#fff", lineHeight: 1.1, textShadow: `0 0 12px ${(active?.color) || "#a855f7"}66` }}>
+        <div style={{ fontSize: active ? 18 : 22, fontWeight: 900, color: "#fff", lineHeight: 1.1, textShadow: `0 0 12px ${withAlpha(active?.color || "rgb(var(--ac-a855f7))", "66")}` }}>
           {active ? active.value : centerValue}
         </div>
         <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", color: "rgba(148,163,184,0.7)", marginTop: 3, lineHeight: 1.2 }}>
@@ -82,25 +83,25 @@ function Radar({ axes }) {
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: 360, display: "block", margin: "0 auto" }}>
       <defs>
         <radialGradient id="rdFill" cx="50%" cy="50%" r="60%">
-          <stop offset="0%" stopColor="#e879f9" stopOpacity=".55" />
-          <stop offset="100%" stopColor="#7c3aed" stopOpacity=".25" />
+          <stop offset="0%" stopColor="rgb(var(--ac-e879f9))" stopOpacity=".55" />
+          <stop offset="100%" stopColor="rgb(var(--ac-7c3aed))" stopOpacity=".25" />
         </radialGradient>
         <linearGradient id="rdStroke" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#c4b5fd" /><stop offset="100%" stopColor="#f0abfc" />
+          <stop offset="0%" stopColor="rgb(var(--ac-c4b5fd))" /><stop offset="100%" stopColor="rgb(var(--ac-f0abfc))" />
         </linearGradient>
       </defs>
-      {[0.25, 0.5, 0.75, 1].map(f => <polygon key={f} points={poly(f)} fill="none" stroke="rgba(167,139,250,0.14)" strokeWidth="1" />)}
-      {axes.map((_, i) => { const [x, y] = pt(i, 1); return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="rgba(167,139,250,0.12)" strokeWidth="1" />; })}
+      {[0.25, 0.5, 0.75, 1].map(f => <polygon key={f} points={poly(f)} fill="none" stroke="rgba(var(--ac-a78bfa),0.14)" strokeWidth="1" />)}
+      {axes.map((_, i) => { const [x, y] = pt(i, 1); return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="rgba(var(--ac-a78bfa),0.12)" strokeWidth="1" />; })}
       <polygon points={shape} fill="url(#rdFill)" stroke="url(#rdStroke)" strokeWidth="2" strokeLinejoin="round"
-        style={{ filter: "drop-shadow(0 0 8px rgba(232,121,249,.55))", animation: "hg-fade .8s ease both" }} />
+        style={{ filter: "drop-shadow(0 0 8px rgba(var(--ac-e879f9),0.55))", animation: "hg-fade .8s ease both" }} />
       {axes.map((a, i) => {
         const [x, y] = pt(i, Math.max(a.value, 0.04));
         const [lx, ly] = pt(i, 1.2);
         const sx = Math.sin((2 * Math.PI * i) / n);
         return (
           <g key={a.label}>
-            <circle cx={x} cy={y} r="3.2" fill="#fff" stroke="#c084fc" strokeWidth="1.5" style={glowStyle("#c084fc")}><title>{`${a.label} · ${a.raw}`}</title></circle>
-            <text x={lx} y={ly + 3} fontSize="9" fontWeight="700" fill="rgba(226,232,240,0.85)" textAnchor={sx > 0.3 ? "start" : sx < -0.3 ? "end" : "middle"}>{a.label}</text>
+            <circle cx={x} cy={y} r="3.2" fill="#fff" stroke="rgb(var(--ac-c084fc))" strokeWidth="1.5" style={glowStyle("rgb(var(--ac-c084fc))")}><title>{`${a.label} · ${a.raw}`}</title></circle>
+            <text x={lx} y={ly + 3} fontSize="9" fontWeight="700" fill="rgba(var(--ac-e2e8f0),0.85)" textAnchor={sx > 0.3 ? "start" : sx < -0.3 ? "end" : "middle"}>{a.label}</text>
           </g>
         );
       })}
@@ -133,7 +134,7 @@ function YearChart({ data, tr }) {
   const h = hov != null ? data[hov] : best;
   return (
     <div>
-      <div style={{ height: 16, marginBottom: 4, fontSize: 10, color: "rgba(196,181,253,0.9)", fontWeight: 700 }}>
+      <div style={{ height: 16, marginBottom: 4, fontSize: 10, color: "rgba(var(--ac-c4b5fd),0.9)", fontWeight: 700 }}>
         {h ? <>
           <span style={{ color: "#fff" }}>{h.year}</span> · <span style={{ color: GOLD }}>★ {h.avg.toFixed(1)}</span> · {h.count} {tr("animé", "anime")}{h.count > 1 && tr("s", "")}
           {hov == null && <span style={{ color: "rgba(148,163,184,.6)", fontWeight: 500 }}> — {tr("ta meilleure année", "your best year")}</span>}
@@ -141,13 +142,13 @@ function YearChart({ data, tr }) {
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", display: "block" }}>
         <defs>
-          <linearGradient id="yrLine" x1="0" x2="1"><stop offset="0%" stopColor="#8b5cf6" /><stop offset="100%" stopColor="#f0abfc" /></linearGradient>
-          <linearGradient id="yrArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#a855f7" stopOpacity=".38" /><stop offset="100%" stopColor="#a855f7" stopOpacity="0" /></linearGradient>
-          <linearGradient id="yrBar" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#c4b5fd" stopOpacity=".5" /><stop offset="100%" stopColor="#6d28d9" stopOpacity=".12" /></linearGradient>
+          <linearGradient id="yrLine" x1="0" x2="1"><stop offset="0%" stopColor="rgb(var(--ac-8b5cf6))" /><stop offset="100%" stopColor="rgb(var(--ac-f0abfc))" /></linearGradient>
+          <linearGradient id="yrArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="rgb(var(--ac-a855f7))" stopOpacity=".38" /><stop offset="100%" stopColor="rgb(var(--ac-a855f7))" stopOpacity="0" /></linearGradient>
+          <linearGradient id="yrBar" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="rgb(var(--ac-c4b5fd))" stopOpacity=".5" /><stop offset="100%" stopColor="rgb(var(--ac-6d28d9))" stopOpacity=".12" /></linearGradient>
         </defs>
         {grid.map(v => (
           <g key={v}>
-            <line x1={L} x2={W - Rr} y1={toY(v)} y2={toY(v)} stroke="rgba(167,139,250,0.09)" strokeWidth="1" strokeDasharray="2 4" />
+            <line x1={L} x2={W - Rr} y1={toY(v)} y2={toY(v)} stroke="rgba(var(--ac-a78bfa),0.09)" strokeWidth="1" strokeDasharray="2 4" />
             <text x={L - 6} y={toY(v) + 3} textAnchor="end" fontSize="8" fill="rgba(148,163,184,0.6)">{v}</text>
           </g>
         ))}
@@ -156,14 +157,14 @@ function YearChart({ data, tr }) {
           return <rect key={d.year} x={toX(d.year) - barW / 2} y={H - B - bh} width={barW} height={bh} rx="3" fill="url(#yrBar)" opacity={hov == null || hov === i ? 1 : 0.4} />;
         })}
         <path d={`${path} L ${pts[pts.length - 1][0]} ${H - B} L ${pts[0][0]} ${H - B} Z`} fill="url(#yrArea)" />
-        <path d={path} fill="none" stroke="#c084fc" strokeWidth="5" opacity=".28" strokeLinejoin="round" style={{ filter: "blur(3px)" }} />
+        <path d={path} fill="none" stroke="rgb(var(--ac-c084fc))" strokeWidth="5" opacity=".28" strokeLinejoin="round" style={{ filter: "blur(3px)" }} />
         <path d={path} fill="none" stroke="url(#yrLine)" strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round"
           pathLength="1" strokeDasharray="1" style={{ animation: "hg-draw 1.2s ease-out both" }} />
         {data.map((d, i) => {
           const isBest = best && d.year === best.year;
           return (
             <g key={d.year}>
-              <circle cx={pts[i][0]} cy={pts[i][1]} r={hov === i ? 5.5 : isBest ? 4.5 : 3.2} fill={isBest ? GOLD : "#fff"} stroke={isBest ? "#f59e0b" : "#a855f7"} strokeWidth="1.6" style={glowStyle(isBest ? GOLD : "#c084fc")} />
+              <circle cx={pts[i][0]} cy={pts[i][1]} r={hov === i ? 5.5 : isBest ? 4.5 : 3.2} fill={isBest ? GOLD : "#fff"} stroke={isBest ? "#f59e0b" : "rgb(var(--ac-a855f7))"} strokeWidth="1.6" style={glowStyle(isBest ? GOLD : "rgb(var(--ac-c084fc))")} />
               <rect x={pts[i][0] - Math.max(barW, 10)} y={T} width={Math.max(barW, 10) * 2} height={H - T - B} fill="transparent"
                 onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)} />
               {i % step === 0 && <text x={pts[i][0]} y={H - 8} textAnchor="middle" fontSize="8" fill="rgba(148,163,184,0.65)">{d.year}</text>}
@@ -180,7 +181,7 @@ function Segmented({ slices }) {
   const total = slices.reduce((a, s) => a + s.value, 0) || 1;
   return (
     <div>
-      <div style={{ display: "flex", height: 14, borderRadius: 999, overflow: "hidden", gap: 2, background: "rgba(139,92,246,0.06)" }}>
+      <div style={{ display: "flex", height: 14, borderRadius: 999, overflow: "hidden", gap: 2, background: "rgba(var(--ac-8b5cf6),0.06)" }}>
         {slices.filter(s => s.value > 0).map((s, i) => (
           <div key={s.key} title={`${s.label} · ${s.value}`}
             style={{ flex: s.value, minWidth: 6, background: `linear-gradient(180deg, ${s.color}ff, ${s.color}aa)`, boxShadow: `0 0 10px ${s.color}66, inset 0 1px 0 rgba(255,255,255,.45)`, transformOrigin: "left", animation: `hg-grow .7s cubic-bezier(.22,1,.36,1) ${i * 80}ms both` }} />
@@ -227,8 +228,8 @@ function Leaderboard({ items, gradient, limit = 8, tr }) {
                     {it.count}{it.avg && <span style={{ color: GOLD, marginLeft: 6 }}>★{it.avg}</span>}
                   </span>
                 </div>
-                <div style={{ height: 6, borderRadius: 999, background: "rgba(139,92,246,0.1)", overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${(val / max) * 100}%`, borderRadius: 999, background: gradient, boxShadow: "0 0 10px rgba(168,85,247,.45), inset 0 1px 0 rgba(255,255,255,.4)", transformOrigin: "left", animation: `hg-grow .7s cubic-bezier(.22,1,.36,1) ${i * 55}ms both`, transition: "width .4s ease" }} />
+                <div style={{ height: 6, borderRadius: 999, background: "rgba(var(--ac-8b5cf6),0.1)", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${(val / max) * 100}%`, borderRadius: 999, background: gradient, boxShadow: "0 0 10px rgba(var(--ac-a855f7),0.45), inset 0 1px 0 rgba(255,255,255,.4)", transformOrigin: "left", animation: `hg-grow .7s cubic-bezier(.22,1,.36,1) ${i * 55}ms both`, transition: "width .4s ease" }} />
                 </div>
               </div>
             </div>
@@ -247,9 +248,9 @@ function DeltaList({ rows, positive, onOpen, tr }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {rows.map(r => (
         <button key={r.id} type="button" onClick={() => onOpen?.({ mal_id: r.id, title: r.title, title_en: r.title, image_url: r.img, score: r.mal, type: r.type, images: { jpg: { image_url: r.img, large_image_url: r.img } } })}
-          style={{ display: "flex", alignItems: "center", gap: 10, textAlign: "left", cursor: "pointer", padding: 6, borderRadius: 12, border: "1px solid rgba(139,92,246,0.14)", background: "rgba(139,92,246,0.04)", transition: "background .15s, border-color .15s" }}
-          onMouseEnter={e => { e.currentTarget.style.background = "rgba(139,92,246,0.1)"; e.currentTarget.style.borderColor = "rgba(139,92,246,0.35)"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "rgba(139,92,246,0.04)"; e.currentTarget.style.borderColor = "rgba(139,92,246,0.14)"; }}>
+          style={{ display: "flex", alignItems: "center", gap: 10, textAlign: "left", cursor: "pointer", padding: 6, borderRadius: 12, border: "1px solid rgba(var(--ac-8b5cf6),0.14)", background: "rgba(var(--ac-8b5cf6),0.04)", transition: "background .15s, border-color .15s" }}
+          onMouseEnter={e => { e.currentTarget.style.background = "rgba(var(--ac-8b5cf6),0.1)"; e.currentTarget.style.borderColor = "rgba(var(--ac-8b5cf6),0.35)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "rgba(var(--ac-8b5cf6),0.04)"; e.currentTarget.style.borderColor = "rgba(var(--ac-8b5cf6),0.14)"; }}>
           <div style={{ width: 34, height: 48, borderRadius: 6, overflow: "hidden", flexShrink: 0, background: "rgba(0,0,0,.3)", boxShadow: `0 0 10px ${col}33` }}>
             {r.img && <img loading="lazy" decoding="async" src={r.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={e => { e.target.style.display = "none"; }} />}
           </div>
@@ -308,17 +309,17 @@ export function ProfileStatsDesktop({ statsData, ratings, watched, statuses, onO
   const genreAxes = (D.topGenres || []).slice(0, 8);
   const gMax = Math.max(...genreAxes.map(g => g.count), 1);
 
-  const bigGradient = "linear-gradient(90deg,#7c3aed,#c084fc,#f0abfc)";
+  const bigGradient = "linear-gradient(90deg,rgb(var(--ac-7c3aed)),rgb(var(--ac-c084fc)),rgb(var(--ac-f0abfc)))";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* 1 — Chiffres-clés */}
       <div className="grid grid-cols-2 gap-3 min-[560px]:grid-cols-3 min-[900px]:grid-cols-6">
-        <HudKpi delay={0}   icon="▶" label={tr("Animés vus", "Anime watched")} value={watched.length.toLocaleString()} color="#a855f7" />
-        <HudKpi delay={60}  icon="📺" label={tr("Épisodes (TV)", "Episodes (TV)")} value={(D.totalEpisodes || 0).toLocaleString()} color="#8b5cf6" />
+        <HudKpi delay={0}   icon="▶" label={tr("Animés vus", "Anime watched")} value={watched.length.toLocaleString()} color="rgb(var(--ac-a855f7))" />
+        <HudKpi delay={60}  icon="📺" label={tr("Épisodes (TV)", "Episodes (TV)")} value={(D.totalEpisodes || 0).toLocaleString()} color="rgb(var(--ac-8b5cf6))" />
         <HudKpi delay={120} icon="⏱" label={tr("Temps estimé", "Time watched")} value={fmtTime(D.totalMinutes, en)} color="#22d3ee" />
-        <HudKpi delay={180} icon="★" label={tr("Animés notés", "Anime rated")} value={R.n} color="#6366f1" />
-        <HudKpi delay={240} icon="⌀" label={tr("Note moyenne", "Average")} value={R.mean != null ? R.mean.toFixed(2) : "—"} color="#e879f9" />
+        <HudKpi delay={180} icon="★" label={tr("Animés notés", "Anime rated")} value={R.n} color="rgb(var(--ac-6366f1))" />
+        <HudKpi delay={240} icon="⌀" label={tr("Note moyenne", "Average")} value={R.mean != null ? R.mean.toFixed(2) : "—"} color="rgb(var(--ac-e879f9))" />
         <HudKpi delay={300} icon="⚖" label={tr("Vs communauté", "Vs community")}
           value={delta.avg != null ? `${delta.avg > 0 ? "+" : ""}${delta.avg.toFixed(2)}` : "—"}
           sub={delta.avg == null ? null : Math.abs(delta.avg) < 0.15 ? tr("dans la moyenne", "right on average") : delta.avg > 0 ? tr("tu notes plus haut", "you rate higher") : tr("tu notes plus bas", "you rate lower")}
@@ -338,9 +339,9 @@ export function ProfileStatsDesktop({ statsData, ratings, watched, statuses, onO
                 [tr("Notes ≥ 8", "Ratings ≥ 8"), pct(R.high)],
                 [tr("Notes ≤ 5", "Ratings ≤ 5"), pct(R.low)],
               ].map(([k, v]) => (
-                <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "6px 10px", borderRadius: 10, background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.12)" }}>
+                <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "6px 10px", borderRadius: 10, background: "rgba(var(--ac-8b5cf6),0.06)", border: "1px solid rgba(var(--ac-8b5cf6),0.12)" }}>
                   <span style={{ fontSize: 10, color: "rgba(148,163,184,.85)" }}>{k}</span>
-                  <span style={{ fontSize: 13, fontWeight: 900, color: "#fff", textShadow: "0 0 10px rgba(168,85,247,.5)" }}>{v}</span>
+                  <span style={{ fontSize: 13, fontWeight: 900, color: "#fff", textShadow: "0 0 10px rgba(var(--ac-a855f7),0.5)" }}>{v}</span>
                 </div>
               ))}
             </div>
@@ -403,9 +404,9 @@ export function ProfileStatsDesktop({ statsData, ratings, watched, statuses, onO
 
       {/* 6 — Classements */}
       <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))" }}>
-        {D.topStudios?.length > 0 && <HudCard><HudTitle>🎬 {tr("Top studios", "Top studios")}</HudTitle><Leaderboard items={D.topStudios} gradient="linear-gradient(90deg,#ec4899,#f97316,#fbbf24)" tr={tr} /></HudCard>}
-        {D.topVAs?.length > 0 && <HudCard><HudTitle>🎙️ {tr("Top voix", "Top voice actors")}</HudTitle><Leaderboard items={D.topVAs} gradient="linear-gradient(90deg,#34d399,#22d3ee,#818cf8)" tr={tr} /></HudCard>}
-        {D.topDirectors?.length > 0 && <HudCard><HudTitle>🎞️ {tr("Top réalisateurs", "Top directors")}</HudTitle><Leaderboard items={D.topDirectors} gradient="linear-gradient(90deg,#f59e0b,#ef4444,#ec4899)" tr={tr} /></HudCard>}
+        {D.topStudios?.length > 0 && <HudCard><HudTitle>🎬 {tr("Top studios", "Top studios")}</HudTitle><Leaderboard items={D.topStudios} gradient="linear-gradient(90deg,rgb(var(--ac-ec4899)),#f97316,#fbbf24)" tr={tr} /></HudCard>}
+        {D.topVAs?.length > 0 && <HudCard><HudTitle>🎙️ {tr("Top voix", "Top voice actors")}</HudTitle><Leaderboard items={D.topVAs} gradient="linear-gradient(90deg,#34d399,#22d3ee,rgb(var(--ac-818cf8)))" tr={tr} /></HudCard>}
+        {D.topDirectors?.length > 0 && <HudCard><HudTitle>🎞️ {tr("Top réalisateurs", "Top directors")}</HudTitle><Leaderboard items={D.topDirectors} gradient="linear-gradient(90deg,#f59e0b,#ef4444,rgb(var(--ac-ec4899)))" tr={tr} /></HudCard>}
       </div>
 
       {/* 7 — Écart avec la communauté */}

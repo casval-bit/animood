@@ -140,9 +140,9 @@ function Curtains() {
     position: "absolute", top: 0, bottom: 0, [dir]: 0, width: "16%",
     background: [
       "repeating-linear-gradient(90deg,",
-      "rgba(27,30,52,.96) 0 11px,",
-      "rgba(15,17,32,.98) 11px 22px,",
-      "rgba(22,25,44,.96) 22px 30px)",
+      "rgba(var(--ac-1b1e34),.96) 0 11px,",
+      "rgba(var(--ac-0f1120),.98) 11px 22px,",
+      "rgba(var(--ac-16192c),.96) 22px 30px)",
     ].join(""),
     WebkitMaskImage: `linear-gradient(${dir === "left" ? "90deg" : "270deg"}, #000 0%, #000 50%, transparent 100%)`,
     maskImage: `linear-gradient(${dir === "left" ? "90deg" : "270deg"}, #000 0%, #000 50%, transparent 100%)`,
@@ -157,14 +157,14 @@ function Curtains() {
         background: "radial-gradient(120% 90% at 50% 50%, transparent 55%, rgba(3,4,12,.75) 100%)",
       }} />
       {/* lambrequin festonné */}
-      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 10, background: "linear-gradient(180deg,#14172b,#1d2140)", pointerEvents: "none" }} />
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 10, background: "linear-gradient(180deg,rgb(var(--ac-14172b)),rgb(var(--ac-1d2140)))", pointerEvents: "none" }} />
       <div style={{
         position: "absolute", top: 10, left: 0, right: 0, height: 22, pointerEvents: "none",
-        background: "radial-gradient(circle 21px at 21px 0, #1d2140 97%, transparent 100%) repeat-x",
+        background: "radial-gradient(circle 21px at 21px 0, rgb(var(--ac-1d2140)) 97%, transparent 100%) repeat-x",
         backgroundSize: "42px 22px",
         filter: "drop-shadow(0 6px 8px rgba(0,0,0,.5))",
       }} />
-      <div style={{ position: "absolute", top: 9, left: 0, right: 0, height: 1.5, background: "linear-gradient(90deg, transparent, rgba(139,92,246,.6), rgba(236,72,153,.45), transparent)", pointerEvents: "none" }} />
+      <div style={{ position: "absolute", top: 9, left: 0, right: 0, height: 1.5, background: "linear-gradient(90deg, transparent, rgba(var(--ac-8b5cf6),0.6), rgba(var(--ac-ec4899),0.45), transparent)", pointerEvents: "none" }} />
     </>
   );
 }
@@ -177,7 +177,7 @@ function CloudStrip({ id, tint, speed, opacity = 1, height = 46, flip = false, d
       <defs>
         <linearGradient id={`${id}-${k}`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#f4f6ff" stopOpacity=".95" />
-          <stop offset=".55" stopColor="#c9d0ee" stopOpacity=".85" />
+          <stop offset=".55" stopColor="rgb(var(--ac-c9d0ee))" stopOpacity=".85" />
           <stop offset="1" stopColor={tint} stopOpacity=".7" />
         </linearGradient>
       </defs>
@@ -207,16 +207,16 @@ function EggFrame({ c, id, children }) {
     <div style={{ position: "relative", width: 118, height: 158, filter: ghost ? undefined : `drop-shadow(0 0 9px ${c}55)` }}>
       <div style={{ position: "absolute", inset: 0, overflow: "hidden", clipPath: `path('${EGG_PATH}')`,
         background: ghost
-          ? "linear-gradient(180deg, rgba(10,12,28,.6) 0%, rgba(109,91,255,.1) 60%, rgba(214,222,255,.14) 100%)"
-          : `linear-gradient(180deg, #0b0d20 0%, ${c}30 46%, ${c}66 78%, rgba(214,222,255,.55) 100%)` }}>
+          ? "linear-gradient(180deg, rgba(var(--ac-0a0c1c),0.6) 0%, rgba(var(--ac-6d5bff),0.1) 60%, rgba(var(--ac-d6deff),0.14) 100%)"
+          : `linear-gradient(180deg, rgb(var(--ac-0b0d20)) 0%, ${c}30 46%, ${c}66 78%, rgba(var(--ac-d6deff),0.55) 100%)` }}>
         {children}
-        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", boxShadow: "inset 0 0 26px rgba(4,5,14,.7)" }} />
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", boxShadow: "inset 0 0 26px rgba(var(--ac-04050e),0.7)" }} />
       </div>
       <svg viewBox="0 0 118 158" width="118" height="158" style={{ position: "absolute", inset: 0, overflow: "visible", pointerEvents: "none", zIndex: 6 }}>
         {!ghost && (
           <defs>
             <linearGradient id={`egg-${id}`} x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stopColor="#e8ecff" /><stop offset=".45" stopColor={c} /><stop offset="1" stopColor="#e8ecff" stopOpacity=".7" />
+              <stop offset="0" stopColor="rgb(var(--ac-e8ecff))" /><stop offset=".45" stopColor={c} /><stop offset="1" stopColor="rgb(var(--ac-e8ecff))" stopOpacity=".7" />
             </linearGradient>
           </defs>
         )}
@@ -227,14 +227,14 @@ function EggFrame({ c, id, children }) {
               transform="translate(59 79) scale(.9) translate(-59 -79)" />
             {EGG_STUDS.map(([x, y], i) => (
               <g key={i}>
-                <circle cx={x} cy={y} r="3.1" fill="#0b0d1f" stroke="#e8ecff" strokeWidth=".9" />
+                <circle cx={x} cy={y} r="3.1" fill="rgb(var(--ac-0b0d1f))" stroke="rgb(var(--ac-e8ecff))" strokeWidth=".9" />
                 <circle cx={x} cy={y} r="1.3" fill={c} />
               </g>
             ))}
             {/* gemme sommitale et gemme basale */}
             {[2, 156].map((y) => (
               <g key={y} transform={`translate(59 ${y}) rotate(45)`}>
-                <rect x="-3.6" y="-3.6" width="7.2" height="7.2" rx="1" fill="#0b0d1f" stroke="#e8ecff" strokeWidth="1" />
+                <rect x="-3.6" y="-3.6" width="7.2" height="7.2" rx="1" fill="rgb(var(--ac-0b0d1f))" stroke="rgb(var(--ac-e8ecff))" strokeWidth="1" />
                 <rect x="-1.9" y="-1.9" width="3.8" height="3.8" fill={c} />
               </g>
             ))}
@@ -251,10 +251,10 @@ function EggStand({ c }) {
     <svg viewBox="0 0 70 16" width="64" height="15" style={{ display: "block", margin: "0 auto", overflow: "visible" }}>
       <defs>
         <linearGradient id={`stand-${c.slice(1)}`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor={c} stopOpacity=".35" /><stop offset=".5" stopColor="#e8ecff" /><stop offset="1" stopColor={c} stopOpacity=".35" />
+          <stop offset="0" stopColor={c} stopOpacity=".35" /><stop offset=".5" stopColor="rgb(var(--ac-e8ecff))" /><stop offset="1" stopColor={c} stopOpacity=".35" />
         </linearGradient>
       </defs>
-      <path d="M8,2 Q35,-1 62,2 L56,8 Q35,11 14,8 Z" fill="#0b0d1f" stroke={`url(#stand-${c.slice(1)})`} strokeWidth="1.2" />
+      <path d="M8,2 Q35,-1 62,2 L56,8 Q35,11 14,8 Z" fill="rgb(var(--ac-0b0d1f))" stroke={`url(#stand-${c.slice(1)})`} strokeWidth="1.2" />
       <path d="M2,14 Q35,10 68,14" fill="none" stroke={`url(#stand-${c.slice(1)})`} strokeWidth="2" strokeLinecap="round" />
       <path d="M14,8 L10,14 M56,8 L60,14" stroke={c} strokeWidth="1" opacity=".7" />
     </svg>
@@ -287,7 +287,7 @@ function TarotMoodCard({ mood, index, count, onClick, hint }) {
       <div style={{
         position: "absolute", left: "50%", bottom: -34, width: 240, height: 40,
         transform: "translateX(-50%)", pointerEvents: "none",
-        background: `radial-gradient(ellipse, rgba(214,222,255,.28) 0%, ${c}30 45%, transparent 72%)`,
+        background: `radial-gradient(ellipse, rgba(var(--ac-d6deff),0.28) 0%, ${c}30 45%, transparent 72%)`,
         filter: "blur(8px)", animation: "mb-mist-sym 7s ease-in-out infinite",
       }} />
 
@@ -301,7 +301,7 @@ function TarotMoodCard({ mood, index, count, onClick, hint }) {
             style={{
               position: "relative", width: "100%", height: "100%",
               padding: 1.5, borderRadius: "22px 22px 16px 16px", border: "none", cursor: "pointer",
-              background: `linear-gradient(160deg, rgba(226,232,255,.55) 0%, ${c}88 40%, rgba(226,232,255,.18) 70%, ${c}aa 100%)`,
+              background: `linear-gradient(160deg, rgba(var(--ac-e2e8ff),0.55) 0%, ${c}88 40%, rgba(var(--ac-e2e8ff),0.18) 70%, ${c}aa 100%)`,
               boxShadow: `0 16px 40px rgba(0,0,0,.6), 0 0 28px ${c}38`,
               transition: "transform .3s cubic-bezier(.34,1.56,.64,1), box-shadow .3s",
               display: "block", textAlign: "center",
@@ -309,7 +309,7 @@ function TarotMoodCard({ mood, index, count, onClick, hint }) {
           >
             <div style={{
               position: "relative", width: "100%", height: "100%", borderRadius: "20.5px 20.5px 14.5px 14.5px", overflow: "hidden",
-              background: "linear-gradient(176deg,#151934 0%,#0a0c1c 55%,#0e1124 100%)",
+              background: "linear-gradient(176deg,rgb(var(--ac-151934)) 0%,rgb(var(--ac-0a0c1c)) 55%,rgb(var(--ac-0e1124)) 100%)",
             }}>
               {/* liseré intérieur de carte de tarot */}
               <div style={{ position: "absolute", inset: 5, borderRadius: "16px 16px 11px 11px", border: `1px solid ${c}40`, pointerEvents: "none" }} />
@@ -328,7 +328,7 @@ function TarotMoodCard({ mood, index, count, onClick, hint }) {
               {/* numéro romain entre deux filets */}
               <div style={{ position: "absolute", top: 11, left: 0, right: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, pointerEvents: "none" }}>
                 <span style={{ width: 16, height: 1, background: `linear-gradient(90deg, transparent, ${c}99)` }} />
-                <span style={{ fontFamily: SERIF, fontSize: 12, fontWeight: 700, letterSpacing: "0.3em", paddingLeft: "0.3em", color: "rgba(226,232,255,.85)" }}>{ROMAN[index]}</span>
+                <span style={{ fontFamily: SERIF, fontSize: 12, fontWeight: 700, letterSpacing: "0.3em", paddingLeft: "0.3em", color: "rgba(var(--ac-e2e8ff),0.85)" }}>{ROMAN[index]}</span>
                 <span style={{ width: 16, height: 1, background: `linear-gradient(270deg, transparent, ${c}99)` }} />
               </div>
 
@@ -338,7 +338,7 @@ function TarotMoodCard({ mood, index, count, onClick, hint }) {
                   {/* faisceau de projecteur */}
                   <div style={{
                     position: "absolute", left: "50%", top: 0, width: 120, height: 120, transform: "translateX(-50%)",
-                    background: "linear-gradient(180deg, rgba(235,240,255,.34) 0%, rgba(235,240,255,.06) 70%, transparent 100%)",
+                    background: "linear-gradient(180deg, rgba(var(--ac-ebf0ff),0.34) 0%, rgba(var(--ac-ebf0ff),0.06) 70%, transparent 100%)",
                     clipPath: "polygon(38% 0, 62% 0, 100% 100%, 0 100%)", filter: "blur(3px)",
                     mixBlendMode: "screen", animation: "mb-beam 5s ease-in-out infinite", pointerEvents: "none", zIndex: 1,
                   }} />
@@ -350,14 +350,14 @@ function TarotMoodCard({ mood, index, count, onClick, hint }) {
                     <div style={{ position: "relative", width: 76, height: 76, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <div style={{ position: "absolute", inset: -8, borderRadius: "50%", background: `radial-gradient(circle, ${c}66 0%, ${c}1a 55%, transparent 72%)`, animation: "mb-halo 3.6s ease-in-out infinite" }} />
                       <svg viewBox="0 0 76 76" width="76" height="76" style={{ position: "absolute", inset: 0, animation: "mb-spin 34s linear infinite" }}>
-                        <circle cx="38" cy="38" r="35" fill="none" stroke="rgba(226,232,255,.6)" strokeWidth="1" strokeDasharray="1.5 6" strokeLinecap="round" />
+                        <circle cx="38" cy="38" r="35" fill="none" stroke="rgba(var(--ac-e2e8ff),0.6)" strokeWidth="1" strokeDasharray="1.5 6" strokeLinecap="round" />
                       </svg>
                       <span style={{ position: "relative", fontSize: 40, lineHeight: 1, filter: `drop-shadow(0 0 12px ${c}) drop-shadow(0 4px 6px rgba(0,0,0,.45))` }}>{mood.emoji}</span>
                     </div>
                   </div>
                   {/* deux étincelles jumelles */}
                   {[26, 92].map((x, k) => (
-                    <span key={x} style={{ position: "absolute", left: x, top: 48 + (k ? 0 : 0), width: 4, height: 4, borderRadius: 1, background: "#eef1ff", transform: "rotate(45deg)", boxShadow: `0 0 7px ${c}`, animation: "mb-twinkle 2.8s ease-in-out infinite", zIndex: 2 }} />
+                    <span key={x} style={{ position: "absolute", left: x, top: 48 + (k ? 0 : 0), width: 4, height: 4, borderRadius: 1, background: "rgb(var(--ac-eef1ff))", transform: "rotate(45deg)", boxShadow: `0 0 7px ${c}`, animation: "mb-twinkle 2.8s ease-in-out infinite", zIndex: 2 }} />
                   ))}
                   {/* bancs de nuages au premier plan */}
                   <div style={{ position: "absolute", left: 0, right: 0, bottom: 34 }}><CloudStrip id={`${uid}-c`} tint={c} speed={34} opacity={0.92} height={46} delay={-9} /></div>
@@ -370,7 +370,7 @@ function TarotMoodCard({ mood, index, count, onClick, hint }) {
               <div style={{ position: "absolute", left: 0, right: 0, top: 201, textAlign: "center", padding: "0 12px" }}>
                 <div style={{
                   fontFamily: SERIF, fontSize: 15, fontWeight: 700, letterSpacing: "0.26em", paddingLeft: "0.26em",
-                  textTransform: "uppercase", color: "rgba(236,240,255,.96)", textShadow: `0 0 14px ${c}`,
+                  textTransform: "uppercase", color: "rgba(var(--ac-ecf0ff),0.96)", textShadow: `0 0 14px ${c}`,
                 }}>
                   {mood.label}
                 </div>
@@ -379,7 +379,7 @@ function TarotMoodCard({ mood, index, count, onClick, hint }) {
                   <span style={{ width: 5, height: 5, background: c, transform: "rotate(45deg)", boxShadow: `0 0 8px ${c}` }} />
                   <span style={{ flex: 1, height: 1, background: `linear-gradient(270deg, transparent, ${c}99)` }} />
                 </div>
-                <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em", color: "rgba(186,196,222,.72)" }}>
+                <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em", color: "rgba(var(--ac-bac4de),0.72)" }}>
                   {genres}
                 </div>
               </div>
@@ -387,7 +387,7 @@ function TarotMoodCard({ mood, index, count, onClick, hint }) {
               {/* voile de brume sur le bas de la carte */}
               <div style={{
                 position: "absolute", left: -20, right: -20, bottom: -14, height: 52, pointerEvents: "none",
-                background: "radial-gradient(ellipse at 50% 100%, rgba(214,222,255,.16) 0%, transparent 70%)",
+                background: "radial-gradient(ellipse at 50% 100%, rgba(var(--ac-d6deff),0.16) 0%, transparent 70%)",
                 animation: "mb-mist-sym 8s ease-in-out infinite",
               }} />
             </div>
@@ -396,7 +396,7 @@ function TarotMoodCard({ mood, index, count, onClick, hint }) {
             <span className="mb-tarot-x" style={{
               position: "absolute", top: -9, right: -9, width: 24, height: 24, borderRadius: "50%",
               display: "flex", alignItems: "center", justifyContent: "center",
-              background: "rgba(10,12,28,.95)", border: `1.5px solid ${c}`, color: c,
+              background: "rgba(var(--ac-0a0c1c),0.95)", border: `1.5px solid ${c}`, color: c,
               fontSize: 11, fontWeight: 900, opacity: 0, transition: "opacity .2s",
               boxShadow: `0 0 12px ${c}77`,
             }}>✕</span>
@@ -414,21 +414,21 @@ function GhostCard({ title, subtitle }) {
       <div style={{
         position: "relative", width: 150, height: 232, margin: "0 auto 20px", overflow: "hidden",
         borderRadius: "75px 75px 14px 14px", border: "1.5px dashed rgba(148,163,184,.42)",
-        background: "linear-gradient(180deg, rgba(10,12,28,.6) 0%, rgba(109,91,255,.1) 60%, rgba(214,222,255,.14) 100%)",
+        background: "linear-gradient(180deg, rgba(var(--ac-0a0c1c),0.6) 0%, rgba(var(--ac-6d5bff),0.1) 60%, rgba(var(--ac-d6deff),0.14) 100%)",
         animation: "mb-ghost 4.5s ease-in-out infinite",
-        boxShadow: "0 0 40px rgba(109,91,255,.14), inset 0 0 30px rgba(109,91,255,.08)",
+        boxShadow: "0 0 40px rgba(var(--ac-6d5bff),0.14), inset 0 0 30px rgba(var(--ac-6d5bff),0.08)",
       }}>
         <div style={{ position: "absolute", left: 0, right: 0, bottom: 38 }}>
-          <CloudStrip id="cl-ghost-a" tint="#6D5BFF" speed={48} opacity={0.24} height={44} delay={-5} fade />
+          <CloudStrip id="cl-ghost-a" tint="rgb(var(--ac-6d5bff))" speed={48} opacity={0.24} height={44} delay={-5} fade />
         </div>
         <div style={{ position: "absolute", left: 0, right: 0, bottom: -6 }}>
-          <CloudStrip id="cl-ghost-b" tint="#6D5BFF" speed={32} opacity={0.3} height={44} flip delay={-12} />
+          <CloudStrip id="cl-ghost-b" tint="rgb(var(--ac-6d5bff))" speed={32} opacity={0.3} height={44} flip delay={-12} />
         </div>
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", paddingBottom: 26 }}>
           <span style={{ fontSize: 54, lineHeight: 1, opacity: 0.6, filter: "grayscale(.25)", animation: "mb-cloud-bob 5s ease-in-out infinite" }}>🎭</span>
         </div>
       </div>
-      <div style={{ fontSize: 16, fontWeight: 800, color: "#e2e8f0", marginBottom: 6 }}>{title}</div>
+      <div style={{ fontSize: 16, fontWeight: 800, color: "rgb(var(--ac-e2e8f0))", marginBottom: 6 }}>{title}</div>
       <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(148,163,184,.8)" }}>{subtitle}</div>
     </div>
   );
@@ -437,7 +437,7 @@ function GhostCard({ title, subtitle }) {
 // ── Invocation : pack qui vibre dans un nuage de bagarre ─────────────────────
 function SummonPack({ selectedMoods, burst, label }) {
   const moods = selectedMoods.map(id => MOODS.find(m => m.id === id)).filter(Boolean);
-  const palette = moods.length ? moods.map(m => m.color) : ["#6D5BFF", "#8B5CF6", "#EC4899"];
+  const palette = moods.length ? moods.map(m => m.color) : ["rgb(var(--ac-6d5bff))", "rgb(var(--ac-8b5cf6))", "rgb(var(--ac-ec4899))"];
 
   return (
     <div className={burst ? "mb-burst" : ""} style={{ position: "relative", width: 320, height: 380, display: "flex", alignItems: "center", justifyContent: "center", animation: "mb-amp-ramp 2.6s ease-in forwards" }}>
@@ -449,7 +449,7 @@ function SummonPack({ selectedMoods, burst, label }) {
             const r = i % 2 === 0 ? 96 : 58 + (i % 4) * 5;
             return `${Math.cos(a) * r},${Math.sin(a) * r}`;
           }).join(" ")}
-          fill="rgba(139,92,246,.14)" stroke="rgba(167,139,250,.8)" strokeWidth="2" strokeLinejoin="round"
+          fill="rgba(var(--ac-8b5cf6),0.14)" stroke="rgba(var(--ac-a78bfa),0.8)" strokeWidth="2" strokeLinejoin="round"
         />
       </svg>
 
@@ -459,9 +459,9 @@ function SummonPack({ selectedMoods, burst, label }) {
           <span key={i} style={{
             position: "absolute", left: -p.s / 2, top: -p.s / 2, width: p.s, height: p.s, borderRadius: "50%",
             "--px": `${p.x}px`, "--py": `${p.y}px`,
-            background: "radial-gradient(circle at 34% 28%, #ffffff 0%, #eef1ff 36%, #aeb8e2 84%)",
-            border: "2px solid rgba(30,36,84,.55)",
-            boxShadow: "inset -7px -9px 16px rgba(70,80,170,.35)",
+            background: "radial-gradient(circle at 34% 28%, #ffffff 0%, rgb(var(--ac-eef1ff)) 36%, rgb(var(--ac-aeb8e2)) 84%)",
+            border: "2px solid rgba(var(--ac-1e2454),0.55)",
+            boxShadow: "inset -7px -9px 16px rgba(var(--ac-4650aa),0.35)",
             animation: `mb-puff .38s ease-in-out ${p.d}s infinite alternate`,
           }} />
         ))}
@@ -489,36 +489,36 @@ function SummonPack({ selectedMoods, burst, label }) {
           <div style={{ position: "absolute", left: "50%", top: -34, width: 0, height: 0, zIndex: 3 }}>
             <div style={{
               position: "absolute", left: 0, top: -34, width: 130, height: 130, marginLeft: -65, borderRadius: "50%",
-              background: "radial-gradient(circle, rgba(214,236,255,.85) 0%, rgba(139,92,246,.45) 38%, transparent 68%)",
+              background: "radial-gradient(circle, rgba(var(--ac-d6ecff),0.85) 0%, rgba(var(--ac-8b5cf6),0.45) 38%, transparent 68%)",
               transform: "translateX(-50%)", filter: "blur(3px)",
               animation: "mb-beacon-glow 1.12s ease-in-out infinite",
             }} />
-            <div style={{ position: "absolute", left: -14, top: 16, width: 28, height: 8, borderRadius: 2, background: "linear-gradient(180deg,#46557c,#232c4a)" }} />
+            <div style={{ position: "absolute", left: -14, top: 16, width: 28, height: 8, borderRadius: 2, background: "linear-gradient(180deg,rgb(var(--ac-46557c)),rgb(var(--ac-232c4a)))" }} />
             <div style={{
               position: "absolute", left: -9, top: -4, width: 18, height: 22, borderRadius: "9px 9px 3px 3px",
-              background: "linear-gradient(180deg,#f4fbff 0%,#bfe3ff 55%,#7fb9f0 100%)",
-              boxShadow: "0 0 18px #d6ecff, 0 0 40px rgba(139,92,246,.8)",
+              background: "linear-gradient(180deg,#f4fbff 0%,rgb(var(--ac-bfe3ff)) 55%,rgb(var(--ac-7fb9f0)) 100%)",
+              boxShadow: "0 0 18px rgb(var(--ac-d6ecff)), 0 0 40px rgba(var(--ac-8b5cf6),0.8)",
               animation: "mb-beacon 1.12s ease-in-out infinite",
             }} />
           </div>
 
-          <div style={{ filter: "drop-shadow(0 0 22px rgba(109,91,255,.7)) drop-shadow(0 12px 16px rgba(0,0,0,.55))" }}>
+          <div style={{ filter: "drop-shadow(0 0 22px rgba(var(--ac-6d5bff),0.7)) drop-shadow(0 12px 16px rgba(0,0,0,.55))" }}>
             <div style={{
               position: "relative", width: 158, height: 228, clipPath: PACK_CLIP,
-              background: "linear-gradient(160deg,#252a52 0%,#0f1124 52%,#2a1740 100%)",
+              background: "linear-gradient(160deg,rgb(var(--ac-252a52)) 0%,rgb(var(--ac-0f1124)) 52%,rgb(var(--ac-2a1740)) 100%)",
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-between",
               padding: "26px 14px 24px",
             }}>
-              <div style={{ position: "absolute", inset: 10, border: "1.5px solid rgba(167,139,250,.55)", borderRadius: 10, pointerEvents: "none" }} />
+              <div style={{ position: "absolute", inset: 10, border: "1.5px solid rgba(var(--ac-a78bfa),0.55)", borderRadius: 10, pointerEvents: "none" }} />
               <div style={{ position: "absolute", inset: 15, border: "1px solid rgba(255,255,255,.12)", borderRadius: 7, pointerEvents: "none" }} />
 
               <div style={{ position: "relative", marginTop: 6 }}>
-                <div style={{ position: "absolute", inset: -18, borderRadius: "50%", background: "radial-gradient(circle, rgba(139,92,246,.4) 0%, transparent 68%)", animation: "mb-beacon .56s ease-in-out infinite" }} />
-                <span style={{ position: "relative", display: "block", fontSize: 66, lineHeight: 1, filter: "drop-shadow(0 0 10px rgba(167,139,250,.7))" }}>🎭</span>
+                <div style={{ position: "absolute", inset: -18, borderRadius: "50%", background: "radial-gradient(circle, rgba(var(--ac-8b5cf6),0.4) 0%, transparent 68%)", animation: "mb-beacon .56s ease-in-out infinite" }} />
+                <span style={{ position: "relative", display: "block", fontSize: 66, lineHeight: 1, filter: "drop-shadow(0 0 10px rgba(var(--ac-a78bfa),0.7))" }}>🎭</span>
               </div>
 
               <div style={{ position: "relative", textAlign: "center" }}>
-                <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: "0.42em", paddingLeft: "0.42em", color: "#e5e7ff", marginBottom: 8 }}>ANIMOOD</div>
+                <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: "0.42em", paddingLeft: "0.42em", color: "rgb(var(--ac-e5e7ff))", marginBottom: 8 }}>ANIMOOD</div>
                 <div style={{ display: "flex", justifyContent: "center", gap: 6 }}>
                   {(moods.length ? moods : [null]).map((m, i) => (
                     <span key={i} style={{
@@ -534,12 +534,12 @@ function SummonPack({ selectedMoods, burst, label }) {
               {/* Reflet foil qui défile */}
               <div style={{
                 position: "absolute", inset: 0, pointerEvents: "none", mixBlendMode: "screen",
-                background: "linear-gradient(112deg, transparent 32%, rgba(255,255,255,.32) 46%, rgba(199,210,254,.22) 52%, transparent 66%)",
+                background: "linear-gradient(112deg, transparent 32%, rgba(255,255,255,.32) 46%, rgba(var(--ac-c7d2fe),0.22) 52%, transparent 66%)",
                 backgroundSize: "260% 100%", animation: "mb-foil .95s linear infinite",
               }} />
               <div style={{
                 position: "absolute", inset: 0, pointerEvents: "none", mixBlendMode: "color-dodge", opacity: 0.16,
-                background: "linear-gradient(135deg, #6D5BFF, #8B5CF6 50%, #EC4899)",
+                background: "linear-gradient(135deg, rgb(var(--ac-6d5bff)), rgb(var(--ac-8b5cf6)) 50%, rgb(var(--ac-ec4899)))",
               }} />
             </div>
           </div>
@@ -552,9 +552,9 @@ function SummonPack({ selectedMoods, burst, label }) {
           <span key={i} style={{
             position: "absolute", left: -p.s / 2, top: -p.s / 2, width: p.s, height: p.s, borderRadius: "50%",
             "--px": `${p.x}px`, "--py": `${p.y}px`,
-            background: "radial-gradient(circle at 34% 28%, #ffffff 0%, #eef1ff 36%, #aeb8e2 84%)",
-            border: "2px solid rgba(30,36,84,.55)",
-            boxShadow: "inset -6px -8px 14px rgba(70,80,170,.35)",
+            background: "radial-gradient(circle at 34% 28%, #ffffff 0%, rgb(var(--ac-eef1ff)) 36%, rgb(var(--ac-aeb8e2)) 84%)",
+            border: "2px solid rgba(var(--ac-1e2454),0.55)",
+            boxShadow: "inset -6px -8px 14px rgba(var(--ac-4650aa),0.35)",
             animation: `mb-puff .32s ease-in-out ${p.d}s infinite alternate`,
           }} />
         ))}
@@ -564,7 +564,7 @@ function SummonPack({ selectedMoods, burst, label }) {
       {burst && (
         <span style={{
           position: "absolute", left: "50%", top: "50%", width: 90, height: 90, borderRadius: "50%", pointerEvents: "none",
-          background: "radial-gradient(circle, #ffffff 0%, rgba(235,222,255,.95) 32%, rgba(167,139,250,.55) 58%, transparent 72%)",
+          background: "radial-gradient(circle, #ffffff 0%, rgba(var(--ac-ebdeff),0.95) 32%, rgba(var(--ac-a78bfa),0.55) 58%, transparent 72%)",
           animation: "mb-flash .75s ease-out forwards", zIndex: 6,
         }} />
       )}
@@ -572,7 +572,7 @@ function SummonPack({ selectedMoods, burst, label }) {
       {/* Libellé */}
       <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, textAlign: "center", opacity: burst ? 0 : 1, transition: "opacity .2s" }}>
         <span className="mb-stage-dots" style={{
-          fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "#cbd5e1",
+          fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "rgb(var(--ac-cbd5e1))",
           animation: "mb-summon-text 1.4s ease-in-out infinite", display: "inline-block",
         }}>
           {String(label || "").replace(/[….]+$/, "")}
@@ -600,10 +600,10 @@ export function MoodStage({ selectedMoods, generating, burst, hasSearched, onTog
         position: "relative", overflow: "hidden", minHeight: 560, borderRadius: 26,
         border: "1px solid rgba(255,255,255,.09)",
         background: [
-          "radial-gradient(70% 45% at 50% 0%, rgba(109,91,255,.18) 0%, transparent 70%)",
-          "linear-gradient(180deg,#0b0d1e 0%,#080914 55%,#0a0c1a 100%)",
+          "radial-gradient(70% 45% at 50% 0%, rgba(var(--ac-6d5bff),0.18) 0%, transparent 70%)",
+          "linear-gradient(180deg,rgb(var(--ac-0b0d1e)) 0%,rgb(var(--ac-080914)) 55%,rgb(var(--ac-0a0c1a)) 100%)",
         ].join(","),
-        boxShadow: "0 30px 80px rgba(0,0,0,.55), inset 0 0 80px rgba(20,24,60,.35)",
+        boxShadow: "0 30px 80px rgba(0,0,0,.55), inset 0 0 80px rgba(var(--ac-14183c),0.35)",
       }}
     >
       <Curtains />
@@ -612,7 +612,7 @@ export function MoodStage({ selectedMoods, generating, burst, hasSearched, onTog
       <div style={{
         position: "absolute", top: 40, left: 0, right: 0, textAlign: "center", pointerEvents: "none",
         fontSize: 10, fontWeight: 800, letterSpacing: "0.34em", paddingLeft: "0.34em",
-        textTransform: "uppercase", color: "rgba(203,213,225,.7)",
+        textTransform: "uppercase", color: "rgba(var(--ac-cbd5e1),0.7)",
       }}>
         {generating ? (en ? "The ritual begins" : "Le rituel commence") : (en ? "Your spread" : "Ton tirage")}
       </div>
@@ -620,7 +620,7 @@ export function MoodStage({ selectedMoods, generating, burst, hasSearched, onTog
       {/* sol de scène */}
       <div style={{
         position: "absolute", left: 0, right: 0, bottom: 0, height: 90, pointerEvents: "none",
-        background: "linear-gradient(180deg, transparent 0%, rgba(14,16,36,.9) 100%)",
+        background: "linear-gradient(180deg, transparent 0%, rgba(var(--ac-0e1024),0.9) 100%)",
         borderTop: "1px solid rgba(255,255,255,.05)",
       }} />
 
@@ -645,7 +645,7 @@ export function MoodStage({ selectedMoods, generating, burst, hasSearched, onTog
       {!generating && (
         <div style={{
           position: "absolute", bottom: 16, left: 0, right: 0, textAlign: "center", pointerEvents: "none",
-          fontSize: 10, fontWeight: 700, letterSpacing: "0.2em", color: "rgba(167,155,205,.6)",
+          fontSize: 10, fontWeight: 700, letterSpacing: "0.2em", color: "rgba(var(--ac-a79bcd),0.6)",
         }}>
           {moods.length}/3
         </div>

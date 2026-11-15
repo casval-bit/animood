@@ -81,13 +81,13 @@ export function GamePanelDesktop({ myUsername, following, onWordle, onPoster, on
   }, [myUsername, refreshKey]);
 
   const followingSet = new Set(following || []);
-  const color = (u) => (u === myUsername ? "#c084fc" : followingSet.has(u) ? "#22c55e" : "var(--text-2)");
+  const color = (u) => (u === myUsername ? "rgb(var(--ac-c084fc))" : followingSet.has(u) ? "#22c55e" : "var(--text-2)");
   const hasElo = !!elo;
   const total = elo ? (elo.elo_chain || 400) + (elo.elo_timeline || 400) + (elo.pts_wordle || 0) + (elo.pts_poster || 0) + (elo.pts_opquiz || 0) + (elo.pts_cluescale || 0) + (elo.pts_undercover || 0) : null;
 
   const solo = [
-    { id: "wordle", emoji: "🎯", label: t.wordleLabel, color: "124,58,237", pts: elo?.pts_wordle || 0, onClick: onWordle },
-    { id: "poster", emoji: "🖼", label: t.posterLabel, color: "236,72,153", pts: elo?.pts_poster || 0, onClick: onPoster },
+    { id: "wordle", emoji: "🎯", label: t.wordleLabel, color: "var(--ac-7c3aed)", pts: elo?.pts_wordle || 0, onClick: onWordle },
+    { id: "poster", emoji: "🖼", label: t.posterLabel, color: "var(--ac-ec4899)", pts: elo?.pts_poster || 0, onClick: onPoster },
     { id: "opquiz", emoji: "🎵", label: t.opquizLabel, color: "56,189,248", pts: elo?.pts_opquiz || 0, onClick: onOpQuiz },
   ];
   const duel = [
@@ -96,7 +96,7 @@ export function GamePanelDesktop({ myUsername, following, onWordle, onPoster, on
   ];
   const multi = [
     { id: "cluescale", emoji: "🎭", label: t.cluescaleLabel, color: "251,113,133", pts: elo?.pts_cluescale || 0, onClick: onCluescale },
-    { id: "undercover", emoji: "🕵️", label: t.undercoverLabel, color: "244,114,182", pts: elo?.pts_undercover || 0, onClick: onUndercover },
+    { id: "undercover", emoji: "🕵️", label: t.undercoverLabel, color: "var(--ac-f472b6)", pts: elo?.pts_undercover || 0, onClick: onUndercover },
   ];
   const tools = [{ id: "tierlist", emoji: "📊", label: t.tierlistLabel, color: "34,211,238", pts: null, onClick: onTierlist }];
 
@@ -129,10 +129,10 @@ export function GamePanelDesktop({ myUsername, following, onWordle, onPoster, on
               const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
               return (
                 <div key={r.username} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 10,
-                  background: isMe ? "rgba(124,58,237,0.12)" : "transparent", border: isMe ? "1px solid rgba(124,58,237,0.25)" : "1px solid transparent" }}>
+                  background: isMe ? "rgba(var(--ac-7c3aed),0.12)" : "transparent", border: isMe ? "1px solid rgba(var(--ac-7c3aed),0.25)" : "1px solid transparent" }}>
                   <span style={{ width: 20, textAlign: "center", fontSize: medal ? 14 : 11, fontWeight: 700, color: "var(--text-5)", flexShrink: 0 }}>{medal || i + 1}</span>
                   <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: isMe || followingSet.has(r.username) ? 800 : 600, color: color(r.username), overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {r.username}{isMe && <span style={{ marginLeft: 5, fontSize: 10, color: "#c084fc" }}>({x.you})</span>}
+                    {r.username}{isMe && <span style={{ marginLeft: 5, fontSize: 10, color: "rgb(var(--ac-c084fc))" }}>({x.you})</span>}
                   </span>
                   <span style={{ fontSize: 12, fontWeight: 800, color: "var(--text-2)", flexShrink: 0 }}>{r.total}</span>
                 </div>
@@ -141,9 +141,9 @@ export function GamePanelDesktop({ myUsername, following, onWordle, onPoster, on
             {myRank && myRank.rank > 20 && (
               <>
                 <div style={{ textAlign: "center", fontSize: 10, color: "var(--text-6)", padding: "2px 0" }}>· · ·</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 10, background: "rgba(124,58,237,0.12)", border: "1px solid rgba(124,58,237,0.25)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 10, background: "rgba(var(--ac-7c3aed),0.12)", border: "1px solid rgba(var(--ac-7c3aed),0.25)" }}>
                   <span style={{ width: 20, textAlign: "center", fontSize: 11, fontWeight: 700, color: "var(--text-5)" }}>{myRank.rank}</span>
-                  <span style={{ flex: 1, fontSize: 12, fontWeight: 800, color: "#c084fc" }}>{myUsername}</span>
+                  <span style={{ flex: 1, fontSize: 12, fontWeight: 800, color: "rgb(var(--ac-c084fc))" }}>{myUsername}</span>
                   <span style={{ fontSize: 12, fontWeight: 800, color: "var(--text-2)" }}>{myRank.total}</span>
                 </div>
               </>

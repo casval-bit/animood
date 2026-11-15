@@ -55,7 +55,7 @@ export function MessagesView() {
         <button
           onClick={() => setNewChat(true)}
           className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2.5 text-[13px] font-bold text-white transition hover:-translate-y-0.5"
-          style={{ background: GRADIENT_PRIMARY, boxShadow: "0 8px 24px rgba(109,91,255,.35)" }}
+          style={{ background: GRADIENT_PRIMARY, boxShadow: "0 8px 24px rgba(var(--ac-6d5bff),0.35)" }}
         >
           {t.newBtn}
         </button>
