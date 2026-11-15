@@ -18,8 +18,8 @@ export function GradientButton({ className = "", disabled, children, as: Comp = 
   return (
     <Comp
       disabled={disabled}
-      className={`rounded-full font-extrabold text-white transition-all duration-300 ${disabled ? "cursor-not-allowed opacity-40" : "hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-[0_20px_50px_rgba(139,92,246,.5)]"} ${className}`}
-      style={{ background: disabled ? "rgba(var(--fg-rgb),.06)" : GRADIENT_PRIMARY, boxShadow: disabled ? "none" : "0 12px 34px rgba(109,91,255,.35)" }}
+      className={`rounded-full font-extrabold text-white transition-all duration-300 ${disabled ? "cursor-not-allowed opacity-40" : "hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-[0_20px_50px_rgba(var(--ac-8b5cf6),0.5)]"} ${className}`}
+      style={{ background: disabled ? "rgba(var(--fg-rgb),.06)" : GRADIENT_PRIMARY, boxShadow: disabled ? "none" : "0 12px 34px rgba(var(--ac-6d5bff),0.35)" }}
       {...rest}
     >
       {children}
@@ -38,7 +38,7 @@ export function Chip({ label, emoji, selected, onClick }) {
       style={{
         background: selected ? GRADIENT_PRIMARY : "rgba(var(--fg-rgb),0.04)",
         border: selected ? "1px solid transparent" : "1px solid rgba(var(--fg-rgb),0.08)",
-        boxShadow: selected ? "0 6px 20px rgba(109,91,255,.35)" : "none",
+        boxShadow: selected ? "0 6px 20px rgba(var(--ac-6d5bff),0.35)" : "none",
       }}>
       {emoji && <span>{emoji}</span>}{label}
     </button>
@@ -93,7 +93,7 @@ export function BookmarkIcon({ filled, color = "#22c55e", size = 14 }) {
 }
 
 // Eye icon for watched
-function EyeIcon({ filled, color = "#818cf8" }) {
+function EyeIcon({ filled, color = "rgb(var(--ac-818cf8))" }) {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -146,14 +146,14 @@ export function QuickActionIcons({ anime, variant = "watched" }) {
         <button onClick={toggleWatchlist}
           title={isOnWatchlist ? t.removeFromWatchlist : t.addToWatchlist}
           className="absolute left-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full backdrop-blur transition hover:scale-110"
-          style={{ background: isOnWatchlist ? "rgba(34,197,94,.85)" : "rgba(15,23,42,.65)", boxShadow: isOnWatchlist ? "0 0 12px rgba(34,197,94,.5)" : "none" }}>
+          style={{ background: isOnWatchlist ? "rgba(34,197,94,.85)" : "rgba(var(--ac-0f172a),0.65)", boxShadow: isOnWatchlist ? "0 0 12px rgba(34,197,94,.5)" : "none" }}>
           <BookmarkIcon filled={isOnWatchlist}/>
         </button>
       ) : (
         <button onClick={toggleWatched}
           title={isWatched ? t.markUnwatched : t.markWatched}
           className="absolute left-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full backdrop-blur transition hover:scale-110"
-          style={{ background: isWatched ? "rgba(129,140,248,.85)" : "rgba(15,23,42,.65)", boxShadow: isWatched ? "0 0 12px rgba(129,140,248,.5)" : "none" }}>
+          style={{ background: isWatched ? "rgba(var(--ac-818cf8),0.85)" : "rgba(var(--ac-0f172a),0.65)", boxShadow: isWatched ? "0 0 12px rgba(var(--ac-818cf8),0.5)" : "none" }}>
           <EyeIcon filled={isWatched}/>
         </button>
       )}
@@ -162,7 +162,7 @@ export function QuickActionIcons({ anime, variant = "watched" }) {
       <button onClick={toggleHighlight}
         title={isHighlighted ? t.removeFromHighlights : t.addToHighlights}
         className="absolute right-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full text-xs backdrop-blur transition hover:scale-110"
-        style={{ background: isHighlighted ? "rgba(236,72,153,.85)" : "rgba(15,23,42,.65)", boxShadow: isHighlighted ? "0 0 12px rgba(236,72,153,.5)" : "none" }}>
+        style={{ background: isHighlighted ? "rgba(var(--ac-ec4899),0.85)" : "rgba(var(--ac-0f172a),0.65)", boxShadow: isHighlighted ? "0 0 12px rgba(var(--ac-ec4899),0.5)" : "none" }}>
         {isHighlighted ? "❤️" : "🤍"}
       </button>
     </>

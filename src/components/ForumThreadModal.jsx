@@ -142,14 +142,14 @@ export function NewThreadModal({ username, onClose, onCreated, animeId, animeTit
           <button onClick={() => imageInputRef.current?.click()} disabled={imageUploading} type="button"
             className="rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition"
             style={imageUrl
-              ? { borderColor: "rgba(129,140,248,.3)", background: "rgba(129,140,248,.15)", color: "#818cf8" }
+              ? { borderColor: "rgba(var(--ac-818cf8),0.3)", background: "rgba(var(--ac-818cf8),0.15)", color: "rgb(var(--ac-818cf8))" }
               : { borderColor: "rgba(var(--fg-rgb),.1)", background: "rgba(var(--fg-rgb),.05)", color: "var(--text-2)" }}>
             {imageUploading ? t.imageUploading : imageUrl ? t.imageChange : t.imageAdd}
           </button>
           <button onClick={()=>setPoll(p=>p?null:{options:["",""],multi:false})} type="button"
             className="rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition"
             style={poll
-              ? { borderColor: "rgba(124,58,237,.3)", background: "rgba(124,58,237,.15)", color: "#c084fc" }
+              ? { borderColor: "rgba(var(--ac-7c3aed),0.3)", background: "rgba(var(--ac-7c3aed),0.15)", color: "rgb(var(--ac-c084fc))" }
               : { borderColor: "rgba(var(--fg-rgb),.1)", background: "rgba(var(--fg-rgb),.05)", color: "var(--text-2)" }}>
 {poll ? t.pollRemove : t.pollAdd}
           </button>
@@ -274,13 +274,13 @@ function ForumPollDisplay({ threadId, username }) {
             onClick={()=>!voted || poll.multi ? vote(opt.id) : null}
             className="relative overflow-hidden border-b border-white/4 px-3 py-2.5 last:border-0"
             style={{cursor: voted&&!poll.multi ? "default":"pointer",
-              background: myVote ? "rgba(124,58,237,0.12)" : "transparent"}}>
+              background: myVote ? "rgba(var(--ac-7c3aed),0.12)" : "transparent"}}>
             {voted && (
               <div className="absolute inset-0 bg-violet-500/10 transition-all duration-500"
                 style={{width:`${pct}%`}}/>
             )}
             <div className="relative flex items-center justify-between">
-              <span className="text-sm" style={{color:myVote?"#c084fc":"var(--text-1)",fontWeight:myVote?700:400}}>
+              <span className="text-sm" style={{color:myVote?"rgb(var(--ac-c084fc))":"var(--text-1)",fontWeight:myVote?700:400}}>
                 {myVote && "✓ "}{opt.text}
               </span>
               {voted && <span className="text-[11px] font-bold text-violet-400">{pct}%</span>}

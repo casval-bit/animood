@@ -72,10 +72,10 @@ export function GameModal({ onClose, children, title, subtitle, maxWidth = "920p
         height: fullHeight ? "94vh" : "auto", maxHeight:"94vh",
         display:"flex", flexDirection:"column",
         borderRadius:24,
-        border:"1px solid rgba(124,58,237,0.35)",
-        outline:"4px solid rgba(124,58,237,0.08)", outlineOffset:"2px",
+        border:"1px solid rgba(var(--ac-7c3aed),0.35)",
+        outline:"4px solid rgba(var(--ac-7c3aed),0.08)", outlineOffset:"2px",
         background:"var(--surface-1-strong)",
-        boxShadow:"0 0 0 1px rgba(255,255,255,0.05), 0 24px 80px rgba(0,0,0,0.75), 0 0 80px rgba(109,40,217,0.14), inset 0 1px 0 rgba(255,255,255,0.06)",
+        boxShadow:"0 0 0 1px rgba(255,255,255,0.05), 0 24px 80px rgba(0,0,0,0.75), 0 0 80px rgba(var(--ac-6d28d9),0.14), inset 0 1px 0 rgba(255,255,255,0.06)",
         transition:"opacity 0.22s, transform 0.22s",
         transform: visible ? "translateY(0) scale(1)" : "translateY(16px) scale(0.96)",
         opacity: visible ? 1 : 0,
@@ -83,7 +83,7 @@ export function GameModal({ onClose, children, title, subtitle, maxWidth = "920p
       }}>
         {/* Top shimmer */}
         <div style={{position:"absolute",top:0,left:"10%",right:"10%",height:1,
-          background:"linear-gradient(90deg,transparent,rgba(167,139,250,0.45),transparent)",pointerEvents:"none"}}/>
+          background:"linear-gradient(90deg,transparent,rgba(var(--ac-a78bfa),0.45),transparent)",pointerEvents:"none"}}/>
 
         {/* Title bar */}
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,

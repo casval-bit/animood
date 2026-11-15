@@ -275,7 +275,7 @@ export function WordleGame({ onClose }) {
               color:"var(--text-1)",fontSize:13,outline:"none"}}/>
           {suggestions.length > 0 && (
             <div style={{position:"absolute",top:"calc(100%+4px)",left:0,right:0,zIndex:50,
-              background:"#161226",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,
+              background:"rgb(var(--ac-161226))",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,
               boxShadow:"0 8px 32px rgba(0,0,0,0.5)",maxHeight:240,overflowY:"auto"}}>
               {suggestions.map(a=>(
                 <button key={a.mal_id} onClick={()=>tryGuess(a)}
@@ -503,7 +503,7 @@ export function PosterGame({ onClose }) {
               color:"var(--text-1)",fontSize:13,outline:"none"}}/>
           {suggestions.length > 0 && (
             <div style={{position:"absolute",top:"calc(100%+4px)",left:0,right:0,zIndex:50,
-              background:"#161226",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,
+              background:"rgb(var(--ac-161226))",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,
               boxShadow:"0 8px 32px rgba(0,0,0,0.5)",maxHeight:200,overflowY:"auto"}}>
               {suggestions.map(a=>(
                 <button key={a.mal_id} onClick={()=>tryGuess(a)}
@@ -794,7 +794,7 @@ export function OpQuizGame({ onClose }) {
 
       {/* Player — video/audio stays hidden behind an opaque cover while guessing, and only reveals once the round is answered */}
       <div style={{position:"relative",width:"100%",aspectRatio:"16/9",borderRadius:12,overflow:"hidden",
-        background:"#0a0a12",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"center"}}>
+        background:"rgb(var(--ac-0a0a12))",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"center"}}>
         {playing ? (
           current.audioUrl ? (
             <>
@@ -818,13 +818,13 @@ export function OpQuizGame({ onClose }) {
           )
         ) : (
           <button onClick={()=>{ setPlaying(true); roundStartRef.current = Date.now(); }}
-            style={{background:"rgba(124,58,237,0.15)",border:"2px solid rgba(124,58,237,0.4)",
-              borderRadius:"50%",width:64,height:64,cursor:"pointer",fontSize:24,color:"#c084fc"}}>
+            style={{background:"rgba(var(--ac-7c3aed),0.15)",border:"2px solid rgba(var(--ac-7c3aed),0.4)",
+              borderRadius:"50%",width:64,height:64,cursor:"pointer",fontSize:24,color:"rgb(var(--ac-c084fc))"}}>
             ▶
           </button>
         )}
         {playing && !revealed && (
-          <div style={{position:"absolute",inset:0,zIndex:2,background:"#0a0a12",display:"flex",flexDirection:"column",
+          <div style={{position:"absolute",inset:0,zIndex:2,background:"rgb(var(--ac-0a0a12))",display:"flex",flexDirection:"column",
             alignItems:"center",justifyContent:"center",gap:8,pointerEvents:"none"}}>
             <span style={{fontSize:32}}>🎧</span>
             <span style={{fontSize:12,color:"var(--text-4)",fontWeight:700}}>{t.listening}</span>
@@ -863,7 +863,7 @@ export function OpQuizGame({ onClose }) {
               color:"var(--text-1)",fontSize:13,outline:"none"}}/>
           {suggestions.length > 0 && (
             <div style={{position:"absolute",top:"calc(100%+4px)",left:0,right:0,zIndex:50,
-              background:"#161226",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,
+              background:"rgb(var(--ac-161226))",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,
               boxShadow:"0 8px 32px rgba(0,0,0,0.5)",maxHeight:240,overflowY:"auto"}}>
               {suggestions.map(a=>(
                 <button key={a.mal_id} onClick={()=>submitGuess(a)}
@@ -887,7 +887,7 @@ export function OpQuizGame({ onClose }) {
       {revealed && (
         <button onClick={nextRound}
           style={{width:"100%",padding:"10px 0",borderRadius:12,border:"none",cursor:"pointer",
-            background:"linear-gradient(135deg,#7c3aed,#c026d3)",color:"#fff",fontWeight:800,fontSize:13}}>
+            background:"linear-gradient(135deg,rgb(var(--ac-7c3aed)),rgb(var(--ac-c026d3)))",color:"#fff",fontWeight:800,fontSize:13}}>
           {t.next}
         </button>
       )}

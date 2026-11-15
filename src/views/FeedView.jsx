@@ -25,7 +25,7 @@ function Avatar({ profile, size=32 }) {
   const src = profile?.avatar_base64 || (profile?.avatar?.startsWith?.("http") ? profile.avatar : null);
   return (
     <div style={{width:size,height:size,borderRadius:"50%",flexShrink:0,overflow:"hidden",
-      background:"linear-gradient(135deg,#7c3aed,#4f46e5)",display:"flex",alignItems:"center",
+      background:"linear-gradient(135deg,rgb(var(--ac-7c3aed)),rgb(var(--ac-4f46e5)))",display:"flex",alignItems:"center",
       justifyContent:"center",fontSize:size*0.45}}>
       {src ? <img loading="lazy" decoding="async" src={src} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : (profile?.avatar||"👤")}
     </div>
@@ -210,10 +210,10 @@ function PostComposer({ onPost }) {
           {filterError && <p style={{fontSize:10,color:"#ef4444",marginBottom:6}}>⚠️ {filterError}</p>}
           {linkedAnime && (
             <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",
-              background:"rgba(129,140,248,0.1)",borderRadius:8,border:"1px solid rgba(129,140,248,0.2)",marginBottom:8}}>
+              background:"rgba(var(--ac-818cf8),0.1)",borderRadius:8,border:"1px solid rgba(var(--ac-818cf8),0.2)",marginBottom:8}}>
               <img loading="lazy" decoding="async" src={linkedAnime.image_url} alt="" style={{width:24,height:34,objectFit:"cover",borderRadius:3}}
                 onError={e=>{e.target.style.display="none";}}/>
-              <span style={{fontSize:12,color:"#818cf8",fontWeight:700,flex:1}}>{linkedAnime.title}</span>
+              <span style={{fontSize:12,color:"rgb(var(--ac-818cf8))",fontWeight:700,flex:1}}>{linkedAnime.title}</span>
               <button onClick={()=>setLinkedAnime(null)}
                 style={{background:"none",border:"none",color:"var(--text-3)",cursor:"pointer",fontSize:14}}>✕</button>
             </div>
@@ -221,9 +221,9 @@ function PostComposer({ onPost }) {
           {/* Poll builder */}
           {poll && (
             <div style={{marginBottom:10,padding:"10px 12px",borderRadius:10,
-              background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)"}}>
+              background:"rgba(var(--ac-7c3aed),0.08)",border:"1px solid rgba(var(--ac-7c3aed),0.2)"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                <span style={{fontSize:11,fontWeight:800,color:"#c084fc"}}>📊 Sondage</span>
+                <span style={{fontSize:11,fontWeight:800,color:"rgb(var(--ac-c084fc))"}}>📊 Sondage</span>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <label style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:"var(--text-3)",cursor:"pointer"}}>
                     <input type="checkbox" checked={poll.multi} onChange={e=>setPoll(p=>({...p,multi:e.target.checked}))}/>
@@ -253,7 +253,7 @@ function PostComposer({ onPost }) {
               ))}
               {poll.options.length < 6 && (
                 <button onClick={()=>setPoll(p=>({...p,options:[...p.options,""]}))}
-                  style={{fontSize:11,color:"#c084fc",background:"none",border:"none",cursor:"pointer",padding:"4px 0",fontWeight:700}}>
+                  style={{fontSize:11,color:"rgb(var(--ac-c084fc))",background:"none",border:"none",cursor:"pointer",padding:"4px 0",fontWeight:700}}>
                   + Ajouter une option
                 </button>
               )}
@@ -262,13 +262,13 @@ function PostComposer({ onPost }) {
           <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:8,whiteSpace:"nowrap",borderTop:"1px solid rgba(var(--fg-rgb),0.06)",paddingTop:10}}>
             <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{display:"none"}}/>
             <button onClick={()=>imageInputRef.current?.click()} disabled={imageUploading}
-              style={{padding:"5px 10px",borderRadius:8,background:imageUrl?"rgba(129,140,248,0.15)":"rgba(var(--fg-rgb),0.05)",
-                border:"1px solid rgba(var(--fg-rgb),0.1)",color:imageUrl?"#818cf8":"var(--text-2)",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+              style={{padding:"5px 10px",borderRadius:8,background:imageUrl?"rgba(var(--ac-818cf8),0.15)":"rgba(var(--fg-rgb),0.05)",
+                border:"1px solid rgba(var(--fg-rgb),0.1)",color:imageUrl?"rgb(var(--ac-818cf8))":"var(--text-2)",fontSize:11,fontWeight:700,cursor:"pointer"}}>
               {imageUploading ? "⏳" : "🖼"} {imageUploading ? t.imageUploading : imageUrl ? t.imageChange : t.imageAdd}
             </button>
             <button onClick={()=>setShowAnimePicker(p=>!p)}
-              style={{padding:"5px 10px",borderRadius:8,background:linkedAnime?"rgba(129,140,248,0.15)":"rgba(var(--fg-rgb),0.05)",
-                border:"1px solid rgba(var(--fg-rgb),0.1)",color:linkedAnime?"#818cf8":"var(--text-2)",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+              style={{padding:"5px 10px",borderRadius:8,background:linkedAnime?"rgba(var(--ac-818cf8),0.15)":"rgba(var(--fg-rgb),0.05)",
+                border:"1px solid rgba(var(--fg-rgb),0.1)",color:linkedAnime?"rgb(var(--ac-818cf8))":"var(--text-2)",fontSize:11,fontWeight:700,cursor:"pointer"}}>
               📺 {linkedAnime ? t.animeChange : t.animeLink}
             </button>
             <button onClick={()=>setSpoiler(p=>!p)}
@@ -280,17 +280,17 @@ function PostComposer({ onPost }) {
             </button>
             <button onClick={()=>!poll && setPoll({options:["",""],multi:false})}
               style={{padding:"5px 10px",borderRadius:8,
-                background:poll?"rgba(124,58,237,0.15)":"rgba(var(--fg-rgb),0.05)",
-                border:`1px solid ${poll?"rgba(124,58,237,0.3)":"rgba(var(--fg-rgb),0.1)"}`,
-                color:poll?"#c084fc":"var(--text-2)",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                background:poll?"rgba(var(--ac-7c3aed),0.15)":"rgba(var(--fg-rgb),0.05)",
+                border:`1px solid ${poll?"rgba(var(--ac-7c3aed),0.3)":"rgba(var(--fg-rgb),0.1)"}`,
+                color:poll?"rgb(var(--ac-c084fc))":"var(--text-2)",fontSize:11,fontWeight:700,cursor:"pointer"}}>
               📊 Sondage
             </button>
             <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10}}>
               <span style={{fontSize:11,color:remaining<20?"#ef4444":"var(--text-3)",fontWeight:600}}>{remaining}</span>
               <button onClick={handlePost} disabled={!canPost}
                 style={{padding:"7px 16px",borderRadius:10,border:"none",
-                  background:canPost?(desktop?GRADIENT_PRIMARY:"linear-gradient(135deg,#7c3aed,#4f46e5)"):"rgba(var(--fg-rgb),0.05)",
-                  ...(desktop?{boxShadow:canPost?"0 8px 22px rgba(109,91,255,.35)":"none"}:{}),
+                  background:canPost?(desktop?GRADIENT_PRIMARY:"linear-gradient(135deg,rgb(var(--ac-7c3aed)),rgb(var(--ac-4f46e5)))"):"rgba(var(--fg-rgb),0.05)",
+                  ...(desktop?{boxShadow:canPost?"0 8px 22px rgba(var(--ac-6d5bff),0.35)":"none"}:{}),
                   color:canPost?"#fff":"var(--text-4)",fontWeight:800,fontSize:13,cursor:canPost?"pointer":"not-allowed"}}>
                 {posting ? t.posting : t.post}
               </button>
@@ -362,9 +362,9 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
               <div style={{display:"flex",alignItems:"baseline",gap:5,marginBottom:3,flexWrap:"wrap"}}>
                 <span onClick={()=>onOpenUser?.(c.username)}
                   style={{fontSize:11,fontWeight:800,cursor:onOpenUser?"pointer":"default",
-                    background:"linear-gradient(90deg,#8B5CF6,#EC4899)",WebkitBackgroundClip:"text",backgroundClip:"text",color:"transparent"}}>{profileCache[c.username]?.name||c.username}</span>
+                    background:"linear-gradient(90deg,rgb(var(--ac-8b5cf6)),rgb(var(--ac-ec4899)))",WebkitBackgroundClip:"text",backgroundClip:"text",color:"transparent"}}>{profileCache[c.username]?.name||c.username}</span>
                 <span onClick={()=>onOpenUser?.(c.username)}
-                  style={{fontSize:10,color:"#c084fc",fontWeight:700,cursor:onOpenUser?"pointer":"default"}}>@{c.username}</span>
+                  style={{fontSize:10,color:"rgb(var(--ac-c084fc))",fontWeight:700,cursor:onOpenUser?"pointer":"default"}}>@{c.username}</span>
                 <span style={{fontSize:9,color:"var(--text-4)"}}>{timeAgo(c.created_at, lang)}</span>
               </div>
               <p style={{fontSize:12,color:"var(--text-1)",margin:0,lineHeight:1.5}}><MentionText text={c.content} onOpenUser={onOpenUser}/></p>
@@ -395,7 +395,7 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
             onPick={username => setNewComment(mention.applyMention(newComment, username))}/>
           <button onClick={handleComment} disabled={!newComment.trim()||posting}
             style={{padding:"7px 12px",borderRadius:20,border:"none",
-              background:newComment.trim()?"rgba(124,58,237,0.8)":"rgba(var(--fg-rgb),0.05)",
+              background:newComment.trim()?"rgba(var(--ac-7c3aed),0.8)":"rgba(var(--fg-rgb),0.05)",
               color:newComment.trim()?"#fff":"var(--text-4)",fontSize:12,fontWeight:700,cursor:newComment.trim()?"pointer":"not-allowed"}}>
             ↑
           </button>
@@ -466,9 +466,9 @@ function PollDisplay({ postId, myUsername }) {
 
   return (
     <div style={{marginBottom:10,borderRadius:10,overflow:"hidden",
-      border:"1px solid rgba(124,58,237,0.2)",background:"rgba(124,58,237,0.04)"}}>
+      border:"1px solid rgba(var(--ac-7c3aed),0.2)",background:"rgba(var(--ac-7c3aed),0.04)"}}>
       {poll.multi && !voted && (
-        <div style={{padding:"6px 12px",fontSize:10,color:"#c084fc",borderBottom:"1px solid rgba(124,58,237,0.1)"}}>
+        <div style={{padding:"6px 12px",fontSize:10,color:"rgb(var(--ac-c084fc))",borderBottom:"1px solid rgba(var(--ac-7c3aed),0.1)"}}>
           📊 Choix multiple — vote pour plusieurs options
         </div>
       )}
@@ -480,19 +480,19 @@ function PollDisplay({ postId, myUsername }) {
           <div key={opt.id} style={{padding:"8px 12px",
             borderBottom:"1px solid rgba(255,255,255,0.04)",position:"relative",overflow:"hidden",
             cursor:voted?"default":"pointer",
-            background:myVote?"rgba(124,58,237,0.1)":"transparent"}}
+            background:myVote?"rgba(var(--ac-7c3aed),0.1)":"transparent"}}
             onClick={()=>!voted && vote(opt.id)}>
             {/* Progress bar — only shown after vote */}
             {voted && (
-              <div style={{position:"absolute",inset:0,background:"rgba(124,58,237,0.12)",
+              <div style={{position:"absolute",inset:0,background:"rgba(var(--ac-7c3aed),0.12)",
                 width:`${pct}%`,transition:"width 0.5s ease",pointerEvents:"none"}}/>
             )}
             <div style={{position:"relative",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <span style={{fontSize:13,color:myVote?"#c084fc":"var(--text-1)",fontWeight:myVote?700:400}}>
+              <span style={{fontSize:13,color:myVote?"rgb(var(--ac-c084fc))":"var(--text-1)",fontWeight:myVote?700:400}}>
                 {myVote && "✓ "}{opt.text}
               </span>
               {voted && (
-                <span style={{fontSize:11,fontWeight:800,color:"#c084fc"}}>{pct}%</span>
+                <span style={{fontSize:11,fontWeight:800,color:"rgb(var(--ac-c084fc))"}}>{pct}%</span>
               )}
             </div>
           </div>
@@ -542,14 +542,14 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
   return (
     <div style={desktop
       ? {background:"var(--surface-1)",borderRadius:20,
-         border:`1px solid ${hasComments?"rgba(139,92,246,0.22)":"rgba(var(--fg-rgb),0.07)"}`,
+         border:`1px solid ${hasComments?"rgba(var(--ac-8b5cf6),0.22)":"rgba(var(--fg-rgb),0.07)"}`,
          padding:18,marginBottom:0,animation:"fadeIn 0.25s ease",boxShadow:"var(--shadow-card)",
          transition:"border-color .2s, transform .2s"}
       : {background:"rgba(var(--fg-rgb),0.03)",borderRadius:16,
-      border:`1px solid ${hasComments?"rgba(129,140,248,0.15)":"rgba(var(--fg-rgb),0.06)"}`,
+      border:`1px solid ${hasComments?"rgba(var(--ac-818cf8),0.15)":"rgba(var(--fg-rgb),0.06)"}`,
       padding:14,marginBottom:10,animation:"fadeIn 0.2s ease"}}
-      onMouseEnter={desktop?(e=>{e.currentTarget.style.borderColor="rgba(139,92,246,0.35)";}):undefined}
-      onMouseLeave={desktop?(e=>{e.currentTarget.style.borderColor=hasComments?"rgba(139,92,246,0.22)":"rgba(var(--fg-rgb),0.07)";}):undefined}>
+      onMouseEnter={desktop?(e=>{e.currentTarget.style.borderColor="rgba(var(--ac-8b5cf6),0.35)";}):undefined}
+      onMouseLeave={desktop?(e=>{e.currentTarget.style.borderColor=hasComments?"rgba(var(--ac-8b5cf6),0.22)":"rgba(var(--fg-rgb),0.07)";}):undefined}>
       {/* Header */}
       <div style={{display:"flex",gap:10,marginBottom:10}}>
         <div onClick={()=>onOpenUser?.(post.username)} style={{cursor:onOpenUser?"pointer":"default"}}>
@@ -559,19 +559,19 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
           <div style={{display:"flex",alignItems:"baseline",gap:6,flexWrap:"wrap"}}>
             <span onClick={()=>onOpenUser?.(post.username)}
               style={{fontSize:13,fontWeight:800,cursor:onOpenUser?"pointer":"default",
-                background:"linear-gradient(90deg,#8B5CF6,#EC4899)",WebkitBackgroundClip:"text",backgroundClip:"text",
-                WebkitTextFillColor:"transparent",color:"#EC4899"}}
+                background:"linear-gradient(90deg,rgb(var(--ac-8b5cf6)),rgb(var(--ac-ec4899)))",WebkitBackgroundClip:"text",backgroundClip:"text",
+                WebkitTextFillColor:"transparent",color:"rgb(var(--ac-ec4899))"}}
               onMouseEnter={e=>{if(onOpenUser)e.currentTarget.style.textDecoration="underline";}}
               onMouseLeave={e=>{e.currentTarget.style.textDecoration="none";}}>{profile.name||post.username}</span>
             <span onClick={()=>onOpenUser?.(post.username)}
-              style={{fontSize:11,color:"#c084fc",fontWeight:700,cursor:onOpenUser?"pointer":"default"}}>@{post.username}</span>
+              style={{fontSize:11,color:"rgb(var(--ac-c084fc))",fontWeight:700,cursor:onOpenUser?"pointer":"default"}}>@{post.username}</span>
             <span style={{fontSize:10,color:"var(--text-4)"}}>{timeAgo(post.created_at, lang)}</span>
             {post.spoiler && <span style={{fontSize:9,fontWeight:700,color:"#ef4444",background:"rgba(239,68,68,0.1)",borderRadius:4,padding:"1px 5px"}}>{t.spoilerTag}</span>}
           </div>
           {post.anime_title && (
             <div style={{display:"flex",alignItems:"center",gap:5,marginTop:2}}>
               {post.anime_image && <img loading="lazy" decoding="async" src={post.anime_image} alt="" style={{width:16,height:22,objectFit:"cover",borderRadius:2}} onError={e=>{e.target.style.display="none";}}/>}
-              <span style={{fontSize:10,color:"#818cf8",fontWeight:600}}>{post.anime_title}</span>
+              <span style={{fontSize:10,color:"rgb(var(--ac-818cf8))",fontWeight:600}}>{post.anime_title}</span>
               {(post.anime_season_label||post.anime_season) && <span style={{fontSize:9,color:"var(--text-4)"}}>· {post.anime_season_label||post.anime_season}</span>}
             </div>
           )}
@@ -606,7 +606,7 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
       {post.anime_genres?.length > 0 && (
         <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:8}}>
           {(post.anime_genres||[]).slice(0,3).map(g=>(
-            <span key={g.name||g} style={{fontSize:9,background:"rgba(129,140,248,0.1)",color:"#818cf8",borderRadius:4,padding:"1px 6px",fontWeight:600}}>
+            <span key={g.name||g} style={{fontSize:9,background:"rgba(var(--ac-818cf8),0.1)",color:"rgb(var(--ac-818cf8))",borderRadius:4,padding:"1px 6px",fontWeight:600}}>
               {g.name||g}
             </span>
           ))}
@@ -621,7 +621,7 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
         </button>
         <button onClick={()=>setShowComments(p=>!p)}
           style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:5,
-            color:showComments?"#818cf8":"var(--text-3)",fontSize:12,fontWeight:700}}>
+            color:showComments?"rgb(var(--ac-818cf8))":"var(--text-3)",fontSize:12,fontWeight:700}}>
           <span>💬</span>
           <span>{t.comments}{commentCount > 0 ? ` (${commentCount})` : ""}</span>
           <span style={{fontSize:10}}>{showComments?"▲":"▼"}</span>
@@ -779,7 +779,7 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
                       style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:14,cursor:"pointer",textAlign:"left",
                         border:on?"1px solid transparent":"1px solid rgba(var(--fg-rgb),0.07)",
                         background:on?GRADIENT_PRIMARY:"rgba(var(--fg-rgb),0.035)",
-                        boxShadow:on?"0 8px 22px rgba(109,91,255,.32)":"none",
+                        boxShadow:on?"0 8px 22px rgba(var(--ac-6d5bff),0.32)":"none",
                         color:on?"#fff":"var(--text-2)",fontSize:13,fontWeight:700,transition:"all .2s"}}>
                       <span style={{fontSize:17}}>{c.emoji}</span><span>{c.label}</span>
                     </button>
@@ -815,7 +815,7 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
                       <Avatar profile={profileCache[u]||{avatar:"👤"}} size={30}/>
                       <div style={{minWidth:0,flex:1}}>
                         <div style={{fontSize:12,fontWeight:700,color:"var(--text-1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{profileCache[u]?.name||u}</div>
-                        <div style={{fontSize:10,color:"#c084fc"}}>@{u}</div>
+                        <div style={{fontSize:10,color:"rgb(var(--ac-c084fc))"}}>@{u}</div>
                       </div>
                       <span style={{fontSize:10,color:"var(--text-4)"}}>{L.mention(n)}</span>
                     </div>
@@ -836,9 +836,9 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
         {CHANNELS.map(c => (
           <button key={c.id} onClick={()=>setChannel(c.id)}
             style={{padding:"7px 14px",borderRadius:20,
-              border:`1px solid ${channel===c.id?"#7c3aed":"rgba(var(--fg-rgb),0.08)"}`,
-              background:channel===c.id?"rgba(124,58,237,0.15)":"rgba(var(--fg-rgb),0.03)",
-              color:channel===c.id?"#c084fc":"var(--text-3)",fontSize:12,fontWeight:700,cursor:"pointer",
+              border:`1px solid ${channel===c.id?"rgb(var(--ac-7c3aed))":"rgba(var(--fg-rgb),0.08)"}`,
+              background:channel===c.id?"rgba(var(--ac-7c3aed),0.15)":"rgba(var(--fg-rgb),0.03)",
+              color:channel===c.id?"rgb(var(--ac-c084fc))":"var(--text-3)",fontSize:12,fontWeight:700,cursor:"pointer",
               display:"flex",alignItems:"center",gap:5}}>
             <span>{c.emoji}</span><span>{c.label}</span>
           </button>

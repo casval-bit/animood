@@ -62,7 +62,7 @@ function AnimeDiscussions({ malId, onOpenThread, onNewThread, refreshKey }) {
         </div>
         <button onClick={onNewThread}
           className="rounded-lg px-3 py-1 text-[10px] font-bold transition"
-          style={{background:"rgba(124,58,237,0.15)",color:"#c084fc",border:"1px solid rgba(124,58,237,0.25)"}}>
+          style={{background:"rgba(var(--ac-7c3aed),0.15)",color:"rgb(var(--ac-c084fc))",border:"1px solid rgba(var(--ac-7c3aed),0.25)"}}>
           + Nouvelle discussion
         </button>
       </div>
@@ -84,8 +84,8 @@ function AnimeDiscussions({ malId, onOpenThread, onNewThread, refreshKey }) {
               style={{cursor:"pointer"}}>
               <div className="flex items-start gap-3">
                 {/* Activity dot */}
-                <div style={{width:8,height:8,borderRadius:"50%",background:"#c084fc",marginTop:4,flexShrink:0,
-                  boxShadow:"0 0 6px rgba(192,132,252,0.6)"}}/>
+                <div style={{width:8,height:8,borderRadius:"50%",background:"rgb(var(--ac-c084fc))",marginTop:4,flexShrink:0,
+                  boxShadow:"0 0 6px rgba(var(--ac-c084fc),0.6)"}}/>
                 <div className="flex-1 min-w-0">
                   <div className="text-[12px] font-bold text-slate-100 truncate mb-0.5">{thread.title}</div>
                   <div className="text-[10px] text-slate-500 flex items-center gap-2 flex-wrap">
@@ -328,7 +328,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
           <>
             <div className="relative h-64 w-full overflow-hidden rounded-t-3xl">
               <img src={img} alt={title} onError={e=>{e.target.src=FALLBACK;}} className="h-full w-full object-cover" />
-              <div className="absolute inset-0 bg-linear-to-t from-[#0d0b18] via-[#0d0b18]/30 to-transparent" />
+              <div className="absolute inset-0 bg-linear-to-t from-[rgb(var(--ac-0d0b18))] via-[rgb(var(--ac-0d0b18))]/30 to-transparent" />
               <button onClick={close} className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-slate-200 backdrop-blur hover:bg-black/70">✕</button>
 
               {/* Score circles on banner */}
@@ -350,10 +350,10 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                       <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
                         <div style={{
                           width:amSize, height:amSize, borderRadius:"50%",
-                          background:"rgba(124,58,237,0.85)",
+                          background:"rgba(var(--ac-7c3aed),0.85)",
                           backdropFilter:"blur(8px)",
-                          border:"2px solid rgba(192,132,252,0.5)",
-                          boxShadow:"0 0 16px rgba(124,58,237,0.5)",
+                          border:"2px solid rgba(var(--ac-c084fc),0.5)",
+                          boxShadow:"0 0 16px rgba(var(--ac-7c3aed),0.5)",
                           display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
                         }}>
                           <span style={{fontSize:amSize*0.28,fontWeight:900,color:"#fff",lineHeight:1}}>{animoodScore.toFixed(1)}</span>
@@ -495,7 +495,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                 {desktop && (
                   <div className="mb-5 rounded-2xl border border-white/8 bg-white/3 p-4">
                     <div className="mb-3 flex items-center gap-2">
-                      <span className="h-3.5 w-1 rounded-full" style={{ background: "linear-gradient(135deg,#6D5BFF,#8B5CF6,#EC4899)" }} />
+                      <span className="h-3.5 w-1 rounded-full" style={{ background: "linear-gradient(135deg,rgb(var(--ac-6d5bff)),rgb(var(--ac-8b5cf6)),rgb(var(--ac-ec4899)))" }} />
                       <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{t.myRating}</span>
                       <div className="ml-auto"><StarRating value={rating} onChange={setRating} /></div>
                     </div>
@@ -647,7 +647,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                 {desktop && themes.length > 0 && (
                   <div className="order-3 rounded-2xl border border-white/8 bg-white/3 p-4">
                     <div className="mb-3 flex items-center gap-2">
-                      <span className="h-3.5 w-1 rounded-full" style={{ background: "linear-gradient(135deg,#6D5BFF,#8B5CF6,#EC4899)" }} />
+                      <span className="h-3.5 w-1 rounded-full" style={{ background: "linear-gradient(135deg,rgb(var(--ac-6d5bff)),rgb(var(--ac-8b5cf6)),rgb(var(--ac-ec4899)))" }} />
                       <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{t.openings}</span>
                     </div>
                     <div className="flex flex-col gap-1.5">

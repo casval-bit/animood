@@ -38,7 +38,7 @@ export function StreamingSettingsDesktop({ lang = "fr", Section, playSound = () 
           {REGIONS.map((r) => (
             <button key={r.code} onClick={() => { playSound("click"); setUserRegion(r.code); }}
               className="flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-[12px] font-bold transition"
-              style={region === r.code ? { borderColor: "rgba(139,92,246,.7)", background: "rgba(124,58,237,.16)", color: "#e9e5ff" } : { borderColor: "rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", color: "rgb(203,213,225)" }}>
+              style={region === r.code ? { borderColor: "rgba(var(--ac-8b5cf6),0.7)", background: "rgba(var(--ac-7c3aed),0.16)", color: "rgb(var(--ac-e9e5ff))" } : { borderColor: "rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", color: "rgb(var(--ac-cbd5e1))" }}>
               <span className="text-[17px] leading-none">{r.flag}</span>{en ? r.en : r.fr}
             </button>
           ))}

@@ -28,6 +28,7 @@ import { GlossBars, HudCard, HudTitle, HudChip, HudTabs } from "./profileHud.jsx
 import { useHudCss } from "./hudCss.js";
 import { ProfileListsDesktop } from "./ProfileListsDesktop.jsx";
 import { ProfileStatsDesktop } from "./ProfileStatsDesktop.jsx";
+import { withAlpha } from "../utils/withAlpha.js";
 
 // ─── PERSONAL MOOD RADAR ──────────────────────────────────────────────────────
 function PersonalMoodRadar({ ratings, watched, bare = false }) {
@@ -155,8 +156,8 @@ function StatBars({ items, color, sortKey, onToggleSort }) {
         {["count","avg"].map(k => (
           <button key={k} onClick={()=>onToggleSort(k)}
             className="text-[9px] px-2 py-0.5 rounded-full font-bold transition"
-            style={{background:sortKey===k?"rgba(124,58,237,0.3)":"rgba(255,255,255,0.05)",
-                    color:sortKey===k?"#c084fc":"var(--text-4)"}}>
+            style={{background:sortKey===k?"rgba(var(--ac-7c3aed),0.3)":"rgba(255,255,255,0.05)",
+                    color:sortKey===k?"rgb(var(--ac-c084fc))":"var(--text-4)"}}>
             {k==="count"?t.sortCount:t.sortAvgRating}
           </button>
         ))}
@@ -216,12 +217,12 @@ function YearCurve({ data }) {
           <text x={PAD-4} y={toY(v)+4} textAnchor="end" fontSize="8" fill="rgba(148,163,184,0.6)">{v}</text>
         </g>
       ))}
-      <path d={path} fill="none" stroke="#7c3aed" strokeWidth="2" strokeLinejoin="round"/>
+      <path d={path} fill="none" stroke="rgb(var(--ac-7c3aed))" strokeWidth="2" strokeLinejoin="round"/>
       <path d={path + ` L ${pts[pts.length-1][0]} ${H-PAD} L ${pts[0][0]} ${H-PAD} Z`}
-        fill="rgba(124,58,237,0.1)" strokeWidth="0"/>
+        fill="rgba(var(--ac-7c3aed),0.1)" strokeWidth="0"/>
       {data.map((d,i) => (
         <circle key={i} cx={toX(d.year)} cy={toY(d.avg)} r="3"
-          fill="#7c3aed" stroke="#c084fc" strokeWidth="1.5">
+          fill="rgb(var(--ac-7c3aed))" stroke="rgb(var(--ac-c084fc))" strokeWidth="1.5">
           <title>{t.yearTooltip(d.year, d.avg, d.count)}</title>
         </circle>
       ))}
@@ -284,14 +285,14 @@ function StatsTab({ statsData, ratings, watched }) {
       {/* Top Genres */}
       <div>
         <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎌 Top Genres</div>
-        <StatBars items={statsData.topGenres} color="linear-gradient(90deg,#7c3aed,#4f46e5)"
+        <StatBars items={statsData.topGenres} color="linear-gradient(90deg,rgb(var(--ac-7c3aed)),rgb(var(--ac-4f46e5)))"
           sortKey={genreSort} onToggleSort={setGenreSort}/>
       </div>
 
       {/* Top Studios */}
       <div>
         <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">🎬 Top Studios</div>
-        <StatBars items={statsData.topStudios} color="linear-gradient(90deg,#ec4899,#f97316)"
+        <StatBars items={statsData.topStudios} color="linear-gradient(90deg,rgb(var(--ac-ec4899)),#f97316)"
           sortKey={studioSort} onToggleSort={setStudioSort}/>
       </div>
 
@@ -321,8 +322,8 @@ function StatsTab({ statsData, ratings, watched }) {
             {["count","avg"].map(k => (
               <button key={k} onClick={()=>setMoodSort(k)}
                 className="text-[9px] px-2 py-0.5 rounded-full font-bold transition"
-                style={{background:moodSort===k?"rgba(124,58,237,0.3)":"rgba(255,255,255,0.05)",
-                        color:moodSort===k?"#c084fc":"var(--text-4)"}}>
+                style={{background:moodSort===k?"rgba(var(--ac-7c3aed),0.3)":"rgba(255,255,255,0.05)",
+                        color:moodSort===k?"rgb(var(--ac-c084fc))":"var(--text-4)"}}>
                 {k==="count"?t.moodSortCount:t.moodSortAvg}
               </button>
             ))}
@@ -343,7 +344,7 @@ function StatsTab({ statsData, ratings, watched }) {
                   </div>
                   <div className="h-1.5 rounded-full bg-white/6 overflow-hidden">
                     <div className="h-full rounded-full transition-all duration-500"
-                      style={{width:`${(val/max)*100}%`, background:MOOD_META_STATS[item.key]?.color||"#7c3aed"}}/>
+                      style={{width:`${(val/max)*100}%`, background:MOOD_META_STATS[item.key]?.color||"rgb(var(--ac-7c3aed))"}}/>
                   </div>
                 </div>
               );
@@ -422,9 +423,9 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete, hud = false
 
   return (
     <div style={hud
-      ? {background:"linear-gradient(135deg, rgba(10,6,30,0.85) 0%, rgba(15,9,40,0.75) 100%)",borderRadius:16,
-         border:"1px solid rgba(139,92,246,0.18)",padding:16,position:"relative",overflow:"hidden",
-         boxShadow:`inset 3px 0 0 ${post._type==="written"?"#a855f7":"#6366f1"}`}
+      ? {background:"linear-gradient(135deg, rgba(var(--ac-0a061e),0.85) 0%, rgba(var(--ac-0f0928),0.75) 100%)",borderRadius:16,
+         border:"1px solid rgba(var(--ac-8b5cf6),0.18)",padding:16,position:"relative",overflow:"hidden",
+         boxShadow:`inset 3px 0 0 ${post._type==="written"?"rgb(var(--ac-a855f7))":"rgb(var(--ac-6366f1))"}`}
       : {background:"rgba(var(--fg-rgb),0.03)",borderRadius:16,
          border:"1px solid rgba(var(--fg-rgb),0.06)",padding:14,marginBottom:10}}>
       {/* Header */}
@@ -433,11 +434,11 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete, hud = false
           <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:2}}>
             <span style={{fontSize:10,color:"var(--text-4)"}}>{new Date(post.created_at).toLocaleDateString("fr-FR",{day:"numeric",month:"short",year:"numeric"})}</span>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-              style={{background:post._type==="written"?"rgba(124,58,237,0.2)":"rgba(99,102,241,0.15)",
-                      color:post._type==="written"?"#c084fc":"#818cf8"}}>
+              style={{background:post._type==="written"?"rgba(var(--ac-7c3aed),0.2)":"rgba(var(--ac-6366f1),0.15)",
+                      color:post._type==="written"?"rgb(var(--ac-c084fc))":"rgb(var(--ac-818cf8))"}}>
               {post._type==="written"?"✍️ Post":"💬 Commenté"}
             </span>
-            {post.anime_title && <span style={{fontSize:10,color:"#818cf8",fontWeight:600}}>📺 {post.anime_title}</span>}
+            {post.anime_title && <span style={{fontSize:10,color:"rgb(var(--ac-818cf8))",fontWeight:600}}>📺 {post.anime_title}</span>}
           </div>
         </div>
         {post._type==="written" && (
@@ -464,7 +465,7 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete, hud = false
         </button>
         <button onClick={toggleComments}
           style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:5,
-            color:showComments?"#818cf8":"var(--text-3)",fontSize:12,fontWeight:700}}>
+            color:showComments?"rgb(var(--ac-818cf8))":"var(--text-3)",fontSize:12,fontWeight:700}}>
           {t.commentsLabel}{postComments.length>0||post.comment_count>0?` (${commentsLoaded?postComments.length:post.comment_count||0})`:""} {showComments?"▲":"▼"}
         </button>
       </div>
@@ -483,7 +484,7 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete, hud = false
                 return (
                   <div key={c.id||i} style={{display:"flex",gap:8,alignItems:"flex-start"}}>
                     <div style={{flex:1}}>
-                      <span style={{fontSize:10,fontWeight:800,color:"#c084fc",marginRight:6}}>@{c.username}</span>
+                      <span style={{fontSize:10,fontWeight:800,color:"rgb(var(--ac-c084fc))",marginRight:6}}>@{c.username}</span>
                       <span style={{fontSize:12,color:"var(--text-2)"}}>{c.content}</span>
                       <div style={{marginTop:3}}>
                         <button onClick={()=>toggleCommentLike(c.id)}
@@ -519,9 +520,9 @@ function StatCircle({ size, value, label, icon, ring, glow, onClick, title }) {
         style={{ position: "relative", width: size, height: size, padding: 0, border: "none", background: "none", cursor: onClick ? "pointer" : "default" }}>
         <div style={{ position: "absolute", inset: -10, borderRadius: "50%", background: `radial-gradient(circle, ${glow} 0%, transparent 70%)`, filter: "blur(5px)", pointerEvents: "none" }} />
         <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: ring }} />
-        <div style={{ position: "absolute", inset: 4, borderRadius: "50%", background: "#070816", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1 }}>
+        <div style={{ position: "absolute", inset: 4, borderRadius: "50%", background: "rgb(var(--ac-070816))", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1 }}>
           <span style={{ fontSize: Math.round(size * 0.17), lineHeight: 1 }}>{icon}</span>
-          <span style={{ fontSize: Math.round(size * 0.24), fontWeight: 900, lineHeight: 1.1, color: "#f1f5f9", letterSpacing: "-0.02em" }}>{value}</span>
+          <span style={{ fontSize: Math.round(size * 0.24), fontWeight: 900, lineHeight: 1.1, color: "rgb(var(--ac-f1f5f9))", letterSpacing: "-0.02em" }}>{value}</span>
         </div>
       </Tag>
       <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(148,163,184,.85)", textAlign: "center" }}>{label}</div>
@@ -573,22 +574,22 @@ function SpotlightCircle({ anime, lang, onOpen, onPick, onClear, size = 132, com
   return (
     <div className="sp-wrap" style={{ width: SIZE + 36, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 9 }}>
       <style>{SPOTLIGHT_CSS}</style>
-      <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.3em", paddingLeft: "0.3em", textTransform: "uppercase", color: "rgba(167,139,250,.85)" }}>
+      <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.3em", paddingLeft: "0.3em", textTransform: "uppercase", color: "rgba(var(--ac-a78bfa),0.85)" }}>
         {label}
       </div>
 
       <div style={{ position: "relative", width: SIZE, height: SIZE }}>
         {/* halo */}
-        <div style={{ position: "absolute", inset: -14, borderRadius: "50%", background: "radial-gradient(circle, rgba(109,91,255,.32) 0%, rgba(236,72,153,.1) 55%, transparent 72%)", filter: "blur(6px)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", inset: -14, borderRadius: "50%", background: "radial-gradient(circle, rgba(var(--ac-6d5bff),0.32) 0%, rgba(var(--ac-ec4899),0.1) 55%, transparent 72%)", filter: "blur(6px)", pointerEvents: "none" }} />
         {/* anneau dégradé de marque qui tourne */}
         <div style={{
           position: "absolute", inset: 0, borderRadius: "50%",
-          background: "conic-gradient(from 0deg, #6D5BFF, #8B5CF6, #EC4899, #8B5CF6, #6D5BFF)",
+          background: "conic-gradient(from 0deg, rgb(var(--ac-6d5bff)), rgb(var(--ac-8b5cf6)), rgb(var(--ac-ec4899)), rgb(var(--ac-8b5cf6)), rgb(var(--ac-6d5bff)))",
           animation: "sp-ring-rot 9s linear infinite",
           opacity: anime ? 1 : 0.35,
         }} />
         {/* écrin sombre */}
-        <div style={{ position: "absolute", inset: 4, borderRadius: "50%", background: "#070816" }} />
+        <div style={{ position: "absolute", inset: 4, borderRadius: "50%", background: "rgb(var(--ac-070816))" }} />
         {/* contenu */}
         <button type="button"
           onClick={anime ? onOpen : onPick}
@@ -596,7 +597,7 @@ function SpotlightCircle({ anime, lang, onOpen, onPick, onClear, size = 132, com
           title={anime ? anime.title : (en ? "Pick an anime" : "Choisir un animé")}
           style={{
             position: "absolute", inset: 7, borderRadius: "50%", overflow: "hidden", border: "none", padding: 0, cursor: "pointer",
-            background: anime ? "#0b0c1c" : "repeating-linear-gradient(45deg, rgba(148,163,184,.06) 0 7px, rgba(8,10,22,.7) 7px 14px)",
+            background: anime ? "rgb(var(--ac-0b0c1c))" : "repeating-linear-gradient(45deg, rgba(148,163,184,.06) 0 7px, rgba(var(--ac-080a16),0.7) 7px 14px)",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
           {anime && img
@@ -606,8 +607,8 @@ function SpotlightCircle({ anime, lang, onOpen, onPick, onClear, size = 132, com
 
         {/* actions au survol */}
         {anime && (
-          <div className="sp-actions" style={{ position: "absolute", inset: 7, borderRadius: "50%", display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 6, paddingBottom: 10, opacity: 0, transition: "opacity .2s", pointerEvents: "none", background: "linear-gradient(180deg, transparent 45%, rgba(4,5,14,.82) 100%)" }}>
-            <button type="button" onClick={onPick} style={{ pointerEvents: "auto", fontSize: 10, fontWeight: 800, color: "#e2e8f0", background: "rgba(255,255,255,.14)", border: "none", borderRadius: 999, padding: "3px 9px", cursor: "pointer" }}>
+          <div className="sp-actions" style={{ position: "absolute", inset: 7, borderRadius: "50%", display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 6, paddingBottom: 10, opacity: 0, transition: "opacity .2s", pointerEvents: "none", background: "linear-gradient(180deg, transparent 45%, rgba(var(--ac-04050e),0.82) 100%)" }}>
+            <button type="button" onClick={onPick} style={{ pointerEvents: "auto", fontSize: 10, fontWeight: 800, color: "rgb(var(--ac-e2e8f0))", background: "rgba(255,255,255,.14)", border: "none", borderRadius: 999, padding: "3px 9px", cursor: "pointer" }}>
               {en ? "Change" : "Changer"}
             </button>
             <button type="button" onClick={onClear} style={{ pointerEvents: "auto", fontSize: 10, fontWeight: 800, color: "#fca5a5", background: "rgba(255,255,255,.1)", border: "none", borderRadius: 999, padding: "3px 7px", cursor: "pointer" }}>✕</button>
@@ -617,7 +618,7 @@ function SpotlightCircle({ anime, lang, onOpen, onPick, onClear, size = 132, com
         {/* site web : pastille ✎ discrète (toujours visible, utile sans survol) */}
         {compact && (
           <button type="button" onClick={onPick} title={en ? (anime ? "Change" : "Pick an anime") : (anime ? "Changer" : "Choisir un animé")}
-            style={{ position: "absolute", right: 0, top: 2, width: 24, height: 24, borderRadius: "50%", background: "#1e1b4b", border: "2px solid #070816", color: "#c4b5fd", fontSize: 11, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+            style={{ position: "absolute", right: 0, top: 2, width: 24, height: 24, borderRadius: "50%", background: "rgb(var(--ac-1e1b4b))", border: "2px solid rgb(var(--ac-070816))", color: "rgb(var(--ac-c4b5fd))", fontSize: 11, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
             ✎
           </button>
         )}
@@ -625,8 +626,8 @@ function SpotlightCircle({ anime, lang, onOpen, onPick, onClear, size = 132, com
         {/* pastille « boucle » */}
         <div style={{
           position: "absolute", right: -2, bottom: 6, width: 28, height: 28, borderRadius: "50%",
-          background: GRADIENT_PRIMARY, border: "2px solid #070816", display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: "0 0 12px rgba(139,92,246,.6)", pointerEvents: "none",
+          background: GRADIENT_PRIMARY, border: "2px solid rgb(var(--ac-070816))", display: "flex", alignItems: "center", justifyContent: "center",
+          boxShadow: "0 0 12px rgba(var(--ac-8b5cf6),0.6)", pointerEvents: "none",
         }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ animation: "sp-badge-spin 6s linear infinite" }}>
             <path d="M21 12a9 9 0 0 1-15.5 6.2M3 12a9 9 0 0 1 15.5-6.2" />
@@ -635,13 +636,13 @@ function SpotlightCircle({ anime, lang, onOpen, onPick, onClear, size = 132, com
         </div>
       </div>
 
-      <div style={{ minHeight: 30, textAlign: "center", fontSize: 11.5, fontWeight: 700, lineHeight: 1.3, color: anime ? "#e2e8f0" : "rgba(148,163,184,.7)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+      <div style={{ minHeight: 30, textAlign: "center", fontSize: 11.5, fontWeight: 700, lineHeight: 1.3, color: anime ? "rgb(var(--ac-e2e8f0))" : "rgba(148,163,184,.7)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
         {anime ? anime.title : (en ? "Pin an anime" : "Épingle un animé")}
       </div>
       {anime && !compact && (
         <div style={{ display: "flex", gap: 6, marginTop: -2 }}>
           <button type="button" onClick={onPick}
-            style={{ fontSize: 10.5, fontWeight: 800, color: "#c4b5fd", background: "rgba(139,92,246,.14)", border: "1px solid rgba(139,92,246,.35)", borderRadius: 999, padding: "3px 11px", cursor: "pointer" }}>
+            style={{ fontSize: 10.5, fontWeight: 800, color: "rgb(var(--ac-c4b5fd))", background: "rgba(var(--ac-8b5cf6),0.14)", border: "1px solid rgba(var(--ac-8b5cf6),0.35)", borderRadius: 999, padding: "3px 11px", cursor: "pointer" }}>
             ✎ {en ? "Change" : "Changer"}
           </button>
           <button type="button" onClick={onClear} title={en ? "Remove" : "Retirer"}
@@ -665,8 +666,8 @@ function HudPanel({ me, rated, myUsername, unlockedBadges, activeBadge, onOpenBa
 
   const hudCard = {
     borderRadius: 16,
-    border: "1px solid rgba(139,92,246,0.18)",
-    background: "linear-gradient(135deg, rgba(10,6,30,0.85) 0%, rgba(15,9,40,0.75) 100%)",
+    border: "1px solid rgba(var(--ac-8b5cf6),0.18)",
+    background: "linear-gradient(135deg, rgba(var(--ac-0a061e),0.85) 0%, rgba(var(--ac-0f0928),0.75) 100%)",
     backdropFilter: "blur(12px)",
     padding: "14px 16px",
     position: "relative",
@@ -677,7 +678,7 @@ function HudPanel({ me, rated, myUsername, unlockedBadges, activeBadge, onOpenBa
     position: "absolute",
     left: 0, right: 0,
     height: 40,
-    background: "linear-gradient(180deg, transparent 0%, rgba(139,92,246,0.05) 50%, transparent 100%)",
+    background: "linear-gradient(180deg, transparent 0%, rgba(var(--ac-8b5cf6),0.05) 50%, transparent 100%)",
     animation: "hud-scan 5s linear infinite",
     pointerEvents: "none",
   };
@@ -687,10 +688,10 @@ function HudPanel({ me, rated, myUsername, unlockedBadges, activeBadge, onOpenBa
     [pos.includes("t") ? "top" : "bottom"]: 0,
     [pos.includes("l") ? "left" : "right"]: 0,
     width: 12, height: 12,
-    borderTop: pos.includes("t") ? "2px solid rgba(139,92,246,0.5)" : "none",
-    borderBottom: pos.includes("b") ? "2px solid rgba(139,92,246,0.5)" : "none",
-    borderLeft: pos.includes("l") ? "2px solid rgba(139,92,246,0.5)" : "none",
-    borderRight: pos.includes("r") ? "2px solid rgba(139,92,246,0.5)" : "none",
+    borderTop: pos.includes("t") ? "2px solid rgba(var(--ac-8b5cf6),0.5)" : "none",
+    borderBottom: pos.includes("b") ? "2px solid rgba(var(--ac-8b5cf6),0.5)" : "none",
+    borderLeft: pos.includes("l") ? "2px solid rgba(var(--ac-8b5cf6),0.5)" : "none",
+    borderRight: pos.includes("r") ? "2px solid rgba(var(--ac-8b5cf6),0.5)" : "none",
   });
 
   // Histogramme des notes 1-10
@@ -705,11 +706,11 @@ function HudPanel({ me, rated, myUsername, unlockedBadges, activeBadge, onOpenBa
       {/* ── ROW 1 — métriques (affichées dans le bandeau du profil sur desktop) ── */}
       {!noTiles && <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
         {[
-          { icon: "▶", label: t.statVus || "Vus",   value: me.watched.length, color: "#a855f7", delay: "0ms" },
-          { icon: "★", label: t.statNotes || "Notes", value: rated.length,      color: "#6366f1", delay: "100ms" },
-          { icon: "⌀", label: t.statMoy || "Moy.",   value: avgScore ?? "—",   color: "#e879f9", delay: "200ms" },
+          { icon: "▶", label: t.statVus || "Vus",   value: me.watched.length, color: "rgb(var(--ac-a855f7))", delay: "0ms" },
+          { icon: "★", label: t.statNotes || "Notes", value: rated.length,      color: "rgb(var(--ac-6366f1))", delay: "100ms" },
+          { icon: "⌀", label: t.statMoy || "Moy.",   value: avgScore ?? "—",   color: "rgb(var(--ac-e879f9))", delay: "200ms" },
           { icon: "🏆", label: t.badges || "Badges",  value: unlockedBadges.length, color: "#fbbf24", onClick: onOpenBadges, delay: "300ms" },
-          { icon: "🎮", label: t.statPoints || "Points", value: fmtPoints(gamePts), hover: gamePts === null ? undefined : `${gamePts.toLocaleString()} pts`, color: "#ec4899", delay: "400ms" },
+          { icon: "🎮", label: t.statPoints || "Points", value: fmtPoints(gamePts), hover: gamePts === null ? undefined : `${gamePts.toLocaleString()} pts`, color: "rgb(var(--ac-ec4899))", delay: "400ms" },
         ].map(({ icon, label, value, color, onClick, delay, hover }) => (
           <div key={label}
             onClick={onClick}
@@ -725,13 +726,13 @@ function HudPanel({ me, rated, myUsername, unlockedBadges, activeBadge, onOpenBa
             <div style={scanLine} />
             <div style={{ position: "absolute", ...cornerDeco("tl") }} />
             <div style={{ position: "absolute", ...cornerDeco("br") }} />
-            <div style={{ fontSize: 11, color, marginBottom: 4, filter: `drop-shadow(0 0 6px ${color}88)` }}>{icon}</div>
+            <div style={{ fontSize: 11, color, marginBottom: 4, filter: `drop-shadow(0 0 6px ${withAlpha(color, "88")})` }}>{icon}</div>
             <div style={{
               fontSize: 22, fontWeight: 900,
               color: "#fff",
               letterSpacing: -1,
               animation: `counter-cascade 0.6s cubic-bezier(.34,1.56,.64,1) ${delay} both`,
-              textShadow: `0 0 12px ${color}66`,
+              textShadow: `0 0 12px ${withAlpha(color, "66")}`,
             }}>{value}</div>
             <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: "rgba(148,163,184,0.55)", marginTop: 3 }}>{label}</div>
           </div>
@@ -748,7 +749,7 @@ function HudPanel({ me, rated, myUsername, unlockedBadges, activeBadge, onOpenBa
         <div style={{ position: "absolute", ...cornerDeco("br") }} />
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase", color: "rgba(139,92,246,0.7)" }}>
+          <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase", color: "rgba(var(--ac-8b5cf6),0.7)" }}>
             DISTRIBUTION DES NOTES
           </div>
           <div style={{ fontSize: 8, color: "rgba(100,116,139,0.5)", fontWeight: 600 }}>
@@ -770,7 +771,7 @@ function HudPanel({ me, rated, myUsername, unlockedBadges, activeBadge, onOpenBa
         <div style={scanLine} />
         <div style={{ position: "absolute", ...cornerDeco("tl") }} />
         <div style={{ position: "absolute", ...cornerDeco("br") }} />
-        <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase", color: "rgba(139,92,246,0.7)", marginBottom: 8 }}>
+        <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase", color: "rgba(var(--ac-8b5cf6),0.7)", marginBottom: 8 }}>
           MOOD RADAR
         </div>
         <PersonalMoodRadar ratings={me.ratings} watched={me.watched} />
@@ -796,7 +797,7 @@ function FramePickerModal({ frames, unlocked, active, avatar, lang, onPick, onCl
           </div>
           <button type="button" onClick={() => { onPick(null); close(); }}
             className="mb-3 flex w-full items-center gap-3 rounded-xl p-2 text-left"
-            style={{ border: !active ? "2px solid #7c3aed" : "2px solid transparent", background: !active ? "rgba(124,58,237,0.1)" : "transparent", cursor: "pointer" }}>
+            style={{ border: !active ? "2px solid rgb(var(--ac-7c3aed))" : "2px solid transparent", background: !active ? "rgba(var(--ac-7c3aed),0.1)" : "transparent", cursor: "pointer" }}>
             <div style={{ width: 36, height: 36, borderRadius: "50%", border: "2px dashed rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>🚫</div>
             <div className="text-xs font-bold text-slate-100">{en ? "No frame" : "Aucun cadre"}</div>
           </button>
@@ -816,8 +817,8 @@ function FramePickerModal({ frames, unlocked, active, avatar, lang, onPick, onCl
                         title={getFrameLabel(frame, lang) + " — " + getFrameDesc(frame, lang)}
                         style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: 8, borderRadius: 12,
                           cursor: isUnlocked ? "pointer" : "not-allowed",
-                          border: isActive ? "2px solid #7c3aed" : "2px solid transparent",
-                          background: isActive ? "rgba(124,58,237,0.1)" : "rgba(255,255,255,0.03)",
+                          border: isActive ? "2px solid rgb(var(--ac-7c3aed))" : "2px solid transparent",
+                          background: isActive ? "rgba(var(--ac-7c3aed),0.1)" : "rgba(255,255,255,0.03)",
                           opacity: isUnlocked ? 1 : 0.4, filter: isUnlocked ? "none" : "grayscale(1)" }}>
                         <div style={{ position: "relative", width: sz, height: sz }}>
                           <div style={{ width: sz, height: sz, borderRadius: "50%", overflow: "hidden", background: GRADIENT_PRIMARY, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
@@ -1311,7 +1312,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
         <div className="mb-6 -mx-6 -mt-8 relative h-36 sm:h-48 overflow-hidden">
           <img loading="lazy" decoding="async" src={me.banner} alt="" className="w-full h-full object-cover" />
           <div className="absolute inset-0" style={{
-            background: "linear-gradient(to bottom, transparent 50%, rgba(2,6,23,0.85) 100%)",
+            background: "linear-gradient(to bottom, transparent 50%, rgba(var(--ac-020617),0.85) 100%)",
           }}/>
         </div>
       )}
@@ -1335,7 +1336,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
             <button type="button" onClick={() => { playSound("click"); setShowFramePicker(true); }}
               title={lang === "en" ? "Change frame" : "Changer le cadre"}
               aria-label={lang === "en" ? "Change profile frame" : "Changer le cadre de profil"}
-              style={{ position: "absolute", right: 2, bottom: 2, width: 26, height: 26, borderRadius: "50%", background: "#1e1b4b", border: "2px solid #070816", color: "#c4b5fd", fontSize: 11, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+              style={{ position: "absolute", right: 2, bottom: 2, width: 26, height: 26, borderRadius: "50%", background: "rgb(var(--ac-1e1b4b))", border: "2px solid rgb(var(--ac-070816))", color: "rgb(var(--ac-c4b5fd))", fontSize: 11, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
               ✎
             </button>
           )}
@@ -1407,7 +1408,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
           <div className="flex shrink-0 flex-wrap items-start justify-center gap-3 sm:flex-nowrap">
             <div className="flex items-start gap-1" style={{ marginTop: 20 + (112 - 80) / 2 }}>
               <StatCircle size={80} icon="🎮" value={fmtPoints(gamePts)} label={lang === "en" ? "Game pts" : "Pts jeux"}
-                ring="conic-gradient(from 0deg, #6D5BFF, #8B5CF6, #EC4899, #8B5CF6, #6D5BFF)" glow="rgba(109,91,255,.28)"
+                ring="conic-gradient(from 0deg, rgb(var(--ac-6d5bff)), rgb(var(--ac-8b5cf6)), rgb(var(--ac-ec4899)), rgb(var(--ac-8b5cf6)), rgb(var(--ac-6d5bff)))" glow="rgba(var(--ac-6d5bff),0.28)"
                 title={lang === "en" ? "Total game points" : "Points de jeu totaux"} />
               <StatCircle size={80} icon="🏆" value={unlockedBadges.length} label={t.badges || "Badges"}
                 ring="conic-gradient(from 0deg, #f59e0b, #fbbf24, #fde68a, #fbbf24, #f59e0b)" glow="rgba(251,191,36,.22)"
@@ -1474,7 +1475,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                       onDragOver={e=>handleDragOver(e,i)}
                       onDrop={()=>handleDrop(i)}
                       onDragEnd={()=>{setDragging(null);setDragOver(null);}}>
-                      <div style={{outline: isDragOver ? "2px solid #7c3aed" : "none", borderRadius: 8}}>
+                      <div style={{outline: isDragOver ? "2px solid rgb(var(--ac-7c3aed))" : "none", borderRadius: 8}}>
                         <AnimePoster
                           anime={favId?getAnime(favId):null}
                           loading={!!favId} empty={!favId}
@@ -1587,7 +1588,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                 </div>
               </div>
               {customListNames.length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 7, marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(139,92,246,0.14)" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 7, marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(var(--ac-8b5cf6),0.14)" }}>
                   <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1.5, textTransform: "uppercase", color: "rgba(148,163,184,.6)" }}>{t.aniListSubLists}</span>
                   {customListNames.map(name => (
                     <HudChip key={name} active={customListFilter === name} onClick={() => setCustomListFilter(customListFilter === name ? null : name)}>{name}</HudChip>
@@ -1623,7 +1624,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                 return (
                   <button key={name} onClick={() => setCustomListFilter(active?null:name)}
                     className="rounded-full px-3 py-1.5 text-[11px] font-semibold transition"
-                    style={{ border:`1px solid ${active?"#a78bfa":"rgba(var(--fg-rgb),0.08)"}`, background: active?"rgba(167,139,250,0.15)":"rgba(var(--fg-rgb),0.03)", color: active?"#a78bfa":"var(--text-3)" }}>
+                    style={{ border:`1px solid ${active?"rgb(var(--ac-a78bfa))":"rgba(var(--fg-rgb),0.08)"}`, background: active?"rgba(var(--ac-a78bfa),0.15)":"rgba(var(--fg-rgb),0.03)", color: active?"rgb(var(--ac-a78bfa))":"var(--text-3)" }}>
                     {name}
                   </button>
                 );
@@ -1656,7 +1657,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                 return (
                   <button key={id} onClick={() => onOpenDetail(a)} className="flex gap-3 overflow-hidden rounded-xl text-left"
                     style={hud
-                      ? { border:"1px solid rgba(139,92,246,0.16)", background:"linear-gradient(135deg, rgba(10,6,30,0.85), rgba(15,9,40,0.7))", boxShadow:`inset 3px 0 0 ${sc.dot}, 0 0 14px ${sc.dot}22` }
+                      ? { border:"1px solid rgba(var(--ac-8b5cf6),0.16)", background:"linear-gradient(135deg, rgba(var(--ac-0a061e),0.85), rgba(var(--ac-0f0928),0.7))", boxShadow:`inset 3px 0 0 ${sc.dot}, 0 0 14px ${sc.dot}22` }
                       : { border:`1px solid ${sc.border}`, background:sc.bg }}>
                     <div className="relative h-19 w-13 shrink-0 bg-black/20">
                       {img && <img loading="lazy" decoding="async" src={img} alt={a.title} className="h-full w-full object-cover" onError={e=>{e.target.style.display="none";}} />}
@@ -1946,15 +1947,15 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                         ["💬", en ? "Commented" : "Commentés", myPosts.length - written.length],
                         ["❤️", en ? "Likes received" : "Likes reçus", likesReceived],
                       ].map(([ic,k,v]) => (
-                        <div key={k} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 10px", borderRadius:10, background:"rgba(139,92,246,0.06)", border:"1px solid rgba(139,92,246,0.12)" }}>
+                        <div key={k} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 10px", borderRadius:10, background:"rgba(var(--ac-8b5cf6),0.06)", border:"1px solid rgba(var(--ac-8b5cf6),0.12)" }}>
                           <span style={{ fontSize:14 }}>{ic}</span>
                           <span style={{ flex:1, fontSize:10, color:"rgba(148,163,184,.85)" }}>{k}</span>
-                          <span style={{ fontSize:16, fontWeight:900, color:"#fff", textShadow:"0 0 10px rgba(168,85,247,.5)" }}>{v}</span>
+                          <span style={{ fontSize:16, fontWeight:900, color:"#fff", textShadow:"0 0 10px rgba(var(--ac-a855f7),0.5)" }}>{v}</span>
                         </div>
                       ))}
                     </div>
                     {best && (best.likes||[]).length > 0 && (
-                      <div style={{ marginTop:14, paddingTop:12, borderTop:"1px solid rgba(139,92,246,0.14)" }}>
+                      <div style={{ marginTop:14, paddingTop:12, borderTop:"1px solid rgba(var(--ac-8b5cf6),0.14)" }}>
                         <div style={{ fontSize:9, fontWeight:800, letterSpacing:1.5, textTransform:"uppercase", color:"rgba(251,191,36,.85)", marginBottom:6 }}>🏆 {en ? "Most liked" : "Le plus aimé"}</div>
                         <div style={{ fontSize:11, color:"var(--text-2)", lineHeight:1.5, display:"-webkit-box", WebkitLineClamp:3, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{best.content}</div>
                         <div style={{ fontSize:10, color:"#fb7185", fontWeight:800, marginTop:4 }}>❤️ {(best.likes||[]).length}</div>

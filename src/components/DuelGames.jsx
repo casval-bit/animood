@@ -26,7 +26,7 @@ import { aiRecordFor, recordAiResult } from "../utils/aiRecord.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const HIDDEN_FORFEIT_MS = 8_000;          // onglet masqué plus de 8 s pendant une partie classée : abandon
-const TONE_STUDIO = "59,130,246", TONE_GENRE = "236,72,153";
+const TONE_STUDIO = "var(--ac-3b82f6)", TONE_GENRE = "var(--ac-ec4899)";
 
 // ─── Styles propres aux jeux à deux ─────────────────────────────────────────────────────────────────────────────
 const DUEL_CSS = `
@@ -37,15 +37,15 @@ const DUEL_CSS = `
 .gm-link-ico{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:21px;background:rgba(var(--tone),.18);border:1px solid rgba(var(--tone),.4);flex-shrink:0}
 .gm-cur{display:flex;gap:16px;align-items:center;padding:14px 16px;border-radius:20px;background:var(--gm-fill);border:1px solid var(--gm-line)}
 .gm-chip{display:inline-flex;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;color:var(--text-2);background:rgba(var(--fg-rgb),.07);border:1px solid var(--gm-line)}
-.gm-chip.hl{color:#fff;background:rgba(var(--tone,139,92,246),.55);border-color:rgba(var(--tone,139,92,246),.8)}
+.gm-chip.hl{color:#fff;background:rgba(var(--tone,var(--ac-8b5cf6)),.55);border-color:rgba(var(--tone,var(--ac-8b5cf6)),.8)}
 .gm-sug{margin-top:6px;max-height:268px;overflow-y:auto;border-radius:14px;background:var(--surface-1-strong,#161226);border:1px solid rgba(var(--fg-rgb),.18);box-shadow:var(--shadow-modal,0 14px 44px rgba(0,0,0,.5));animation:gm-slide .14s both}
 .gm-sug button{display:flex;align-items:center;gap:11px;width:100%;padding:8px 12px;background:none;border:none;color:inherit;cursor:pointer;text-align:left;font:inherit;transition:background .12s}
-.gm-sug button:hover:not(:disabled),.gm-sug button.on{background:rgba(139,92,246,.2)}
+.gm-sug button:hover:not(:disabled),.gm-sug button.on{background:rgba(var(--ac-8b5cf6),0.2)}
 .gm-sug button:disabled{opacity:.45;cursor:not-allowed}
 .gm-chain-row{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:12px;background:var(--gm-fill);border:1px solid var(--gm-line)}
 .gm-hand-card{display:flex;flex-direction:column;align-items:center;gap:7px;padding:8px;border-radius:16px;border:2px solid transparent;background:transparent;color:inherit;font:inherit;cursor:pointer;transition:transform .16s,border-color .16s,background .16s,box-shadow .16s}
 .gm-hand-card:hover:not(:disabled){transform:translateY(-4px)}
-.gm-hand-card.sel{border-color:#a78bfa;background:rgba(139,92,246,.15);transform:translateY(-8px);box-shadow:0 14px 30px rgba(139,92,246,.38)}
+.gm-hand-card.sel{border-color:rgb(var(--ac-a78bfa));background:rgba(var(--ac-8b5cf6),0.15);transform:translateY(-8px);box-shadow:0 14px 30px rgba(var(--ac-8b5cf6),0.38)}
 .gm-hand-card:disabled{cursor:default}
 .gm-hand-card[draggable=true]:not(:disabled){cursor:grab}
 .gm-hand-card.drag{opacity:.45}
@@ -53,13 +53,13 @@ const DUEL_CSS = `
 .gm-hand-title{font-size:11.5px;font-weight:700;line-height:1.25;text-align:center;max-width:112px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .gm-tl{overflow-x:auto;padding:14px 4px 8px;scrollbar-width:thin;border-radius:20px;background:linear-gradient(180deg,rgba(var(--fg-rgb),.04),rgba(var(--fg-rgb),.015));border:1px solid var(--gm-line)}
 .gm-tl-in{position:relative;display:flex;align-items:flex-start;min-width:max-content;margin:0 auto;padding:0 8px;width:max-content}
-.gm-tl-in::before{content:"";position:absolute;left:8px;right:8px;top:76px;height:3px;border-radius:3px;background:linear-gradient(90deg,transparent,rgba(167,139,250,.55) 12%,rgba(236,72,153,.5) 88%,transparent)}
+.gm-tl-in::before{content:"";position:absolute;left:8px;right:8px;top:76px;height:3px;border-radius:3px;background:linear-gradient(90deg,transparent,rgba(var(--ac-a78bfa),0.55) 12%,rgba(var(--ac-ec4899),0.5) 88%,transparent)}
 .gm-tl-card{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;width:112px;flex-shrink:0}
 .gm-tl-year{font-size:16px;font-weight:900;color:var(--gm-violet);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
 .gm-tl-name{font-size:10.5px;font-weight:600;color:var(--text-2);text-align:center;max-width:104px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .gm-slot{position:relative;flex-shrink:0;align-self:flex-start;width:36px;height:152px;display:flex;align-items:center;justify-content:center;border-radius:14px;border:2px dashed transparent;background:transparent;color:transparent;font-size:24px;font-weight:900;padding:0;cursor:default;transition:width .15s,background .15s,border-color .15s,color .15s}
-.gm-slot.live{border-color:rgba(167,139,250,.55);color:var(--gm-violet);background:rgba(139,92,246,.08);cursor:pointer}
-.gm-slot.live:hover,.gm-slot.over{width:56px;border-color:var(--gm-violet);background:rgba(139,92,246,.3);color:var(--gm-on-violet)}
+.gm-slot.live{border-color:rgba(var(--ac-a78bfa),0.55);color:var(--gm-violet);background:rgba(var(--ac-8b5cf6),0.08);cursor:pointer}
+.gm-slot.live:hover,.gm-slot.over{width:56px;border-color:var(--gm-violet);background:rgba(var(--ac-8b5cf6),0.3);color:var(--gm-on-violet)}
 .gm-slot:focus-visible{outline:2px solid var(--gm-violet);outline-offset:2px}
 .gm-last{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:16px;border:1px solid var(--gm-line);background:var(--gm-fill);animation:gm-rise .3s both}
 .gm-last.good{border-color:rgba(34,197,94,.42);background:rgba(34,197,94,.09)}

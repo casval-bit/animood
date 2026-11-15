@@ -82,7 +82,7 @@ function FaqBody({ data }) {
       <div className="flex flex-col gap-2">
         {data.items.map((faq,i) => (
           <div key={i} className="overflow-hidden rounded-xl border border-white/7"
-            style={{ background: open===i ? "rgba(124,58,237,0.06)" : "rgba(255,255,255,0.02)" }}>
+            style={{ background: open===i ? "rgba(var(--ac-7c3aed),0.06)" : "rgba(255,255,255,0.02)" }}>
             <button onClick={() => setOpen(open===i ? null : i)}
               className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left">
               <span className="text-[12px] font-bold text-slate-100">{faq.q}</span>

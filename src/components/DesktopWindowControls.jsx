@@ -14,8 +14,8 @@ function WinBtn({ label, onClick, danger, children }) {
       style={{
         WebkitAppRegion: "no-drag", width: 30, height: 20, display: "flex", alignItems: "center", justifyContent: "center",
         border: 0, cursor: "default", transition: "background .12s, color .12s",
-        color: hov ? "#fff" : "rgba(196,181,253,0.38)",
-        background: hov ? (danger ? "rgba(239,68,68,0.85)" : "rgba(139,92,246,0.22)") : "transparent",
+        color: hov ? "#fff" : "rgba(var(--ac-c4b5fd),0.38)",
+        background: hov ? (danger ? "rgba(239,68,68,0.85)" : "rgba(var(--ac-8b5cf6),0.22)") : "transparent",
       }}>
       {children}
     </button>

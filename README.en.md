@@ -99,7 +99,7 @@ Open `http://localhost:5173`. No setup needed: the Supabase key in the code is t
 | `scripts/` + `run_*.bat` | Anime catalogue sync scripts |
 | `supabase/` | SQL schemas and database security rules |
 | `.github/workflows/` | Automatic syncs and desktop app builds |
-| `docs/` | Internal notes (in French): [publishing and maintenance](docs/MAINTENANCE.md), Microsoft Store, Moodboard |
+| `docs/` | Internal notes (in French): [publishing and maintenance](docs/MAINTENANCE.md), [color palettes](docs/PALETTES.md), Microsoft Store, Moodboard |
 
 The `animood-v.XX` branches are older versions; the current version is on **`main`**.
 
@@ -109,7 +109,8 @@ The `animood-v.XX` branches are older versions; the current version is on **`mai
 
 | Version | What's new |
 |---|---|
-| **v.14.02** | Mini-games reworked for the desktop app: new windows (Friends / Ranked / AI modes, same room with code and invitations for every game), always-visible "Forfeit" button, end screen showing the ELO and points won or lost, fixed Timeline (a missed card is replaced instead of vanishing, winner's points, second player's last chance), more believable AI (3 levels, record kept on the device), Cluescale ties, Tierlist: the saved image finally contains the posters, sync scripts: streaming platforms completed via Tenrai when AniList doesn't know an anime, a refused Tenrai key no longer breaks the sync (it carries on without a key) |
+| **v.14.03** | Desktop app: **new "Colors" option in Settings → Preferences** to change the colors of the whole app (on top of dark / light): Blue / violet (original), Yellow / orange, Red / salmon, Green / pink. The choice is remembered, applied right at startup, and works in both dark and light (backgrounds, buttons, gradients, glows, games, profile…). White button text stays readable on the lighter hues. The website is not affected: it keeps its colors. Details in `docs/PALETTES.md` |
+| v.14.02 | Mini-games reworked for the desktop app: new windows (Friends / Ranked / AI modes, same room with code and invitations for every game), always-visible "Forfeit" button, end screen showing the ELO and points won or lost, fixed Timeline (a missed card is replaced instead of vanishing, winner's points, second player's last chance), more believable AI (3 levels, record kept on the device), Cluescale ties, Tierlist: the saved image finally contains the posters, sync scripts: streaming platforms completed via Tenrai when AniList doesn't know an anime, a refused Tenrai key no longer breaks the sync (it carries on without a key) |
 | v.14.01 | More reliable multiplayer mini-games (each seat can be taken only once, no more ghost games, automatic forfeit of an absent opponent, ELO and points applied exactly once, AI games never write to the database, Cluescale without lost votes, reviewed Undercover words/hints), official platform icons on the "App" page, "Other suggestions" button next to "Find my anime", Settings/Messages buttons swapped, `npm test` (game rules), daily cleanup of abandoned rooms, sync scripts moved from Jikan to Tenrai + AniList (streaming in batches of 50, outage breaker, per-step time limits) |
 | v.14.00 | Reworked Moodboard (minimum mood threshold, friends' ratings, no more duplicate seasons, animated stage on large web screens too), Tierlist Studio, HUD-style profile, fixed calendar, frameless desktop window, new login page, animood.me domain |
 | v.13.00 | Stronger security (database, desktop app, site headers), QR-code install, mobile tab bar |

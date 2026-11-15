@@ -7,6 +7,7 @@ import { timeAgo } from "./ForumThreadModal.jsx";
 import { HEADER_I18N } from "../constants/headerI18n.js";
 import { SEARCH_I18N } from "../constants/searchI18n.js";
 import { isDesktopApp } from "../utils/streamingLinks.js";
+import { withAlpha } from "../utils/withAlpha.js";
 import { AiringCalendar } from "./search/AiringCalendar.jsx";
 
 // ── Tab order desktop : Profil en premier ─────────────────────────────────────
@@ -23,13 +24,13 @@ function getTabs(t) {
 
 // ── Palettes de couleurs par onglet ──────────────────────────────────────────
 const TAB_AURA = {
-  profile:   { primary: "#a855f7", secondary: "#7c3aed", accent: "#e879f9", name: "violet" },
-  feed:      { primary: "#6366f1", secondary: "#4f46e5", accent: "#818cf8", name: "indigo" },
-  moodboard: { primary: "#8b5cf6", secondary: "#7c3aed", accent: "#c084fc", name: "purple" },
-  search:    { primary: "#3b82f6", secondary: "#2563eb", accent: "#60a5fa", name: "blue" },
+  profile:   { primary: "rgb(var(--ac-a855f7))", secondary: "rgb(var(--ac-7c3aed))", accent: "rgb(var(--ac-e879f9))", name: "violet" },
+  feed:      { primary: "rgb(var(--ac-6366f1))", secondary: "rgb(var(--ac-4f46e5))", accent: "rgb(var(--ac-818cf8))", name: "indigo" },
+  moodboard: { primary: "rgb(var(--ac-8b5cf6))", secondary: "rgb(var(--ac-7c3aed))", accent: "rgb(var(--ac-c084fc))", name: "purple" },
+  search:    { primary: "rgb(var(--ac-3b82f6))", secondary: "rgb(var(--ac-2563eb))", accent: "rgb(var(--ac-60a5fa))", name: "blue" },
   forum:     { primary: "#06b6d4", secondary: "#0891b2", accent: "#67e8f9", name: "cyan" },
   games:     { primary: "#f59e0b", secondary: "#d97706", accent: "#fcd34d", name: "amber" },
-  messages:  { primary: "#6366f1", secondary: "#4f46e5", accent: "#818cf8", name: "indigo" },
+  messages:  { primary: "rgb(var(--ac-6366f1))", secondary: "rgb(var(--ac-4f46e5))", accent: "rgb(var(--ac-818cf8))", name: "indigo" },
 };
 
 function getAura(tabId) {
@@ -56,16 +57,16 @@ const DESKTOP_CSS = `
   100% { transform: translate(0, 0) scale(1); }
 }
 @keyframes tab-glow-pulse {
-  0%, 100% { box-shadow: 0 0 10px rgba(168,85,247,0.6), 0 0 24px rgba(168,85,247,0.18); }
-  50%       { box-shadow: 0 0 16px rgba(168,85,247,0.85), 0 0 38px rgba(168,85,247,0.28); }
+  0%, 100% { box-shadow: 0 0 10px rgba(var(--ac-a855f7),0.6), 0 0 24px rgba(var(--ac-a855f7),0.18); }
+  50%       { box-shadow: 0 0 16px rgba(var(--ac-a855f7),0.85), 0 0 38px rgba(var(--ac-a855f7),0.28); }
 }
 @keyframes aura-sweep {
   0%   { opacity: 0; transform: scaleX(0.4); }
   100% { opacity: 1; transform: scaleX(1); }
 }
 @keyframes logo-breathe {
-  0%, 100% { box-shadow: 0 0 20px rgba(124,58,237,0.5), 0 0 40px rgba(124,58,237,0.2), inset 0 1px 0 rgba(255,255,255,0.25); }
-  50%       { box-shadow: 0 0 28px rgba(168,85,247,0.7), 0 0 55px rgba(168,85,247,0.25), inset 0 1px 0 rgba(255,255,255,0.3); }
+  0%, 100% { box-shadow: 0 0 20px rgba(var(--ac-7c3aed),0.5), 0 0 40px rgba(var(--ac-7c3aed),0.2), inset 0 1px 0 rgba(255,255,255,0.25); }
+  50%       { box-shadow: 0 0 28px rgba(var(--ac-a855f7),0.7), 0 0 55px rgba(var(--ac-a855f7),0.25), inset 0 1px 0 rgba(255,255,255,0.3); }
 }
 @keyframes shimmer-flow {
   0%   { background-position: -200% 0; }
@@ -131,7 +132,7 @@ function DesktopNotificationBell({ onChangeTab, onJoinGame }) {
         onClick={() => { const next = !open; setOpen(next); if(next && count > 0) playSound("notify"); }}
         title={t.notifications}
         className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition hover:scale-110"
-        style={{ background: open ? GRADIENT_PRIMARY : "rgba(255,255,255,.07)", boxShadow: open ? "0 6px 18px rgba(109,91,255,.45)" : "none" }}
+        style={{ background: open ? GRADIENT_PRIMARY : "rgba(255,255,255,.07)", boxShadow: open ? "0 6px 18px rgba(var(--ac-6d5bff),0.45)" : "none" }}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={open ? "#fff" : "var(--text-2)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -272,7 +273,7 @@ function AmbientOrbs({ activeTab }) {
         position: "absolute", top: -60, left: "6%",
         width: 320, height: 200,
         borderRadius: "50%",
-        background: `radial-gradient(ellipse, ${c.primary}30 0%, ${c.primary}12 45%, transparent 70%)`,
+        background: `radial-gradient(ellipse, ${withAlpha(c.primary, "30")} 0%, ${withAlpha(c.primary, "12")} 45%, transparent 70%)`,
         filter: "blur(24px)",
         animation: "orb-drift-1 9s ease-in-out infinite",
         transition: "background 0.8s ease",
@@ -283,7 +284,7 @@ function AmbientOrbs({ activeTab }) {
         position: "absolute", top: -40, left: "50%",
         width: 600, height: 120,
         borderRadius: "50%",
-        background: `radial-gradient(ellipse, ${c.secondary}20 0%, ${c.secondary}0a 55%, transparent 70%)`,
+        background: `radial-gradient(ellipse, ${withAlpha(c.secondary, "20")} 0%, ${withAlpha(c.secondary, "0a")} 55%, transparent 70%)`,
         filter: "blur(32px)",
         animation: "orb-drift-2 16s ease-in-out infinite",
         transition: "background 0.8s ease",
@@ -294,7 +295,7 @@ function AmbientOrbs({ activeTab }) {
         position: "absolute", top: -50, right: "8%",
         width: 260, height: 180,
         borderRadius: "50%",
-        background: `radial-gradient(ellipse, ${c.accent}24 0%, ${c.accent}0e 50%, transparent 70%)`,
+        background: `radial-gradient(ellipse, ${withAlpha(c.accent, "24")} 0%, ${withAlpha(c.accent, "0e")} 50%, transparent 70%)`,
         filter: "blur(20px)",
         animation: "orb-drift-3 7s ease-in-out infinite 1s",
         transition: "background 0.8s ease",
@@ -305,7 +306,7 @@ function AmbientOrbs({ activeTab }) {
         position: "absolute", top: "15%", left: "48%",
         width: 140, height: 60,
         borderRadius: "50%",
-        background: `radial-gradient(ellipse, ${c.primary}35 0%, transparent 70%)`,
+        background: `radial-gradient(ellipse, ${withAlpha(c.primary, "35")} 0%, transparent 70%)`,
         filter: "blur(12px)",
         transform: "translateX(-50%)",
         animation: "orb-drift-1 5s ease-in-out infinite 0.5s",
@@ -317,7 +318,7 @@ function AmbientOrbs({ activeTab }) {
         position: "absolute", top: -20, left: "28%",
         width: 180, height: 110,
         borderRadius: "50%",
-        background: `radial-gradient(ellipse, ${c.secondary}18 0%, transparent 70%)`,
+        background: `radial-gradient(ellipse, ${withAlpha(c.secondary, "18")} 0%, transparent 70%)`,
         filter: "blur(16px)",
         animation: "orb-drift-3 13s ease-in-out infinite 2s",
         transition: "background 0.7s ease",
@@ -328,7 +329,7 @@ function AmbientOrbs({ activeTab }) {
         position: "absolute", top: -10, right: "28%",
         width: 120, height: 80,
         borderRadius: "50%",
-        background: `radial-gradient(ellipse, ${c.accent}1c 0%, transparent 70%)`,
+        background: `radial-gradient(ellipse, ${withAlpha(c.accent, "1c")} 0%, transparent 70%)`,
         filter: "blur(12px)",
         animation: "orb-drift-1 8s ease-in-out infinite 3s",
         transition: "background 0.6s ease",
@@ -338,7 +339,7 @@ function AmbientOrbs({ activeTab }) {
       <div style={{
         position: "absolute",
         bottom: 0, left: 0, right: 0, height: 1,
-        background: `linear-gradient(90deg, transparent 0%, ${c.primary}40 25%, ${c.secondary}65 50%, ${c.accent}40 75%, transparent 100%)`,
+        background: `linear-gradient(90deg, transparent 0%, ${withAlpha(c.primary, "40")} 25%, ${withAlpha(c.secondary, "65")} 50%, ${withAlpha(c.accent, "40")} 75%, transparent 100%)`,
         transition: "background 0.8s ease",
         animation: "shimmer-flow 5s linear infinite",
         backgroundSize: "200% 100%",
@@ -443,9 +444,9 @@ function DesktopTab({ tab, active, onClick, aura }) {
           inset: "8px 4px",
           borderRadius: 14,
           background: isActive
-            ? `linear-gradient(160deg, ${aura.primary}38 0%, ${aura.secondary}22 100%)`
+            ? `linear-gradient(160deg, ${withAlpha(aura.primary, "38")} 0%, ${withAlpha(aura.secondary, "22")} 100%)`
             : "rgba(255,255,255,0.04)",
-          border: isActive ? `1px solid ${aura.primary}30` : "1px solid transparent",
+          border: isActive ? `1px solid ${withAlpha(aura.primary, "30")}` : "1px solid transparent",
           transition: "all 0.25s cubic-bezier(.4,0,.2,1)",
           animation: isActive ? "tab-enter 0.2s ease-out" : "none",
         }} />
@@ -464,7 +465,7 @@ function DesktopTab({ tab, active, onClick, aura }) {
           ? `linear-gradient(90deg, ${aura.primary}, ${aura.secondary}, ${aura.accent})`
           : "transparent",
         boxShadow: isActive
-          ? `0 0 12px ${aura.primary}ff, 0 0 28px ${aura.primary}66, 0 0 50px ${aura.primary}22`
+          ? `0 0 12px ${withAlpha(aura.primary, "ff")}, 0 0 28px ${withAlpha(aura.primary, "66")}, 0 0 50px ${withAlpha(aura.primary, "22")}`
           : "none",
         transition: "all 0.3s cubic-bezier(.4,0,.2,1)",
         animation: isActive ? "tab-glow-pulse 2.5s ease-in-out infinite" : "none",
@@ -475,9 +476,9 @@ function DesktopTab({ tab, active, onClick, aura }) {
         color: isActive
           ? aura.accent
           : hov
-            ? "rgba(196,181,253,0.8)"
+            ? "rgba(var(--ac-c4b5fd),0.8)"
             : "rgba(130,142,170,0.6)",
-        filter: isActive ? `drop-shadow(0 0 8px ${aura.primary}cc)` : "none",
+        filter: isActive ? `drop-shadow(0 0 8px ${withAlpha(aura.primary, "cc")})` : "none",
         transition: "all 0.2s",
         position: "relative",
         lineHeight: 0,
@@ -495,10 +496,10 @@ function DesktopTab({ tab, active, onClick, aura }) {
         color: isActive
           ? "#fff"
           : hov
-            ? "rgba(196,181,253,0.65)"
+            ? "rgba(var(--ac-c4b5fd),0.65)"
             : "rgba(100,116,139,0.5)",
         textShadow: isActive
-          ? `0 0 10px ${aura.primary}88`
+          ? `0 0 10px ${withAlpha(aura.primary, "88")}`
           : "none",
         transition: "all 0.2s",
         lineHeight: 1,
@@ -810,14 +811,14 @@ function DesktopIconBtn({ active, onClick, title, badge, aura, children }) {
         border: "none", cursor: "pointer",
         display: "flex", alignItems: "center", justifyContent: "center",
         background: active
-          ? `linear-gradient(135deg, ${a.primary}55, ${a.secondary}44)`
+          ? `linear-gradient(135deg, ${withAlpha(a.primary, "55")}, ${withAlpha(a.secondary, "44")})`
           : hov
             ? "rgba(255,255,255,0.09)"
             : "rgba(255,255,255,0.04)",
         boxShadow: active
-          ? `0 0 16px ${a.primary}55, inset 0 1px 0 rgba(255,255,255,0.12)`
+          ? `0 0 16px ${withAlpha(a.primary, "55")}, inset 0 1px 0 rgba(255,255,255,0.12)`
           : "none",
-        color: active ? a.accent : hov ? "rgba(196,181,253,0.75)" : "rgba(100,116,139,0.65)",
+        color: active ? a.accent : hov ? "rgba(var(--ac-c4b5fd),0.75)" : "rgba(100,116,139,0.65)",
         transition: "all 0.18s cubic-bezier(.4,0,.2,1)",
         WebkitAppRegion: "no-drag",
       }}
@@ -827,7 +828,7 @@ function DesktopIconBtn({ active, onClick, title, badge, aura, children }) {
         <span style={{
           position: "absolute", bottom: -2, right: -2,
           minWidth: 15, height: 15, borderRadius: 8,
-          background: "#f43f5e", border: "2px solid rgba(4,3,16,0.9)",
+          background: "#f43f5e", border: "2px solid rgba(var(--ac-040310),0.9)",
           fontSize: 8, fontWeight: 900, color: "#fff",
           display: "flex", alignItems: "center", justifyContent: "center",
           padding: "0 2px",
@@ -851,21 +852,21 @@ function AvatarChip({ me, onClick, aura }) {
         padding: "5px 13px 5px 5px",
         borderRadius: 13,
         border: "1px solid",
-        borderColor: hov ? `${a.primary}55` : "rgba(255,255,255,0.07)",
-        background: hov ? `${a.primary}18` : "rgba(255,255,255,0.04)",
+        borderColor: hov ? `${withAlpha(a.primary, "55")}` : "rgba(255,255,255,0.07)",
+        background: hov ? `${withAlpha(a.primary, "18")}` : "rgba(255,255,255,0.04)",
         cursor: "pointer",
         transition: "all 0.18s cubic-bezier(.4,0,.2,1)",
-        boxShadow: hov ? `0 0 14px ${a.primary}28` : "none",
+        boxShadow: hov ? `0 0 14px ${withAlpha(a.primary, "28")}` : "none",
         WebkitAppRegion: "no-drag",
       }}
     >
       <div style={{
         width: 30, height: 30, borderRadius: 9,
-        background: "linear-gradient(135deg,#7c3aed,#4f46e5)",
+        background: "linear-gradient(135deg,rgb(var(--ac-7c3aed)),rgb(var(--ac-4f46e5)))",
         overflow: "hidden", flexShrink: 0,
-        boxShadow: "0 0 10px rgba(124,58,237,0.3)",
+        boxShadow: "0 0 10px rgba(var(--ac-7c3aed),0.3)",
         display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14,
-        border: "1px solid rgba(139,92,246,0.3)",
+        border: "1px solid rgba(var(--ac-8b5cf6),0.3)",
       }}>
         {me?.avatar?.startsWith?.("http")
           ? <img src={me.avatar} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -874,7 +875,7 @@ function AvatarChip({ me, onClick, aura }) {
       <span style={{
         fontSize: 11, fontWeight: 700,
         letterSpacing: 0.3,
-        color: hov ? "#c4b5fd" : "rgba(148,163,184,0.75)",
+        color: hov ? "rgb(var(--ac-c4b5fd))" : "rgba(148,163,184,0.75)",
         maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         transition: "color 0.18s",
       }}>
@@ -913,18 +914,18 @@ function DesktopHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
           // Fond glassmorphism profond — cosmique
           background: [
             "linear-gradient(180deg,",
-            "  rgba(6,8,16,0.97) 0%,",
-            "  rgba(9,11,22,0.93) 60%,",
-            "  rgba(12,14,28,0.88) 100%",
+            "  rgba(var(--ac-060810),0.97) 0%,",
+            "  rgba(var(--ac-090b16),0.93) 60%,",
+            "  rgba(var(--ac-0c0e1c),0.88) 100%",
             ")"
           ].join(""),
           backdropFilter: "blur(48px) saturate(200%)",
           WebkitBackdropFilter: "blur(48px) saturate(200%)",
           borderTop: "1px solid rgba(255,255,255,0.04)",
           // Bord bas néon réactif
-          borderBottom: `1px solid ${aura.primary}35`,
+          borderBottom: `1px solid ${withAlpha(aura.primary, "35")}`,
           boxShadow: [
-            `0 1px 0 ${aura.primary}15,`,
+            `0 1px 0 ${withAlpha(aura.primary, "15")},`,
             "0 4px 32px rgba(0,0,0,0.7),",
             "0 24px 80px rgba(0,0,0,0.4)",
           ].join(""),
@@ -937,7 +938,7 @@ function DesktopHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
         {/* Orbes ambiants réactifs */}
         <div style={{ position: "absolute", inset: 0, opacity: 0.5, pointerEvents: "none" }}><AmbientOrbs activeTab={activeTab} /></div>
         {/* Filet de marque (dégradé AniMood) en lisière basse */}
-        <div style={{ position: "absolute", left: 0, right: 0, bottom: -1, height: 1.5, pointerEvents: "none", background: "linear-gradient(90deg, transparent 0%, #6D5BFF 22%, #8B5CF6 50%, #EC4899 78%, transparent 100%)", opacity: 0.55 }} />
+        <div style={{ position: "absolute", left: 0, right: 0, bottom: -1, height: 1.5, pointerEvents: "none", background: "linear-gradient(90deg, transparent 0%, rgb(var(--ac-6d5bff)) 22%, rgb(var(--ac-8b5cf6)) 50%, rgb(var(--ac-ec4899)) 78%, transparent 100%)", opacity: 0.55 }} />
 
         {/* ─── Zone logo ──────────────────────────────────── */}
         <div style={{
@@ -953,13 +954,13 @@ function DesktopHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
             <div style={{
               position: "absolute", inset: -6,
               borderRadius: 18,
-              background: `radial-gradient(circle, ${aura.primary}44 0%, transparent 70%)`,
+              background: `radial-gradient(circle, ${withAlpha(aura.primary, "44")} 0%, transparent 70%)`,
               filter: "blur(8px)",
               transition: "background 0.5s ease",
             }} />
             <div style={{
               width: 44, height: 44, borderRadius: 14,
-              background: "linear-gradient(135deg,#7c3aed 0%,#4f46e5 60%,#6366f1 100%)",
+              background: "linear-gradient(135deg,rgb(var(--ac-7c3aed)) 0%,rgb(var(--ac-4f46e5)) 60%,rgb(var(--ac-6366f1)) 100%)",
               animation: "logo-breathe 3s ease-in-out infinite",
               display: "flex", alignItems: "center", justifyContent: "center",
               overflow: "hidden",
@@ -969,7 +970,7 @@ function DesktopHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
               <div style={{
                 position: "absolute", inset: -6,
                 borderRadius: "50%",
-                background: `radial-gradient(circle, ${aura.primary}18 0%, transparent 70%)`,
+                background: `radial-gradient(circle, ${withAlpha(aura.primary, "18")} 0%, transparent 70%)`,
                 filter: "blur(4px)",
                 animation: "orb-pulse-soft 4s ease-in-out infinite",
               }} />
@@ -980,7 +981,7 @@ function DesktopHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
           <div>
             <div style={{
               fontSize: 17, fontWeight: 900, letterSpacing: -0.5,
-              background: "linear-gradient(135deg,#f0eaff 0%,#c4b5fd 35%,#818cf8 65%,#e879f9 100%)",
+              background: "linear-gradient(135deg,rgb(var(--ac-f0eaff)) 0%,rgb(var(--ac-c4b5fd)) 35%,rgb(var(--ac-818cf8)) 65%,rgb(var(--ac-e879f9)) 100%)",
               WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
               lineHeight: 1, marginBottom: 4,
               backgroundSize: "200% 100%",
@@ -990,7 +991,7 @@ function DesktopHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
             </div>
             <div style={{
               fontSize: 7, fontWeight: 800,
-              color: `${aura.primary}99`,
+              color: `${withAlpha(aura.primary, "99")}`,
               letterSpacing: 2.5,
               textTransform: "uppercase",
               transition: "color 0.5s ease",
@@ -1055,18 +1056,18 @@ function DesktopHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
                   width: "min(1120px, calc(100vw - 36px))", maxHeight: "calc(100vh - 112px)",
                   overflow: "auto",
                   borderRadius: 20,
-                  border: "1px solid rgba(139,92,246,0.2)",
-                  background: "linear-gradient(135deg, rgba(8,4,24,0.98) 0%, rgba(12,7,32,0.96) 100%)",
+                  border: "1px solid rgba(var(--ac-8b5cf6),0.2)",
+                  background: "linear-gradient(135deg, rgba(var(--ac-080418),0.98) 0%, rgba(var(--ac-0c0720),0.96) 100%)",
                   backdropFilter: "blur(40px)",
                   WebkitBackdropFilter: "blur(40px)",
-                  boxShadow: "0 24px 80px rgba(0,0,0,0.85), 0 0 0 1px rgba(139,92,246,0.12)",
+                  boxShadow: "0 24px 80px rgba(0,0,0,0.85), 0 0 0 1px rgba(var(--ac-8b5cf6),0.12)",
                   WebkitAppRegion: "no-drag",
                 }}>
                   <div style={{
                     padding: "14px 18px",
                     borderBottom: "1px solid rgba(255,255,255,0.06)",
                     fontSize: 10, fontWeight: 800, letterSpacing: 2,
-                    textTransform: "uppercase", color: "rgba(139,92,246,0.7)",
+                    textTransform: "uppercase", color: "rgba(var(--ac-8b5cf6),0.7)",
                   }}>
                     📅 CALENDRIER ANIMÉS
                   </div>

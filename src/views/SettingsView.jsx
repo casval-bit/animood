@@ -11,6 +11,7 @@ import { AVATAR_EMOJIS } from "../constants/avatars.js";
 import { uploadToCloudinary } from "../api/cloudinary.js";
 import { UserPickerModal } from "../components/UserPickerModal.jsx";
 import { GRADIENT_PRIMARY } from "../constants/theme.js";
+import { PALETTES } from "../constants/palettes.js";
 import { SETTINGS_I18N } from "../constants/settingsI18n.js";
 import { getFrameLabel, getFrameDesc } from "../frames/frames.js";
 import { getFrameSvg, getExtraFrames, loadFrameFlags, noteNightOwl } from "../frames/framesDesktop.js";
@@ -30,14 +31,26 @@ function ThemePreview({ id }) {
     <div
       className="h-14 w-full overflow-hidden rounded-lg"
       style={{
-        background: dark ? "#0f172a" : "#d3cce8",
-        border: `1px solid ${dark ? "rgba(255,255,255,.1)" : "rgba(24,18,43,.14)"}`,
+        background: dark ? "rgb(var(--ac-0f172a))" : "rgb(var(--ac-d3cce8))",
+        border: `1px solid ${dark ? "rgba(255,255,255,.1)" : "rgba(var(--ac-18122b),0.14)"}`,
       }}
     >
       <div className="h-3 w-full" style={{ background: GRADIENT_PRIMARY }} />
       <div className="flex flex-col gap-1 p-1.5">
-        <div className="h-1 w-3/4 rounded-full" style={{ background: dark ? "rgba(255,255,255,.25)" : "#120f24" }} />
+        <div className="h-1 w-3/4 rounded-full" style={{ background: dark ? "rgba(255,255,255,.25)" : "rgb(var(--ac-120f24))" }} />
         <div className="h-1 w-1/2 rounded-full" style={{ background: dark ? "rgba(255,255,255,.15)" : "#817a9b" }} />
+      </div>
+    </div>
+  );
+}
+
+// Aperçu d'une palette : les couleurs sont écrites en dur (elles ne doivent pas suivre la palette active)
+function PalettePreview({ swatch }) {
+  return (
+    <div className="h-14 w-full overflow-hidden rounded-lg" style={{ background: "#0b0f1c", border: "1px solid rgba(255,255,255,.1)" }}>
+      <div className="h-3 w-full" style={{ background: `linear-gradient(135deg,${swatch.join(",")})` }} />
+      <div className="flex items-center justify-center gap-2 p-2">
+        {swatch.map(c => <span key={c} className="h-5 w-5 rounded-full" style={{ background: c, boxShadow: `0 0 10px ${c}66` }} />)}
       </div>
     </div>
   );
@@ -57,7 +70,7 @@ export function SettingsView({ onClose, initialCategory = null }) {
   // closes this screen instead of navigating away from the page underneath.
   const requestClose = useModalBack(onClose);
   const { me, saveMe, logout, myUsername, blockedUsers, unblockUser, notificationsEnabled, setNotificationsEnabled } = useApp();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, palette, setPalette } = useTheme();
   const { lang, setLang } = useLang();
   const { playSound, soundEnabled, setSoundEnabled, volume, setVolume, pack, setPack, packs } = useSound();
   const t = SETTINGS_I18N[lang] || SETTINGS_I18N.fr;
@@ -326,7 +339,7 @@ export function SettingsView({ onClose, initialCategory = null }) {
               return (
                 <button key={id} onClick={() => { playSound("click"); setTheme(id); }}
                   className="flex flex-col items-center gap-2 rounded-xl p-2.5 text-center transition"
-                  style={{ border: active ? "2px solid #7c3aed" : "2px solid transparent", background: active ? "rgba(124,58,237,0.1)" : "rgba(var(--fg-rgb),0.03)" }}>
+                  style={{ border: active ? "2px solid rgb(var(--ac-7c3aed))" : "2px solid transparent", background: active ? "rgba(var(--ac-7c3aed),0.1)" : "rgba(var(--fg-rgb),0.03)" }}>
                   <ThemePreview id={id} />
                   <div>
                     <div className="text-xs font-bold text-slate-100">{label}</div>
@@ -338,6 +351,28 @@ export function SettingsView({ onClose, initialCategory = null }) {
           </div>
         </Section>
 
+        {desktop && (
+        <Section title={t.palette}>
+          <div className="mb-3 text-[11px] text-slate-500">{t.paletteHint}</div>
+          <div className="grid grid-cols-2 gap-3">
+            {PALETTES.map(({ id, swatch }) => {
+              const active = palette === id;
+              return (
+                <button key={id} onClick={() => { playSound("click"); setPalette(id); }}
+                  className="flex flex-col items-center gap-2 rounded-xl p-2.5 text-center transition"
+                  style={{ border: active ? "2px solid rgb(var(--ac-7c3aed))" : "2px solid transparent", background: active ? "rgba(var(--ac-7c3aed),0.1)" : "rgba(var(--fg-rgb),0.03)" }}>
+                  <PalettePreview swatch={swatch} />
+                  <div>
+                    <div className="text-xs font-bold text-slate-100">{t.paletteNames[id]}</div>
+                    {id === "default" && <div className="text-[10px] text-slate-500">{t.paletteDefaultHint}</div>}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </Section>
+        )}
+
         <Section title={t.language}>
           <div className="grid grid-cols-2 gap-3">
             {LANG_OPTIONS.map(opt => {
@@ -345,7 +380,7 @@ export function SettingsView({ onClose, initialCategory = null }) {
               return (
                 <button key={opt.id} onClick={() => { playSound("click"); setLang(opt.id); }}
                   className="flex items-center justify-center gap-2 rounded-xl p-3 text-center transition"
-                  style={{ border: active ? "2px solid #7c3aed" : "2px solid transparent", background: active ? "rgba(124,58,237,0.1)" : "rgba(var(--fg-rgb),0.03)" }}>
+                  style={{ border: active ? "2px solid rgb(var(--ac-7c3aed))" : "2px solid transparent", background: active ? "rgba(var(--ac-7c3aed),0.1)" : "rgba(var(--fg-rgb),0.03)" }}>
                   <span className="text-xl">{opt.flag}</span>
                   <span className="text-xs font-bold text-slate-100">{opt.label}</span>
                 </button>
@@ -360,7 +395,7 @@ export function SettingsView({ onClose, initialCategory = null }) {
         <Section title={t.avatar}>
           <div className="flex items-center gap-5 mb-3">
             <div style={{width:72,height:72,borderRadius:"50%",overflow:"hidden",flexShrink:0,
-              background:"linear-gradient(135deg,#7c3aed,#4f46e5)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32}}>
+              background:"linear-gradient(135deg,rgb(var(--ac-7c3aed)),rgb(var(--ac-4f46e5)))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32}}>
               {currentAvatar
                 ? <img src={currentAvatar} alt="avatar" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
                 : (me.avatar && !me.avatar.startsWith("http") ? me.avatar : "👤")}
@@ -392,7 +427,7 @@ export function SettingsView({ onClose, initialCategory = null }) {
               {AVATAR_EMOJIS.map(e => (
                 <button key={e} onClick={()=>{ playSound("click"); saveMe({...me, avatar:e}); }}
                   className="flex h-10 w-10 items-center justify-center rounded-xl text-xl transition hover:scale-110"
-                  style={{background: me.avatar===e?"rgba(124,58,237,0.3)":"rgba(255,255,255,0.05)", border: me.avatar===e?"2px solid #7c3aed":"2px solid transparent"}}>
+                  style={{background: me.avatar===e?"rgba(var(--ac-7c3aed),0.3)":"rgba(255,255,255,0.05)", border: me.avatar===e?"2px solid rgb(var(--ac-7c3aed))":"2px solid transparent"}}>
                   {e}
                 </button>
               ))}
@@ -436,7 +471,7 @@ export function SettingsView({ onClose, initialCategory = null }) {
             <>
               <button onClick={()=>applyFrame(null)}
                 className="mb-3 flex w-full items-center gap-3 rounded-xl p-2.5 text-left transition"
-                style={{border:!activeFrame?"2px solid #7c3aed":"2px solid transparent",background:!activeFrame?"rgba(124,58,237,0.1)":"transparent"}}>
+                style={{border:!activeFrame?"2px solid rgb(var(--ac-7c3aed))":"2px solid transparent",background:!activeFrame?"rgba(var(--ac-7c3aed),0.1)":"transparent"}}>
                 <div style={{width:44,height:44,borderRadius:"50%",background:"rgba(255,255,255,0.05)",
                   border:"2px dashed rgba(255,255,255,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🚫</div>
                 <div>
@@ -462,13 +497,13 @@ export function SettingsView({ onClose, initialCategory = null }) {
                             title={(isUnlocked ? getFrameLabel(frame, lang) : t.frameLocked(getFrameLabel(frame, lang))) + " — " + getFrameDesc(frame, lang)}
                             style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:8,borderRadius:12,
                               cursor:isUnlocked?"pointer":"not-allowed",
-                              border:isActive?"2px solid #7c3aed":"2px solid transparent",
-                              background:isActive?"rgba(124,58,237,0.1)":"rgba(255,255,255,0.03)",
+                              border:isActive?"2px solid rgb(var(--ac-7c3aed))":"2px solid transparent",
+                              background:isActive?"rgba(var(--ac-7c3aed),0.1)":"rgba(255,255,255,0.03)",
                               opacity:isUnlocked?1:0.4,
                               filter:isUnlocked?"none":"grayscale(1)"}}>
                             <div style={{position:"relative",width:sz,height:sz}}>
                               <div style={{width:sz,height:sz,borderRadius:"50%",overflow:"hidden",
-                                background:"linear-gradient(135deg,#7c3aed,#4f46e5)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>
+                                background:"linear-gradient(135deg,rgb(var(--ac-7c3aed)),rgb(var(--ac-4f46e5)))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>
                                 {currentAvatar ? <img src={currentAvatar} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : "👤"}
                               </div>
                               <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",overflow:"visible",pointerEvents:"none"}}
@@ -524,7 +559,7 @@ export function SettingsView({ onClose, initialCategory = null }) {
             <>
               <button onClick={()=>applyBadge(null)}
                 className="mb-3 flex w-full items-center gap-3 rounded-xl p-2.5 text-left transition"
-                style={{border:!activeBadge?"2px solid #7c3aed":"2px solid transparent",background:!activeBadge?"rgba(124,58,237,0.1)":"transparent"}}>
+                style={{border:!activeBadge?"2px solid rgb(var(--ac-7c3aed))":"2px solid transparent",background:!activeBadge?"rgba(var(--ac-7c3aed),0.1)":"transparent"}}>
                 <div style={{width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.05)",
                   border:"2px dashed rgba(255,255,255,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🚫</div>
                 <div>
@@ -549,8 +584,8 @@ export function SettingsView({ onClose, initialCategory = null }) {
                             title={isUnlocked ? getBadgeLabel(badge, lang) : t.badgeLocked(getBadgeLabel(badge, lang))}
                             style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:8,borderRadius:12,
                               cursor:isUnlocked?"pointer":"not-allowed",
-                              border:isActive?"2px solid #7c3aed":"2px solid transparent",
-                              background:isActive?"rgba(124,58,237,0.1)":"rgba(255,255,255,0.03)",
+                              border:isActive?"2px solid rgb(var(--ac-7c3aed))":"2px solid transparent",
+                              background:isActive?"rgba(var(--ac-7c3aed),0.1)":"rgba(255,255,255,0.03)",
                               opacity:isUnlocked?1:0.4,
                               filter:isUnlocked?"none":"grayscale(1)"}}>
                             <span style={{fontSize:28, lineHeight:1,
@@ -583,7 +618,7 @@ export function SettingsView({ onClose, initialCategory = null }) {
               return (
                 <button key={opt.id} onClick={() => setVisibility(opt.id)}
                   className="flex items-center justify-between rounded-xl p-3 text-left transition"
-                  style={{ border: active ? "2px solid #7c3aed" : "2px solid transparent", background: active ? "rgba(124,58,237,0.1)" : "rgba(var(--fg-rgb),0.03)" }}>
+                  style={{ border: active ? "2px solid rgb(var(--ac-7c3aed))" : "2px solid transparent", background: active ? "rgba(var(--ac-7c3aed),0.1)" : "rgba(var(--fg-rgb),0.03)" }}>
                   <div>
                     <div className="text-xs font-bold text-slate-100">{opt.label}</div>
                     <div className="text-[10px] text-slate-500">{opt.desc}</div>
@@ -753,7 +788,7 @@ export function SettingsView({ onClose, initialCategory = null }) {
                 return (
                   <button key={p.id} onClick={() => { setPack(p.id); setTimeout(()=>playSound("tab"),40); }}
                     className="flex items-center justify-between rounded-xl p-3 text-left transition"
-                    style={{ border: active ? "2px solid #7c3aed" : "2px solid transparent", background: active ? "rgba(124,58,237,0.1)" : "rgba(var(--fg-rgb),0.03)", opacity: soundEnabled ? 1 : 0.5 }}
+                    style={{ border: active ? "2px solid rgb(var(--ac-7c3aed))" : "2px solid transparent", background: active ? "rgba(var(--ac-7c3aed),0.1)" : "rgba(var(--fg-rgb),0.03)", opacity: soundEnabled ? 1 : 0.5 }}
                     disabled={!soundEnabled}>
                     <div>
                       <div className="text-xs font-bold text-slate-100">{p.label[lang] || p.label.en}</div>

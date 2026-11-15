@@ -206,7 +206,7 @@ export function DesktopAnimeSearchModal({ onSelect, onClose, heading }) {
             return (
               <button key={a.mal_id} data-i={i} onClick={() => onSelect(a)} onMouseEnter={() => setCursor(i)}
                 className="flex items-center gap-3 overflow-hidden rounded-xl text-left transition"
-                style={{ background: on ? "rgba(139,92,246,.12)" : "rgba(var(--fg-rgb),0.035)", border: `1px solid ${on ? "rgba(139,92,246,.4)" : "rgba(var(--fg-rgb),0.07)"}` }}>
+                style={{ background: on ? "rgba(var(--ac-8b5cf6),0.12)" : "rgba(var(--fg-rgb),0.035)", border: `1px solid ${on ? "rgba(var(--ac-8b5cf6),0.4)" : "rgba(var(--fg-rgb),0.07)"}` }}>
                 <img src={a.images?.jpg?.image_url || FALLBACK} alt="" loading="lazy" onError={(e) => { e.target.src = FALLBACK; }} className="h-16 w-11 shrink-0 object-cover" />
                 <div className="min-w-0 flex-1 py-1.5 pr-3">
                   <div className="truncate text-[13px] font-bold leading-tight text-slate-100">{main}</div>

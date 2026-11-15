@@ -26,7 +26,7 @@ function ScoreStrip({ players, scores, judge, me, g }) {
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginBottom: 18 }} role="group" aria-label="score">
       {players.map((p) => (
         <div key={p} className="gm-seat" style={{ padding: "5px 12px 5px 6px", borderRadius: 99, gap: 7,
-          ...(p === judge ? { borderColor: "rgba(167,139,250,.65)", background: "rgba(139,92,246,.13)" } : null) }}>
+          ...(p === judge ? { borderColor: "rgba(var(--ac-a78bfa),0.65)", background: "rgba(var(--ac-8b5cf6),0.13)" } : null) }}>
           <Bubble name={p} size={26} active={p === judge} />
           <span style={{ fontSize: 12, fontWeight: 800 }}>{p}{p === me ? ` (${g.common.you})` : ""}</span>
           {p === judge ? <span title={g.cluescale.judge} aria-label={g.cluescale.judge}>⚖️</span> : null}
@@ -295,7 +295,7 @@ export function CluescaleGame({ room, onClose, onReady }) {
         <div style={{ textAlign: "center", marginBottom: 18 }}>
           <Eyebrow style={{ color: "var(--gm-violet)" }}>{c.themeLabel}</Eyebrow>
           <div style={{ fontSize: 21, fontWeight: 900, margin: "4px 0 12px", letterSpacing: "-.01em" }}>{state.theme}</div>
-          <div className="gm-card" style={{ padding: "14px 18px", fontSize: 17, fontWeight: 700, background: "rgba(139,92,246,.1)", borderColor: "rgba(139,92,246,.3)" }}>💬 « {state.clue} »</div>
+          <div className="gm-card" style={{ padding: "14px 18px", fontSize: 17, fontWeight: 700, background: "rgba(var(--ac-8b5cf6),0.1)", borderColor: "rgba(var(--ac-8b5cf6),0.3)" }}>💬 « {state.clue} »</div>
           <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 6 }}>{c.clueBy(state.judge)}</div>
         </div>
         {idleBox}
@@ -322,7 +322,7 @@ export function CluescaleGame({ room, onClose, onReady }) {
               <div style={{ minWidth: 86, textAlign: "center", fontSize: 40, fontWeight: 900, color: "var(--gm-violet)", fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{guess}<span style={{ fontSize: 16, color: "var(--text-3)" }}>/20</span></div>
               <Btn variant="soft" size="sm" aria-label="+1" onClick={() => setGuess((v) => Math.min(20, v + 1))}>+</Btn>
             </div>
-            <input type="range" min={1} max={20} value={guess} onChange={(e) => setGuess(Number(e.target.value))} aria-label={c.whichScore(state.judge)} style={{ width: "100%", accentColor: "#a78bfa", marginBottom: 14 }} />
+            <input type="range" min={1} max={20} value={guess} onChange={(e) => setGuess(Number(e.target.value))} aria-label={c.whichScore(state.judge)} style={{ width: "100%", accentColor: "rgb(var(--ac-a78bfa))", marginBottom: 14 }} />
             <Btn variant="primary" size="lg" block onClick={submitGuess} disabled={submitting}>{c.vote(guess)}</Btn>
           </div>
         )}
@@ -340,7 +340,7 @@ export function CluescaleGame({ room, onClose, onReady }) {
       {idleBox}
       {isJudge ? (
         <div>
-          <div style={{ textAlign: "center", marginBottom: 16, padding: "16px 20px", borderRadius: 18, background: "linear-gradient(160deg,rgba(124,58,237,.22),rgba(79,70,229,.08))", border: "1px solid rgba(139,92,246,.35)" }}>
+          <div style={{ textAlign: "center", marginBottom: 16, padding: "16px 20px", borderRadius: 18, background: "linear-gradient(160deg,rgba(var(--ac-7c3aed),0.22),rgba(var(--ac-4f46e5),0.08))", border: "1px solid rgba(var(--ac-8b5cf6),0.35)" }}>
             <Eyebrow>{c.secretScore}</Eyebrow>
             <div style={{ fontSize: 52, fontWeight: 900, color: "var(--gm-violet)", lineHeight: 1.1 }}>{state.score}<span style={{ fontSize: 20, color: "var(--text-3)" }}>/20</span></div>
           </div>
@@ -366,7 +366,7 @@ function UcSteps({ phase, g }) {
   return (
     <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 16 }} aria-label={steps[idx][1]}>
       {steps.map(([k, label], i) => (
-        <span key={k} className="gm-tag" style={{ "--tone": i === idx ? "244,114,182" : "148,163,184", opacity: i <= idx ? 1 : 0.55 }}>{i < idx ? "✓ " : ""}{label}</span>
+        <span key={k} className="gm-tag" style={{ "--tone": i === idx ? "var(--ac-f472b6)" : "148,163,184", opacity: i <= idx ? 1 : 0.55 }}>{i < idx ? "✓ " : ""}{label}</span>
       ))}
     </div>
   );
@@ -381,9 +381,9 @@ function UcClues({ players, clues, currentName, me }) {
         return (
           <div key={p.username} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minHeight: 30 }}>
             <Bubble name={p.username} size={26} active={active} />
-            <span style={{ fontSize: 12, fontWeight: 800, minWidth: 74, color: active ? "#f9a8d4" : "var(--text-1)" }}>{p.username}{p.username === me ? " ★" : ""}</span>
+            <span style={{ fontSize: 12, fontWeight: 800, minWidth: 74, color: active ? "rgb(var(--ac-f9a8d4))" : "var(--text-1)" }}>{p.username}{p.username === me ? " ★" : ""}</span>
             {words.map((c, i) => (
-              <span key={i} className="gm-pop" style={{ fontSize: 12.5, fontWeight: 700, padding: "3px 11px", borderRadius: 99, background: c.skipped ? "rgba(148,163,184,.15)" : "rgba(236,72,153,.14)", border: "1px solid rgba(236,72,153,.28)", opacity: c.skipped ? 0.6 : 1 }}>{c.word}</span>
+              <span key={i} className="gm-pop" style={{ fontSize: 12.5, fontWeight: 700, padding: "3px 11px", borderRadius: 99, background: c.skipped ? "rgba(148,163,184,.15)" : "rgba(var(--ac-ec4899),0.14)", border: "1px solid rgba(var(--ac-ec4899),0.28)", opacity: c.skipped ? 0.6 : 1 }}>{c.word}</span>
             ))}
           </div>
         );
@@ -396,8 +396,8 @@ function UcRoleCard({ g, player }) {
   const u = g.uc;
   return (
     <div className="gm-pop" style={{ padding: "18px 16px", borderRadius: 18, textAlign: "center",
-      background: player.isImpostor ? "linear-gradient(160deg,rgba(239,68,68,.2),rgba(239,68,68,.05))" : "linear-gradient(160deg,rgba(124,58,237,.22),rgba(79,70,229,.06))",
-      border: `1px solid ${player.isImpostor ? "rgba(239,68,68,.45)" : "rgba(139,92,246,.45)"}` }}>
+      background: player.isImpostor ? "linear-gradient(160deg,rgba(239,68,68,.2),rgba(239,68,68,.05))" : "linear-gradient(160deg,rgba(var(--ac-7c3aed),0.22),rgba(var(--ac-4f46e5),0.06))",
+      border: `1px solid ${player.isImpostor ? "rgba(239,68,68,.45)" : "rgba(var(--ac-8b5cf6),0.45)"}` }}>
       {player.isImpostor ? (
         <>
           <div style={{ fontSize: 34 }}>😈</div>
@@ -562,7 +562,7 @@ function UndercoverLocal({ players, onClose, onReplay, onReady }) {
           <div style={{ fontSize: 11.5, color: "var(--text-3)", marginTop: 2 }}>{t.votedCount(voteIdx, players.length)}</div>
         </div>
         <UcClues players={players} clues={clues} currentName={voter.username} />
-        <div style={{ fontSize: 13, fontWeight: 800, color: "#f9a8d4", textAlign: "center", marginBottom: 8 }}>{t.voteTurn(voter.username)}</div>
+        <div style={{ fontSize: 13, fontWeight: 800, color: "rgb(var(--ac-f9a8d4))", textAlign: "center", marginBottom: 8 }}>{t.voteTurn(voter.username)}</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 8 }}>
           {players.filter((p) => p.username !== voter.username).map((p) => (
             <Btn key={p.username} variant="soft" onClick={() => castVote(p.username)}><Bubble name={p.username} size={24} /> {p.username}</Btn>
@@ -794,7 +794,7 @@ function UndercoverOnline({ room, onClose, onReady }) {
           {(state.phase === "clues" || state.phase === "vote") && mePlayer ? (
             <div style={{ marginBottom: 12, textAlign: "center" }}>
               {peek ? (
-                <span className="gm-tag" style={{ "--tone": mePlayer.isImpostor ? "239,68,68" : "139,92,246", fontSize: 11 }}>
+                <span className="gm-tag" style={{ "--tone": mePlayer.isImpostor ? "239,68,68" : "var(--ac-8b5cf6)", fontSize: 11 }}>
                   {mePlayer.isImpostor ? `😈 ${t.youAreImpostor} · ${mePlayer.hint}` : `🕵️ ${mePlayer.word}`}
                   <button type="button" onClick={() => setPeek(false)} aria-label={t.hideRole} style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", fontSize: 12, padding: 0 }}>✕</button>
                 </span>

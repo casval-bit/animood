@@ -43,7 +43,7 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
 
   const followingSet = new Set(following||[]);
   function usernameColor(u) {
-    if(u===myUsername) return "#c084fc";
+    if(u===myUsername) return "rgb(var(--ac-c084fc))";
     if(followingSet.has(u)) return "#22c55e";
     return "var(--text-2)";
   }
@@ -88,7 +88,7 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
 
       {elo && (
         <div style={{marginTop:7,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",borderRadius:9,
-          background:"linear-gradient(90deg,rgba(124,58,237,0.08),rgba(56,189,248,0.05))",border:"1px solid rgba(255,255,255,0.06)"}}>
+          background:"linear-gradient(90deg,rgba(var(--ac-7c3aed),0.08),rgba(56,189,248,0.05))",border:"1px solid rgba(255,255,255,0.06)"}}>
           <div style={{fontSize:9,color:"var(--text-5)",fontWeight:700}}>{t.unlocksFramesLabel}</div>
           <div style={{fontSize:13,fontWeight:900,color:"var(--text-1)"}}>{elo ? (elo.elo_chain||400)+(elo.elo_timeline||400)+(elo.pts_wordle||0)+(elo.pts_poster||0)+(elo.pts_opquiz||0)+(elo.pts_cluescale||0)+(elo.pts_undercover||0) : 0}</div>
         </div>
@@ -103,11 +103,11 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
               const medal=i===0?"🥇":i===1?"🥈":i===2?"🥉":null;
               return (
                 <div key={r.username} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:7,
-                  background:isMe?"rgba(124,58,237,0.1)":"rgba(255,255,255,0.02)",
-                  border:isMe?"1px solid rgba(124,58,237,0.2)":"1px solid transparent"}}>
+                  background:isMe?"rgba(var(--ac-7c3aed),0.1)":"rgba(255,255,255,0.02)",
+                  border:isMe?"1px solid rgba(var(--ac-7c3aed),0.2)":"1px solid transparent"}}>
                   <div style={{fontSize:9,color:"var(--text-5)",width:16,textAlign:"right",flexShrink:0}}>{medal||`${i+1}`}</div>
                   <div style={{flex:1,fontSize:10,fontWeight:isMe||isFriend?800:500,color:usernameColor(r.username),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    {r.username}{isMe && <span style={{marginLeft:4,fontSize:9,color:"#c084fc"}}>({t.youLabel})</span>}
+                    {r.username}{isMe && <span style={{marginLeft:4,fontSize:9,color:"rgb(var(--ac-c084fc))"}}>({t.youLabel})</span>}
                   </div>
                   <div style={{fontSize:10,fontWeight:800,color:"var(--text-2)",flexShrink:0}}>{r.total}</div>
                 </div>
@@ -116,9 +116,9 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
             {myRank && myRank.rank>20 && (
               <>
                 <div style={{padding:"3px 8px",textAlign:"center",fontSize:9,color:"var(--text-6)"}}>·  ·  ·</div>
-                <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:7,background:"rgba(124,58,237,0.1)",border:"1px solid rgba(124,58,237,0.2)"}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:7,background:"rgba(var(--ac-7c3aed),0.1)",border:"1px solid rgba(var(--ac-7c3aed),0.2)"}}>
                   <div style={{fontSize:9,color:"var(--text-5)",width:16,textAlign:"right",flexShrink:0}}>{myRank.rank}</div>
-                  <div style={{flex:1,fontSize:10,fontWeight:800,color:"#c084fc",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{myUsername}</div>
+                  <div style={{flex:1,fontSize:10,fontWeight:800,color:"rgb(var(--ac-c084fc))",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{myUsername}</div>
                   <div style={{fontSize:10,fontWeight:800,color:"var(--text-2)",flexShrink:0}}>{myRank.points_total}</div>
                 </div>
               </>
@@ -146,10 +146,10 @@ function EloRow({ rank, name, pts, me, friend }) {
   const medal = rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":null;
   return (
     <div style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",borderRadius:10,breakInside:"avoid",marginBottom:3,
-      background:me?"rgba(139,92,246,0.14)":"rgba(var(--fg-rgb),0.035)",
-      border:me?"1px solid rgba(139,92,246,0.4)":"1px solid transparent"}}>
+      background:me?"rgba(var(--ac-8b5cf6),0.14)":"rgba(var(--fg-rgb),0.035)",
+      border:me?"1px solid rgba(var(--ac-8b5cf6),0.4)":"1px solid transparent"}}>
       <div style={{fontSize:12,fontWeight:800,color:"var(--text-3)",width:22,textAlign:"center",flexShrink:0}}>{medal||rank}</div>
-      <div style={{flex:1,minWidth:0,fontSize:13,fontWeight:me||friend?800:600,color:me?"#c084fc":friend?"#22c55e":"var(--text-1)",
+      <div style={{flex:1,minWidth:0,fontSize:13,fontWeight:me||friend?800:600,color:me?"rgb(var(--ac-c084fc))":friend?"#22c55e":"var(--text-1)",
         overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</div>
       <div style={{fontSize:13,fontWeight:900,color:"var(--text-1)",flexShrink:0,fontVariantNumeric:"tabular-nums"}}>{pts}</div>
     </div>
@@ -310,7 +310,7 @@ export function GamesView({ pendingJoinGame, onClearPendingJoin }) {
         </div>
       ) : (
       <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 900, letterSpacing: -0.5, color: "#f0eaff", margin: 0, marginBottom: 6 }}>⚔ MINI-JEUX</h1>
+        <h1 style={{ fontSize: 28, fontWeight: 900, letterSpacing: -0.5, color: "rgb(var(--ac-f0eaff))", margin: 0, marginBottom: 6 }}>⚔ MINI-JEUX</h1>
         <p style={{ fontSize: 12, color: "rgba(100,116,139,0.6)", margin: 0 }}>Affronte la communauté AniMood</p>
       </div>
       )}
@@ -372,7 +372,7 @@ export function GamesView({ pendingJoinGame, onClearPendingJoin }) {
       {joinNotice && (
         <div onClick={()=>setJoinNotice("")} role="alert"
           style={{position:"fixed",top:76,left:"50%",transform:"translateX(-50%)",zIndex:3000,maxWidth:"90vw",
-            padding:"10px 18px",borderRadius:12,background:"rgba(15,12,30,0.96)",border:"1px solid rgba(251,191,36,0.4)",
+            padding:"10px 18px",borderRadius:12,background:"rgba(var(--ac-0f0c1e),0.96)",border:"1px solid rgba(251,191,36,0.4)",
             color:"#fbbf24",fontSize:13,fontWeight:700,boxShadow:"0 8px 30px rgba(0,0,0,0.5)",cursor:"pointer"}}>
           {joinNotice}
         </div>

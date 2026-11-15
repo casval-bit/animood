@@ -12,6 +12,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "test": "node --test tests/*.test.mjs",
+    "palettes": "node scripts/gen_palettes.mjs",
     "preview": "vite preview",
     "sync:anime": "node scripts/sync_new_anime.mjs",
     "sync:titles": "node scripts/sync_alt_titles.mjs",

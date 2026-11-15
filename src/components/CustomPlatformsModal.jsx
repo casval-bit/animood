@@ -20,7 +20,7 @@ function Shell({ onClose, title, children, width = 460 }) {
   useEffect(() => { const h = (e) => e.key === "Escape" && onClose(); window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [onClose]);
   return createPortal(
     <div onMouseDown={(e) => e.target === e.currentTarget && onClose()} style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(3,4,12,.72)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div style={{ ...GLASS_STYLE, width, maxWidth: "100%", maxHeight: "88vh", overflowY: "auto", borderRadius: 18, padding: 22, border: "1px solid rgba(var(--fg-rgb),.1)", background: "rgba(14,15,30,.96)" }}>
+      <div style={{ ...GLASS_STYLE, width, maxWidth: "100%", maxHeight: "88vh", overflowY: "auto", borderRadius: 18, padding: 22, border: "1px solid rgba(var(--fg-rgb),.1)", background: "rgba(var(--ac-0e0f1e),0.96)" }}>
         <div className="mb-4 flex items-center justify-between">
           <div className="text-[15px] font-extrabold text-slate-100">{title}</div>
           <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10">✕</button>
@@ -76,7 +76,7 @@ export function CustomPlatformsModal({ onClose, lang = "fr" }) {
           <div className="mt-2.5 grid grid-cols-2 gap-2">
             {[["auto", en ? "Automatic" : "Automatique", en ? "Finds each anime on the site by itself (recommended)" : "Trouve chaque animé sur le site tout seul (recommandé)"], ["slug", en ? "Add the name" : "Ajouter le nom", en ? "site.com/watch → site.com/watch/anime-name" : "site.com/watch → site.com/watch/nom-anime"]].map(([id, t1, t2]) => (
               <button key={id} type="button" onClick={() => setMode(id)} className="rounded-xl border p-2.5 text-left transition"
-                style={mode === id ? { borderColor: "rgba(139,92,246,.7)", background: "rgba(124,58,237,.14)" } : { borderColor: "rgba(255,255,255,.08)", background: "rgba(255,255,255,.02)" }}>
+                style={mode === id ? { borderColor: "rgba(var(--ac-8b5cf6),0.7)", background: "rgba(var(--ac-7c3aed),0.14)" } : { borderColor: "rgba(255,255,255,.08)", background: "rgba(255,255,255,.02)" }}>
                 <div className="text-[11.5px] font-extrabold text-slate-100">{t1}</div><div className="mt-0.5 text-[10px] leading-snug text-slate-500">{t2}</div>
               </button>
             ))}

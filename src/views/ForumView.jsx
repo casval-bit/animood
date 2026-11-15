@@ -130,7 +130,7 @@ function ThreadRow({ anime, onClick, metaLabel, trailerLink, convLink, statOverr
             <button
               onClick={e=>{e.stopPropagation();setShowConvMenu(p=>!p);}}
               className="shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold transition"
-              style={{background:"rgba(124,58,237,0.15)",color:"#c084fc",border:"1px solid rgba(124,58,237,0.2)"}}>
+              style={{background:"rgba(var(--ac-7c3aed),0.15)",color:"rgb(var(--ac-c084fc))",border:"1px solid rgba(var(--ac-7c3aed),0.2)"}}>
               {t.convBtn}
             </button>
             {showConvMenu && (
@@ -139,7 +139,7 @@ function ThreadRow({ anime, onClick, metaLabel, trailerLink, convLink, statOverr
             {showConvMenu && (
               <div onClick={e=>e.stopPropagation()}
                 style={{position:"absolute",right:0,top:"calc(100% + 6px)",zIndex:50,
-                  background:"#161226",border:"1px solid rgba(255,255,255,0.1)",
+                  background:"rgb(var(--ac-161226))",border:"1px solid rgba(255,255,255,0.1)",
                   borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",
                   minWidth:220,maxWidth:"calc(100vw - 32px)",padding:8}}>
                 {!convThreads ? (
@@ -160,8 +160,8 @@ function ThreadRow({ anime, onClick, metaLabel, trailerLink, convLink, statOverr
                   <button onClick={()=>{onClick?.(anime);setShowConvMenu(false);}}
                     style={{display:"block",width:"100%",textAlign:"left",padding:"6px 10px",
                       borderRadius:8,background:"none",border:"none",cursor:"pointer",
-                      color:"#c084fc",fontSize:11,fontWeight:700}}
-                    onMouseEnter={e=>e.currentTarget.style.background="rgba(124,58,237,0.08)"}
+                      color:"rgb(var(--ac-c084fc))",fontSize:11,fontWeight:700}}
+                    onMouseEnter={e=>e.currentTarget.style.background="rgba(var(--ac-7c3aed),0.08)"}
                     onMouseLeave={e=>e.currentTarget.style.background="none"}>
                     {t.newDiscussion}
                   </button>
@@ -196,7 +196,7 @@ function ForumCategory({ emoji, title, subtitle, items, onOpenDetail, metaLabel,
           {subtitle && <div className="text-[10.5px]" style={{color:"var(--text-4)"}}>{subtitle}</div>}
         </div>
         <div className="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold"
-          style={{background:"rgba(124,58,237,0.15)",color:"#c084fc",border:"1px solid rgba(124,58,237,0.2)"}}>
+          style={{background:"rgba(var(--ac-7c3aed),0.15)",color:"rgb(var(--ac-c084fc))",border:"1px solid rgba(var(--ac-7c3aed),0.2)"}}>
           {t.topicCount(items.length)}
         </div>
       </div>
@@ -230,7 +230,7 @@ function AnticipatedCard({ anime, airedDates, onOpenDetail, t, flush = false }) 
   return (
     <div
       className={`${flush ? "h-full" : "mb-6"} flex w-full items-center gap-5 overflow-hidden p-5 text-left ${GLASS}`}
-      style={{ background: `linear-gradient(135deg, rgba(139,92,246,.22), rgba(236,72,153,.14)), ${GLASS_STYLE.background}`, boxShadow: GLASS_STYLE.boxShadow }}
+      style={{ background: `linear-gradient(135deg, rgba(var(--ac-8b5cf6),0.22), rgba(var(--ac-ec4899),0.14)), ${GLASS_STYLE.background}`, boxShadow: GLASS_STYLE.boxShadow }}
     >
       <button onClick={() => onOpenDetail?.(anime)} className="flex min-w-0 flex-1 items-center gap-5 text-left">
         <img loading="lazy" decoding="async" src={img || FALLBACK_IMG} alt="" onError={e => { e.target.src = FALLBACK_IMG; }} className="h-32 w-24 shrink-0 rounded-xl object-cover shadow-lg sm:h-36 sm:w-26" />
@@ -341,7 +341,7 @@ function CommunityMoodWide({ loaded, counts, total, rows = [], lang = "fr", t })
           <div className="flex shrink-0 gap-0.5 rounded-lg border border-white/8 bg-white/3 p-0.5">
             {tabs.map(([id, label]) => (
               <button key={id} onClick={() => setView(id)} className="rounded-md px-2.5 py-1 text-[10.5px] font-bold transition"
-                style={view === id ? { background: "rgba(124,58,237,.28)", color: "#e9e5ff" } : { color: "rgb(148,163,184)" }}>{label}</button>
+                style={view === id ? { background: "rgba(var(--ac-7c3aed),0.28)", color: "rgb(var(--ac-e9e5ff))" } : { color: "rgb(148,163,184)" }}>{label}</button>
             ))}
           </div>
         )}
@@ -1129,7 +1129,7 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
       {joinNotice && (
         <div onClick={()=>setJoinNotice("")} role="alert"
           style={{position:"fixed",top:76,left:"50%",transform:"translateX(-50%)",zIndex:3000,maxWidth:"90vw",
-            padding:"10px 18px",borderRadius:12,background:"rgba(15,12,30,0.96)",border:"1px solid rgba(251,191,36,0.4)",
+            padding:"10px 18px",borderRadius:12,background:"rgba(var(--ac-0f0c1e),0.96)",border:"1px solid rgba(251,191,36,0.4)",
             color:"#fbbf24",fontSize:13,fontWeight:700,boxShadow:"0 8px 30px rgba(0,0,0,0.5)",cursor:"pointer"}}>
           {joinNotice}
         </div>

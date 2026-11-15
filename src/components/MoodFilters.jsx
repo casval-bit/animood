@@ -28,7 +28,7 @@ function Tile({ item, selected, onClick, sub, wide }) {
       style={{
         background: selected ? GRADIENT_PRIMARY : "rgba(var(--fg-rgb),0.035)",
         border: selected ? "1px solid transparent" : "1px solid rgba(var(--fg-rgb),0.07)",
-        boxShadow: selected ? "0 8px 22px rgba(109,91,255,.32)" : "none",
+        boxShadow: selected ? "0 8px 22px rgba(var(--ac-6d5bff),0.32)" : "none",
       }}
     >
       {selected && (
@@ -89,10 +89,10 @@ export function MoodFilters({
       <button
         onClick={onFriendToggle}
         className="group flex items-center gap-3 rounded-2xl border border-white/6 bg-white/3 px-3.5 py-3 text-left transition hover:bg-white/5"
-        style={friendOn ? { borderColor: "rgba(139,92,246,.35)", background: "rgba(139,92,246,.07)" } : undefined}
+        style={friendOn ? { borderColor: "rgba(var(--ac-8b5cf6),0.35)", background: "rgba(var(--ac-8b5cf6),0.07)" } : undefined}
       >
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-base"
-          style={{ background: friendOn ? GRADIENT_PRIMARY : "rgba(var(--fg-rgb),0.06)", boxShadow: friendOn ? "0 6px 18px rgba(109,91,255,.35)" : "none" }}>
+          style={{ background: friendOn ? GRADIENT_PRIMARY : "rgba(var(--fg-rgb),0.06)", boxShadow: friendOn ? "0 6px 18px rgba(var(--ac-6d5bff),0.35)" : "none" }}>
           ❤️
         </span>
         <span className="min-w-0 flex-1">

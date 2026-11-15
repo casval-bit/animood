@@ -162,7 +162,7 @@ function VersusSplash({ g, room, me, label }) {
     <div style={{ textAlign: "center", padding: "26px 8px 18px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16 }}>
         {side(me, isP1 ? room.elo1 : room.elo2)}
-        <div className="gm-pop" style={{ fontSize: 30, fontWeight: 900, letterSpacing: ".05em", background: "linear-gradient(135deg,#6d5bff,#ec4899)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", animationDelay: ".15s" }}>VS</div>
+        <div className="gm-pop" style={{ fontSize: 30, fontWeight: 900, letterSpacing: ".05em", background: "linear-gradient(135deg,rgb(var(--ac-6d5bff)),rgb(var(--ac-ec4899)))", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", animationDelay: ".15s" }}>VS</div>
         {side(opp, isP1 ? room.elo2 : room.elo1)}
       </div>
       <div style={{ marginTop: 22, fontSize: 17, fontWeight: 900, color: GOOD }}>{label}</div>
@@ -377,7 +377,7 @@ export function Matchmaking({ gameType, onMatch, footer = null }) {
   const gameName = g.lobby.gameName[gameType];
   const header = (subtitle) => (
     <LobbyHeader icon={GAME_ICONS[gameType]} title={gameName} subtitle={subtitle}
-      chip={myElo ? <span className="gm-tag" style={{ "--tone": "167,139,250", fontSize: 11 }}>{g.lobby.eloChip(myElo)}</span> : null} />
+      chip={myElo ? <span className="gm-tag" style={{ "--tone": "var(--ac-a78bfa)", fontSize: 11 }}>{g.lobby.eloChip(myElo)}</span> : null} />
   );
   const back = (to = null) => (
     <div style={{ marginBottom: 12 }}><Btn variant="ghost" size="sm" onClick={() => { setJoinError(""); setMode(to); }}>← {g.common.back}</Btn></div>
@@ -392,7 +392,7 @@ export function Matchmaking({ gameType, onMatch, footer = null }) {
         {header(g.lobby.intro[gameType])}
         {joinError ? <Note tone="warn" style={{ marginBottom: 12 }}>{joinError}</Note> : null}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 }}>
-          <ModeCard icon="🏆" tone="139,92,246" title={g.lobby.ranked} desc={g.lobby.rankedDesc} tag={g.lobby.rankedTag} onClick={() => { setJoinError(""); setMode("ranked"); }} />
+          <ModeCard icon="🏆" tone="var(--ac-8b5cf6)" title={g.lobby.ranked} desc={g.lobby.rankedDesc} tag={g.lobby.rankedTag} onClick={() => { setJoinError(""); setMode("ranked"); }} />
           <ModeCard icon="🤝" tone="34,211,238" title={g.lobby.friends} desc={g.lobby.friendsDesc} tag={g.lobby.friendsTag} onClick={() => { setJoinError(""); setMode("friends"); }} />
           <ModeCard icon="🤖" tone="251,191,36" title={g.lobby.ai} desc={g.lobby.aiDesc} tag={g.lobby.aiTag} onClick={() => setMode("ai")} />
         </div>
@@ -414,7 +414,7 @@ export function Matchmaking({ gameType, onMatch, footer = null }) {
         <Radar icon={GAME_ICONS[gameType]} />
         <div style={{ marginTop: 12, fontSize: 18, fontWeight: 900 }}>{g.lobby.searching}<Dots /></div>
         <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", margin: "12px 0 6px" }}>
-          {myElo ? <span className="gm-tag" style={{ "--tone": "167,139,250" }}>{g.lobby.eloChip(myElo)}</span> : null}
+          {myElo ? <span className="gm-tag" style={{ "--tone": "var(--ac-a78bfa)" }}>{g.lobby.eloChip(myElo)}</span> : null}
           <span className="gm-tag" style={{ "--tone": "34,211,238" }}>{waitTime > 0 ? g.lobby.range(waitTime, Math.min(50 + waitTime * 5, 400)) : g.lobby.connecting}</span>
         </div>
         <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 18 }}>{g.lobby.rangeHint}</div>
@@ -621,7 +621,7 @@ function UndercoverLocalSetup({ onStart, onBack, initialPlayers = null }) {
   return (
     <div className="gm-rise">
       {onBack ? <div style={{ marginBottom: 12 }}><Btn variant="ghost" size="sm" onClick={onBack}>← {g.common.back}</Btn></div> : null}
-      <LobbyHeader icon="📱" tone="244,114,182" title={u.localTitle} subtitle={u.localSubtitle(UC_LOCAL_MIN, UC_LOCAL_MAX)} />
+      <LobbyHeader icon="📱" tone="var(--ac-f472b6)" title={u.localTitle} subtitle={u.localSubtitle(UC_LOCAL_MIN, UC_LOCAL_MAX)} />
       <Eyebrow style={{ marginBottom: 8 }}>{u.localPlayers(players.length, UC_LOCAL_MAX)}</Eyebrow>
       <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 12 }}>
         {players.map((p, i) => (
@@ -654,7 +654,7 @@ export function UndercoverLobby({ onStart, onStartOnline = null, initialRoom = n
   if (view === "local") return <GameRoot style={{ padding: 22 }}><UndercoverLocalSetup onStart={onStart} initialPlayers={localPlayers} onBack={onStartOnline ? () => setView("menu") : null} /></GameRoot>;
   if (view === "online") {
     return (
-      <PartyLobby gameType="undercover" icon="🕵️" tone="244,114,182" title="Undercover" subtitle={u.onlineSubtitle(UC_MIN_ONLINE, MULTI_MAX.undercover)}
+      <PartyLobby gameType="undercover" icon="🕵️" tone="var(--ac-f472b6)" title="Undercover" subtitle={u.onlineSubtitle(UC_MIN_ONLINE, MULTI_MAX.undercover)}
         minPlayers={UC_MIN_ONLINE} buildState={(list, lang) => {
           const entry = pickEntry(UNDERCOVER_WORDS, undercoverRecent);
           undercoverRecent = [...undercoverRecent, entry.word].slice(-12);
@@ -667,10 +667,10 @@ export function UndercoverLobby({ onStart, onStartOnline = null, initialRoom = n
   return (
     <GameRoot style={{ padding: 22 }}>
       <div className="gm-rise">
-        <LobbyHeader icon="🕵️" tone="244,114,182" title="Undercover" subtitle={u.menuSubtitle} />
+        <LobbyHeader icon="🕵️" tone="var(--ac-f472b6)" title="Undercover" subtitle={u.menuSubtitle} />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
           <ModeCard icon="🌐" tone="34,211,238" title={u.onlineTitle} desc={u.onlineDesc(UC_MIN_ONLINE, MULTI_MAX.undercover)} tag={u.onlineTag} onClick={() => setView("online")} />
-          <ModeCard icon="📱" tone="244,114,182" title={u.localTitle} desc={u.localDesc(UC_LOCAL_MIN, UC_LOCAL_MAX)} tag={u.localTag} onClick={() => setView("local")} />
+          <ModeCard icon="📱" tone="var(--ac-f472b6)" title={u.localTitle} desc={u.localDesc(UC_LOCAL_MIN, UC_LOCAL_MAX)} tag={u.localTag} onClick={() => setView("local")} />
         </div>
       </div>
     </GameRoot>

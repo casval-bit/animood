@@ -206,7 +206,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
             <div className="-mx-6 -mt-6 mb-4 relative h-24 sm:h-32 overflow-hidden">
               <img loading="lazy" decoding="async" src={profile.banner} alt="" className="w-full h-full object-cover" />
               <div className="absolute inset-0" style={{
-                background: "linear-gradient(to bottom, transparent 50%, rgba(2,6,23,0.85) 100%)",
+                background: "linear-gradient(to bottom, transparent 50%, rgba(var(--ac-020617),0.85) 100%)",
               }}/>
             </div>
           )}
@@ -252,7 +252,7 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
                       style={{border:isFollowing?"1px solid rgba(var(--fg-rgb),0.15)":"none",
                         background:isFollowing?"transparent":GRADIENT_PRIMARY,
                         color:isFollowing?"var(--text-2)":"#fff",
-                        boxShadow:isFollowing?"none":"0 8px 24px rgba(109,91,255,.35)"}}>
+                        boxShadow:isFollowing?"none":"0 8px 24px rgba(var(--ac-6d5bff),0.35)"}}>
                       {followLoading?"…":isFollowing?t.followingBtn:t.followBtn}
                     </button>
                     <button onClick={()=>setShowChat(true)}

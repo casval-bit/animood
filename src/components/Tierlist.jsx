@@ -21,8 +21,8 @@ const DEFAULT_TIERS = [
 ];
 const SELECT = "mal_id,title,title_en,image_url,large_image,score,year,type,rating,themes,genres,duration";
 const SIZES = { S: { w: 46, h: 65 }, M: { w: 62, h: 88 }, L: { w: 84, h: 119 } };
-const HUD_BG = "linear-gradient(135deg, rgba(10,6,30,0.9) 0%, rgba(15,9,40,0.8) 100%)";
-const HUD_BORDER = "1px solid rgba(139,92,246,0.2)";
+const HUD_BG = "linear-gradient(135deg, rgba(var(--ac-0a061e),0.9) 0%, rgba(var(--ac-0f0928),0.8) 100%)";
+const HUD_BORDER = "1px solid rgba(var(--ac-8b5cf6),0.2)";
 
 const freshBoard = () => ({ tiers: DEFAULT_TIERS.map(t => ({ ...t, items: [] })), pool: [] });
 const light = (r) => ({ mal_id: r.mal_id, title: r.title, title_en: r.title_en, image_url: r.image_url, large_image: r.large_image, score: r.score, year: r.year, type: r.type });
@@ -72,7 +72,7 @@ function Poster({ anime, name, w }) {
   const src = sources[i];
   if(!src) return (
     <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center",
-      fontSize: Math.max(7, w / 8), lineHeight: 1.1, padding: 2, color: "rgba(255,255,255,.7)", background: "linear-gradient(160deg,#2a1850,#150c30)", overflow: "hidden" }}>{name}</div>
+      fontSize: Math.max(7, w / 8), lineHeight: 1.1, padding: 2, color: "rgba(255,255,255,.7)", background: "linear-gradient(160deg,rgb(var(--ac-2a1850)),rgb(var(--ac-150c30)))", overflow: "hidden" }}>{name}</div>
   );
   return <img key={i} src={src} data-raw={src} alt={name} loading="lazy" decoding="async" referrerPolicy="no-referrer" draggable={false}
     style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" }}
@@ -341,9 +341,9 @@ export function TierlistStudio() {
         onDrop={(e) => { e.preventDefault(); e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); dropOn(from, idx + (e.clientX > r.left + r.width / 2 ? 1 : 0)); }}
         onClick={(e) => { e.stopPropagation(); setSelected(isSel ? null : { anime, from }); }}
         onMouseEnter={() => setHover(anime)} onMouseLeave={() => setHover(null)}
-        style={{ position: "relative", width: w, height: h, borderRadius: 6, overflow: "visible", flexShrink: 0, cursor: "grab", background: "#1a1030",
-          border: isSel ? "2px solid #c084fc" : "1px solid rgba(255,255,255,0.12)",
-          boxShadow: marker ? "-3px 0 0 #e879f9" : isSel ? "0 0 12px rgba(192,132,252,0.7)" : "0 2px 6px rgba(0,0,0,.35)" }}>
+        style={{ position: "relative", width: w, height: h, borderRadius: 6, overflow: "visible", flexShrink: 0, cursor: "grab", background: "rgb(var(--ac-1a1030))",
+          border: isSel ? "2px solid rgb(var(--ac-c084fc))" : "1px solid rgba(255,255,255,0.12)",
+          boxShadow: marker ? "-3px 0 0 rgb(var(--ac-e879f9))" : isSel ? "0 0 12px rgba(var(--ac-c084fc),0.7)" : "0 2px 6px rgba(0,0,0,.35)" }}>
         <div style={{ width: "100%", height: "100%", borderRadius: 5, overflow: "hidden" }}><Poster anime={anime} name={nameOf(anime)} w={w} /></div>
         {mine != null && size !== "S" && (
           <span style={{ position: "absolute", right: 2, bottom: 2, fontSize: 9, fontWeight: 900, padding: "0 4px", borderRadius: 6, background: "rgba(0,0,0,.75)", color: "#fbbf24" }}>{mine}</span>
@@ -358,13 +358,13 @@ export function TierlistStudio() {
 
   const pillBtn = (active) => ({
     padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap",
-    border: `1px solid ${active ? "#a78bfa" : "rgba(139,92,246,0.2)"}`,
-    background: active ? "rgba(139,92,246,0.28)" : "rgba(139,92,246,0.05)", color: active ? "#ddd6fe" : "var(--text-3)",
-    boxShadow: active ? "0 0 12px rgba(139,92,246,.35)" : "none",
+    border: `1px solid ${active ? "rgb(var(--ac-a78bfa))" : "rgba(var(--ac-8b5cf6),0.2)"}`,
+    background: active ? "rgba(var(--ac-8b5cf6),0.28)" : "rgba(var(--ac-8b5cf6),0.05)", color: active ? "rgb(var(--ac-ddd6fe))" : "var(--text-3)",
+    boxShadow: active ? "0 0 12px rgba(var(--ac-8b5cf6),0.35)" : "none",
   });
   const toolBtn = (disabled) => ({
     padding: "5px 10px", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: disabled ? "default" : "pointer", whiteSpace: "nowrap",
-    border: "1px solid rgba(139,92,246,0.22)", background: "rgba(139,92,246,0.08)", color: disabled ? "var(--text-5)" : "#c4b5fd", opacity: disabled ? 0.5 : 1,
+    border: "1px solid rgba(var(--ac-8b5cf6),0.22)", background: "rgba(var(--ac-8b5cf6),0.08)", color: disabled ? "var(--text-5)" : "rgb(var(--ac-c4b5fd))", opacity: disabled ? 0.5 : 1,
   });
 
   const pct = totalCount ? Math.round((rankedCount / totalCount) * 100) : 0;
@@ -372,14 +372,14 @@ export function TierlistStudio() {
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, height: "100%", minHeight: 0 }}>
       {/* Sources */}
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "8px 12px", borderBottom: "1px solid rgba(139,92,246,0.14)", flexShrink: 0 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "8px 12px", borderBottom: "1px solid rgba(var(--ac-8b5cf6),0.14)", flexShrink: 0 }}>
         {[["season", L.season], ["year", L.year], ["mine", L.mine], ["custom", L.custom]].map(([id, label]) => (
           <button key={id} type="button" onClick={() => setSource(id)} style={pillBtn(source === id)}>{label}</button>
         ))}
         {source === "year" && (
           <span style={{ display: "inline-flex", alignItems: "center", gap: 2, marginLeft: 4 }}>
             <button type="button" aria-label="−" onClick={() => setYear(y => Math.max(1990, y - 1))} style={toolBtn(false)}>‹</button>
-            <span style={{ minWidth: 42, textAlign: "center", fontSize: 12, fontWeight: 900, color: "#ddd6fe" }}>{year}</span>
+            <span style={{ minWidth: 42, textAlign: "center", fontSize: 12, fontWeight: 900, color: "rgb(var(--ac-ddd6fe))" }}>{year}</span>
             <button type="button" aria-label="+" disabled={year >= thisYear} onClick={() => setYear(y => Math.min(thisYear, y + 1))} style={toolBtn(year >= thisYear)}>›</button>
           </span>
         )}
@@ -393,11 +393,11 @@ export function TierlistStudio() {
       </div>
 
       {/* Outils */}
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "7px 12px", borderBottom: "1px solid rgba(139,92,246,0.14)", flexShrink: 0 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "7px 12px", borderBottom: "1px solid rgba(var(--ac-8b5cf6),0.14)", flexShrink: 0 }}>
         <button type="button" onClick={undo} disabled={!canUndo} style={toolBtn(!canUndo)}>↶ {L.undo}</button>
         <button type="button" onClick={resetBoard} disabled={!rankedCount} style={toolBtn(!rankedCount)}>{L.reset}</button>
         <button type="button" onClick={() => load(true)} style={toolBtn(false)}>⟳ {L.reload}</button>
-        <span style={{ width: 1, height: 18, background: "rgba(139,92,246,0.2)" }} />
+        <span style={{ width: 1, height: 18, background: "rgba(var(--ac-8b5cf6),0.2)" }} />
         <button type="button" onClick={() => autoPlace(true)} disabled={!board.pool.some(a => myScore(a) != null)} style={toolBtn(!board.pool.some(a => myScore(a) != null))}>✨ {L.autoMine}</button>
         <button type="button" onClick={() => autoPlace(false)} disabled={!board.pool.length} style={toolBtn(!board.pool.length)}>📊 {L.autoMal}</button>
         <span style={{ flex: 1 }} />
@@ -406,7 +406,7 @@ export function TierlistStudio() {
         </span>
         <button type="button" onClick={copyPng} disabled={!!busy} style={toolBtn(!!busy)}>{busy === "copied" ? L.copied : `⧉ ${L.copy}`}</button>
         <button type="button" onClick={savePng} disabled={!!busy}
-          style={{ ...toolBtn(!!busy), background: "linear-gradient(135deg,#7c3aed,#c026d3)", border: "none", color: "#fff" }}>
+          style={{ ...toolBtn(!!busy), background: "linear-gradient(135deg,rgb(var(--ac-7c3aed)),rgb(var(--ac-c026d3)))", border: "none", color: "#fff" }}>
           {busy === "png" ? L.exporting : `⬇ ${L.png}`}
         </button>
       </div>
@@ -414,17 +414,17 @@ export function TierlistStudio() {
       <div style={{ display: "flex", flexDirection: narrow ? "column" : "row", flex: 1, minHeight: 0, overflow: "hidden" }}>
         {/* Tableau */}
         <div style={{ flex: 1, minHeight: 0, minWidth: 0, overflowY: "auto" }} onClick={() => { setSelected(null); }}>
-          <div ref={boardRef} style={{ padding: "12px 12px 10px", background: "#0f0a1e" }}>
+          <div ref={boardRef} style={{ padding: "12px 12px 10px", background: "rgb(var(--ac-0f0a1e))" }}>
             <input value={title} onChange={e => setTitle(e.target.value)} placeholder={L.titlePh} maxLength={60}
               style={{ width: "100%", boxSizing: "border-box", marginBottom: 10, padding: "4px 2px", background: "none", border: "none", outline: "none",
-                fontSize: 20, fontWeight: 900, letterSpacing: -0.4, color: "#f5f3ff", textShadow: "0 0 18px rgba(168,85,247,.5)" }} />
+                fontSize: 20, fontWeight: 900, letterSpacing: -0.4, color: "#f5f3ff", textShadow: "0 0 18px rgba(var(--ac-a855f7),0.5)" }} />
             {board.tiers.map((tier, ti) => (
               <div key={tier.id} style={{ marginBottom: 4 }}>
                 <div onDragOver={(e) => { e.preventDefault(); setDropAt({ to: tier.id, index: tier.items.length }); }}
                   onDrop={(e) => { e.preventDefault(); dropOn(tier.id, tier.items.length); }}
                   onClick={(e) => { if(selected) { e.stopPropagation(); dropOn(tier.id, tier.items.length); } }}
                   style={{ display: "flex", alignItems: "stretch", borderRadius: 10, overflow: "hidden", background: HUD_BG,
-                    border: dropAt?.to === tier.id ? "1px solid #e879f9" : selected ? "1px dashed rgba(192,132,252,0.55)" : HUD_BORDER,
+                    border: dropAt?.to === tier.id ? "1px solid rgb(var(--ac-e879f9))" : selected ? "1px dashed rgba(var(--ac-c084fc),0.55)" : HUD_BORDER,
                     cursor: selected ? "pointer" : "default" }}>
                   <button type="button" onClick={(e) => { e.stopPropagation(); setEditTier(editTier === tier.id ? null : tier.id); }}
                     style={{ width: narrow ? 42 : 56, minHeight: h + 12, flexShrink: 0, border: "none", cursor: "pointer", background: `linear-gradient(135deg, ${tier.color}, ${tier.color}bb)`,
@@ -436,7 +436,7 @@ export function TierlistStudio() {
                 </div>
                 {editTier === tier.id && (
                   <div data-no-export="1" onClick={e => e.stopPropagation()}
-                    style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, padding: "8px 10px", margin: "3px 0 2px", borderRadius: 10, background: "rgba(139,92,246,0.08)", border: HUD_BORDER }}>
+                    style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, padding: "8px 10px", margin: "3px 0 2px", borderRadius: 10, background: "rgba(var(--ac-8b5cf6),0.08)", border: HUD_BORDER }}>
                     <input value={tier.label} maxLength={8} placeholder={L.rename} onChange={e => patchTier(tier.id, { label: e.target.value })}
                       style={{ width: 80, padding: "4px 8px", borderRadius: 7, fontSize: 12, fontWeight: 800, background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.12)", color: "var(--text-1)" }} />
                     <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
@@ -453,14 +453,14 @@ export function TierlistStudio() {
                 )}
               </div>
             ))}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, fontSize: 9, letterSpacing: 2, fontWeight: 800, textTransform: "uppercase", color: "rgba(167,139,250,.55)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, fontSize: 9, letterSpacing: 2, fontWeight: 800, textTransform: "uppercase", color: "rgba(var(--ac-a78bfa),0.55)" }}>
               <span>AniMood</span><span>{L.placed(rankedCount, totalCount)}</span>
             </div>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, padding: "6px 12px 14px" }}>
             <button type="button" onClick={addTier} style={{ ...toolBtn(false), borderStyle: "dashed" }}>{L.addTier}</button>
-            <div style={{ flex: 1, minWidth: 120, height: 5, borderRadius: 99, background: "rgba(139,92,246,.14)", overflow: "hidden" }}>
-              <div style={{ width: `${pct}%`, height: "100%", background: "linear-gradient(90deg,#7c3aed,#e879f9)", transition: "width .3s" }} />
+            <div style={{ flex: 1, minWidth: 120, height: 5, borderRadius: 99, background: "rgba(var(--ac-8b5cf6),0.14)", overflow: "hidden" }}>
+              <div style={{ width: `${pct}%`, height: "100%", background: "linear-gradient(90deg,rgb(var(--ac-7c3aed)),rgb(var(--ac-e879f9)))", transition: "width .3s" }} />
             </div>
             <span style={{ fontSize: 10, color: "var(--text-4)", minWidth: 0 }}>{selected ? L.tapSel : hover ? `${nameOf(hover)}${hover.score ? ` · ★ ${hover.score}` : ""}` : L.hint}</span>
           </div>
@@ -468,10 +468,10 @@ export function TierlistStudio() {
 
         {/* Réserve */}
         <div style={{ width: narrow ? "100%" : 260, height: narrow ? 210 : "auto", flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0,
-          borderLeft: narrow ? "none" : "1px solid rgba(139,92,246,0.16)", borderTop: narrow ? "1px solid rgba(139,92,246,0.16)" : "none", background: "rgba(8,5,22,.5)" }}>
-          <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6, borderBottom: "1px solid rgba(139,92,246,0.12)" }}>
+          borderLeft: narrow ? "none" : "1px solid rgba(var(--ac-8b5cf6),0.16)", borderTop: narrow ? "1px solid rgba(var(--ac-8b5cf6),0.16)" : "none", background: "rgba(var(--ac-080516),0.5)" }}>
+          <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6, borderBottom: "1px solid rgba(var(--ac-8b5cf6),0.12)" }}>
             <input value={filter} onChange={e => setFilter(e.target.value)} placeholder={source === "custom" ? L.search : L.filter}
-              style={{ width: "100%", boxSizing: "border-box", padding: "6px 10px", borderRadius: 8, fontSize: 11, border: "1px solid rgba(139,92,246,0.22)", background: "rgba(255,255,255,0.04)", color: "var(--text-1)" }} />
+              style={{ width: "100%", boxSizing: "border-box", padding: "6px 10px", borderRadius: 8, fontSize: 11, border: "1px solid rgba(var(--ac-8b5cf6),0.22)", background: "rgba(255,255,255,0.04)", color: "var(--text-1)" }} />
             {source !== "custom" && (
               <div style={{ display: "flex", gap: 4 }}>
                 {[["score", L.sortScore], ["title", L.sortTitle], ...(source === "mine" || Object.keys(ratings).length ? [["mine", L.sortMine]] : [])].map(([id, label]) => (
@@ -494,8 +494,8 @@ export function TierlistStudio() {
           <div onDragOver={(e) => { e.preventDefault(); setDropAt({ to: "pool", index: board.pool.length }); }}
             onDrop={(e) => { e.preventDefault(); dropOn("pool", board.pool.length); }}
             onClick={() => { if(selected) dropOn("pool", board.pool.length); }}
-            style={{ flex: 1, overflowY: "auto", padding: 8, minHeight: 0, outline: dropAt?.to === "pool" ? "1px dashed #e879f9" : "none", outlineOffset: -3 }}>
-            <div style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1.5, color: "rgba(167,139,250,.75)", marginBottom: 6 }}>
+            style={{ flex: 1, overflowY: "auto", padding: 8, minHeight: 0, outline: dropAt?.to === "pool" ? "1px dashed rgb(var(--ac-e879f9))" : "none", outlineOffset: -3 }}>
+            <div style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1.5, color: "rgba(var(--ac-a78bfa),0.75)", marginBottom: 6 }}>
               {loading ? L.loading : L.pool(board.pool.length)}
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>

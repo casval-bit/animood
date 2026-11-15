@@ -11,6 +11,7 @@ import { TagPill, timeAgo } from "./ForumThreadModal.jsx";
 import { Spinner } from "./Spinner.jsx";
 import { getForumTags } from "../constants/forumTags.js";
 import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY } from "../constants/theme.js";
+import { withAlpha } from "../utils/withAlpha.js";
 
 const PAGE = 15;
 const HIST_LIMIT = 5000;
@@ -57,7 +58,7 @@ function Highlight({ text, words }) {
     <>
       {text.split(re).map((part, i) =>
         i % 2 === 1
-          ? <mark key={i} style={{ background: "rgba(139,92,246,.35)", color: "#f5f3ff", borderRadius: 3, padding: "0 2px" }}>{part}</mark>
+          ? <mark key={i} style={{ background: "rgba(var(--ac-8b5cf6),0.35)", color: "#f5f3ff", borderRadius: 3, padding: "0 2px" }}>{part}</mark>
           : <span key={i}>{part}</span>
       )}
     </>
@@ -79,7 +80,7 @@ function Chip({ active, onClick, children, color }) {
     <button type="button" onClick={onClick}
       className="rounded-full px-2.5 py-1 text-[11px] font-bold transition"
       style={active
-        ? { background: `${color || "#8B5CF6"}30`, color: color || "#c4b5fd", boxShadow: `inset 0 0 0 1px ${(color || "#8B5CF6")}80` }
+        ? { background: withAlpha(color || "rgb(var(--ac-8b5cf6))", "30"), color: color || "rgb(var(--ac-c4b5fd))", boxShadow: `inset 0 0 0 1px ${withAlpha(color || "rgb(var(--ac-8b5cf6))", "80")}` }
         : { background: "rgba(255,255,255,.05)", color: "var(--text-2)" }}>
       {children}
     </button>
@@ -173,8 +174,8 @@ function ArchiveStrip({ dates, selected, onSelect, lang, t }) {
                 <span className="block w-full rounded-t-[3px] transition-all group-hover:brightness-125"
                   style={{
                     height: d.n ? `${Math.max(14, (d.n / max) * 100)}%` : "3px",
-                    background: active ? GRADIENT_PRIMARY : d.n ? "rgba(139,92,246,.55)" : "rgba(255,255,255,.07)",
-                    boxShadow: active ? "0 0 10px rgba(139,92,246,.7)" : "none",
+                    background: active ? GRADIENT_PRIMARY : d.n ? "rgba(var(--ac-8b5cf6),0.55)" : "rgba(255,255,255,.07)",
+                    boxShadow: active ? "0 0 10px rgba(var(--ac-8b5cf6),0.7)" : "none",
                   }} />
               </button>
             );
@@ -381,7 +382,7 @@ export function ForumExplorer({ lang = "fr", unreadCounts = {}, blockedUsers, on
               {SORTS.map(([id, label]) => (
                 <button key={id} type="button" onClick={() => setSort(id)}
                   className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] font-semibold transition ${sort === id ? "bg-violet-500/15 text-violet-200" : "text-slate-400 hover:bg-white/5"}`}>
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: sort === id ? "#a78bfa" : "rgba(255,255,255,.18)" }} />{label}
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: sort === id ? "rgb(var(--ac-a78bfa))" : "rgba(255,255,255,.18)" }} />{label}
                 </button>
               ))}
             </div>

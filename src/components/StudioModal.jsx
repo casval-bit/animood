@@ -82,8 +82,8 @@ export function StudioModal({ studioId, studioName, onClose, onOpenDetail }) {
               <button key={s} onClick={()=>setSort(s)}
                 className="px-3 py-1.5 text-[10px] font-bold transition"
                 style={{
-                  background: sort===s ? "rgba(124,58,237,0.25)" : "transparent",
-                  color: sort===s ? "#c084fc" : "var(--text-4)",
+                  background: sort===s ? "rgba(var(--ac-7c3aed),0.25)" : "transparent",
+                  color: sort===s ? "rgb(var(--ac-c084fc))" : "var(--text-4)",
                   borderRight: i < SORTS.length-1 ? "1px solid rgba(255,255,255,0.06)" : "none",
                 }}>
                 {SORT_LABELS[s]}
@@ -96,8 +96,8 @@ export function StudioModal({ studioId, studioName, onClose, onOpenDetail }) {
             style={{
               width:32,height:32,borderRadius:8,cursor:"pointer",flexShrink:0,
               display:"flex",alignItems:"center",justifyContent:"center",
-              background: hideWatched ? "rgba(255,255,255,0.04)" : "rgba(124,58,237,0.15)",
-              border: hideWatched ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(124,58,237,0.3)",
+              background: hideWatched ? "rgba(255,255,255,0.04)" : "rgba(var(--ac-7c3aed),0.15)",
+              border: hideWatched ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(var(--ac-7c3aed),0.3)",
               transition:"all 0.15s",
             }}>
             {hideWatched ? (
@@ -107,7 +107,7 @@ export function StudioModal({ studioId, studioName, onClose, onOpenDetail }) {
                 <line x1="1" y1="1" x2="23" y2="23"/>
               </svg>
             ) : (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c084fc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ac-c084fc))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                 <circle cx="12" cy="12" r="3"/>
               </svg>

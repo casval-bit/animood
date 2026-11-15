@@ -305,7 +305,7 @@ export function ChatBubble({ hidden }) {
         onClick={() => setOpen(o => !o)}
         title={t.messagesTooltip}
         className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full transition hover:scale-105"
-        style={{ background: GRADIENT_PRIMARY, boxShadow: "0 10px 30px rgba(109,91,255,.5)" }}
+        style={{ background: GRADIENT_PRIMARY, boxShadow: "0 10px 30px rgba(var(--ac-6d5bff),0.5)" }}
       >
         <BubbleIcon open={open} />
       </button>
