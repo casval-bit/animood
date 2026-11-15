@@ -45,6 +45,8 @@
   --surface-1-strong: rgba(255,255,255,.62);
   --surface-2: rgba(var(--ac-4f46e5),0.12);
   --overlay: rgba(var(--ac-e0dbf3),0.84);
+  --logo-linux: var(--text-1);   /* Tux : le jaune officiel est trop pâle sur fond clair */
+  --page-bar: rgba(var(--ac-e0dbf3),0.92);   /* barre « Retour » des pages (À propos, Télécharger l'appli…) */
   --border-1: rgba(var(--ac-18122b),0.14);
   --text-1: rgb(var(--ac-120f24));
   --text-2: rgb(var(--ac-30294a));

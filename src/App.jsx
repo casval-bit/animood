@@ -50,14 +50,14 @@ function PageWrapper({ title, onClose, children }) {
   return (
     <div style={{
       position:"fixed",inset:0,zIndex:400,
-      background:"var(--surface-1-strong, #0f0a1e)",
+      background:"var(--page-bg, #0f0a1e)",   // opaque : l'écran du dessous ne doit pas transparaître
       overflowY:"auto",
     }}>
       {/* Back arrow */}
       <div style={{
         position:"sticky",top:0,
-        background:"rgba(var(--ac-0a0714),0.9)",backdropFilter:"blur(12px)",
-        borderBottom:"1px solid rgba(255,255,255,0.06)",
+        background:"var(--page-bar, rgba(var(--ac-0a0714),0.9))",backdropFilter:"blur(12px)",
+        borderBottom:"1px solid rgba(var(--fg-rgb),0.06)",
         padding:"14px 24px",display:"flex",alignItems:"center",gap:12,
         zIndex:1,
       }}>
@@ -668,8 +668,8 @@ function DownloadPage({ onClose }) {
               <div key={p.id} style={{
                 display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",
                 padding:"14px 16px",borderRadius:14,
-                background: mine ? "rgba(var(--ac-7c3aed),0.1)" : "rgba(255,255,255,0.03)",
-                border: `1px solid ${mine ? "rgba(var(--ac-7c3aed),0.35)" : "rgba(255,255,255,0.06)"}`,
+                background: mine ? "rgba(var(--ac-7c3aed),0.1)" : "rgba(var(--fg-rgb),0.03)",
+                border: `1px solid ${mine ? "rgba(var(--ac-7c3aed),0.35)" : "rgba(var(--fg-rgb),0.06)"}`,
               }}>
                 <PlatformBadge highlight={mine}>{p.icon}</PlatformBadge>
                 <div style={{flex:1,minWidth:140}}>
@@ -730,8 +730,8 @@ function DownloadPage({ onClose }) {
                 <div key={p.id} style={{
                   display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",
                   padding:"14px 16px",borderRadius:14,
-                  background: mine ? "rgba(var(--ac-7c3aed),0.1)" : "rgba(255,255,255,0.03)",
-                  border: `1px solid ${mine ? "rgba(var(--ac-7c3aed),0.35)" : "rgba(255,255,255,0.06)"}`,
+                  background: mine ? "rgba(var(--ac-7c3aed),0.1)" : "rgba(var(--fg-rgb),0.03)",
+                  border: `1px solid ${mine ? "rgba(var(--ac-7c3aed),0.35)" : "rgba(var(--fg-rgb),0.06)"}`,
                 }}>
                   <PlatformBadge highlight={mine}>{p.icon}</PlatformBadge>
                   <div style={{flex:1,minWidth:140}}>
@@ -771,6 +771,12 @@ function DownloadPage({ onClose }) {
           ? "Windows may show a \"Windows protected your PC\" warning because the app isn't signed yet: click \"More info\" then \"Run anyway\". On macOS, the first time, open System Settings → Privacy & Security and click \"Open Anyway\" next to AniMood. Updates then install by themselves."
           : "Windows peut afficher « Windows a protégé votre ordinateur » car l'appli n'est pas encore signée : clique sur « Informations complémentaires » puis « Exécuter quand même ». Sur Mac, la première fois, va dans Réglages Système → Confidentialité et sécurité et clique sur « Ouvrir quand même » à côté d'AniMood. Les mises à jour s'installent ensuite toutes seules."}
       </Section>
+
+      <p style={{margin:"28px 0 0",fontSize:11,lineHeight:1.7,color:"var(--text-5, #475569)"}}>
+        {en
+          ? "Android is a trademark of Google LLC; the Android robot is reproduced from work created and shared by Google and used according to the terms of the Creative Commons 3.0 Attribution License. Apple, macOS, iPhone and iPad are trademarks of Apple Inc.; Windows is a trademark of the Microsoft group of companies; Linux is a registered trademark of Linus Torvalds. These logos only name the platform: AniMood is not affiliated with these companies."
+          : "Android est une marque de Google LLC ; le robot Android est reproduit à partir d'une œuvre créée et partagée par Google, utilisée selon les termes de la licence Creative Commons Attribution 3.0. Apple, macOS, iPhone et iPad sont des marques d'Apple Inc. ; Windows est une marque du groupe de sociétés Microsoft ; Linux est une marque déposée de Linus Torvalds. Ces logos servent uniquement à désigner la plateforme : AniMood n'est affilié à aucune de ces sociétés."}
+      </p>
     </PageWrapper>
   );
 }
