@@ -422,7 +422,7 @@ function ProfilePostCard({ post, myUsername, onLikeUpdate, onDelete, hud = false
   }, []);
 
   return (
-    <div style={hud
+    <div data-hud={hud ? "" : undefined} style={hud
       ? {background:"linear-gradient(135deg, rgba(var(--ac-0a061e),0.85) 0%, rgba(var(--ac-0f0928),0.75) 100%)",borderRadius:16,
          border:"1px solid rgba(var(--ac-8b5cf6),0.18)",padding:16,position:"relative",overflow:"hidden",
          boxShadow:`inset 3px 0 0 ${post._type==="written"?"rgb(var(--ac-a855f7))":"rgb(var(--ac-6366f1))"}`}
@@ -574,7 +574,7 @@ function SpotlightCircle({ anime, lang, onOpen, onPick, onClear, size = 132, com
   return (
     <div className="sp-wrap" style={{ width: SIZE + 36, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 9 }}>
       <style>{SPOTLIGHT_CSS}</style>
-      <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.3em", paddingLeft: "0.3em", textTransform: "uppercase", color: "rgba(var(--ac-a78bfa),0.85)" }}>
+      <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.3em", paddingLeft: "0.3em", textTransform: "uppercase", color: "var(--accent-label, rgba(var(--ac-a78bfa),0.85))" }}>
         {label}
       </div>
 
@@ -636,7 +636,8 @@ function SpotlightCircle({ anime, lang, onOpen, onPick, onClear, size = 132, com
         </div>
       </div>
 
-      <div style={{ minHeight: 30, textAlign: "center", fontSize: 11.5, fontWeight: 700, lineHeight: 1.3, color: anime ? "rgb(var(--ac-e2e8f0))" : "rgba(148,163,184,.7)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+      {/* classes Tailwind plutôt qu'une couleur écrite en dur : en thème clair le titre (presque blanc) serait invisible sur la carte claire */}
+      <div className={anime ? "text-slate-200" : "text-slate-400 opacity-70"} style={{ minHeight: 30, textAlign: "center", fontSize: 11.5, fontWeight: 700, lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
         {anime ? anime.title : (en ? "Pin an anime" : "Épingle un animé")}
       </div>
       {anime && !compact && (
@@ -712,7 +713,7 @@ function HudPanel({ me, rated, myUsername, unlockedBadges, activeBadge, onOpenBa
           { icon: "🏆", label: t.badges || "Badges",  value: unlockedBadges.length, color: "#fbbf24", onClick: onOpenBadges, delay: "300ms" },
           { icon: "🎮", label: t.statPoints || "Points", value: fmtPoints(gamePts), hover: gamePts === null ? undefined : `${gamePts.toLocaleString()} pts`, color: "rgb(var(--ac-ec4899))", delay: "400ms" },
         ].map(({ icon, label, value, color, onClick, delay, hover }) => (
-          <div key={label}
+          <div key={label} data-hud=""
             onClick={onClick}
             title={hover}
             style={{
@@ -741,7 +742,7 @@ function HudPanel({ me, rated, myUsername, unlockedBadges, activeBadge, onOpenBa
 
       {!tilesOnly && <>
       {/* ── ROW 2 — Histogramme des notes ───────────────────────────────── */}
-      <div style={{ ...hudCard, animation: "border-glow-sweep 3s ease-in-out infinite" }}>
+      <div data-hud="" style={{ ...hudCard, animation: "border-glow-sweep 3s ease-in-out infinite" }}>
         <div style={scanLine} />
         <div style={{ position: "absolute", ...cornerDeco("tl") }} />
         <div style={{ position: "absolute", ...cornerDeco("tr") }} />
@@ -767,7 +768,7 @@ function HudPanel({ me, rated, myUsername, unlockedBadges, activeBadge, onOpenBa
       </div>
 
       {/* ── ROW 3 — MoodOctagon full width ──────────────────────────────── */}
-      <div style={{ ...hudCard, minHeight: 180, flex: 1, animation: "border-glow-sweep 3s ease-in-out infinite" }}>
+      <div data-hud="" style={{ ...hudCard, minHeight: 180, flex: 1, animation: "border-glow-sweep 3s ease-in-out infinite" }}>
         <div style={scanLine} />
         <div style={{ position: "absolute", ...cornerDeco("tl") }} />
         <div style={{ position: "absolute", ...cornerDeco("br") }} />
@@ -1655,7 +1656,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
                 const a = getAnime(id); const r = me.ratings[id];
                 const img = a?.images?.jpg?.image_url||a?.images?.jpg?.large_image_url;
                 return (
-                  <button key={id} onClick={() => onOpenDetail(a)} className="flex gap-3 overflow-hidden rounded-xl text-left"
+                  <button key={id} onClick={() => onOpenDetail(a)} className="flex gap-3 overflow-hidden rounded-xl text-left" data-hud={hud ? "" : undefined}
                     style={hud
                       ? { border:"1px solid rgba(var(--ac-8b5cf6),0.16)", background:"linear-gradient(135deg, rgba(var(--ac-0a061e),0.85), rgba(var(--ac-0f0928),0.7))", boxShadow:`inset 3px 0 0 ${sc.dot}, 0 0 14px ${sc.dot}22` }
                       : { border:`1px solid ${sc.border}`, background:sc.bg }}>

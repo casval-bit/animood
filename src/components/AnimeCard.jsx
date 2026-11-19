@@ -12,7 +12,7 @@ function posterUrl(anime) {
 }
 
 // ─── Full card — poster + title + meta + genres (+ optional mood tags) ────────
-export function AnimeCard({ anime, onClick, statusDot, moodPts, className = "", quickAction = "watched" }) {
+export function AnimeCard({ anime, onClick, statusDot, moodPts, className = "", quickAction = "watched", activity = null }) {
   const { lang } = useLang();
   const t = ANIME_CARD_I18N[lang] || ANIME_CARD_I18N.fr;
   const img = posterUrl(anime);
@@ -51,6 +51,7 @@ export function AnimeCard({ anime, onClick, statusDot, moodPts, className = "", 
         <div className="text-[10px] text-slate-500">
           {anime.year || anime.aired?.prop?.from?.year || "?"} · {anime.type || "?"}{eps ? ` · ${eps} ${t.epsSuffix}` : ""}
         </div>
+        {activity && <div className="text-[10px] font-semibold text-amber-400">{activity}</div>}
         {genres.length > 0 && (
           <div className="mt-0.5 flex flex-wrap gap-1">
             {genres.map(g => (

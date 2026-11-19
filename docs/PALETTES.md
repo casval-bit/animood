@@ -1,18 +1,23 @@
-# Palettes de couleurs (appli de bureau)
+# Palettes de couleurs (site, APK et appli de bureau)
 
-L'appli de bureau propose, dans **Paramètres → Préférences → Couleurs**, des palettes qui remplacent le bleu / violet de la marque
-(en plus du thème sombre / clair, qui reste indépendant) :
+Le site (animood.me), l'APK (c'est le site, empaqueté en TWA) et l'appli de bureau proposent, dans **Paramètres → Préférences → Couleurs**,
+8 palettes qui remplacent le bleu / violet de la marque (en plus du thème sombre / clair, qui reste indépendant) :
 
-| id        | nom (FR)        | dégradé de marque                  |
-|-----------|-----------------|------------------------------------|
-| `default` | Bleu / violet   | indigo → violet → rose (d'origine) |
-| `sunset`  | Jaune / orange  | ambre → orange → rouge-rosé        |
-| `coral`   | Rouge / saumon  | orangé → rouge → rose              |
-| `garden`  | Vert / rose     | turquoise → vert → rose            |
+| id         | nom (FR)         | dégradé de marque                              |
+|------------|------------------|------------------------------------------------|
+| `default`  | Bleu / violet    | indigo → violet → rose (d'origine)             |
+| `sunset`   | Jaune / orange   | ambre → orange → rouge-rosé                    |
+| `coral`    | Rouge / saumon   | orangé → rouge → rose                          |
+| `garden`   | Vert / rose      | turquoise → vert → rose                        |
+| `ocean`    | Cyan / turquoise | bleu → cyan → turquoise                        |
+| `sakura`   | Rose / magenta   | fuchsia → rose → rose-rouge                    |
+| `forest`   | Émeraude / vert  | turquoise → émeraude → vert franc              |
+| `graphite` | Gris / argent    | acier très peu intense (barres du profil grises) |
 
 Le choix est mémorisé dans `localStorage` (`animood_palette`) et posé sur `<html data-palette="…">` **avant le premier rendu**
-(`src/main.jsx`), uniquement quand `<html data-app="desktop">` est présent (Electron). Le site web ne lit ni n'écrit rien de tout ça :
-il garde exactement ses couleurs d'origine.
+(`src/main.jsx`), partout : site, APK, Electron. `<meta name="theme-color">` (barre du navigateur sur mobile / PWA) prend la couleur de la
+palette (`themeColor` dans `src/constants/palettes.js`). Sans choix, la palette d'origine s'applique : le rendu est celui d'avant.
+L'APK affiche le site : un changement de palette arrive avec le prochain déploiement Vercel, sans nouvelle version de l'APK.
 
 ## Comment ça marche
 
@@ -22,9 +27,10 @@ Les couleurs « de marque » (bleu, indigo, violet, fuchsia, rose) ne sont plus 
 style={{ background: "rgba(var(--ac-8b5cf6),0.18)", color: "rgb(var(--ac-c4b5fd))" }}   // avant : "rgba(139,92,246,.18)" / "#c4b5fd"
 ```
 
-`--ac-<hex>` contient les trois composantes `r, g, b` de la couleur d'origine : **sans palette, le rendu est strictement identique à avant**
-(vérifié pixel par pixel). `src/palettes.css` redéfinit ces variables pour chaque palette (et les familles Tailwind `violet-*`, `indigo-*`,
-`purple-*`, `fuchsia-*`, `pink-*`, `rose-*`, utilisées telles quelles dans les `className`), en thème sombre et en thème clair.
+`--ac-<hex>` contient les trois composantes `r, g, b` de la couleur d'origine : **sans palette, le thème sombre est strictement identique à
+avant** (vérifié sur des captures, écran par écran). `src/palettes.css` redéfinit ces variables pour chaque palette (et les familles Tailwind
+`violet-*`, `indigo-*`, `purple-*`, `fuchsia-*`, `pink-*`, `rose-*`, utilisées telles quelles dans les `className`), en thème sombre et en
+thème clair. Les règles ne dépendent d'aucune plateforme (pas de `data-app`) : le site et l'appli de bureau lisent le même fichier.
 
 `src/palettes.css` est **généré** — ne pas le modifier à la main :
 
@@ -37,11 +43,43 @@ La conversion (dans `scripts/palettes/`) travaille en OKLCH : pour chaque couleu
 (nuance 50 … 950, repérée par sa clarté), on change la teinte selon des points d'ancrage, puis on reprend la clarté et l'intensité de la même
 nuance dans la famille d'arrivée. Un violet moyen devient donc un orange moyen (pas un marron), un fond très sombre reste très sombre.
 
-**Garde-fou de lisibilité** : les jaunes et les oranges sont naturellement bien plus clairs que les bleus / violets, et beaucoup de couleurs de
-marque servent de fond à du texte blanc (boutons, pastilles). Une couleur qui tenait au moins 3 de contraste avec le blanc le garde donc
-(plafonné à `whiteContrast`, 3,3 par défaut dans `spec.mjs`) : le générateur la fonce juste ce qu'il faut, sans changer sa teinte. Les couleurs
-pâles d'origine (textes d'accent, lueurs…) ne sont pas touchées : elles restent bien claires, par exemple un vrai jaune pour les accents du
-thème sombre. Un test (`tests/palettes.test.mjs`) vérifie ce contraste pour toutes les palettes, en sombre et en clair.
+**Garde-fou de lisibilité du texte blanc** : les jaunes et les oranges sont naturellement bien plus clairs que les bleus / violets, et beaucoup
+de couleurs de marque servent de fond à du texte blanc (boutons, pastilles). Une couleur qui tenait au moins 3 de contraste avec le blanc le
+garde donc (plafonné à `whiteContrast`, 3,3 par défaut dans `spec.mjs`) : le générateur la fonce juste ce qu'il faut, sans changer sa teinte.
+Les couleurs pâles d'origine (textes d'accent, lueurs…) ne sont pas touchées par cette étape : elles restent bien claires en thème sombre.
+Un test (`tests/palettes.test.mjs`) vérifie ce contraste pour toutes les palettes, en sombre et en clair.
+
+## Lisibilité en thème clair
+
+Beaucoup de textes d'accent sont pensés pour un fond sombre (`text-indigo-300`, `text-amber-400`, `#fbbf24`, `rgba(148,163,184,.7)`…) : tels
+quels sur les cartes claires du thème clair, ils deviennent presque invisibles. Trois mécanismes, tous limités à `:root[data-theme="light"]`
+(le thème sombre n'est pas touché, un test le vérifie) :
+
+1. **Gris du thème clair** (`src/index.css`) : `--text-3`, `--text-4`, `.text-slate-*`, `.bg-white/*`, `.border-white/*` sont repointés vers des
+   tons choisis pour la surface claire (les textes gris atteignent un contraste d'au moins 4,5 sur les cartes) ; `--surface-1-strong` (fenêtres, menus) est presque opaque
+   (un voile blanc à 62 % sur le fond noir des fenêtres donnait un gris délavé) ; `--accent-label` sert aux petites étiquettes d'accent.
+2. **Textes colorés assombris automatiquement** (`scripts/palettes/lighttext.mjs`, section « LISIBILITÉ EN THÈME CLAIR » de `src/palettes.css`) :
+   le générateur lit `src/`, repère les couleurs de texte pâles — classes Tailwind `text-<teinte>-<nuance>` (avec `/NN`), `rgb(var(--ac-…))`,
+   valeurs en dur dans `style={{ color }}`, y compris semi-transparentes — et écrit pour chacune une règle qui multiplie sa clarté OKLCH par un
+   facteur (même teinte, même intensité) jusqu'à un contraste d'au moins 4,5 (`MIN_CONTRAST`, visé : 4,9) avec la surface claire. Pour les
+   classes Tailwind la règle part de la variable de la palette (`--color-indigo-300`…) : elle suit donc la palette choisie. Un texte
+   semi-transparent voit son opacité relevée à 0,8 au moins (`MIN_ALPHA`). Les couleurs presque blanches (clarté OKLCH ≥ 0,93 : texte posé sur un
+   bouton coloré) et les couleurs déjà foncées ne sont jamais modifiées.
+3. **Îlots qui restent sombres en thème clair** : les cartes du profil (style HUD, `data-hud`), l'en-tête du bureau, la scène du Moodboard et
+   le bandeau d'affiche de la fiche animé (`data-keep-bright`), les pastilles noires posées sur les affiches (`bg-black/60…90`). Dedans,
+   `--lt-keep: 1` annule l'assombrissement et le relèvement d'opacité, et `src/index.css` y rétablit les gris du thème sombre. Les voiles de
+   fenêtre (`.fixed`) ne sont pas des îlots.
+
+Les règles utilisent la syntaxe de couleur relative CSS (`oklch(from … calc(l * k) c h)`) : Chromium ≥ 119, Safari ≥ 16.4, Firefox ≥ 128
+(Electron 32 : ok). Sur un navigateur plus ancien, les textes gardent simplement leur couleur d'origine (plus pâle, mais jamais cassée).
+
+À retenir en écrivant du code :
+- Un texte d'accent pâle (indigo-300, amber-400, `#fbbf24`…) est géré tout seul : relancer `npm run palettes` après l'avoir ajouté (le test
+  `tests/lighttext.test.mjs` le rappelle).
+- Un texte **presque blanc** posé sur un fond clair en thème clair (légende sur une carte, par exemple) ne serait pas assombri : utiliser une
+  classe `text-slate-*` (repointée par le thème clair) plutôt qu'une couleur en dur. Sur un fond toujours sombre, ajouter `data-keep-bright`
+  (ou `data-hud`) au conteneur.
+- Un fond sombre posé en dur (`bg-black/80`, `rgba(0,0,0,.7)`) fait de son contenu un îlot : les textes clairs y restent clairs.
 
 ## Écrire de nouvelles couleurs dans le code
 
@@ -58,5 +96,5 @@ thème sombre. Un test (`tests/palettes.test.mjs`) vérifie ce contraste pour to
 1. `scripts/palettes/spec.mjs` : ajouter l'entrée (points d'ancrage de teinte, `lift`, `chroma`, `hud`, éventuellement `whiteContrast`) ou
    ajuster une existante ; une couleur précise peut être imposée avec `overrides`.
 2. `npm run palettes`.
-3. `src/constants/palettes.js` : ajouter `{ id, swatch }` (les 3 pastilles d'aperçu — le test les compare au générateur) ;
-   `src/constants/settingsI18n.js` : ajouter le nom FR / EN dans `paletteNames`.
+3. `src/constants/palettes.js` : ajouter `{ id, swatch, themeColor }` (les 3 pastilles d'aperçu et la couleur de la barre du navigateur — le
+   test les compare au générateur) ; `src/constants/settingsI18n.js` : ajouter le nom FR / EN dans `paletteNames`.

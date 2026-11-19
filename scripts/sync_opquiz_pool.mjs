@@ -6,14 +6,15 @@
 // Run manually with SUPABASE_URL/SUPABASE_ANON set, or via the scheduled
 // GitHub Action in .github/workflows/sync-anime.yml.
 
+import { atGet, animeThemesStats } from "./lib/animeThemesApi.mjs";
+
 const SUPABASE_URL  = process.env.SUPABASE_URL;
 // clé de service si disponible (nécessaire une fois security_rls_2_reference.sql exécuté), sinon clé publique
 const SUPABASE_ANON = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON;
-const ANIMETHEMES_BASE = "https://api.animethemes.moe";
-const DELAY_MS = 300; // politeness delay between AnimeThemes requests
-// Cloudflare in front of AnimeThemes answers 403 to Node's default fetch
-// (no User-Agent) — identify the script explicitly.
-const AT_HEADERS = { "User-Agent": "AniMood-sync/1.0 (+https://github.com/casval-bit/animood)" };
+// AnimeThemes : 90 requêtes/min — l'espacement, le « 429 » et le User-Agent (Cloudflare refuse les clients sans) sont gérés par scripts/lib/animeThemesApi.mjs
+// Budget de temps (SYNC_BUDGET_MIN, en minutes ; absent = pas de limite) : le script s'arrête de lui-même et enregistre ce qu'il a trouvé.
+const DEADLINE = Number(process.env.SYNC_BUDGET_MIN) > 0 ? Date.now() + Number(process.env.SYNC_BUDGET_MIN) * 60_000 : Infinity;
+const overBudget = () => Date.now() > DEADLINE;
 const TARGET_PER_TIER = 50;
 const CANDIDATE_TYPES = "TV,ONA"; // openings mostly make sense for these
 
@@ -24,7 +25,6 @@ const TIERS = [
   { difficulty: "hard",   maxPopularity: 3000 },
 ];
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
 const SB_HEADERS = {
   "Content-Type": "application/json",
   "apikey": SUPABASE_ANON,
@@ -57,10 +57,9 @@ function extractMalId(resources) {
 // Same resolution logic as src/api/animethemes.js's fetchOpeningAudio — kept
 // standalone here since this script runs outside the Vite/browser build.
 async function fetchOpeningAudio(title, malId) {
-  const url = `${ANIMETHEMES_BASE}/anime?q=${encodeURIComponent(title)}&page[size]=5&include=animethemes.animethemeentries.videos.audio,resources`;
-  const res = await fetch(url, { headers: AT_HEADERS });
-  if(!res.ok) return null;
-  const json = await res.json();
+  const json = await atGet(`/anime?q=${encodeURIComponent(title)}&page[size]=5&include=animethemes.animethemeentries.videos.audio,resources`, { tries: 2 })
+    .catch(e => { if(e.status === 429) throw e; return null; });   // refus (404…) = pas de musique trouvée ; limite de requêtes = on remonte l'erreur
+  if(!json) return null;
   const list = json.anime || [];
   const match = list.find(a => extractMalId(a.resources) === malId) || null;
   if(!match) return null;
@@ -98,10 +97,10 @@ async function buildTier(tier, prevMaxPopularity, existingIds) {
   const found = [];
   for(const anime of candidates) {
     if(found.length >= TARGET_PER_TIER) break;
+    if(overBudget()) { console.log("\n  ⏱️ budget de temps atteint — le reste au prochain passage"); break; }
     if(existingIds.has(anime.mal_id)) { process.stdout.write("·"); continue; }
     try {
       const audio = await fetchOpeningAudio(anime.title, anime.mal_id);
-      await sleep(DELAY_MS);
       if(audio) {
         found.push({
           mal_id: anime.mal_id,
@@ -139,6 +138,7 @@ async function main() {
   let prevMax = null;
   let totalAdded = 0;
   for(const tier of TIERS) {
+    if(overBudget()) break;
     const rows = await buildTier(tier, prevMax, existingIds);
     await sbUpsert("opquiz_pool", rows);
     totalAdded += rows.length;
@@ -146,7 +146,7 @@ async function main() {
   }
 
   console.log("\n================================");
-  console.log(`✅ Sync complete — ${totalAdded} new openings added`);
+  console.log(`✅ Sync complete — ${totalAdded} new openings added (AnimeThemes : ${animeThemesStats().calls} requêtes${animeThemesStats().throttled ? `, ${animeThemesStats().throttled}× « trop de requêtes »` : ""})`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

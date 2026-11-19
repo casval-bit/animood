@@ -561,7 +561,7 @@ function WebNotificationBell({ onChangeTab, onJoinGame }) {
         onClick={() => setOpen(o => !o)}
         title={t.notifications}
         className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition hover:scale-110"
-        style={{ background: open ? GRADIENT_PRIMARY : "rgba(var(--fg-rgb),.06)", boxShadow: open ? "0 6px 18px rgba(109,91,255,.45)" : "none" }}
+        style={{ background: open ? GRADIENT_PRIMARY : "rgba(var(--fg-rgb),.06)", boxShadow: open ? "0 6px 18px rgba(var(--ac-6d5bff),.45)" : "none" }}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={open ? "#fff" : "var(--text-2)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -688,7 +688,7 @@ function WebHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings, onOpenD
                 key={tab.id}
                 onClick={() => onChangeTab(tab.id)}
                 className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-bold text-white transition sm:px-3.5 sm:py-2"
-                style={{ background: active ? GRADIENT_PRIMARY : "transparent", color: active ? "#fff" : "var(--text-2)", boxShadow: active ? "0 6px 20px rgba(109,91,255,.35)" : "none" }}
+                style={{ background: active ? GRADIENT_PRIMARY : "transparent", color: active ? "#fff" : "var(--text-2)", boxShadow: active ? "0 6px 20px rgba(var(--ac-6d5bff),.35)" : "none" }}
               >
                 <span className={active ? "" : "opacity-50 grayscale"}>{tab.emoji}</span>
                 <span className="hidden sm:inline">{tab.label}</span>
@@ -721,7 +721,7 @@ function WebHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings, onOpenD
           className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition hover:scale-110"
           style={{
             background: activeTab === "messages" ? GRADIENT_PRIMARY : "rgba(var(--fg-rgb),.06)",
-            boxShadow: activeTab === "messages" ? "0 6px 18px rgba(109,91,255,.45)" : "none",
+            boxShadow: activeTab === "messages" ? "0 6px 18px rgba(var(--ac-6d5bff),.45)" : "none",
           }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={activeTab === "messages" ? "#fff" : "var(--text-2)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -752,7 +752,7 @@ function WebHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings, onOpenD
 
         <div className="hidden shrink-0 items-center gap-2 pl-2 border-l border-white/8 sm:flex">
           <div className="h-7 w-7 rounded-full overflow-hidden flex items-center justify-center text-sm shrink-0"
-            style={{background:"linear-gradient(135deg,#7c3aed,#4f46e5)"}}>
+            style={{background:"linear-gradient(135deg,rgb(var(--ac-7c3aed)),rgb(var(--ac-4f46e5)))"}}>
             {me.avatar?.startsWith?.("http")
               ? <img src={me.avatar} alt="avatar" className="h-full w-full object-cover"/>
               : <span>{me.avatar || "👤"}</span>}
@@ -783,7 +783,7 @@ function WebBottomNav({ tabs, activeTab, onChangeTab }) {
           >
             <span
               className="flex h-8 w-14 items-center justify-center rounded-full text-[17px] transition"
-              style={{ background: active ? GRADIENT_PRIMARY : "transparent", boxShadow: active ? "0 6px 18px rgba(109,91,255,.35)" : "none" }}
+              style={{ background: active ? GRADIENT_PRIMARY : "transparent", boxShadow: active ? "0 6px 18px rgba(var(--ac-6d5bff),.35)" : "none" }}
             >
               <span className={active ? "" : "opacity-50 grayscale"}>{tab.emoji}</span>
             </span>
@@ -905,7 +905,8 @@ function DesktopHeader({ activeTab, onChangeTab, onJoinGame, onOpenSettings }) {
   return (
     <>
       <InjectDesktopCSS />
-      <div
+      {/* data-keep-bright : barre et calendrier restent sombres en thème clair, leurs textes clairs ne doivent pas être assombris (lighttext.mjs) */}
+      <div data-keep-bright=""
         style={{
           position: "fixed",
           top: 0, left: 0, right: 0,

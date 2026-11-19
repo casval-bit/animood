@@ -77,18 +77,24 @@ jobs:
         id: sync_opquiz
         continue-on-error: true
         timeout-minutes: 10
+        env:
+          SYNC_BUDGET_MIN: '8'      # AnimeThemes = 90 requêtes/min : le script s'arrête de lui-même et enregistre ce qu'il a trouvé
         run: node scripts/sync_opquiz_pool.mjs 2>&1 | tee /tmp/opquiz_log.txt
 
       - name: Refresh Artist tab cache
         id: sync_artists
         continue-on-error: true
         timeout-minutes: 10
+        env:
+          SYNC_BUDGET_MIN: '8'
         run: node scripts/sync_artists.mjs 2>&1 | tee /tmp/artists_log.txt
 
       - name: Write summary
         if: always()
         run: |
-          show() { echo "### $1 — ${2:-?}" >> $GITHUB_STEP_SUMMARY; echo '```' >> $GITHUB_STEP_SUMMARY; tail -${4:-5} "$3" >> $GITHUB_STEP_SUMMARY 2>/dev/null; echo '```' >> $GITHUB_STEP_SUMMARY; echo "" >> $GITHUB_STEP_SUMMARY; }
+          # Le journal d'une étape ignorée ou annulée n'existe pas : « tail » échouait, et comme bash tourne avec « -e » toute l'étape
+          # « Write summary » devenait rouge (c'est ce qui est arrivé quand le job a dépassé ses 2 h). Ici, un journal manquant ne casse plus rien.
+          show() { { echo "### $1 — ${2:-?}"; echo '```'; if [ -s "$3" ]; then tail -n "${4:-5}" "$3"; else echo "(pas de journal : étape ignorée ou annulée)"; fi; echo '```'; echo ""; } >> "$GITHUB_STEP_SUMMARY"; }
           echo "## 🌀 AniMood — Sync Report $(date '+%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           show "📺 New anime + scores" "${{ steps.sync_anime.outcome }}" /tmp/anime_log.txt 8

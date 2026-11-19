@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { ThemeContext } from "./themeContextObject.js";
-import { readStoredPalette, applyPalette, PALETTE_IDS, PALETTE_STORAGE_KEY, DEFAULT_PALETTE } from "../constants/palettes.js";
+import { readStoredPalette, applyPalette, applyThemeColor, PALETTE_IDS, PALETTE_STORAGE_KEY, DEFAULT_PALETTE } from "../constants/palettes.js";
 
 const STORAGE_KEY = "animood_theme";
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => localStorage.getItem(STORAGE_KEY) || "dark");
-  // Palette de couleurs (appli de bureau uniquement ; sur le site web elle reste « default » et rien n'est écrit)
+  // Palette de couleurs (site, APK et appli de bureau) ; sans choix mémorisé : « default » = les couleurs d'origine
   const [palette, setPaletteState] = useState(readStoredPalette);
 
   useEffect(() => {
@@ -16,7 +16,7 @@ export function ThemeProvider({ children }) {
 
   useEffect(() => {
     applyPalette(palette);
-    if (document.documentElement.dataset.app !== "desktop") return;
+    applyThemeColor(palette);
     try { localStorage.setItem(PALETTE_STORAGE_KEY, palette); } catch { /* stockage indisponible : le choix ne sera pas mémorisé */ }
   }, [palette]);
 

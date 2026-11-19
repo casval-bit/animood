@@ -593,9 +593,11 @@ export function MoodStage({ selectedMoods, generating, burst, hasSearched, onTog
     return <div ref={stageRef} className="mb-reveal">{children}</div>;
   }
 
+  // data-keep-bright : la scène reste sombre dans le thème clair, ses textes clairs ne doivent donc pas être assombris (lighttext.mjs).
   return (
     <div
       ref={stageRef}
+      data-keep-bright=""
       style={{
         position: "relative", overflow: "hidden", minHeight: 560, borderRadius: 26,
         border: "1px solid rgba(255,255,255,.09)",

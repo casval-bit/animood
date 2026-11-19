@@ -53,6 +53,6 @@ jobs:
         run: |
           echo "## 🗓️ AniMood — Monthly Sync $(date '+%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY
           echo "### 🎬 Trailers — ${{ steps.trailers.outcome }}" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY; tail -4 /tmp/trailers_log.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null; echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY; tail -4 /tmp/trailers_log.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "(pas de journal)" >> $GITHUB_STEP_SUMMARY; echo '```' >> $GITHUB_STEP_SUMMARY
           echo "### 🌍 Pays — ${{ steps.regions.outcome }}" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY; tail -3 /tmp/regions_log.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null; echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY; tail -3 /tmp/regions_log.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "(pas de journal : étape ignorée)" >> $GITHUB_STEP_SUMMARY; echo '```' >> $GITHUB_STEP_SUMMARY

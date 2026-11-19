@@ -2,7 +2,7 @@
 // Tout le code de l'appli écrit ses couleurs de marque sous la forme rgb(var(--ac-6d5bff)) / rgba(var(--ac-6d5bff),.4) : la variable
 // --ac-<hex> contient les 3 composantes « r, g, b » de la couleur d'origine (le rendu par défaut est donc identique à avant).
 // Pour chaque palette, ce fichier redéfinit ces variables (et les familles Tailwind violet / indigo / purple / fuchsia / pink / rose)
-// quand <html data-app="desktop" data-palette="…"> est posé (appli de bureau seulement).
+// quand <html data-palette="…"> est posé (site, APK et appli de bureau : le choix est dans Paramètres → Préférences → Couleurs).
 import fs from "node:fs";
 import path from "node:path";
 import { parseHex } from "./color.mjs";
@@ -10,6 +10,7 @@ import { mapRgb, mapOklchToRgb } from "./map.mjs";
 import { RAMPS, SHADES } from "./ramps.mjs";
 import { PALETTES } from "./spec.mjs";
 import { hex } from "./color.mjs";
+import { buildLightTextCss } from "./lighttext.mjs";
 
 export const TAILWIND_FAMILIES = ["violet", "indigo", "purple", "fuchsia", "pink", "rose"];
 const KEY_RE = /--ac-([0-9a-f]{6})\b/g;
@@ -39,23 +40,24 @@ export function paletteColor(key, id, theme = "dark") {
   return mapRgb(parseHex(key), spec, theme, spec.overrides?.[key]?.[theme] ? parseHex(spec.overrides[key][theme]) : null);
 }
 
-export function buildCss(keys) {
+export function buildCss(keys, srcDir = null) {
   const out = [];
   out.push(`/* ─── GÉNÉRÉ par scripts/gen_palettes.mjs (npm run palettes) — ne pas modifier à la main ─────────────────────────
    --ac-<hex> : couleur de marque d'origine (valeur par défaut = couleur écrite dans le code, rendu inchangé).
-   Palettes : ${Object.keys(PALETTES).join(", ")} — actives seulement dans l'appli de bureau (<html data-app="desktop" data-palette="…">). */`);
+   Palettes : ${Object.keys(PALETTES).join(", ")} — actives quand <html data-palette="…"> est posé (site, APK et appli de bureau). */`);
   out.push(":root {");
   for (const k of keys) out.push(`  --ac-${k}: ${trip(parseHex(k))};`);
-  out.push("  --hud-h0: 262;", "  --hud-hs: 1;", "}");
+  out.push("  --hud-h0: 262;", "  --hud-hs: 1;", "  --hud-sat: 1;", "}");
   for (const [id, spec] of Object.entries(PALETTES)) {
     for (const theme of ["dark", "light"]) {
       out.push("", `/* ${id} — thème ${theme === "dark" ? "sombre" : "clair"} */`);
-      out.push(`html[data-app="desktop"][data-palette="${id}"]${theme === "light" ? '[data-theme="light"]' : ""} {`);
+      out.push(`html[data-palette="${id}"]${theme === "light" ? '[data-theme="light"]' : ""} {`);
       for (const k of keys) out.push(`  --ac-${k}: ${trip(paletteColor(k, id, theme))};`);
       out.push(...familyVars(spec, theme));
-      if (theme === "dark") out.push(`  --hud-h0: ${spec.hud.h0};`, `  --hud-hs: ${spec.hud.hs};`);
+      if (theme === "dark") out.push(`  --hud-h0: ${spec.hud.h0};`, `  --hud-hs: ${spec.hud.hs};`, `  --hud-sat: ${spec.hud.sat ?? 1};`);
       out.push("}");
     }
   }
-  return out.join("\n") + "\n";
+  // lisibilité du thème clair (textes d'accent pâles assombris) : voir lighttext.mjs
+  return out.join("\n") + "\n" + (srcDir ? "\n" + buildLightTextCss(srcDir) : "");
 }

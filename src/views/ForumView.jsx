@@ -538,7 +538,7 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
 
   const followingSet = new Set(following||[]);
   function usernameColor(u) {
-    if(u===myUsername) return "#c084fc";
+    if(u===myUsername) return "rgb(var(--ac-c084fc))";
     if(followingSet.has(u)) return "#22c55e";
     return "var(--text-2)";
   }
@@ -590,7 +590,7 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
 
       {elo && (
         <div style={{marginTop:7,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",borderRadius:9,
-          background:"linear-gradient(90deg,rgba(124,58,237,0.08),rgba(56,189,248,0.05))",border:"1px solid rgba(255,255,255,0.06)"}}>
+          background:"linear-gradient(90deg,rgba(var(--ac-7c3aed),0.08),rgba(56,189,248,0.05))",border:"1px solid rgba(255,255,255,0.06)"}}>
           <div style={{fontSize:9,color:"var(--text-5)",fontWeight:700}}>{t.unlocksFramesLabel}</div>
           <div style={{fontSize:13,fontWeight:900,color:"var(--text-1)"}}>{elo ? (elo.elo_chain||400)+(elo.elo_timeline||400)+(elo.pts_wordle||0)+(elo.pts_poster||0)+(elo.pts_opquiz||0)+(elo.pts_cluescale||0)+(elo.pts_undercover||0) : 0}</div>
         </div>
@@ -605,11 +605,11 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
               const medal=i===0?"🥇":i===1?"🥈":i===2?"🥉":null;
               return (
                 <div key={r.username} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:7,
-                  background:isMe?"rgba(124,58,237,0.1)":"rgba(255,255,255,0.02)",
-                  border:isMe?"1px solid rgba(124,58,237,0.2)":"1px solid transparent"}}>
+                  background:isMe?"rgba(var(--ac-7c3aed),0.1)":"rgba(255,255,255,0.02)",
+                  border:isMe?"1px solid rgba(var(--ac-7c3aed),0.2)":"1px solid transparent"}}>
                   <div style={{fontSize:9,color:"var(--text-5)",width:16,textAlign:"right",flexShrink:0}}>{medal||`${i+1}`}</div>
                   <div style={{flex:1,fontSize:10,fontWeight:isMe||isFriend?800:500,color:usernameColor(r.username),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    {r.username}{isMe && <span style={{marginLeft:4,fontSize:9,color:"#c084fc"}}>({t.youLabel})</span>}
+                    {r.username}{isMe && <span style={{marginLeft:4,fontSize:9,color:"rgb(var(--ac-c084fc))"}}>({t.youLabel})</span>}
                   </div>
                   <div style={{fontSize:10,fontWeight:800,color:"var(--text-2)",flexShrink:0}}>{r.total}</div>
                 </div>
@@ -618,9 +618,9 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
             {myRank && myRank.rank>LEADERBOARD_SIZE && (
               <>
                 <div style={{padding:"3px 8px",textAlign:"center",fontSize:9,color:"var(--text-6)"}}>·  ·  ·</div>
-                <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:7,background:"rgba(124,58,237,0.1)",border:"1px solid rgba(124,58,237,0.2)"}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:7,background:"rgba(var(--ac-7c3aed),0.1)",border:"1px solid rgba(var(--ac-7c3aed),0.2)"}}>
                   <div style={{fontSize:9,color:"var(--text-5)",width:16,textAlign:"right",flexShrink:0}}>{myRank.rank}</div>
-                  <div style={{flex:1,fontSize:10,fontWeight:800,color:"#c084fc",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{myUsername}</div>
+                  <div style={{flex:1,fontSize:10,fontWeight:800,color:"rgb(var(--ac-c084fc))",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{myUsername}</div>
                   <div style={{fontSize:10,fontWeight:800,color:"var(--text-2)",flexShrink:0}}>{myRank.points_total}</div>
                 </div>
               </>
@@ -664,7 +664,7 @@ function EloLeaderboard({ gameType, myUsername, following }) {
   if(!rows.length) return null;
 
   function uColor(u) {
-    if(u===myUsername) return "#c084fc";
+    if(u===myUsername) return "rgb(var(--ac-c084fc))";
     if(followingSet.has(u)) return "#22c55e";
     return "var(--text-2)";
   }
@@ -680,8 +680,8 @@ function EloLeaderboard({ gameType, myUsername, following }) {
           const medal=r.rank===1?"🥇":r.rank===2?"🥈":r.rank===3?"🥉":null;
           return (
             <div key={r.username} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:7,
-              background:isMe?"rgba(124,58,237,0.1)":"rgba(255,255,255,0.02)",
-              border:isMe?"1px solid rgba(124,58,237,0.2)":"1px solid transparent"}}>
+              background:isMe?"rgba(var(--ac-7c3aed),0.1)":"rgba(255,255,255,0.02)",
+              border:isMe?"1px solid rgba(var(--ac-7c3aed),0.2)":"1px solid transparent"}}>
               <div style={{fontSize:9,color:"var(--text-5)",width:16,textAlign:"right",flexShrink:0}}>{medal||r.rank}</div>
               <div style={{flex:1,fontSize:10,fontWeight:isMe||followingSet.has(r.username)?800:500,
                 color:uColor(r.username),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
@@ -695,9 +695,9 @@ function EloLeaderboard({ gameType, myUsername, following }) {
           <>
             <div style={{padding:"3px 8px",textAlign:"center",fontSize:9,color:"var(--text-6)"}}>· · ·</div>
             <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",borderRadius:7,
-              background:"rgba(124,58,237,0.1)",border:"1px solid rgba(124,58,237,0.2)"}}>
+              background:"rgba(var(--ac-7c3aed),0.1)",border:"1px solid rgba(var(--ac-7c3aed),0.2)"}}>
               <div style={{fontSize:9,color:"var(--text-5)",width:16,textAlign:"right",flexShrink:0}}>{myRank.rank}</div>
-              <div style={{flex:1,fontSize:10,fontWeight:800,color:"#c084fc",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{myUsername}</div>
+              <div style={{flex:1,fontSize:10,fontWeight:800,color:"rgb(var(--ac-c084fc))",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{myUsername}</div>
               <div style={{fontSize:10,fontWeight:800,color:"var(--text-2)",flexShrink:0}}>{myRank.pts}</div>
             </div>
           </>

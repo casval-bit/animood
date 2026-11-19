@@ -5,11 +5,11 @@
 
 import { buildAltTitles, jikanTitleList } from "./lib/altTitles.mjs";
 import { malGet, malIsDown, malSummary, MalApiDown } from "./lib/malApi.mjs";
+import { anilistQuery } from "./lib/anilistApi.mjs";
 
 const SUPABASE_URL  = process.env.SUPABASE_URL;
 // clé de service si disponible (nécessaire une fois security_rls_2_reference.sql exécuté), sinon clé publique
 const SUPABASE_ANON = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON;
-const ANILIST_URL   = "https://graphql.anilist.co";
 const DELAY_MS      = 0;       // le rythme est réglé par scripts/lib/malApi.mjs (TENRAI_GAP_MS)
 const BATCH_SIZE    = 10;
 const MAX_CONSECUTIVE_KNOWN = 3;
@@ -25,18 +25,11 @@ const SB_HEADERS = {
   "Authorization": `Bearer ${SUPABASE_ANON}`,
 };
 
-// Fetch season data from AniList for a batch of MAL IDs
+// Fetch season data from AniList for a batch of MAL IDs (espacement des requêtes, 429 et nouveaux essais : scripts/lib/anilistApi.mjs)
 async function fetchAniListSeasons(malIds) {
   const query = `query($ids:[Int]){Page(perPage:50){media(idMal_in:$ids,type:ANIME){idMal season seasonYear startDate{year month day} title{romaji english} synonyms}}}`;
   try {
-    const res = await fetch(ANILIST_URL, {
-      method:"POST",
-      headers:{"Content-Type":"application/json","Accept":"application/json"},
-      body: JSON.stringify({ query, variables:{ ids: malIds } }),
-    });
-    if(res.status === 429) { await sleep(60000); return fetchAniListSeasons(malIds); }
-    if(!res.ok) return {};
-    const data = await res.json();
+    const data = await anilistQuery(query, { ids: malIds });
     const result = {};
     for(const r of (data?.data?.Page?.media || [])) {
       if(!r.idMal) continue;
@@ -272,7 +265,6 @@ async function refreshMissingSeasons() {
     const chunk = rows.slice(i,i+50).map(r=>r.mal_id);
     const seasons = await fetchAniListSeasons(chunk);
     updated += await applyAniList(seasons);
-    await sleep(1000);
   }
   console.log(`  ✅ ${updated} seasons updated`);
   return updated;
