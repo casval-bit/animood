@@ -326,7 +326,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
       <Modal onClose={onClose} maxWidth={desktop ? "max-w-5xl" : "max-w-4xl"}>
         {close => (
           <>
-            <div className="relative h-64 w-full overflow-hidden rounded-t-3xl">
+            <div data-keep-bright="" className="relative h-64 w-full overflow-hidden rounded-t-3xl">{/* bandeau d'affiche : reste sombre en thème clair, ses textes restent clairs */}
               <img src={img} alt={title} onError={e=>{e.target.src=FALLBACK;}} className="h-full w-full object-cover" />
               <div className="absolute inset-0 bg-linear-to-t from-[rgb(var(--ac-0d0b18))] via-[rgb(var(--ac-0d0b18))]/30 to-transparent" />
               <button onClick={close} className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-slate-200 backdrop-blur hover:bg-black/70">✕</button>

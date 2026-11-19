@@ -5,16 +5,23 @@ import AniMoodApp from "./App.jsx";
 import { isDesktopApp } from "./utils/streamingLinks.js";
 import { captureInstallPrompt } from "./utils/installPrompt.js";
 import { DesktopWindowControls } from "./components/DesktopWindowControls.jsx";
-import { applyPalette, readStoredPalette } from "./constants/palettes.js";
+import { applyPalette, applyThemeColor, readStoredPalette } from "./constants/palettes.js";
 
 // Avant le rendu : Chrome peut proposer l'installation dès le chargement de la page
 captureInstallPrompt();
+
+// ─── Palette de couleurs choisie dans les Paramètres (site, APK et appli de bureau) ─
+// Posée avant le premier rendu : pas de flash aux couleurs d'origine.
+{
+  const palette = readStoredPalette();
+  applyPalette(palette);
+  applyThemeColor(palette);
+}
 
 // ─── Appli de bureau uniquement : police Inter + variables propres au desktop ─
 // (le site web n'est pas concerné : rien n'est posé ni chargé hors Electron)
 if (isDesktopApp()) {
   document.documentElement.dataset.app = "desktop";
-  applyPalette(readStoredPalette());   // palette de couleurs choisie dans les Paramètres (avant le 1er rendu : pas de flash)
   const link = document.createElement("link");
   link.rel = "stylesheet";
   link.href = "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap";

@@ -18,6 +18,8 @@ import { MemberCard, StudioCard, ArtistCard } from "../components/search/SearchC
 import { GLASS, GLASS_STYLE } from "../constants/theme.js";
 import { Chip, ChipGroup, SectionLabel } from "../components/ui.jsx";
 import { SEARCH_I18N } from "../constants/searchI18n.js";
+import { fetchHotAnime } from "../api/communityActivity.js";
+import { isDesktopApp } from "../utils/streamingLinks.js";
 
 const FALLBACK = "https://placehold.co/64x92/1a1a2e/818cf8?text=?";
 
@@ -50,6 +52,10 @@ function getPopularLabels(t) {
   };
 }
 
+// Appli de bureau : la grille est triée par note (anime_cache.score) — on l'appelle donc « mieux notés » ;
+// films et OAV gardent leur titre « coups de cœur ».
+const getTopLabels = (t) => ({ all: t.topRated, TV: t.topRated, Movie: t.popularMovies, OVA: t.popularOva });
+
 // The Saison tab has no search of its own — typing there searches anime.
 const searchTabFor = (tab) => tab === "season" ? "anime" : tab;
 
@@ -60,6 +66,8 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
   const TABS = getTabs(t);
   const TYPE_FILTERS = getTypeFilters(t);
   const POPULAR_LABELS = getPopularLabels(t);
+  const desktop = isDesktopApp();
+  const TOP_LABELS = getTopLabels(t);
   const [tab, setTab]           = useState("anime");
   const [query, setQuery]       = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -72,6 +80,9 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
 
   const [popularAnime, setPopularAnime]     = useState([]);
   const [loadingPopular, setLoadingPopular] = useState(true);
+  // Appli de bureau : « Les plus actifs cette semaine » (voir api/communityActivity.js) ; vide ou en échec : la section n'apparaît pas.
+  const [hotAnime, setHotAnime]     = useState([]);
+  const [loadingHot, setLoadingHot] = useState(desktop);
   const [popularStudios, setPopularStudios] = useState([]);
   const [loadingStudios, setLoadingStudios] = useState(true);
   const [popularArtists, setPopularArtists] = useState([]);
@@ -145,6 +156,18 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
       .finally(() => { if(!cancelled) setLoadingPopular(false); });
     return () => { cancelled = true; };
   }, [typeFilter]);
+
+  // Même filtre de type que les mieux notés. Les évènements de la semaine sont gardés 5 min : changer de filtre ne relance pas les requêtes.
+  // Les membres bloqués ne comptent pas. loadingHot est remis à true dans changeTypeFilter (le gestionnaire), pas ici.
+  useEffect(() => {
+    if(!desktop) return;
+    let cancelled = false;
+    fetchHotAnime({ limit: 6, type: typeFilter==="all" ? null : typeFilter, exclude: blockedUsers })
+      .then(rows => { if(!cancelled) setHotAnime(rows); })
+      .catch(() => { if(!cancelled) setHotAnime([]); })
+      .finally(() => { if(!cancelled) setLoadingHot(false); });
+    return () => { cancelled = true; };
+  }, [typeFilter, blockedUsers, desktop]);
 
   useEffect(() => {
     let cancelled = false;
@@ -222,7 +245,7 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
     if(submitted && id !== "season") doSearch(query, id);
   };
   const changeTypeFilter = (id) => {
-    setLoadingPopular(true); setTypeFilter(id);
+    setLoadingPopular(true); if(desktop) setLoadingHot(true); setTypeFilter(id);
     if(submitted && tab === "anime") doSearch(query, "anime", id);
   };
 
@@ -336,7 +359,20 @@ export function SearchView({ onOpenDetail, onOpenUser }) {
       {/* ── ANIME TAB ── */}
       {tab === "anime" && !submitted && (
         <>
-          <SectionLabel className="mb-3">{POPULAR_LABELS[typeFilter] || POPULAR_LABELS.all}</SectionLabel>
+          {desktop && (loadingHot || hotAnime.length > 0) && (
+            <div className="mb-8">
+              <SectionLabel className="mb-1">{t.hotWeekTitle}</SectionLabel>
+              <div className="mb-3 text-[11px] text-slate-500">{t.hotWeekSubtitle}</div>
+              {loadingHot ? <Spinner label={t.loading} /> : (
+                <div className="grid grid-cols-3 gap-3 md:grid-cols-6">
+                  {hotAnime.map(a => (
+                    <AnimeCard key={a.mal_id} anime={a} onClick={onOpenDetail} statusDot={statusDot(a.mal_id)} moodPts={ptsStore[a.mal_id]} quickAction="watchlist" activity={t.hotBadge(a.activity)} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <SectionLabel className="mb-3">{desktop ? (TOP_LABELS[typeFilter] || TOP_LABELS.all) : (POPULAR_LABELS[typeFilter] || POPULAR_LABELS.all)}</SectionLabel>
           {loadingPopular ? <Spinner label={t.loading} /> : (
             <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {popularAnime.map(a => (

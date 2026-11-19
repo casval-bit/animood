@@ -12,6 +12,7 @@
 // Variables : SUPABASE_URL + SUPABASE_SERVICE_KEY (clé de service : l'écriture dans anime_cache l'exige après security_rls_2).
 
 import { buildAltTitles } from "./lib/altTitles.mjs";
+import { anilistQuery } from "./lib/anilistApi.mjs";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON;
@@ -22,9 +23,7 @@ const arg = (n, d) => { const a = process.argv.find((x) => x.startsWith(`--${n}=
 const ALL = process.argv.includes("--all");
 const LIMIT = parseInt(arg("limit", "0")) || Infinity;
 const CHUNK = 50;            // AniList accepte 50 identifiants par requête
-const AL_DELAY = 1000;       // ~60 requêtes/min (limite AniList : 90)
 const WRITE_PARALLEL = 6;
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function sbGet(path) {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: H });
@@ -45,20 +44,10 @@ async function listRows(extra) {
 
 const AL_QUERY = "query($ids:[Int]){Page(perPage:50){media(idMal_in:$ids,type:ANIME){idMal title{romaji english} synonyms}}}";
 async function anilistChunk(ids) {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try {
-      const r = await fetch("https://graphql.anilist.co", {
-        method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ query: AL_QUERY, variables: { ids } }),
-      });
-      if (r.status === 429) { await sleep((parseInt(r.headers.get("retry-after")) || 60) * 1000 + 1000); continue; }
-      if (r.status >= 500) { await sleep(3000 * (attempt + 1)); continue; }
-      if (!r.ok) return null;
-      const media = (await r.json())?.data?.Page?.media || [];
-      return new Map(media.filter((m) => m.idMal).map((m) => [m.idMal, m]));
-    } catch { await sleep(3000 * (attempt + 1)); }
-  }
-  return null; // AniList injoignable : on ne remplit rien pour ce paquet (il sera repris au prochain lancement)
+  try {
+    const media = (await anilistQuery(AL_QUERY, { ids }))?.data?.Page?.media || [];   // espacement, 429 et nouveaux essais : scripts/lib/anilistApi.mjs
+    return new Map(media.filter((m) => m.idMal).map((m) => [m.idMal, m]));
+  } catch { return null; }   // AniList injoignable : on ne remplit rien pour ce paquet (il sera repris au prochain lancement)
 }
 
 async function patch(malId, titles) {
@@ -90,7 +79,6 @@ async function main() {
   for (let i = 0; i < rows.length; i += CHUNK) {
     const chunk = rows.slice(i, i + CHUNK);
     const al = await anilistChunk(chunk.map((r) => r.mal_id));
-    await sleep(AL_DELAY);
     if (!al) { skipped += chunk.length; console.log(`  ⚠️ AniList injoignable pour le paquet ${i / CHUNK + 1} — repris au prochain lancement`); continue; }
 
     const jobs = chunk.map((row) => {

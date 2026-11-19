@@ -38,6 +38,10 @@ export const SEARCH_I18N = {
     filterOva: "OAV",
 
     popularNow: "🔥 Populaires en ce moment",
+    topRated: "⭐ Les mieux notés",
+    hotWeekTitle: "🔥 Les plus actifs cette semaine",
+    hotWeekSubtitle: "Les animés dont la communauté AniMood parle et vote le plus depuis 7 jours",
+    hotBadge: ({ members, actions }) => `🔥 ${members} membre${members > 1 ? "s" : ""} · ${actions} action${actions > 1 ? "s" : ""}`,
     popularMovies: "🎬 Coups de cœur films",
     popularOva: "💿 Coups de cœur OAV",
     studiosPopular: "🎬 Studios populaires",
@@ -116,6 +120,10 @@ export const SEARCH_I18N = {
     filterOva: "OVA",
 
     popularNow: "🔥 Popular right now",
+    topRated: "⭐ Top rated",
+    hotWeekTitle: "🔥 Most active this week",
+    hotWeekSubtitle: "The anime the AniMood community has talked about and voted on the most over the last 7 days",
+    hotBadge: ({ members, actions }) => `🔥 ${members} member${members > 1 ? "s" : ""} · ${actions} action${actions > 1 ? "s" : ""}`,
     popularMovies: "🎬 Featured movies",
     popularOva: "💿 Featured OVAs",
     studiosPopular: "🎬 Popular studios",

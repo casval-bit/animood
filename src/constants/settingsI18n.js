@@ -18,7 +18,7 @@ export const SETTINGS_I18N = {
 
     palette: "🌈 Couleurs",
     paletteHint: "Change les couleurs de toute l'appli (en plus du thème sombre / clair).",
-    paletteNames: { default: "Bleu / violet", sunset: "Jaune / orange", coral: "Rouge / saumon", garden: "Vert / rose" },
+    paletteNames: { default: "Bleu / violet", sunset: "Jaune / orange", coral: "Rouge / saumon", garden: "Vert / rose", ocean: "Cyan / turquoise", sakura: "Rose / magenta", forest: "Émeraude / vert", graphite: "Gris / argent" },
     paletteDefaultHint: "Par défaut",
 
     language: "🌐 Langue",
@@ -140,7 +140,7 @@ export const SETTINGS_I18N = {
 
     palette: "🌈 Colors",
     paletteHint: "Changes the colors of the whole app (on top of the dark / light theme).",
-    paletteNames: { default: "Blue / violet", sunset: "Yellow / orange", coral: "Red / salmon", garden: "Green / pink" },
+    paletteNames: { default: "Blue / violet", sunset: "Yellow / orange", coral: "Red / salmon", garden: "Green / pink", ocean: "Cyan / turquoise", sakura: "Pink / magenta", forest: "Emerald / green", graphite: "Gray / silver" },
     paletteDefaultHint: "Default",
 
     language: "🌐 Language",

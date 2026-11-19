@@ -5,7 +5,11 @@
 // Réglages (variables d'environnement, toutes facultatives) :
 //   TENRAI_SERVER_KEY   clé « Server Key » (en-tête X-Server-Key) : relève les limites de requêtes
 //   TENRAI_BASE         autre adresse de l'API (par défaut https://api.tenrai.org/v1)
-//   TENRAI_GAP_MS       pause minimale entre deux requêtes (par défaut 250 ms avec clé, 700 ms sans)
+//   TENRAI_GAP_MS       pause minimale entre deux requêtes (par défaut 250 ms avec clé, 700 ms sans ; après un « trop de requêtes » (429) le
+//                       rythme passe tout seul à 400 ms avec clé / 1,1 s sans, pour le reste du script — sauf si TENRAI_GAP_MS est fixé)
+//
+// Limites de Tenrai : avec Server Key 300 requêtes/min (5 par seconde), sans clé de l'ordre de 60 à 120/min (les sources divergent) et
+// 3 à 4 par seconde ; les réponses déjà en cache ne comptent pas.
 //
 // Pourquoi ce fichier existe : quand une API était en panne, chaque requête réessayait pendant des minutes et le script entier
 // dépassait les 2 h autorisées par GitHub (étapes suivantes annulées, rapport en échec). Ici :
@@ -18,7 +22,8 @@
 const BASE = (process.env.TENRAI_BASE || "https://api.tenrai.org/v1").replace(/\/+$/, "");
 let KEY = process.env.TENRAI_SERVER_KEY || "";
 const GAP_FIXED = Number(process.env.TENRAI_GAP_MS) || 0;
-const gapMs = () => GAP_FIXED || (KEY ? 250 : 700);
+let gapFloor = 0;                                   // relevé au premier 429 (voir plus bas)
+const gapMs = () => GAP_FIXED || Math.max(gapFloor, KEY ? 250 : 700);
 const TIMEOUT_MS = 20_000;
 const BREAKER_AT = 6;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -68,6 +73,7 @@ export async function malGet(path, { tries = 3 } = {}) {
     if (r.status === 404) { state.failures = 0; return null; }
     if (r.status === 429) {                      // trop de requêtes : on respecte l'attente demandée (10 s max)
       state.throttled++; lastErr = "429";
+      if(!GAP_FIXED && !gapFloor) { gapFloor = KEY ? 400 : 1100; console.log(`  ⏳ Tenrai : trop de requêtes — rythme ralenti à 1 requête toutes les ${gapFloor / 1000} s pour la suite`); }
       await sleep(Math.min(10, Number(r.headers.get("retry-after")) || 3) * 1000);
       continue;
     }

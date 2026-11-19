@@ -42,7 +42,7 @@
     radial-gradient(circle at bottom left, rgba(var(--ac-3b82f6),0.14) 0%, transparent 38%),
     linear-gradient(180deg, rgb(var(--ac-d9d4ef)) 0%, rgb(var(--ac-cfc8e8)) 45%, rgb(var(--ac-c4bddf)) 100%);
   --surface-1: rgba(255,255,255,.42);
-  --surface-1-strong: rgba(255,255,255,.62);
+  --surface-1-strong: rgba(var(--ac-f0edfc),0.97);   /* fenêtres, menus : quasi opaque (à 62 % de blanc, une fenêtre posée sur le voile sombre devenait grise et délavée) */
   --surface-2: rgba(var(--ac-4f46e5),0.12);
   --overlay: rgba(var(--ac-e0dbf3),0.84);
   --logo-linux: var(--text-1);   /* Tux : le jaune officiel est trop pâle sur fond clair */
@@ -50,8 +50,9 @@
   --border-1: rgba(var(--ac-18122b),0.14);
   --text-1: rgb(var(--ac-120f24));
   --text-2: rgb(var(--ac-30294a));
-  --text-3: #5a5476;
-  --text-4: #817a9b;
+  --text-3: #4a4468;
+  --text-4: #625b80;
+  --accent-label: rgb(var(--ac-6d28d9));   /* petites légendes violettes (« En boucle ») : violet foncé sur la carte claire ; thème sombre : valeur de repli du code */
   --fg-rgb: var(--ac-18122b);
   --shadow-card: 0 10px 36px rgba(var(--ac-2d1b69),0.16), 0 2px 12px rgba(var(--ac-2d1b69),0.08), inset 0 1px 0 rgba(255,255,255,.28);
   --shadow-modal: 0 32px 80px rgba(var(--ac-20124a),0.28);
@@ -102,9 +103,9 @@ body {
 :root[data-theme="light"] .text-slate-300 { color: rgb(var(--ac-2b2445)); }
 :root[data-theme="light"] .text-slate-400,
 :root[data-theme="light"] .hover\:text-slate-200:hover,
-:root[data-theme="light"] .hover\:text-slate-300:hover { color: #4b4468; }
-:root[data-theme="light"] .text-slate-500 { color: #5f587c; }
-:root[data-theme="light"] .text-slate-600 { color: #817a9b; }
+:root[data-theme="light"] .hover\:text-slate-300:hover { color: #3f3860; }
+:root[data-theme="light"] .text-slate-500 { color: #4a4468; }
+:root[data-theme="light"] .text-slate-600 { color: #625b80; }
 :root[data-theme="light"] .text-slate-700 { color: #b5afcb; }
 
 :root[data-theme="light"] .bg-white\/3  { background-color: rgba(var(--ac-18122b),0.03); }
@@ -135,6 +136,55 @@ body {
 :root[data-theme="light"] .border-white\/20,
 :root[data-theme="light"] .hover\:border-white\/20:hover { border-color: rgba(var(--ac-18122b),0.2); }
 :root[data-theme="light"] .border-white\/30 { border-color: rgba(var(--ac-18122b),0.3); }
+
+/* ─── LIGHT THEME — îlots sombres : cartes « HUD » du profil (appli de bureau) et scène du Moodboard ──────────
+   Ces zones restent sombres dans le thème clair (attributs data-hud et data-keep-bright). Le fond des cartes HUD est un dégradé violet
+   très sombre à peine translucide, pensé pour la page sombre : sur la page claire il tournait au gris-violet et les petites légendes
+   devenaient illisibles ; on met donc un fond sombre opaque dessous (même rendu que dans le thème sombre). Dans tous les îlots on rétablit
+   les gris du thème sombre (sinon texte sombre sur fond sombre) : jetons --text-* / --fg-rgb (valeurs de :root), classes text-slate-*,
+   voiles bg-white/* et border-white/*. scripts/palettes/lighttext.mjs (ISLANDS) y neutralise aussi l'assombrissement des textes d'accent. */
+:root[data-theme="light"] [data-hud] { background-color: rgb(var(--ac-0a061e)) !important; }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) {
+  --text-1: #f8fafc;
+  --text-2: #94a3b8;
+  --text-3: #64748b;
+  --text-4: #475569;
+  --fg-rgb: 255,255,255;
+  --surface-1: rgba(var(--ac-111827),0.75);
+  --surface-1-strong: rgba(var(--ac-111827),0.92);
+  --surface-2: rgba(255,255,255,.04);
+  --border-1: rgba(255,255,255,.07);
+  --accent-label: rgba(var(--ac-a78bfa),0.85);
+  color: var(--text-1);
+}
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) .text-slate-50  { color: var(--color-slate-50); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) .text-slate-100 { color: var(--color-slate-100); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) .text-slate-200 { color: var(--color-slate-200); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) .text-slate-300 { color: var(--color-slate-300); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) .text-slate-400 { color: var(--color-slate-400); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) .text-slate-500 { color: var(--color-slate-500); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) .text-slate-600 { color: var(--color-slate-600); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) .text-slate-700 { color: var(--color-slate-700); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) .hover\:text-slate-200:hover { color: var(--color-slate-200); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) .hover\:text-slate-300:hover { color: var(--color-slate-300); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) .bg-white\/3  { background-color: rgba(255,255,255,.03); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) .bg-white\/4  { background-color: rgba(255,255,255,.04); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) :is(.bg-white\/5, .hover\:bg-white\/5:hover)   { background-color: rgba(255,255,255,.05); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) :is(.bg-white\/6, .hover\:bg-white\/6:hover)   { background-color: rgba(255,255,255,.06); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) :is(.bg-white\/7, .hover\:bg-white\/7:hover)   { background-color: rgba(255,255,255,.07); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) :is(.bg-white\/8, .hover\:bg-white\/8:hover)   { background-color: rgba(255,255,255,.08); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) :is(.bg-white\/10, .hover\:bg-white\/10:hover) { background-color: rgba(255,255,255,.1); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) :is(.bg-white\/12, .hover\:bg-white\/12:hover) { background-color: rgba(255,255,255,.12); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) :is(.bg-white\/15, .hover\:bg-white\/15:hover) { background-color: rgba(255,255,255,.15); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) .border-white\/6  { border-color: rgba(255,255,255,.06); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) .border-white\/7  { border-color: rgba(255,255,255,.07); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) .border-white\/8  { border-color: rgba(255,255,255,.08); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) .border-white\/9  { border-color: rgba(255,255,255,.09); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) .border-white\/10 { border-color: rgba(255,255,255,.1); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) .border-white\/12 { border-color: rgba(255,255,255,.12); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) :is(.border-white\/15, .hover\:border-white\/15:hover) { border-color: rgba(255,255,255,.15); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) :is(.border-white\/20, .hover\:border-white\/20:hover) { border-color: rgba(255,255,255,.2); }
+:root[data-theme="light"] :is([data-hud], [data-keep-bright]) .border-white\/30 { border-color: rgba(255,255,255,.3); }
 
 @keyframes slide-up {
   from { opacity: 0; transform: translateY(14px); }

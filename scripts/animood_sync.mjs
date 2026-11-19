@@ -28,6 +28,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { buildAltTitles } from "./lib/altTitles.mjs";
 import { malData, malIsDown, malSummary, MalApiDown } from "./lib/malApi.mjs";
+import { anilistQuery as anilistRequest, anilistStats } from "./lib/anilistApi.mjs";
 
 // Aucune requête ne doit pouvoir bloquer le script indéfiniment (un serveur qui ne répond pas = script figé sans message) :
 // toutes les requêtes réseau de ce fichier abandonnent au bout de 30 s (les appels qui le gèrent déjà réessaient ou passent au suivant).
@@ -154,23 +155,9 @@ async function assignMoods(anime) {
 }
 
 // ── ANILIST HELPERS ───────────────────────────────────────────────────────────
-// AniList limite à ~90 requêtes / minute : sur « 429 » on attend le délai demandé puis on réessaie (3 fois max).
-async function anilistQuery(query, variables) {
-  for(let attempt=0; attempt<4; attempt++) {
-    const r = await fetch("https://graphql.anilist.co", {
-      method:"POST", headers:{"Content-Type":"application/json","Accept":"application/json"},
-      body:JSON.stringify({query, variables}),
-    });
-    if(r.status === 429 || r.status >= 500) {
-      const wait = Math.min(65, Number(r.headers.get("retry-after")) || 20*(attempt+1));
-      log(`  ⏳ AniList ${r.status} — pause ${wait} s (essai ${attempt+1}/4)`);
-      await sleep(wait*1000);
-      continue;
-    }
-    return r.json();
-  }
-  throw new Error("AniList indisponible (limite de requêtes ou panne)");
-}
+// Limites d'AniList (90 requêtes/min, 30 en mode « dégradé » ; au-delà : 429 + pause d'une minute) : l'espacement des requêtes, le
+// ralentissement au premier 429 et les nouveaux essais sont dans scripts/lib/anilistApi.mjs — plus besoin de « sleep » autour des appels.
+const anilistQuery = (query, variables) => anilistRequest(query, variables, { log });
 
 function anilistToRow(a) {
   const status = a.status==="RELEASING"?"Currently Airing":a.status==="FINISHED"?"Finished Airing":a.status==="NOT_YET_RELEASED"?"Not yet aired":"Unknown";
@@ -268,7 +255,6 @@ async function jobNewAnime() {
         });
       }
       page++;
-      await sleep(500);
     } catch(e) { log(`AniList page ${page} error: ${e.message}`); break; }
   }
   log(`${newAnime.length} new anime to add`);
@@ -358,7 +344,6 @@ async function jobRefreshAiring() {
       for(const m of (d?.data?.Page?.media||[])) if(m.idMal) found.set(m.idMal, m);
     } catch(e) { log(`  ⚠️ AniList (lot ${i/50+1}/${nBatches}) : ${e.message}`); }
     if((i/50+1) % 5 === 0 || i+50 >= rows.length) log(`  AniList : lot ${i/50+1}/${nBatches} — ${found.size} anime reconnus`);
-    await sleep(1100);
   }
 
   let changed=0, slotFixed=0, unknown=[];
@@ -501,7 +486,6 @@ async function jobBroadcast() {
         const ts = m?.nextAiringEpisode?.airingAt || m?.airingSchedule?.nodes?.slice(-1)[0]?.airingAt;
         if(ts) { slot=jstSlot(ts); day=slot.day; src="anilist"; } // jour calculé en heure du Japon (et non celle du serveur)
       } catch {}
-      await sleep(300);
     }
     if(day) {
       await supabase.from("anime_cache").update({broadcast: slot || {day}}).eq("mal_id",anime.mal_id);
@@ -593,7 +577,6 @@ async function streamingForRows(rows) {
         return { updated, aborted:true };
       }
     }
-    await sleep(1100);                                // AniList : 90 requêtes/minute maximum
   }
   updated += await streamingViaMal(missed);
   return { updated, aborted:false };
@@ -691,7 +674,6 @@ async function jobTrailers(onlyIds = null) {
           fetched++; found = true;
         }
       } catch {}
-      await sleep(300);
     }
 
     // 3. Mark as checked (empty object) so we don't retry endlessly — seulement si MAL a bien répondu (sinon on réessaiera au prochain passage)
@@ -926,7 +908,7 @@ switch(job) {
     await jobTrailers(justStarted);
     // 3) Ce qui vient de se terminer : note finale (il disparaît du calendrier tout seul, le calendrier lit le statut)
     if(finished.length) log(`=== note finale de ${finished.length} anime terminés ===`);
-    for(const id of finished.slice(0,100)) { await rescoreAnime(id, false); await sleep(500); }
+    for(const id of finished.slice(0,100)) await rescoreAnime(id, false);   // le rythme des requêtes Tenrai est réglé par scripts/lib/malApi.mjs
     await jobRescore2w();
     await jobRescore2m();
     break;
@@ -951,8 +933,10 @@ Jobs:
 `);
 }
 
-{ // Bilan des requêtes Tenrai (MyAnimeList), pour le rapport de la synchro
+{ // Bilan des requêtes Tenrai (MyAnimeList) et AniList, pour le rapport de la synchro
   const sum = malSummary();
   if(sum) log(`${sum}${malIsDown() ? " — ⚠️ API indisponible, une partie du travail sera refaite au prochain passage" : ""}`);
+  const al = anilistStats();
+  if(al.calls) log(`AniList : ${al.calls} requêtes${al.throttled ? `, ${al.throttled}× « trop de requêtes » (rythme ralenti)` : ""}`);
 }
 log("=== Done ===");

@@ -50,7 +50,8 @@ function PalettePreview({ swatch }) {
     <div className="h-14 w-full overflow-hidden rounded-lg" style={{ background: "#0b0f1c", border: "1px solid rgba(255,255,255,.1)" }}>
       <div className="h-3 w-full" style={{ background: `linear-gradient(135deg,${swatch.join(",")})` }} />
       <div className="flex items-center justify-center gap-2 p-2">
-        {swatch.map(c => <span key={c} className="h-5 w-5 rounded-full" style={{ background: c, boxShadow: `0 0 10px ${c}66` }} />)}
+        {/* clé = rang : une palette peut répéter une couleur (Gris / argent : 2 gris identiques) */}
+        {swatch.map((c, i) => <span key={i} className="h-5 w-5 rounded-full" style={{ background: c, boxShadow: `0 0 10px ${c}66` }} />)}
       </div>
     </div>
   );
@@ -351,10 +352,9 @@ export function SettingsView({ onClose, initialCategory = null }) {
           </div>
         </Section>
 
-        {desktop && (
         <Section title={t.palette}>
           <div className="mb-3 text-[11px] text-slate-500">{t.paletteHint}</div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {PALETTES.map(({ id, swatch }) => {
               const active = palette === id;
               return (
@@ -371,7 +371,6 @@ export function SettingsView({ onClose, initialCategory = null }) {
             })}
           </div>
         </Section>
-        )}
 
         <Section title={t.language}>
           <div className="grid grid-cols-2 gap-3">

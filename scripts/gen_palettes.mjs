@@ -8,7 +8,7 @@ import { collectKeys, buildCss } from "./palettes/generate.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const target = path.join(root, "src", "palettes.css");
-const css = buildCss(collectKeys(path.join(root, "src")));
+const css = buildCss(collectKeys(path.join(root, "src")), path.join(root, "src"));
 
 if (process.argv.includes("--check")) {
   const same = fs.existsSync(target) && fs.readFileSync(target, "utf8") === css;

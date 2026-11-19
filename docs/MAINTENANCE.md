@@ -66,6 +66,19 @@ Fichiers SQL dans `supabase/`, à lancer dans l'éditeur SQL de Supabase.
 - **Temps imparti** : chaque étape des workflows a sa limite (`timeout-minutes`) et un budget interne (`SYNC_BUDGET_MIN`) : un script s'arrête proprement un peu avant d'être coupé, et le « Write summary » s'exécute toujours.
 - Les colonnes `jikan_weight` / `jikan_score` de la base gardent leur nom historique (elles contiennent des valeurs MyAnimeList via Tenrai).
 
+### Limites des API (vérifiées en novembre 2026) et ce que font les scripts
+
+| API | Limite | Ce que font les scripts |
+|---|---|---|
+| **AniList** (GraphQL) | 90 requêtes/min ; la doc annonce un mode « dégradé » à **30/min**. Dépasser = 429 + **pause d'1 minute** imposée | `scripts/lib/anilistApi.mjs` : 1 requête toutes les 1,2 s, puis toutes les 2,1 s dès le premier 429 ; **50 animés par requête** quand c'est possible (plateformes, saisons, titres, statuts) |
+| **Tenrai** (MyAnimeList) | avec Server Key : **300/min** et 5/s, sans limite par jour ; sans clé : 60 à 120/min et 3 à 4/s selon les sources (40 000/jour), les réponses en cache ne comptent pas | `scripts/lib/malApi.mjs` : 0,25 s avec clé, 0,7 s sans ; ralentit tout seul après un 429 |
+| **AnimeThemes** | **90/min** par IP (429 + `Retry-After`) | `scripts/lib/animeThemesApi.mjs` : 0,7 s entre deux requêtes, 429 → on attend puis on recommence |
+| **TMDB** (JustWatch) | ≈ 40/s (« peut changer ») | `sync_streaming_regions.mjs` : ≈ 7/s, 429 → on attend ; mention « JustWatch » obligatoire |
+| **LiveChart** (RSS) | pas de limite publiée | 1 requête par jour (flux des épisodes diffusés) |
+
+Le plus rapide pour de gros volumes : **AniList par paquets de 50** (toute la base en 4 à 7 minutes), puis Tenrai (25 animés par page dans les listes) ; une requête par animé ne sert que de secours, en petite quantité.
+**Attention** : les tâches planifiées (cron) tournent avec les fichiers de la branche `main`. Tant que les workflows corrigés ne sont pas fusionnés dans `main`, il faut lancer la synchro à la main depuis la bonne branche : Actions → *Sync Anime Database* → *Run workflow* → choisir la branche.
+
 ### Images de la Tierlist (`/api/img`)
 
 L'export PNG de la Tierlist relit les affiches : les serveurs d'images (MyAnimeList, AniList) n'autorisant pas toujours cette lecture depuis un navigateur, elles sont relayées par la fonction Vercel `api/img.js` (code partagé : `server/imageProxy.js`, aussi branché sur le serveur de développement dans `vite.config.js`). Elle n'accepte que des affiches en https venant de MyAnimeList / AniList / Kitsu (3 Mo maximum). **Après avoir mis à jour le site, redéploie sur Vercel** (`npx vercel deploy --prod`) pour que cette fonction existe ; sans elle l'export retombe sur un autre relais, puis sur le titre écrit sur la carte (plus de carrés noirs).

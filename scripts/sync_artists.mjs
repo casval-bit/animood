@@ -8,17 +8,16 @@
 // outage never wipes the last good copy.
 
 import { POPULAR_ARTIST_NAMES } from "../src/constants/popularArtists.js";
+import { atGet, animeThemesStats } from "./lib/animeThemesApi.mjs";
 
 const SUPABASE_URL  = process.env.SUPABASE_URL;
 // clé de service si disponible (nécessaire une fois security_rls_2_reference.sql exécuté), sinon clé publique
 const SUPABASE_ANON = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON;
-const ANIMETHEMES_BASE = "https://api.animethemes.moe";
-const DELAY_MS = 300; // politeness delay between AnimeThemes requests
-// Cloudflare in front of AnimeThemes answers 403 to Node's default fetch
-// (no User-Agent) — identify the script explicitly.
-const AT_HEADERS = { "User-Agent": "AniMood-sync/1.0 (+https://github.com/casval-bit/animood)" };
+// AnimeThemes : 90 requêtes/min — l'espacement, le « 429 » et le User-Agent (Cloudflare refuse les clients sans) sont gérés par scripts/lib/animeThemesApi.mjs
+// Budget de temps (SYNC_BUDGET_MIN, en minutes ; absent = pas de limite) : le script s'arrête de lui-même et enregistre les artistes déjà faits.
+const DEADLINE = Number(process.env.SYNC_BUDGET_MIN) > 0 ? Date.now() + Number(process.env.SYNC_BUDGET_MIN) * 60_000 : Infinity;
+const overBudget = () => Date.now() > DEADLINE;
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
 const SB_HEADERS = {
   "Content-Type": "application/json",
   "apikey": SUPABASE_ANON,
@@ -35,15 +34,7 @@ async function sbUpsert(table, rows, key) {
   if(!r.ok) throw new Error(await r.text());
 }
 
-async function atFetch(path) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 20000);
-  try {
-    const res = await fetch(`${ANIMETHEMES_BASE}${path}`, { signal: ctrl.signal, headers: AT_HEADERS });
-    if(!res.ok) throw new Error(`AnimeThemes ${res.status}`);
-    return await res.json();
-  } finally { clearTimeout(timer); }
-}
+const atFetch = (path) => atGet(path);
 
 function extractMalId(resources) {
   const r = (resources || []).find(res => res.site === "MyAnimeList");
@@ -82,6 +73,7 @@ async function main() {
   const malIds = new Map(); // anime slug → MAL id, shared across artists
   const rows = [];
   for(const [rank, name] of POPULAR_ARTIST_NAMES.entries()) {
+    if(overBudget()) { console.log("⏱️ budget de temps atteint — les artistes restants gardent leur ancienne copie"); break; }
     try {
       const json = await atFetch(`/artist?q=${encodeURIComponent(name)}&page[size]=3&include=songs.animethemes.anime`);
       const found = (json.artists || []).map(normalizeArtist).filter(a => a.themes.length);
@@ -89,7 +81,6 @@ async function main() {
       if(!artist) { console.log(`✗ ${name}: not found`); continue; }
       for(const theme of artist.themes) {
         if(!malIds.has(theme.animeSlug)) {
-          await sleep(DELAY_MS);
           const anime = await atFetch(`/anime/${encodeURIComponent(theme.animeSlug)}?include=resources`).catch(() => null);
           malIds.set(theme.animeSlug, extractMalId(anime?.anime?.resources));
         }
@@ -98,11 +89,10 @@ async function main() {
       rows.push({ slug: artist.slug, name: artist.name, themes: artist.themes, popular_rank: rank, updated_at: new Date().toISOString() });
       console.log(`✓ ${artist.name}: ${artist.themes.length} themes`);
     } catch(e) { console.log(`✗ ${name}: ${e.message}`); }
-    await sleep(DELAY_MS);
   }
 
   await sbUpsert("artist_cache", rows, "slug");
-  console.log(`Done — ${rows.length}/${POPULAR_ARTIST_NAMES.length} artists cached.`);
+  console.log(`Done — ${rows.length}/${POPULAR_ARTIST_NAMES.length} artists cached (AnimeThemes : ${animeThemesStats().calls} requêtes${animeThemesStats().throttled ? `, ${animeThemesStats().throttled}× « trop de requêtes »` : ""}).`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

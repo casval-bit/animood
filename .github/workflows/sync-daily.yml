@@ -56,4 +56,4 @@ jobs:
         if: always()
         run: |
           echo "## ☀️ AniMood — Daily Sync $(date '+%Y-%m-%d %H:%M') UTC — ${{ steps.daily.outcome }}" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY; tail -12 /tmp/daily_log.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null; echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY; tail -12 /tmp/daily_log.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "(pas de journal)" >> $GITHUB_STEP_SUMMARY; echo '```' >> $GITHUB_STEP_SUMMARY

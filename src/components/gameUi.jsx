@@ -6,7 +6,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useGameText } from "../hooks/useGameUi.js";
 
 // Couleurs d'état : variables CSS (plus foncées en thème clair, voir le début du CSS), jamais concaténées avec un suffixe.
-export const GOOD = "var(--gm-good,#22c55e)", BAD = "var(--gm-bad,#ef4444)", WARN = "var(--gm-warn,#f59e0b)", ACCENT = "#a78bfa";
+export const GOOD = "var(--gm-good,#22c55e)", BAD = "var(--gm-bad,#ef4444)", WARN = "var(--gm-warn,#f59e0b)", ACCENT = "rgb(var(--ac-a78bfa))";
 
 // ─── Styles (injectés une seule fois) ────────────────────────────────────────────────────────────────────────────
 const CSS = `
