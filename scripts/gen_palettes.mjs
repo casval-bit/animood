@@ -11,7 +11,8 @@ const target = path.join(root, "src", "palettes.css");
 const css = buildCss(collectKeys(path.join(root, "src")), path.join(root, "src"));
 
 if (process.argv.includes("--check")) {
-  const same = fs.existsSync(target) && fs.readFileSync(target, "utf8") === css;
+  // fins de ligne ignorées : sous Windows, git peut avoir écrit le fichier en CRLF (core.autocrlf)
+  const same = fs.existsSync(target) && fs.readFileSync(target, "utf8").replace(/\r\n/g, "\n") === css;
   console.log(same ? "src/palettes.css est à jour." : "src/palettes.css est périmé : lance « npm run palettes ».");
   process.exit(same ? 0 : 1);
 }

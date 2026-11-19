@@ -11,7 +11,8 @@ import { luminance as luminanceOf } from "../scripts/palettes/lighttext.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const src = path.join(root, "src");
-const css = fs.readFileSync(path.join(src, "palettes.css"), "utf8");
+const readLF = (...p) => fs.readFileSync(path.join(...p), "utf8").replace(/\r\n/g, "\n");   // Windows : git peut écrire les fichiers en CRLF
+const css = readLF(src, "palettes.css");
 const section = css.slice(css.indexOf("LISIBILITÉ EN THÈME CLAIR"));
 
 test("une couleur pâle est assombrie jusqu'au contraste visé, avec la même teinte", () => {
@@ -84,7 +85,7 @@ test("textes semi-transparents : une règle par couleur pâle + opacité ; l'opa
 });
 
 test("fenêtres et menus du thème clair : fond quasi opaque (62 % de blanc sur le voile sombre donnait une fenêtre grise et délavée)", () => {
-  const index = fs.readFileSync(path.join(src, "index.css"), "utf8");
+  const index = readLF(src, "index.css");
   const light = index.slice(index.indexOf(':root[data-theme="light"] {'), index.indexOf("/* Smoked-glass boost"));
   const m = /--surface-1-strong:\s*rgba\(var\(--ac-([0-9a-f]{6})\),\s*([0-9.]+)\)/.exec(light);
   assert.ok(m, "--surface-1-strong du thème clair");
@@ -106,7 +107,7 @@ test("cartes HUD du profil (bureau) : repérées par data-hud, fond sombre opaqu
   const hud = fs.readFileSync(path.join(src, "views", "profileHud.jsx"), "utf8");
   assert.equal((hud.match(/data-hud=""/g) || []).length, 2, "HudCard et HudTabs portent data-hud");
   assert.match(fs.readFileSync(path.join(src, "views", "ProfileView.jsx"), "utf8"), /data-hud=/);
-  const index = fs.readFileSync(path.join(src, "index.css"), "utf8");
+  const index = readLF(src, "index.css");
   assert.match(index, /:root\[data-theme="light"\] \[data-hud\] \{ background-color: rgb\(var\(--ac-0a061e\)\) !important; \}/);
   const reset = index.slice(index.indexOf(':root[data-theme="light"] :is([data-hud], [data-keep-bright]) {'));
   for (const token of ["--text-1: #f8fafc", "--text-3: #64748b", "--fg-rgb: 255,255,255"]) assert.ok(reset.includes(token), token);

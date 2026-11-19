@@ -13,7 +13,8 @@ import { withAlpha } from "../src/utils/withAlpha.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const src = path.join(root, "src");
-const css = fs.readFileSync(path.join(src, "palettes.css"), "utf8");
+// Sous Windows, git peut écrire les fichiers avec des fins de ligne CRLF (core.autocrlf) : on compare le contenu, pas les fins de ligne.
+const css = fs.readFileSync(path.join(src, "palettes.css"), "utf8").replace(/\r\n/g, "\n");
 const keys = collectKeys(src);
 const block = (selector) => {
   const i = css.indexOf(selector + " {");
