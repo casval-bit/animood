@@ -9,7 +9,12 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".github", "workflows");
-const read = (f) => fs.readFileSync(path.join(dir, f), "utf8");
+// Sous Windows, git peut écrire les fichiers avec des fins de ligne CRLF (core.autocrlf) : le « \r » casserait le script bash, on lit donc en LF.
+const read = (f) => fs.readFileSync(path.join(dir, f), "utf8").replace(/\r\n/g, "\n");
+// bash : toujours présent sous Linux / macOS (et sur GitHub, où tournent ces workflows). Sous Windows le test est ignoré :
+// le « bash » de WSL ne comprend pas les chemins Windows, et Git Bash n'est pas toujours dans le PATH.
+const hasBash = process.platform !== "win32" && spawnSync("bash", ["--noprofile", "--norc", "-c", "exit 0"]).status === 0;
+const NO_BASH = "bash indisponible (Windows) : ce test tourne sous Linux / macOS et sur GitHub";
 
 /** Texte du script (`run: |`) de l'étape « Write summary ». */
 function summaryScript(text) {
@@ -28,8 +33,19 @@ function summaryScript(text) {
   return out.join("\n");
 }
 
+// Vérification statique (tourne partout, Windows compris) : un journal absent est testé avant d'être lu, jamais un « tail » direct.
+test("« Write summary » : chaque « tail » d'un journal est gardé (« [ -s … ] » ou « || echo (pas de journal) »), jamais lu directement", () => {
+  for (const f of ["sync-anime.yml", "sync-daily.yml", "sync-monthly.yml"]) {
+    const script = summaryScript(read(f));
+    const tails = script.split("\n").filter((l) => !/^\s*#/.test(l) && /\btail\b/.test(l));   // commentaires exclus
+    assert.ok(tails.length > 0, `${f} : aucun « tail » trouvé`);
+    for (const l of tails) assert.ok(/\[ -s "\$3" \]/.test(l) || /\|\| echo "\(pas de journal/.test(l), `${f} : « tail » sans garde → ${l.trim().slice(0, 100)}`);
+    assert.doesNotMatch(script, /\r/, `${f} : fins de ligne Windows dans le script`);
+  }
+});
+
 for (const f of ["sync-anime.yml", "sync-daily.yml", "sync-monthly.yml"]) {
-  test(`${f} : « Write summary » réussit même sans aucun journal (bash -e -o pipefail, comme sur GitHub)`, () => {
+  test(`${f} : « Write summary » réussit même sans aucun journal (bash -e -o pipefail, comme sur GitHub)`, { skip: hasBash ? false : NO_BASH }, () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "summary-"));
     const script = summaryScript(read(f))
       .replace(/\$\{\{[^}]*\}\}/g, "skipped")             // ${{ steps.x.outcome }}
