@@ -39,7 +39,8 @@ export async function searchStudios(query, lang) {
 
   // Also try Jikan producers endpoint for broader coverage
   try {
-    const r = await fetch(`https://api.jikan.moe/v4/producers?q=${encodeURIComponent(query)}&order_by=count&sort=desc&limit=20`);
+    const r = await fetch(`https://api.jikan.moe/v4/producers?q=${encodeURIComponent(query)}&order_by=count&sort=desc&limit=20`,
+      { signal: AbortSignal.timeout(6000) }); // Jikan peut ne plus répondre : on n'attend pas plus de 6 s
     const d = await r.json();
     const jikanStudios = (d.data||[]).map(s => ({
       mal_id: s.mal_id, name: s.titles?.[0]?.title || "Studio", count: s.count,

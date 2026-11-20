@@ -42,9 +42,20 @@ async function runQueue() {
   queueRunning = false;
 }
 
+// Jikan peut ne plus répondre du tout (connexion qui pend 20 s et plus) : on coupe à 6 s pour que l'appli
+// retombe vite sur notre base au lieu de laisser la recherche ou la fiche tourner dans le vide.
+const JIKAN_TIMEOUT_MS = 6000;
+async function fetchWithTimeout(url) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), JIKAN_TIMEOUT_MS);
+  try { return await fetch(url, { signal: ctrl.signal }); }
+  catch(e) { throw new Error(e?.name === "AbortError" ? "Jikan fetch timeout" : `Jikan fetch ${e?.message || ""}`); }
+  finally { clearTimeout(timer); }
+}
+
 async function jikanFetch(url) {
   for(let attempt = 0; attempt < 3; attempt++) {
-    const r = await fetch(url);
+    const r = await fetchWithTimeout(url);
     if(r.status === 429) {
       const retry = Number(r.headers.get("Retry-After")) * 1000;
       await new Promise(res => setTimeout(res, retry > 0 ? Math.min(retry, 10_000) : 1200 * Math.pow(2, attempt)));

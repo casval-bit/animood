@@ -38,7 +38,7 @@ async function fetchAiringAnime() {
       ...(extra || []).filter(a => SPECIAL_TYPES.has(a.type) && getBroadcastDay(a)),
     ];
   } else {
-    const res = await fetch("https://api.jikan.moe/v4/seasons/now?limit=50").catch(()=>null);
+    const res = await fetch("https://api.jikan.moe/v4/seasons/now?limit=50", { signal: AbortSignal.timeout(6000) }).catch(()=>null); // Jikan peut ne plus répondre
     const data = res?.ok ? await res.json() : null;
     airingCache = (data?.data || []).filter(a => a.type === "TV");
   }
