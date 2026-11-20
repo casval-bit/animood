@@ -11,10 +11,12 @@ const SERVICE = process.env.SUPABASE_SERVICE_KEY || "";
 if (!URL_ || !ANON) { console.error("URL / clé publique introuvables"); process.exit(1); }
 
 // [table, doit être illisible pour un visiteur ?]
+// posts, comments, polls, forum_threads, forum_replies : lisibles par l'invité après security_rls_4_guest_read.sql.
+// profiles : « select=* » doit rester refusé (l'invité ne lit que pseudo / nom / avatar).
 const TABLES = [
   ["direct_messages", true], ["user_blocks", true], ["game_invites", true], ["profiles", true], ["follows", true],
-  ["user_votes", true], ["opquiz_user_stats", true], ["posts", true], ["comments", true], ["forum_threads", true],
-  ["forum_replies", true], ["polls", true], ["game_elo", true], ["game_rooms", true],
+  ["user_votes", true], ["opquiz_user_stats", true], ["posts", false], ["comments", false], ["forum_threads", false],
+  ["forum_replies", false], ["polls", false], ["game_elo", true], ["game_rooms", true],
   ["anime_cache", false], ["mood_pts_v4", false], ["artist_cache", false], ["opquiz_pool", false],
 ];
 

@@ -25,6 +25,10 @@ import { TrailerPlayerDesktop } from "./TrailerPlayerDesktop.jsx";
 import { youtubeIdOf } from "../utils/youtube.js";
 import { isDesktopApp, normaliseServiceName } from "../utils/streamingLinks.js";
 import { safeWebUrl } from "../utils/safeUrl.js";
+import { GuestSignInCard } from "./GuestGate.jsx";
+import { useGuestT } from "../hooks/useGuestT.js";
+import { ShareButton } from "./ShareButton.jsx";
+import { linkPath } from "../utils/shareLinks.js";
 
 const FALLBACK = "https://placehold.co/700x300/1a1a2e/818cf8?text=?";
 
@@ -60,11 +64,13 @@ function AnimeDiscussions({ malId, onOpenThread, onNewThread, refreshKey }) {
         <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
           💬 Discussions ({threads.length})
         </div>
-        <button onClick={onNewThread}
-          className="rounded-lg px-3 py-1 text-[10px] font-bold transition"
-          style={{background:"rgba(var(--ac-7c3aed),0.15)",color:"rgb(var(--ac-c084fc))",border:"1px solid rgba(var(--ac-7c3aed),0.25)"}}>
-          + Nouvelle discussion
-        </button>
+        {onNewThread && (
+          <button onClick={onNewThread}
+            className="rounded-lg px-3 py-1 text-[10px] font-bold transition"
+            style={{background:"rgba(var(--ac-7c3aed),0.15)",color:"rgb(var(--ac-c084fc))",border:"1px solid rgba(var(--ac-7c3aed),0.25)"}}>
+            + Nouvelle discussion
+          </button>
+        )}
       </div>
 
       {/* Thread list */}
@@ -140,7 +146,8 @@ function calcAnimoodScore(malScore, scoredBy, userScores) {
 }
 
 export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpenUser }) {
-  const { me, saveMe, myUsername } = useApp();
+  const { me, saveMe, myUsername, guest } = useApp();
+  const gt = useGuestT();
   const { lang } = useLang();
   const { playSound } = useSound();
   const t = ANIME_DETAIL_I18N[lang] || ANIME_DETAIL_I18N.fr;
@@ -217,6 +224,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
           setAnimoodScore(computed);
 
           // Fetch friend scores
+          if(!myUsername) return;
           const following = await follows.getFollowing(myUsername).catch(()=>[]);
           const friendVotes = votes.filter(v => following.includes(v.username) && v.username !== myUsername);
           setFriendScores(friendVotes);
@@ -323,13 +331,16 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
 
   return (
     <>
-      <Modal onClose={onClose} maxWidth={desktop ? "max-w-5xl" : "max-w-4xl"}>
+      <Modal onClose={onClose} maxWidth={desktop ? "max-w-5xl" : "max-w-4xl"} url={linkPath.anime(malId)}>
         {close => (
           <>
             <div data-keep-bright="" className="relative h-64 w-full overflow-hidden rounded-t-3xl">{/* bandeau d'affiche : reste sombre en thème clair, ses textes restent clairs */}
               <img src={img} alt={title} onError={e=>{e.target.src=FALLBACK;}} className="h-full w-full object-cover" />
               <div className="absolute inset-0 bg-linear-to-t from-[rgb(var(--ac-0d0b18))] via-[rgb(var(--ac-0d0b18))]/30 to-transparent" />
-              <button onClick={close} className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-slate-200 backdrop-blur hover:bg-black/70">✕</button>
+              <div className="absolute right-4 top-4 flex items-center gap-2">
+                <ShareButton variant="icon" path={linkPath.anime(malId)} title={title} />
+                <button onClick={close} className="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-slate-200 backdrop-blur hover:bg-black/70">✕</button>
+              </div>
 
               {/* Score circles on banner */}
               {(() => {
@@ -417,6 +428,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                       <span className="flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[7px] text-white">▶</span>Trailer
                     </a>
                   ))}
+                  {!guest && <>
                   <button onClick={toggleWatched}
                     className={`h-9 rounded-xl px-3.5 text-[12px] font-bold transition ${isWatched ? "border border-emerald-400 bg-emerald-400/10 text-emerald-400" : "border border-white/10 text-slate-400 hover:bg-white/5"}`}>
                     {isWatched ? t.watchedBadge : t.markWatched}
@@ -429,6 +441,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                     className={`flex h-9 w-9 items-center justify-center rounded-xl transition ${isOnWatchlist ? "border border-emerald-400/60 bg-emerald-400/12" : "border border-white/10 hover:bg-white/5"}`}>
                     <BookmarkIcon filled={isOnWatchlist} size={15} />
                   </button>
+                  </>}
                 </div>
               </div>
             )}
@@ -492,7 +505,8 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                     <p className="text-[13px] leading-relaxed text-slate-400">{synopsis.length > 420 ? synopsis.slice(0,420)+"…" : synopsis}</p>
                   </div>
                 )}
-                {desktop && (
+                {desktop && guest && <GuestSignInCard title={gt.rateTitle} text={gt.rateText} className="mb-5" />}
+                {desktop && !guest && (
                   <div className="mb-5 rounded-2xl border border-white/8 bg-white/3 p-4">
                     <div className="mb-3 flex items-center gap-2">
                       <span className="h-3.5 w-1 rounded-full" style={{ background: "linear-gradient(135deg,rgb(var(--ac-6d5bff)),rgb(var(--ac-8b5cf6)),rgb(var(--ac-ec4899)))" }} />
@@ -579,12 +593,12 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                   </div>
                 )}
 
-                {/* ── DISCUSSIONS ── */}
+                {/* ── DISCUSSIONS (invité : lecture seule) ── */}
                 <AnimeDiscussions
                   malId={malId}
                   refreshKey={discussionsVersion}
                   onOpenThread={setDiscussionThread}
-                  onNewThread={() => setShowNewDiscussion(true)}
+                  onNewThread={guest ? null : () => setShowNewDiscussion(true)}
                 />
 
                 {error && <div className="py-3 text-center text-xs text-red-400">{t.errorPrefix(error)}</div>}
@@ -607,7 +621,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                   {animoodScore ? (
                     <div className="flex items-baseline gap-2 mb-3">
                       <span className="text-3xl font-black text-violet-300">{animoodScore.toFixed(2)}</span>
-                      <span className="text-[10px] text-slate-500">{t.userVotes(allUserScores.length)}</span>
+                      {!guest && <span className="text-[10px] text-slate-500">{t.userVotes(allUserScores.length)}</span>}
                     </div>
                   ) : (
                     <div className="flex items-baseline gap-2 mb-3">
@@ -667,7 +681,8 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                 )}
 
                 {/* Rating + Moods */}
-                {!desktop && <div className="rounded-2xl bg-white/3 p-4">
+                {!desktop && guest && <GuestSignInCard title={gt.rateTitle} text={gt.rateText} />}
+                {!desktop && !guest && <div className="rounded-2xl bg-white/3 p-4">
                   <div className="mb-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{t.myRating}</div>
                   <StarRating value={rating} onChange={setRating} />
 

@@ -7,6 +7,8 @@ import { LOGIN_I18N } from "../constants/loginI18n.js";
 import { MOODBOARD_I18N } from "../constants/moodboardI18n.js";
 import { MOODS } from "../constants/moods.js";
 import { SHOWCASE_BY_MOOD, SHOWCASE_WALL } from "../constants/loginShowcase.js";
+import { useApp } from "../context/useApp.js";
+import { GUEST_I18N } from "../constants/guestI18n.js";
 
 const AUTO_CYCLE_MS = 3600; // tant que le visiteur n'a pas choisi, les moods défilent tout seuls
 const WALL_COLS = 6;
@@ -90,7 +92,9 @@ export function LoginView() {
   const [error, setError]     = useState(null);
   const [inBrowser, setInBrowser] = useState(false); // appli de bureau : connexion ouverte dans le navigateur
   const { lang, setLang } = useLang();
+  const { enterGuest } = useApp();
   const t = LOGIN_I18N[lang] || LOGIN_I18N.fr;
+  const gt = GUEST_I18N[lang] || GUEST_I18N.fr;
   const [moodId, setMoodId] = useState(MOODS[0].id);
   const [picked, setPicked] = useState(false);
   const mood = MOODS.find(m => m.id === moodId);
@@ -160,6 +164,13 @@ export function LoginView() {
 
             {inBrowser && !error && <p className="mt-3 text-xs text-slate-400">{t.inBrowser}</p>}
             {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
+
+            {/* Mode invité : Moodboard, recherche, fil et forum en lecture seule, sans compte */}
+            <button type="button" onClick={enterGuest}
+              className="mt-3 w-full rounded-2xl px-4 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/5 hover:text-slate-100">
+              {gt.enter} →
+            </button>
+            <p className="text-[11px] text-slate-500">{gt.enterHint}</p>
 
             <p className="mt-6 text-[11px] leading-relaxed text-slate-600">
               {t.disclaimer}

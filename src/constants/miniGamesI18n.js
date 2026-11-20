@@ -14,6 +14,9 @@ export const MINI_GAMES_I18N = {
       colScore: "Score",
       colSource: "Source",
       colMood: "Mood #1",
+      share: "Partager mon résultat",
+      shareCopied: "Copié ✓ — colle-le où tu veux",
+      shareTitle: "AniMood Wordle",
     },
     poster: {
       title: "🖼 Poster mystère",
@@ -61,6 +64,9 @@ export const MINI_GAMES_I18N = {
       colScore: "Score",
       colSource: "Source",
       colMood: "Mood #1",
+      share: "Share my result",
+      shareCopied: "Copied ✓ — paste it anywhere",
+      shareTitle: "AniMood Wordle",
     },
     poster: {
       title: "🖼 Mystery poster",

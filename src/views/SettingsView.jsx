@@ -19,6 +19,8 @@ import { BADGES, getUnlockedBadges, getBestBadge, getBadgeLabel } from "../badge
 import { useModalBack } from "../hooks/useModalBack.js";
 import { isDesktopApp } from "../utils/streamingLinks.js";
 import { StreamingSettingsDesktop } from "../components/StreamingSettingsDesktop.jsx";
+import { GuestSignInCard } from "../components/GuestGate.jsx";
+import { useGuestT } from "../hooks/useGuestT.js";
 
 const LANG_OPTIONS = [
   { id: "fr", label: "Français", flag: "🇫🇷" },
@@ -70,17 +72,23 @@ export function SettingsView({ onClose, initialCategory = null }) {
   // Pushes a history entry on mount so the browser/device back button
   // closes this screen instead of navigating away from the page underneath.
   const requestClose = useModalBack(onClose);
-  const { me, saveMe, logout, myUsername, blockedUsers, unblockUser, notificationsEnabled, setNotificationsEnabled } = useApp();
+  const { me, saveMe, logout, myUsername, blockedUsers, unblockUser, notificationsEnabled, setNotificationsEnabled, guest } = useApp();
+  const gt = useGuestT();
   const { theme, setTheme, palette, setPalette } = useTheme();
   const { lang, setLang } = useLang();
-  const { playSound, soundEnabled, setSoundEnabled, volume, setVolume, pack, setPack, packs } = useSound();
+  const { playSound, playAlert, alertsEnabled, setAlertsEnabled, soundEnabled, setSoundEnabled, volume, setVolume, pack, setPack, packs } = useSound();
   const t = SETTINGS_I18N[lang] || SETTINGS_I18N.fr;
   const fileRef   = useRef(null);
   const avatarRef = useRef(null);
 
   const desktop = isDesktopApp();
-  const [category, setCategory] = useState(initialCategory || "preferences");
-  const CATEGORY_TABS = desktop ? [
+  const [category, setCategory] = useState(guest ? "preferences" : (initialCategory || "preferences"));
+  // Invité : seulement l'apparence, la langue (et les sons sur l'appli de bureau), plus un encart de connexion
+  const CATEGORY_TABS = guest ? [
+    { id: "preferences", label: t.catPreferences },
+    ...(desktop ? [{ id: "sound", label: t.catSound }] : []),
+    { id: "guest",       label: gt.settingsAccount },
+  ] : desktop ? [
     { id: "preferences",   label: t.catPreferences },
     { id: "profile",       label: t.catProfile },
     { id: "sound",         label: t.catSound },
@@ -124,7 +132,7 @@ export function SettingsView({ onClose, initialCategory = null }) {
   const [unlockedFrames, setUnlockedFrames] = useState([]);
   const [allFrames, setAllFrames]           = useState([]);
   const [activeFrame,    setActiveFrame]    = useState(null);
-  const [framesLoading,  setFramesLoading]  = useState(true);
+  const [framesLoading,  setFramesLoading]  = useState(!guest); // invité : pas de cadres à charger
 
   // Banner
   const bannerRef = useRef(null);
@@ -144,6 +152,7 @@ export function SettingsView({ onClose, initialCategory = null }) {
   }, [framesLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    if(!myUsername) return; // invité : pas de cadres
     (async () => {
       try {
         const { FRAMES, getUnlockedFrames, getBestFrame } = await import("../frames/frames.js");
@@ -186,6 +195,7 @@ export function SettingsView({ onClose, initialCategory = null }) {
 
   // Load badges
   useEffect(() => {
+    if(!myUsername) return; // invité : pas de badges
     (async () => {
       try {
         const [followerRows, voteRows, gameEloRows] = await Promise.all([
@@ -387,6 +397,36 @@ export function SettingsView({ onClose, initialCategory = null }) {
             })}
           </div>
         </Section>
+
+        {/* Son des notifications et des messages (site et appli de bureau ; l'invité n'en reçoit pas) */}
+        {!guest && (
+        <Section title={t.alertSoundTitle}>
+          <button onClick={() => { const v = !alertsEnabled; setAlertsEnabled(v); if(v) setTimeout(() => playAlert("notify"), 80); }}
+            className="mb-2 flex w-full items-center justify-between rounded-xl border border-white/7 bg-white/4 px-4 py-3.5 text-left transition hover:bg-white/6">
+            <div>
+              <div className="text-xs font-bold text-slate-100">{alertsEnabled ? t.alertSoundOn : t.alertSoundOff}</div>
+              <div className="text-[10px] text-slate-500">{t.alertSoundDesc}</div>
+            </div>
+            <div className="relative h-6 w-11 shrink-0 rounded-full transition"
+              style={{ background: alertsEnabled ? GRADIENT_PRIMARY : "rgba(255,255,255,0.12)" }}>
+              <div className="absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all"
+                style={{ left: alertsEnabled ? "22px" : "2px" }} />
+            </div>
+          </button>
+          {alertsEnabled && (
+            <div className="flex gap-2">
+              <button onClick={() => playAlert("notify")}
+                className="rounded-full border border-white/10 px-3 py-1.5 text-[11px] font-bold text-slate-400 transition hover:bg-white/8">
+                🔔 {t.alertSoundTestNotif}
+              </button>
+              <button onClick={() => playAlert("message")}
+                className="rounded-full border border-white/10 px-3 py-1.5 text-[11px] font-bold text-slate-400 transition hover:bg-white/8">
+                ✉️ {t.alertSoundTestMsg}
+              </button>
+            </div>
+          )}
+        </Section>
+        )}
         </>}
 
         {/* ─── PROFIL ─── */}
@@ -697,6 +737,9 @@ export function SettingsView({ onClose, initialCategory = null }) {
           )}
         </Section>
         </>}
+
+        {/* ─── INVITÉ ─── */}
+        {category === "guest" && <GuestSignInCard text={gt.settingsGuestText} />}
 
         {/* ─── COMPTE ─── */}
         {category === "account" && <>
