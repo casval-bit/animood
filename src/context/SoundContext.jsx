@@ -12,6 +12,7 @@ const KEY_ENABLED = "animood_sound_enabled";
 const KEY_VOLUME  = "animood_sound_volume";
 const KEY_PACK    = "animood_sound_pack";
 const KEY_ALERTS  = "animood_alert_sounds";
+const KEY_ALERT_VOLUME = "animood_alert_volume";
 
 function loadPref(key, fallback) {
   try { const v = localStorage.getItem(key); return v !== null ? JSON.parse(v) : fallback; } catch { return fallback; }
@@ -284,7 +285,9 @@ export function SoundProvider({ children }) {
   const [volume, _setVolume]             = useState(() => loadPref(KEY_VOLUME, 0.65));
   const [pack, _setPack]                 = useState(() => loadPref(KEY_PACK, "dreamy"));
   const [alertsEnabled, _setAlertsEnabled] = useState(() => loadPref(KEY_ALERTS, true));
+  const [alertVolume, _setAlertVolume] = useState(() => loadPref(KEY_ALERT_VOLUME, 0.8));
   const alertsRef  = useRef(alertsEnabled);
+  const alertVolRef = useRef(alertVolume);
   const enabledRef = useRef(soundEnabled);
   const volumeRef  = useRef(volume);
   const packRef    = useRef(pack);
@@ -346,7 +349,9 @@ export function SoundProvider({ children }) {
       const ctx = getCtx();
       if (!ctx || ctx.state !== "running") return; // navigateur : pas de son avant le premier clic sur la page
       const vol = ctx.createGain();
-      vol.gain.value = volumeRef.current * 0.55;
+      // Volume propre aux alertes (réglable sur le site aussi), nettement plus fort que les sons d'interface :
+      // une notification doit s'entendre même avec de la musique ou une vidéo en fond.
+      vol.gain.value = alertVolRef.current * 1.5;
       vol.connect(dryGainRef.current);
       vol.connect(reverbRef.current);
       fn(ctx, vol);
@@ -363,12 +368,13 @@ export function SoundProvider({ children }) {
   }, []);
 
   const setAlertsEnabled = useCallback((v) => { alertsRef.current = v; _setAlertsEnabled(v); savePref(KEY_ALERTS, v); }, []);
+  const setAlertVolume  = useCallback((v) => { alertVolRef.current = v; _setAlertVolume(v); savePref(KEY_ALERT_VOLUME, v); }, []);
   const setSoundEnabled = useCallback((v) => { enabledRef.current = v; _setSoundEnabled(v); savePref(KEY_ENABLED, v); }, []);
   const setVolume       = useCallback((v) => { volumeRef.current = v; _setVolume(v); savePref(KEY_VOLUME, v); }, []);
   const setPack         = useCallback((v) => { packRef.current = v; _setPack(v); savePref(KEY_PACK, v); }, []);
 
   return (
-    <SoundCtx.Provider value={{ playSound, playAlert, alertsEnabled, setAlertsEnabled, soundEnabled, setSoundEnabled, volume, setVolume, pack, setPack, packs: SOUND_PACKS }}>
+    <SoundCtx.Provider value={{ playSound, playAlert, alertsEnabled, setAlertsEnabled, alertVolume, setAlertVolume, soundEnabled, setSoundEnabled, volume, setVolume, pack, setPack, packs: SOUND_PACKS }}>
       {children}
     </SoundCtx.Provider>
   );

@@ -126,6 +126,7 @@ export const SETTINGS_I18N = {
     alertSoundDesc: "Un petit son à chaque nouvelle notification et à chaque nouveau message privé.",
     alertSoundTestNotif: "Notification",
     alertSoundTestMsg: "Message",
+    alertSoundVolume: "Volume des notifications",
   },
 
   en: {
@@ -255,5 +256,6 @@ export const SETTINGS_I18N = {
     alertSoundDesc: "A short sound for every new notification and every new private message.",
     alertSoundTestNotif: "Notification",
     alertSoundTestMsg: "Message",
+    alertSoundVolume: "Notification volume",
   },
 };
