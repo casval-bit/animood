@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { onAuthChange, loadProfile, saveProfile, signOut, dm, posts, sb, blocks, gameInvites as gameInvitesApi } from "../api/supabase.js";
 import { DEFAULT_PROFILE } from "../constants/profile.js";
 import { AppContext } from "./appContextObject.js";
+import { useSound } from "./SoundContext.jsx";
 
 function usernameFromEmail(email) {
   return email.split("@")[0].replace(/[^a-z0-9]/gi, "").toLowerCase().slice(0, 20);
@@ -16,16 +17,39 @@ const activityReadKeyFns = {
   "post-mention": postMentionReadKey, "thread-mention": threadMentionReadKey,
 };
 const notificationsEnabledKey = (username) => `animood_notifications_enabled_${username}`;
+const GUEST_KEY = "animood_guest"; // mode invité gardé d'une visite à l'autre, jusqu'à la connexion
+
+function readGuest() {
+  try { return localStorage.getItem(GUEST_KEY) === "1"; } catch { return false; }
+}
+function writeGuest(on) {
+  try { if(on) localStorage.setItem(GUEST_KEY, "1"); else localStorage.removeItem(GUEST_KEY); } catch { /* ignore */ }
+}
+
+// Son à l'arrivée de quelque chose de nouveau. `seen` vaut null au premier passage : ce qui est déjà là au chargement
+// (ou à la connexion) ne sonne pas, seulement ce qui arrive ensuite.
+function newArrivals(seen, keys) {
+  const next = new Set(keys);
+  return { next, fresh: !!seen && keys.some(k => !seen.has(k)) };
+}
 
 export function AppProvider({ children }) {
+  const { playAlert } = useSound();
   const [session, setSession]         = useState(null);
   const [profileReady, setProfileReady] = useState(false);
   const [me, setMe]                   = useState(DEFAULT_PROFILE);
+  // Invité : visite sans compte. Rien n'est enregistré (pas de pseudo, donc aucune écriture en base) ;
+  // seules les tables publiques (animés, moods) sont lisibles sans connexion.
+  const [guest, setGuest]             = useState(readGuest);
+  // Vrai dès que Supabase a dit si une session existe (avant : on ne sait pas encore si le visiteur est connecté)
+  const [authReady, setAuthReady]     = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = onAuthChange(async (sess) => {
       setSession(sess);
+      setAuthReady(true);
       if(sess) {
+        setGuest(false); writeGuest(false);
         const email    = sess.user.email;
         const username = usernameFromEmail(email);
         const name     = sess.user.user_metadata?.full_name || username;
@@ -88,6 +112,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if(!myUsername) return;
     let cancelled = false;
+    let seen = null;
     const check = async () => {
       const convos = await dm.listConversations(myUsername);
       if(cancelled) return;
@@ -101,11 +126,15 @@ export function AppProvider({ children }) {
         if(!c.lastMessage.read_at) unread.add(c.peer);
       });
       setUnreadPeers(unread);
+      const keys = convos.filter(c => unread.has(c.peer)).map(c => `${c.peer}:${c.lastMessage.id ?? c.lastMessage.created_at}`);
+      const { next, fresh } = newArrivals(seen, keys);
+      seen = next;
+      if(fresh) playAlert("message");
     };
     check();
     const interval = setInterval(check, 15000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [myUsername, blockedUsers]);
+  }, [myUsername, blockedUsers, playAlert]);
 
   // Stamps read_at server-side (so the sender sees a "seen" tick) and drops the
   // peer from the local unread set immediately, without waiting for the next poll.
@@ -130,14 +159,19 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if(!myUsername) return;
     let cancelled = false;
+    let seen = null;
     const check = async () => {
       const rows = await gameInvitesApi.getPending(myUsername);
-      if(!cancelled) setGameInvites(rows);
+      if(cancelled) return;
+      setGameInvites(rows);
+      const { next, fresh } = newArrivals(seen, (rows || []).map(r => String(r.id)));
+      seen = next;
+      if(fresh) playAlert("notify");
     };
     check();
     const interval = setInterval(check, 10000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [myUsername]);
+  }, [myUsername, playAlert]);
 
   // Removes an invite from the bell immediately (optimistic) and marks it
   // dealt with server-side — called both on decline and right before joining
@@ -179,6 +213,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if(!myUsername || !notificationsEnabled) return;
     let cancelled = false;
+    let seen = null;
     const check = async () => {
       const [postNotifs, threadNotifs, postMentions, threadMentions] = await Promise.all([
         posts.getActivityNotifications(myUsername),
@@ -216,11 +251,14 @@ export function AppProvider({ children }) {
       const merged = [...posts_, ...threads_, ...postMentions_, ...threadMentions_]
         .sort((a, b) => new Date(b.lastComment.created_at) - new Date(a.lastComment.created_at));
       setActivityNotifications(merged);
+      const { next, fresh } = newArrivals(seen, merged.map(n => `${n.type}:${n.id}:${n.lastComment?.created_at}`));
+      seen = next;
+      if(fresh) playAlert("notify");
     };
     check();
     const interval = setInterval(check, 20000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [myUsername, blockedUsers, notificationsEnabled]);
+  }, [myUsername, blockedUsers, notificationsEnabled, playAlert]);
 
   const markActivityRead = useCallback((type, id) => {
     if(!myUsername) return;
@@ -245,13 +283,18 @@ export function AppProvider({ children }) {
   // can accidentally save under the wrong (or a hardcoded) username.
   const saveMe = useCallback((updated) => {
     setMe(updated);
-    saveProfile(myUsername, updated);
+    if(myUsername) saveProfile(myUsername, updated);
   }, [myUsername]);
 
   const logout = async () => { await signOut(); setSession(null); setProfileReady(false); };
 
+  const enterGuest = useCallback(() => { writeGuest(true); setMe(DEFAULT_PROFILE); setGuest(true); }, []);
+  // Retour à la page de connexion (bouton « Se connecter » affiché à l'invité)
+  const leaveGuest = useCallback(() => { writeGuest(false); setMe(DEFAULT_PROFILE); setGuest(false); }, []);
+
   const ctx = {
     session, me, setMe, saveMe, myUsername, profileReady, logout,
+    guest: guest && !session, enterGuest, leaveGuest, authReady,
     unreadPeers, markRead, activityNotifications, markActivityRead, markAllActivityRead,
     gameInvites, dismissGameInvite,
     notificationsEnabled, setNotificationsEnabled,

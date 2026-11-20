@@ -10,20 +10,24 @@
 
     <!-- ─── Aperçu quand on partage le lien (Open Graph / X-Twitter) ───────
          Les adresses sont absolues : si le nom de domaine change, les remplacer ici,
-         dans public/robots.txt et dans public/sitemap.xml. -->
+         dans public/robots.txt, public/sitemap.xml, api/share.js et src/utils/shareLinks.js.
+         Image : public/og-image.png, générée par scripts/make_og_image.py. Les liens /anime/…, /forum/…,
+         /post/… et /u/… reçoivent leur propre aperçu (api/share.js). -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="AniMood" />
     <meta property="og:title" content="AniMood — Trouve l'animé qui correspond à ton humeur" />
     <meta property="og:description" content="Choisis ton humeur et AniMood te propose des animés faits pour ce moment. Gratuit, sans publicité." />
-    <meta property="og:image" content="https://animood.me/icons/icon-512.png" />
-    <meta property="og:image:width" content="512" />
-    <meta property="og:image:height" content="512" />
+    <meta property="og:url" content="https://animood.me/" />
+    <meta property="og:image" content="https://animood.me/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="AniMood : trouve l'animé qui correspond à ton humeur" />
     <meta property="og:locale" content="fr_FR" />
     <meta property="og:locale:alternate" content="en_US" />
-    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="AniMood — Trouve l'animé qui correspond à ton humeur" />
     <meta name="twitter:description" content="Choisis ton humeur et AniMood te propose des animés faits pour ce moment." />
-    <meta name="twitter:image" content="https://animood.me/icons/icon-512.png" />
+    <meta name="twitter:image" content="https://animood.me/og-image.png" />
 
     <!-- ─── PWA Meta ─────────────────────────────────────────────────── -->
     <link rel="manifest" href="/manifest.json" />

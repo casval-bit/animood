@@ -11,6 +11,10 @@ import { useLang } from "../context/useLang.js";
 import { GRADIENT_TEXT } from "../constants/theme.js";
 import { FORUM_THREAD_I18N } from "../constants/forumThreadI18n.js";
 import { useSound } from "../context/SoundContext.jsx";
+import { GuestSignInCard } from "./GuestGate.jsx";
+import { useGuestT } from "../hooks/useGuestT.js";
+import { ShareButton } from "./ShareButton.jsx";
+import { linkPath } from "../utils/shareLinks.js";
 
 export function timeAgo(iso, lang = "fr") {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -219,6 +223,7 @@ placeholder={t.pollOptionPlaceholder(i+1)} maxLength={80}
 
 // ─── Poll display for forum threads ──────────────────────────────────────────
 function ForumPollDisplay({ threadId, username }) {
+  const { guest } = useApp();
   const { lang } = useLang();
   const t = FORUM_THREAD_I18N[lang] || FORUM_THREAD_I18N.fr;
   const [poll, setPoll] = useState(null);
@@ -235,7 +240,7 @@ function ForumPollDisplay({ threadId, username }) {
   }, [threadId, username]);
 
   const vote = async (optId) => {
-    if(!poll || (voted && !poll.multi)) return;
+    if(!poll || guest || (voted && !poll.multi)) return; // invité : lecture seule
     const already = poll.options.find(o=>o.id===optId)?.votes?.includes(username);
     const newOptions = poll.options.map(o => {
       if(poll.multi) {
@@ -297,7 +302,8 @@ function ForumPollDisplay({ threadId, username }) {
 
 // ─── Thread detail — body + replies + reply box ────────────────────────────────
 export function ThreadModal({ thread, username, onClose, onOpenUser, onReply }) {
-  const { blockedUsers } = useApp();
+  const { blockedUsers, guest } = useApp();
+  const gt = useGuestT();
   const { lang } = useLang();
   const { playSound } = useSound();
   const t = FORUM_THREAD_I18N[lang] || FORUM_THREAD_I18N.fr;
@@ -361,6 +367,7 @@ export function ThreadModal({ thread, username, onClose, onOpenUser, onReply }) 
   };
 
   const toggleThreadLike = async () => {
+    if(guest) return; // invité : lecture seule
     playSound("click");
     const newLiked = !threadLiked;
     setThreadLikes(prev => newLiked ? [...prev, username] : prev.filter(u=>u!==username));
@@ -370,6 +377,7 @@ export function ThreadModal({ thread, username, onClose, onOpenUser, onReply }) 
   };
 
   const toggleReplyLike = async (replyId) => {
+    if(guest) return;
     const target = replies.find(r => r.id === replyId);
     if(!target) return;
     const likes = target.likes || [];
@@ -384,13 +392,14 @@ export function ThreadModal({ thread, username, onClose, onOpenUser, onReply }) 
   const visibleReplies = blockedUsers?.size ? replies.filter(r => !blockedUsers.has(r.username)) : replies;
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-2xl">
+    <Modal onClose={onClose} maxWidth="max-w-2xl" url={linkPath.thread(thread.id)}>
       <div className="max-h-[80vh] overflow-y-auto p-5">
         <div className="mb-1.5 flex items-center gap-2">
           <Avatar profile={profileCache[thread.username]} size={22} fallback={thread.username.slice(0,2).toUpperCase()} className="text-[9px]"/>
           <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500 flex-1">
             <span className={GRADIENT_TEXT}>{profileCache[thread.username]?.name || thread.username}</span> · @{thread.username} · {timeAgo(thread.created_at, lang)}
           </div>
+          <ShareButton path={linkPath.thread(thread.id)} title={thread.title} style={{ fontSize: 11 }} />
           {isThreadOwner && (
             <button onClick={deleteThread}
               className="shrink-0 rounded px-2 py-0.5 text-[10px] text-slate-600 transition hover:text-red-400"
@@ -450,6 +459,7 @@ export function ThreadModal({ thread, username, onClose, onOpenUser, onReply }) 
           </div>
         )}
 
+        {guest ? <GuestSignInCard text={gt.writeText} /> : <>
         <div className="relative">
           <textarea
             value={reply} onChange={e => setReply(e.target.value)} maxLength={2000} rows={3}
@@ -462,6 +472,7 @@ export function ThreadModal({ thread, username, onClose, onOpenUser, onReply }) 
         <button onClick={submitReply} disabled={submitting || !reply.trim()} className={SUBMIT_BTN}>
           {submitting ? t.sending : t.reply}
         </button>
+        </>}
       </div>
     </Modal>
   );

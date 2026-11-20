@@ -11,6 +11,11 @@ import { findBannedWord } from "../utils/contentFilter.js";
 import { isDesktopApp } from "../utils/streamingLinks.js";
 import { openWebUrl } from "../utils/safeUrl.js";
 import { GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
+import { GuestSignInCard } from "../components/GuestGate.jsx";
+import { useGuestT } from "../hooks/useGuestT.js";
+import { Modal } from "../components/Modal.jsx";
+import { ShareButton } from "../components/ShareButton.jsx";
+import { linkPath } from "../utils/shareLinks.js";
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function timeAgo(ts, lang) {
   const t = FEED_I18N[lang] || FEED_I18N.fr;
@@ -305,7 +310,7 @@ function PostComposer({ onPost }) {
 }
 // ─── CommentSection ───────────────────────────────────────────────────────────
 function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommentAdded, onLoadProfiles }) {
-  const { blockedUsers } = useApp();
+  const { blockedUsers, guest } = useApp();
   const { lang } = useLang();
   const t = FEED_I18N[lang] || FEED_I18N.fr;
   const [commentList, setCommentList] = useState(null);
@@ -344,6 +349,7 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
     setPosting(false);
   };
   const toggleLike = async (id) => {
+    if(guest) return; // invité : lecture seule
     const target = commentList.find(c => c.id === id);
     const likes = target?.likes || [];
     const newLikes = likes.includes(myUsername) ? likes.filter(u=>u!==myUsername) : [...likes, myUsername];
@@ -383,7 +389,7 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
         </div>
       ))}
       {filterError && <p style={{fontSize:10,color:"#ef4444",margin:"0 0 6px 34px"}}>⚠️ {filterError}</p>}
-      <div style={{display:"flex",gap:8,marginTop:8}}>
+      {!guest && <div style={{display:"flex",gap:8,marginTop:8}}>
         <Avatar profile={profileCache[myUsername]||{avatar:"👤"}} size={26}/>
         <div style={{flex:1,display:"flex",gap:6,position:"relative"}}>
           <input value={newComment} onChange={e=>{setNewComment(e.target.value.slice(0,280));setFilterError(null);}}
@@ -400,12 +406,13 @@ function CommentSection({ postId, myUsername, profileCache, onOpenUser, onCommen
             ↑
           </button>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
 // ─── PollDisplay ──────────────────────────────────────────────────────────────
 function PollDisplay({ postId, myUsername }) {
+  const { guest } = useApp();
   const [poll, setPoll] = useState(null);
   const [voted, setVoted] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -425,7 +432,7 @@ function PollDisplay({ postId, myUsername }) {
   }, [postId, myUsername]);
 
   const vote = async (optionId) => {
-    if(!poll || voted) return;
+    if(!poll || voted || guest) return; // invité : lecture seule
     if(!poll.multi) {
       // Single vote — add username to chosen option
       const newOptions = poll.options.map(o=>
@@ -515,6 +522,7 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
   const [showComments, setShowComments] = useState(false);
   const [revealed, setRevealed] = useState(!post.spoiler);
   const [commentCount, setCommentCount] = useState(post.comment_count||0);
+  const { guest } = useApp();
 
   // Re-sync when likes change from elsewhere (e.g. liked from "Mes Posts" in Profile)
   useEffect(() => {
@@ -523,6 +531,7 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
   }, [post.likes, myUsername]);
 
   const toggleLike = async () => {
+    if(guest) return; // invité : lecture seule
     const newLiked = !liked;
     setLiked(newLiked); setLikeCount(c => c + (newLiked?1:-1));
     const result = await postsApi.toggleLike(post.id, myUsername);
@@ -626,17 +635,68 @@ function PostCard({ post, myUsername, profileCache, onDelete, onOpenUser, onLoad
           <span>{t.comments}{commentCount > 0 ? ` (${commentCount})` : ""}</span>
           <span style={{fontSize:10}}>{showComments?"▲":"▼"}</span>
         </button>
+        {post.id && <ShareButton path={linkPath.post(post.id)} title={post.anime_title || undefined} style={{marginLeft:"auto"}}/>}
       </div>
       {showComments && <CommentSection postId={post.id} myUsername={myUsername}
         profileCache={profileCache} onOpenUser={onOpenUser} onCommentAdded={handleCommentAdded} onLoadProfiles={onLoadProfiles}/>}
     </div>
   );
 }
+// ─── Post ouvert depuis son lien (/post/123) ──────────────────────────────────
+export function PostLinkModal({ postId, onClose, onOpenUser }) {
+  const { myUsername, guest } = useApp();
+  const { lang } = useLang();
+  const [post, setPost] = useState(undefined); // undefined = chargement, null = introuvable
+  const [profileCache, setProfileCache] = useState({});
+
+  const loadProfiles = async (usernames) => {
+    const missing = [...new Set(usernames)].filter(u => u && !profileCache[u]);
+    if(!missing.length) return;
+    try {
+      const rows = await sb.query(`profiles?username=in.(${missing.map(u=>encodeURIComponent(u)).join(",")})&select=username,name,avatar,avatar_base64`);
+      if(rows?.length) setProfileCache(p => ({...p, ...Object.fromEntries(rows.map(r => [r.username, r]))}));
+    } catch {}
+  };
+  useEffect(() => {
+    let cancelled = false;
+    sb.query(`posts?id=eq.${postId}&select=*&limit=1`).then(rows => {
+      if(cancelled) return;
+      const p = rows?.[0] || null;
+      setPost(p);
+      if(p) loadProfiles([p.username]);
+    }).catch(() => { if(!cancelled) setPost(null); });
+    return () => { cancelled = true; };
+  }, [postId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleDelete = async (id) => {
+    await postsApi.delete(id);
+    dispatchPostEvent("delete", { id });
+    onClose();
+  };
+
+  return (
+    <Modal onClose={onClose} maxWidth="max-w-xl" url={linkPath.post(postId)}>
+      <div className="p-3">
+        {post === undefined && <div className="py-16 text-center text-sm text-slate-500">…</div>}
+        {post === null && (
+          <div className="py-14 text-center text-sm text-slate-400">
+            {lang === "en" ? "This post no longer exists." : "Ce post n'existe plus."}
+          </div>
+        )}
+        {post && (
+          <PostCard post={post} myUsername={guest ? null : myUsername} profileCache={profileCache}
+            onDelete={handleDelete} onOpenUser={onOpenUser} onLoadProfiles={loadProfiles}/>
+        )}
+      </div>
+    </Modal>
+  );
+}
 // ─── FEED VIEW ────────────────────────────────────────────────────────────────
 export function FeedView({ onOpenDetail, onOpenUser }) {
-  const { me, myUsername, blockedUsers } = useApp();
+  const { me, myUsername, blockedUsers, guest } = useApp();
   const { lang } = useLang();
   const t = FEED_I18N[lang] || FEED_I18N.fr;
+  const gt = useGuestT();
   const [feed, setFeed]           = useState([]);
   const [loading, setLoading]     = useState(true);
   const [channel, setChannel]     = useState("general");
@@ -699,8 +759,10 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
   const CHANNELS = [
     { id:"general",   label:t.channelGeneral,   emoji:"🌐" },
     { id:"recent",    label:t.channelRecent,    emoji:"✨" },
-    { id:"following", label:t.channelFollowing, emoji:"👥" },
+    // Invité : pas d'abonnements, donc pas de canal « Abonnements »
+    ...(guest ? [] : [{ id:"following", label:t.channelFollowing, emoji:"👥" }]),
   ];
+  const composer = guest ? <GuestSignInCard text={gt.writeText} className="mb-4" /> : <PostComposer onPost={handlePost}/>;
   const desktop = isDesktopApp();
   if(desktop) {
     const fr = lang !== "en";
@@ -738,7 +800,7 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
           {/* MAIN — composer + posts */}
           <div style={{display:"flex",flexDirection:"column",gap:14,minWidth:0}}>
-            <PostComposer onPost={handlePost}/>
+            {composer}
             {channel==="recent" && (
               <div style={{fontSize:11,color:"var(--text-4)",textAlign:"center"}}>{t.recentSeasonsNote(RECENT_SEASONS.join(", "))}</div>
             )}
@@ -831,7 +893,7 @@ export function FeedView({ onOpenDetail, onOpenUser }) {
   }
   return (
     <div style={{maxWidth:600,margin:"0 auto",padding:"16px 16px 80px"}}>
-      <PostComposer onPost={handlePost}/>
+      {composer}
       <div style={{display:"flex",gap:6,marginBottom:16,borderBottom:"1px solid rgba(var(--fg-rgb),0.06)",paddingBottom:12}}>
         {CHANNELS.map(c => (
           <button key={c.id} onClick={()=>setChannel(c.id)}
