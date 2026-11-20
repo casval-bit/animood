@@ -25,7 +25,10 @@ let indexCache = { html: null, at: 0 };
 // l'autorisation reçue (cookie / jeton de contournement), sinon on récupèrerait la page de connexion de Vercel.
 async function getIndexHtml(req) {
   if(indexCache.html && Date.now() - indexCache.at < 60_000) return indexCache.html;
-  const host = req.headers["x-forwarded-host"] || req.headers.host;
+  const host = String(req.headers["x-forwarded-host"] || req.headers.host || "").toLowerCase();
+  // Sécurité : la page récupérée est mise en cache et servie à tout le monde. On ne la prend donc que sur nos
+  // propres domaines, jamais sur un hôte fourni dans la requête (empoisonnement du cache → page piégée).
+  if(!/^(www\.)?animood\.me$/.test(host) && !/^animood[a-z0-9-]*\.vercel\.app$/.test(host)) throw new Error(`hôte refusé : ${host}`);
   const headers = {};
   if(req.headers.cookie) headers.cookie = req.headers.cookie;
   if(req.headers["x-vercel-protection-bypass"]) headers["x-vercel-protection-bypass"] = req.headers["x-vercel-protection-bypass"];

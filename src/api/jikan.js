@@ -14,13 +14,30 @@ function enqueue(fn) {
   });
 }
 
+// Limites officielles de Jikan : 3 requêtes par seconde ET 60 par minute (par adresse IP).
+// Fenêtre glissante : jusqu'à 3 requêtes partent en même temps (au lieu d'une à la fois + 370 ms d'attente),
+// et on ne dépasse jamais 60 sur une minute glissante → beaucoup moins de 429.
+const PER_SECOND = 3, PER_MINUTE = 60;
+const sentAt = [];
+function waitForSlot() {
+  const now = Date.now();
+  while(sentAt.length && now - sentAt[0] > 60_000) sentAt.shift();
+  const lastSec = sentAt.filter(t => now - t < 1000);
+  if(lastSec.length < PER_SECOND && sentAt.length < PER_MINUTE) return 0;
+  const untilSec = lastSec.length >= PER_SECOND ? lastSec[lastSec.length - PER_SECOND] + 1000 - now : 0;
+  const untilMin = sentAt.length >= PER_MINUTE ? sentAt[sentAt.length - PER_MINUTE] + 60_000 - now : 0;
+  return Math.max(untilSec, untilMin, 20);
+}
+
 async function runQueue() {
   if(queueRunning || requestQueue.length === 0) return;
   queueRunning = true;
   while(requestQueue.length > 0) {
+    const wait = waitForSlot();
+    if(wait) { await new Promise(r => setTimeout(r, wait)); continue; }
     const { fn, resolve, reject } = requestQueue.shift();
-    try { resolve(await fn()); } catch(e) { reject(e); }
-    if(requestQueue.length > 0) await new Promise(r => setTimeout(r, 370));
+    sentAt.push(Date.now());
+    fn().then(resolve, reject); // sans attendre la réponse : la suivante peut partir dans la même seconde
   }
   queueRunning = false;
 }
@@ -28,7 +45,11 @@ async function runQueue() {
 async function jikanFetch(url) {
   for(let attempt = 0; attempt < 3; attempt++) {
     const r = await fetch(url);
-    if(r.status === 429) { await new Promise(res => setTimeout(res, 2000 * Math.pow(2, attempt))); continue; }
+    if(r.status === 429) {
+      const retry = Number(r.headers.get("Retry-After")) * 1000;
+      await new Promise(res => setTimeout(res, retry > 0 ? Math.min(retry, 10_000) : 1200 * Math.pow(2, attempt)));
+      continue;
+    }
     if(!r.ok) throw new Error(`Jikan ${r.status}`);
     return r.json();
   }
@@ -86,32 +107,40 @@ async function getAnimeData(mal_id) {
   return res;
 }
 
+// Recherche dans notre propre base (anime_cache, ~30 000 animés) : instantanée et sans limite de débit,
+// contrairement à Jikan (3 requêtes/s, 60/min, souvent lent ou en 504). Titre japonais ET anglais :
+// « Attack on Titan » trouve « Shingeki no Kyojin ». Valeur entre guillemets pour que virgules / parenthèses
+// du texte tapé ne cassent pas le filtre or=(…) de PostgREST.
+async function searchAnimeInCache(q, type, limit) {
+  const v = encodeURIComponent(`"*${q.replace(/["\\]/g, "")}*"`);
+  let url = `anime_cache?or=(title.ilike.${v},title_en.ilike.${v})&order=score.desc.nullslast&limit=${limit}`;
+  if(type && type !== "all") url += `&type=eq.${encodeURIComponent(type)}`;
+  return (await sb.query(url)) || [];
+}
+
 export const jikan = {
   searchAnime: async (params) => {
-    // Try Supabase cache first — apply type filter if set
+    // Notre base d'abord ; Jikan seulement si elle trouve trop peu de résultats
+    let cached = [];
     if(params.q && !params.genres && !params.page) {
       try {
-        let url = `anime_cache?title=ilike.*${encodeURIComponent(params.q)}*&order=score.desc.nullslast&limit=${params.limit||24}`;
-        if(params.type && params.type !== "all") url += `&type=eq.${params.type}`;
-        const rows = await sb.query(url);
-        if(rows?.length >= 3) return { data: rows.map(supabaseRowToAnime) };
+        cached = await searchAnimeInCache(params.q, params.type, params.limit || 24);
+        if(cached.length >= 3) return { data: cached.map(supabaseRowToAnime) };
       } catch { /* fall through to Jikan */ }
     }
-    // Fallback to Jikan
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([k,v]) => v != null && qs.set(k, String(v)));
     try {
-      return await jikanCall(`search-${qs}`, `${JIKAN_BASE}/anime?${qs}`);
-    } catch(e) {
-      // If Jikan is down, try Supabase without minimum result count
-      if(params.q) {
-        try {
-          let url = `anime_cache?title=ilike.*${encodeURIComponent(params.q)}*&order=score.desc.nullslast&limit=${params.limit||24}`;
-          if(params.type && params.type !== "all") url += `&type=eq.${params.type}`;
-          const rows = await sb.query(url);
-          if(rows?.length) return { data: rows.map(supabaseRowToAnime) };
-        } catch { /* Supabase also unavailable — rethrow below */ }
+      const res = await jikanCall(`search-${qs}`, `${JIKAN_BASE}/anime?${qs}`);
+      // Complète avec ce que notre base avait trouvé (1–2 résultats), sans doublon
+      if(cached.length) {
+        const ids = new Set((res.data || []).map(a => a.mal_id));
+        return { ...res, data: [...cached.filter(r => !ids.has(r.mal_id)).map(supabaseRowToAnime), ...(res.data || [])] };
       }
+      return res;
+    } catch(e) {
+      // Jikan en panne : on rend ce que notre base a trouvé, même peu
+      if(cached.length) return { data: cached.map(supabaseRowToAnime) };
       throw e;
     }
   },

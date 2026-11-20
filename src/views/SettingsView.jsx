@@ -76,7 +76,7 @@ export function SettingsView({ onClose, initialCategory = null }) {
   const gt = useGuestT();
   const { theme, setTheme, palette, setPalette } = useTheme();
   const { lang, setLang } = useLang();
-  const { playSound, playAlert, alertsEnabled, setAlertsEnabled, soundEnabled, setSoundEnabled, volume, setVolume, pack, setPack, packs } = useSound();
+  const { playSound, playAlert, alertsEnabled, setAlertsEnabled, alertVolume, setAlertVolume, soundEnabled, setSoundEnabled, volume, setVolume, pack, setPack, packs } = useSound();
   const t = SETTINGS_I18N[lang] || SETTINGS_I18N.fr;
   const fileRef   = useRef(null);
   const avatarRef = useRef(null);
@@ -413,6 +413,19 @@ export function SettingsView({ onClose, initialCategory = null }) {
                 style={{ left: alertsEnabled ? "22px" : "2px" }} />
             </div>
           </button>
+          {alertsEnabled && (
+            <div className="mb-3">
+              <div className="mb-1.5 flex items-center justify-between">
+                <div className="text-[11px] font-bold text-slate-400">{t.alertSoundVolume}</div>
+                <div className="text-[11px] font-bold text-violet-300">{Math.round(alertVolume * 100)}%</div>
+              </div>
+              <input type="range" min="0.1" max="1" step="0.05" value={alertVolume}
+                onChange={e => setAlertVolume(Number(e.target.value))}
+                onPointerUp={() => playAlert("notify")} onKeyUp={() => playAlert("notify")}
+                aria-label={t.alertSoundVolume}
+                className="w-full accent-violet-500" />
+            </div>
+          )}
           {alertsEnabled && (
             <div className="flex gap-2">
               <button onClick={() => playAlert("notify")}
