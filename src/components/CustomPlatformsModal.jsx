@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { GLASS_STYLE, GRADIENT_PRIMARY } from "../constants/theme.js";
+import { overlayProps } from "../utils/desktopWindow.js";
 import {
   getCustomPlatforms, saveCustomPlatform, deleteCustomPlatform, normaliseUrl, buildCustomUrl,
   getExactLink, setExactLink, hostOf, platformColor, nameFromHost, learnFromExact,
@@ -19,7 +20,7 @@ export function PlatformIcon({ platform, size = 18 }) {
 function Shell({ onClose, title, children, width = 460 }) {
   useEffect(() => { const h = (e) => e.key === "Escape" && onClose(); window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [onClose]);
   return createPortal(
-    <div onMouseDown={(e) => e.target === e.currentTarget && onClose()} style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(3,4,12,.72)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+    <div {...overlayProps()} onMouseDown={(e) => e.target === e.currentTarget && onClose()} style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(3,4,12,.72)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ ...GLASS_STYLE, width, maxWidth: "100%", maxHeight: "88vh", overflowY: "auto", borderRadius: 18, padding: 22, border: "1px solid rgba(var(--fg-rgb),.1)", background: "rgba(var(--ac-0e0f1e),0.96)" }}>
         <div className="mb-4 flex items-center justify-between">
           <div className="text-[15px] font-extrabold text-slate-100">{title}</div>

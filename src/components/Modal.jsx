@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useModalBack } from "../hooks/useModalBack.js";
 import { useSound } from "../context/SoundContext.jsx";
+import { overlayProps } from "../utils/desktopWindow.js";
 
 export function Modal({ onClose, children, maxWidth = "max-w-lg", bodyClassName = "" }) {
   const [visible, setVisible] = useState(false);
@@ -22,6 +23,7 @@ export function Modal({ onClose, children, maxWidth = "max-w-lg", bodyClassName 
 
   return (
     <div
+      {...overlayProps()}
       onClick={close}
       className={`fixed inset-0 z-300 flex items-center justify-center p-4 transition-all duration-200 ${visible ? "bg-black/75 backdrop-blur-sm" : "bg-black/0"}`}
     >
@@ -60,7 +62,7 @@ export function GameModal({ onClose, children, title, subtitle, maxWidth = "920p
   const closeNow = () => close(true);
 
   return (
-    <div onClick={close} style={{
+    <div {...overlayProps()} onClick={close} style={{
       position:"fixed", inset:0, zIndex:300,
       display:"flex", alignItems:"center", justifyContent:"center", padding:12,
       transition:"all 0.2s",

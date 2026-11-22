@@ -6,6 +6,7 @@ import { SoundProvider, useSound } from "./context/SoundContext.jsx";
 import { useApp } from "./context/useApp.js";
 import { useLang } from "./context/useLang.js";
 import { isDesktopApp } from "./utils/streamingLinks.js";
+import { overlayProps, titleBarProps } from "./utils/desktopWindow.js";
 import { isInstalledApp } from "./utils/installedApp.js";
 import { isInstallerPage, canPromptInstall, wasInstalled, onInstallChange, promptInstall } from "./utils/installPrompt.js";
 import { Header } from "./components/Header.jsx";
@@ -48,13 +49,13 @@ const SettingsView     = lazyNamed(() => import("./views/SettingsView.jsx"), "Se
 // ── Static Pages ──────────────────────────────────────────────────────────────
 function PageWrapper({ title, onClose, children }) {
   return (
-    <div style={{
+    <div {...overlayProps()} style={{
       position:"fixed",inset:0,zIndex:400,
       background:"var(--page-bg, #0f0a1e)",   // opaque : l'écran du dessous ne doit pas transparaître
       overflowY:"auto",
     }}>
       {/* Back arrow */}
-      <div style={{
+      <div {...titleBarProps()} style={{
         position:"sticky",top:0,
         background:"var(--page-bar, rgba(var(--ac-0a0714),0.9))",backdropFilter:"blur(12px)",
         borderBottom:"1px solid rgba(var(--fg-rgb),0.06)",

@@ -18,6 +18,7 @@ import { getFrameSvg, getExtraFrames, loadFrameFlags, noteNightOwl } from "../fr
 import { BADGES, getUnlockedBadges, getBestBadge, getBadgeLabel } from "../badges/badges.jsx";
 import { useModalBack } from "../hooks/useModalBack.js";
 import { isDesktopApp } from "../utils/streamingLinks.js";
+import { overlayProps, titleBarProps } from "../utils/desktopWindow.js";
 import { StreamingSettingsDesktop } from "../components/StreamingSettingsDesktop.jsx";
 
 const LANG_OPTIONS = [
@@ -319,8 +320,8 @@ export function SettingsView({ onClose, initialCategory = null }) {
   const currentAvatar = me.avatar?.startsWith?.("http") ? me.avatar : null;
 
   return (
-    <div className="fixed inset-0 z-400 flex flex-col backdrop-blur-2xl" style={{ background:"var(--overlay)" }}>
-      <div className="flex items-center gap-3 border-b border-white/6 px-6 py-4">
+    <div {...overlayProps()} className="fixed inset-0 z-400 flex flex-col backdrop-blur-2xl" style={{ background:"var(--overlay)" }}>
+      <div {...titleBarProps()} className="flex items-center gap-3 border-b border-white/6 px-6 py-4">
         <button onClick={requestClose} className="text-xl text-slate-400">←</button>
         <span className="text-base font-black text-slate-100">{t.title}</span>
       </div>

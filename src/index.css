@@ -269,6 +269,15 @@ html[data-app="desktop"] body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+/* Fenêtre sans cadre : l'en-tête (84 px) et la bande du haut déplacent la fenêtre (-webkit-app-region: drag), et Chromium garde ces zones actives
+   sous une fenêtre ouverte (l'empilement ne compte pas). Un bouton placé dans les 84 px du haut — « ← » des Paramètres, « Retour » des pages du
+   pied de page, croix d'une fiche haute — ne recevait donc jamais le clic : il servait à déplacer la fenêtre.
+   data-overlay : racine d'une fenêtre qui recouvre l'en-tête → plus de zone de déplacement sous elle.
+   data-titlebar : barre de titre d'une page plein écran → déplaçable, sauf ses boutons.
+   Marqueurs posés par src/utils/desktopWindow.js (vides sur le site et l'APK) ; la bande du haut (DesktopWindowControls) reste déplaçable. */
+html[data-app="desktop"] [data-overlay] { -webkit-app-region: no-drag; }
+html[data-app="desktop"] [data-titlebar] { -webkit-app-region: drag; }
+html[data-app="desktop"] [data-titlebar] :is(button, a, input, select, textarea, [role="button"]) { -webkit-app-region: no-drag; }
 @keyframes glow-breathe {
   0%, 100% { opacity: 0.7; transform: scale(1); }
   50%      { opacity: 1; transform: scale(1.015); }
