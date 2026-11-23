@@ -1,7 +1,9 @@
 // ─── Définition des palettes (réglages de teinte) ───────────────────────────────────────────────────────────────
 // `hue` : points d'ancrage [teinte d'origine, teinte d'arrivée] en degrés OKLCH.
 //   Origine : bleu ≈ 260, indigo ≈ 277, violet ≈ 293, violet clair ≈ 304, fuchsia ≈ 322, rose ≈ 354, rouge-rose ≈ 376 (16°).
-//   Arrivée : rouge ≈ 25, orange ≈ 48, ambre ≈ 70, jaune ≈ 86, vert ≈ 150, émeraude ≈ 162, turquoise ≈ 183, rose ≈ 354.
+//   Arrivée : rouge ≈ 25, orange ≈ 48, ambre ≈ 70, jaune ≈ 86, vert ≈ 150, émeraude ≈ 162, turquoise ≈ 183, cyan ≈ 205, bleu ≈ 258, violet vif ≈ 310, rose ≈ 354.
+//   Une teinte d'arrivée peut sortir de 0–360 (−48 = 312) pour tourner dans le sens voulu ; deux ancres voisines très écartées font un « saut » de teinte
+//   (garden, royal, cobalt, orchid : les bleus / violets d'un côté, les fuchsias / roses de l'autre).
 // `lift`  : part de l'écart de clarté de la famille d'arrivée appliquée au thème sombre / clair (1 = rampe complète).
 // `chroma`: coefficient d'intensité des couleurs.
 // `whiteContrast` (facultatif, 3,3 par défaut) : contraste minimal avec le blanc des couleurs qui servaient de fond à du texte blanc
@@ -24,5 +26,13 @@ export const PALETTES = {
   forest: { hue: [[225, 196], [260, 180], [277, 168], [293, 156], [304, 150], [322, 143], [354, 133], [376, 125]], lift: { dark: 1, light: 0.4 }, chroma: 1, hud: { h0: 160, hs: -1.2 } },
   // gris / argent : une seule teinte (acier) très peu intense ; les barres du profil perdent aussi leur couleur (`sat`)
   graphite: { hue: [[225, 250], [376, 250]], lift: { dark: 1, light: 0.4 }, chroma: 0.13, hud: { h0: 225, hs: 0.1, sat: 0.1 } },
+  // or / violet : indigo → jaune doré, violet → or, rose → violet franc (le jaune glisse vers le violet dans les dégradés)
+  royal: { hue: [[225, 96], [260, 92], [277, 88], [293, 84], [304, 78], [313, 74], [316, 303], [322, 300], [354, 294], [376, 290]], lift: { dark: 1, light: 0.4 }, chroma: 1, hud: { h0: 48, hs: -2.3 } },
+  // bleu / orange : bleu → bleu franc, rose → orange (dégradé de couleurs complémentaires)
+  cobalt: { hue: [[225, 248], [260, 255], [277, 258], [293, 262], [304, 264], [313, 266], [316, 58], [322, 54], [354, 48], [376, 42]], lift: { dark: 1, light: 0.4 }, chroma: 1, hud: { h0: 245, hs: 0.6 } },
+  // violet / turquoise : bleu, indigo, violet → violet vif ; fuchsia, rose → turquoise (le violet glisse vers le turquoise dans les dégradés)
+  orchid: { hue: [[225, 296], [260, 304], [277, 310], [293, 314], [304, 318], [313, 322], [316, 196], [322, 192], [354, 188], [376, 184]], lift: { dark: 1, light: 0.4 }, chroma: 1, hud: { h0: 295, hs: -2.2 } },
+  // marron / caramel : une seule teinte (brun chaud) à moitié intense, comme un café au lait ; les barres du profil restent brunes
+  mocha: { hue: [[225, 66], [376, 52]], lift: { dark: 1, light: 0.4 }, chroma: 0.5, hud: { h0: 35, hs: -0.3, sat: 0.45 } },
 };
 export const PALETTE_IDS = Object.keys(PALETTES);

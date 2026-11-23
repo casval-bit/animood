@@ -77,7 +77,7 @@ test("liste des palettes : identifiants et aperçus", () => {
     assert.deepEqual(p.swatch, ["6d5bff", "8b5cf6", "ec4899"].map((k) => "#" + hex(paletteColor(k, p.id, "dark"))), `aperçu ${p.id}`);
     assert.equal(p.themeColor, "#" + hex(paletteColor("7c3aed", p.id, "dark")), `couleur de la barre du navigateur ${p.id}`);
   }
-  assert.ok(PALETTES.length >= 8, "au moins 8 palettes (4 d'origine + 4 nouvelles)");
+  assert.ok(PALETTES.length >= 12, "au moins 12 palettes (4 d'origine + 4 + 4 nouvelles)");
 });
 test("les textes du sélecteur existent en français et en anglais", async () => {
   const { SETTINGS_I18N } = await import("../src/constants/settingsI18n.js");
@@ -108,12 +108,42 @@ test("rose / magenta : tout tourne autour du rose et du magenta", () => {
 test("émeraude / vert : tout devient vert (du turquoise au vert franc)", () => {
   for (const k of ["6d5bff", "8b5cf6", "ec4899", "7c3aed", "4f46e5"]) assert.ok(between(hue(k, "forest"), 125, 200), `${k} → ${hue(k, "forest").toFixed(0)}°`);
 });
+test("or / violet : le bleu et le violet de la marque deviennent dorés, le rose devient un violet franc", () => {
+  for (const k of ["6d5bff", "8b5cf6", "7c3aed", "4f46e5"]) assert.ok(between(hue(k, "royal"), 70, 105), `${k} → ${hue(k, "royal").toFixed(0)}°`);
+  assert.ok(between(hue("ec4899", "royal"), 280, 315), `ec4899 → ${hue("ec4899", "royal").toFixed(0)}°`);
+});
+test("bleu / orange : le violet devient un bleu franc (pas de violet), le rose devient orange", () => {
+  for (const k of ["6d5bff", "8b5cf6", "7c3aed", "4f46e5"]) assert.ok(between(hue(k, "cobalt"), 240, 280), `${k} → ${hue(k, "cobalt").toFixed(0)}°`);
+  assert.ok(between(hue("ec4899", "cobalt"), 30, 70), `ec4899 → ${hue("ec4899", "cobalt").toFixed(0)}°`);
+});
+test("violet / turquoise : le bleu et le violet deviennent un violet vif, le rose devient turquoise", () => {
+  for (const k of ["6d5bff", "8b5cf6", "7c3aed", "4f46e5"]) assert.ok(between(hue(k, "orchid"), 295, 330), `${k} → ${hue(k, "orchid").toFixed(0)}°`);
+  assert.ok(between(hue("ec4899", "orchid"), 175, 205), `ec4899 → ${hue("ec4899", "orchid").toFixed(0)}°`);
+});
+test("marron / caramel : une seule teinte brune, peu intense, en sombre comme en clair", () => {
+  for (const theme of ["dark", "light"]) for (const k of ["6d5bff", "8b5cf6", "ec4899", "7c3aed", "a78bfa", "c4b5fd"]) {
+    const { h, C } = rgbToOklch(...paletteColor(k, "mocha", theme));
+    assert.ok(between(h, 45, 75), `${k}/${theme} : teinte ${h.toFixed(0)}°`);
+    assert.ok(C < 0.12, `${k}/${theme} : intensité ${C.toFixed(3)}`);
+  }
+});
 test("gris / argent : couleurs presque sans teinte, et les barres du profil perdent leur saturation", () => {
   for (const theme of ["dark", "light"]) for (const k of ["6d5bff", "8b5cf6", "ec4899", "7c3aed", "a78bfa", "c4b5fd"]) {
     const { C } = rgbToOklch(...paletteColor(k, "graphite", theme));
     assert.ok(C < 0.045, `${k}/${theme} : intensité ${C.toFixed(3)}`);
   }
   assert.match(block('html[data-palette="graphite"]'), /--hud-sat: 0\.1;/);
+});
+// Écart de couleur (OKLab) entre les 3 pastilles d'aperçu de deux palettes : la plus grande des trois différences doit être nette.
+const lab = (rgb) => { const o = rgbToOklch(...rgb); const a = (o.h * Math.PI) / 180; return [o.L, o.C * Math.cos(a), o.C * Math.sin(a)]; };
+const swatchLab = (id) => ["6d5bff", "8b5cf6", "ec4899"].map((k) => lab(id === DEFAULT_PALETTE ? parseHex(k) : paletteColor(k, id, "dark")));
+test("deux palettes ne se ressemblent pas trop : au moins une des trois couleurs d'aperçu change nettement", () => {
+  const ids = PALETTES.map((p) => p.id);
+  for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+    const a = swatchLab(ids[i]), b = swatchLab(ids[j]);
+    const d = Math.max(...a.map((c, k) => Math.hypot(c[0] - b[k][0], c[1] - b[k][1], c[2] - b[k][2])));
+    assert.ok(d >= 0.1, `« ${ids[i]} » et « ${ids[j]} » sont trop proches (écart ${d.toFixed(3)} < 0,1) : changer les teintes de l'une dans scripts/palettes/spec.mjs`);
+  }
 });
 test("texte blanc lisible : les couleurs qui servaient de fond à du texte blanc gardent un contraste d'au moins 3,2", () => {
   const FILLS = ["6d5bff", "8b5cf6", "ec4899", "a855f7", "7c3aed", "6366f1", "4f46e5", "3b82f6", "2563eb"];

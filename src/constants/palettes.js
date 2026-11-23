@@ -22,6 +22,10 @@ export const PALETTES = [
   { id: "sakura",    swatch: ["#ec2fc9", "#e945b6", "#f04385"], themeColor: "#d226a1" },
   { id: "forest",    swatch: ["#00a174", "#00a260", "#5c9e00"], themeColor: "#009d5c" },
   { id: "graphite",  swatch: ["#828f9c", "#838f9a", "#838f9a"], themeColor: "#6c7783" },
+  { id: "royal",     swatch: ["#b18700", "#b48600", "#8e5bf7"], themeColor: "#b48600" },
+  { id: "cobalt",    swatch: ["#2b7fff", "#417ff5", "#e76700"], themeColor: "#1d62ea" },
+  { id: "orchid",    swatch: ["#bf40ff", "#c34ef4", "#009e96"], themeColor: "#ad2cdf" },
+  { id: "mocha",     swatch: ["#ba8150", "#b78258", "#bb805a"], themeColor: "#b78258" },
 ];
 export const PALETTE_IDS = PALETTES.map((p) => p.id);
 

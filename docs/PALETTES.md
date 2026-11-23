@@ -1,7 +1,7 @@
 # Palettes de couleurs (site, APK et appli de bureau)
 
 Le site (animood.me), l'APK (c'est le site, empaqueté en TWA) et l'appli de bureau proposent, dans **Paramètres → Préférences → Couleurs**,
-8 palettes qui remplacent le bleu / violet de la marque (en plus du thème sombre / clair, qui reste indépendant) :
+12 palettes qui remplacent le bleu / violet de la marque (en plus du thème sombre / clair, qui reste indépendant) :
 
 | id         | nom (FR)         | dégradé de marque                              |
 |------------|------------------|------------------------------------------------|
@@ -13,6 +13,10 @@ Le site (animood.me), l'APK (c'est le site, empaqueté en TWA) et l'appli de bur
 | `sakura`   | Rose / magenta   | fuchsia → rose → rose-rouge                    |
 | `forest`   | Émeraude / vert  | turquoise → émeraude → vert franc              |
 | `graphite` | Gris / argent    | acier très peu intense (barres du profil grises) |
+| `royal`    | Or / violet      | jaune doré → or → violet franc (le jaune glisse vers le violet) |
+| `cobalt`   | Bleu / orange    | bleu franc → bleu → orange (couleurs complémentaires) |
+| `orchid`   | Violet / turquoise | violet vif → violet → turquoise                |
+| `mocha`    | Marron / caramel | brun chaud peu intense (barres du profil brunes) |
 
 Le choix est mémorisé dans `localStorage` (`animood_palette`) et posé sur `<html data-palette="…">` **avant le premier rendu**
 (`src/main.jsx`), partout : site, APK, Electron. `<meta name="theme-color">` (barre du navigateur sur mobile / PWA) prend la couleur de la
@@ -98,3 +102,15 @@ Les règles utilisent la syntaxe de couleur relative CSS (`oklch(from … calc(l
 2. `npm run palettes`.
 3. `src/constants/palettes.js` : ajouter `{ id, swatch, themeColor }` (les 3 pastilles d'aperçu et la couleur de la barre du navigateur — le
    test les compare au générateur) ; `src/constants/settingsI18n.js` : ajouter le nom FR / EN dans `paletteNames`.
+4. `tests/palettes.test.mjs` : ajouter un test de teinte pour la nouvelle palette (sur le modèle des autres).
+
+Conseils de choix :
+- Une palette doit se distinguer des autres : le test « deux palettes ne se ressemblent pas trop » compare les trois pastilles d'aperçu
+  (indigo `6d5bff`, violet `8b5cf6`, rose `ec4899`) en OKLab et exige au moins un écart de 0,1 sur l'une d'elles. Un vert-turquoise de plus
+  à côté de « Vert / rose » ou « Cyan / turquoise » échoue : mieux vaut une teinte dominante inédite, ou un autre bout de dégradé
+  (jaune → violet, bleu → orange, violet → turquoise…).
+- Le sélecteur affiche 4 palettes par rangée sur grand écran (2 sur mobile) : viser un nombre de palettes multiple de 4 pour ne pas laisser de
+  rangée à moitié vide (12 aujourd'hui).
+- Les jaunes et les oranges deviennent des ors / moutardes foncés à cause du garde-fou du texte blanc : c'est voulu (le texte blanc des boutons
+  reste lisible) ; regarder le rendu en sombre **et** en clair avant de valider.
+
