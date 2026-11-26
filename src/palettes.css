@@ -4180,7 +4180,7 @@ html[data-palette="mocha"][data-theme="light"] {
 }
 
 /* ─── LISIBILITÉ EN THÈME CLAIR — textes d'accent pâles assombris ───────────────────────────────────────────────
-   Généré par scripts/palettes/lighttext.mjs : 259 couleurs de texte pâles (contraste < 4.5 sur le fond clair) sont assombries
+   Généré par scripts/palettes/lighttext.mjs : 262 couleurs de texte pâles (contraste < 4.5 sur le fond clair) sont assombries
    (même teinte, clarté réduite pour atteindre 4.9 ; opacité relevée à 0.8 au moins pour les textes semi-transparents)
    quand <html data-theme="light"> ; le thème sombre n'est pas touché.
    --lt-keep: 1 (hérité) désactive tout cela à l'intérieur d'un îlot sombre. */
@@ -4337,6 +4337,8 @@ html[data-palette="mocha"][data-theme="light"] {
 :root[data-theme="light"] :is([style^="color: rgb(191, 64, 255)"],[style*=" color: rgb(191, 64, 255)"]) { color: oklch(from rgb(191 64 255) calc(l * (0.72 + 0.28 * var(--lt-keep, 0))) c h) !important; }
 /* #c0c0c0 */
 :root[data-theme="light"] :is([style^="color: rgb(192, 192, 192)"],[style*=" color: rgb(192, 192, 192)"]) { color: oklch(from rgb(192 192 192) calc(l * (0.53 + 0.47 * var(--lt-keep, 0))) c h) !important; }
+/* #c2410c */
+:root[data-theme="light"] :is([style^="color: rgb(194, 65, 12)"],[style*=" color: rgb(194, 65, 12)"]) { color: oklch(from rgb(194 65 12) calc(l * (0.8 + 0.2 * var(--lt-keep, 0))) c h) !important; }
 /* #c34ef4 */
 :root[data-theme="light"] :is([style^="color: rgb(195, 78, 244)"],[style*=" color: rgb(195, 78, 244)"]) { color: oklch(from rgb(195 78 244) calc(l * (0.7 + 0.3 * var(--lt-keep, 0))) c h) !important; }
 /* #c87c00 */
@@ -4413,6 +4415,8 @@ html[data-palette="mocha"][data-theme="light"] {
 :root[data-theme="light"] :is([style^="color: rgb(252, 211, 77)"],[style*=" color: rgb(252, 211, 77)"]) { color: oklch(from rgb(252 211 77) calc(l * (0.48 + 0.52 * var(--lt-keep, 0))) c h) !important; }
 /* #fd4f12 */
 :root[data-theme="light"] :is([style^="color: rgb(253, 79, 18)"],[style*=" color: rgb(253, 79, 18)"]) { color: oklch(from rgb(253 79 18) calc(l * (0.66 + 0.34 * var(--lt-keep, 0))) c h) !important; }
+/* #fdba74 */
+:root[data-theme="light"] :is([style^="color: rgb(253, 186, 116)"],[style*=" color: rgb(253, 186, 116)"]) { color: oklch(from rgb(253 186 116) calc(l * (0.52 + 0.48 * var(--lt-keep, 0))) c h) !important; }
 /* #fde68a */
 :root[data-theme="light"] :is([style^="color: rgb(253, 230, 138)"],[style*=" color: rgb(253, 230, 138)"]) { color: oklch(from rgb(253 230 138) calc(l * (0.46 + 0.54 * var(--lt-keep, 0))) c h) !important; }
 /* #ff6600 */
@@ -4593,12 +4597,14 @@ html[data-palette="mocha"][data-theme="light"] {
 :root[data-theme="light"] :is([style^="color: rgba(245, 158, 11, 0.3)"],[style*=" color: rgba(245, 158, 11, 0.3)"]) { color: oklch(from rgb(245 158 11) calc(l * (0.42 + 0.58 * var(--lt-keep, 0))) c h / calc(0.8 + -0.5 * var(--lt-keep, 0))) !important; }
 /* rgba(245, 158, 11, 0.32) */
 :root[data-theme="light"] :is([style^="color: rgba(245, 158, 11, 0.32)"],[style*=" color: rgba(245, 158, 11, 0.32)"]) { color: oklch(from rgb(245 158 11) calc(l * (0.42 + 0.58 * var(--lt-keep, 0))) c h / calc(0.8 + -0.48 * var(--lt-keep, 0))) !important; }
-/* rgba(245, 158, 11, 0.35) */
-:root[data-theme="light"] :is([style^="color: rgba(245, 158, 11, 0.35)"],[style*=" color: rgba(245, 158, 11, 0.35)"]) { color: oklch(from rgb(245 158 11) calc(l * (0.42 + 0.58 * var(--lt-keep, 0))) c h / calc(0.8 + -0.45 * var(--lt-keep, 0))) !important; }
+/* rgba(245, 158, 11, 0.4) */
+:root[data-theme="light"] :is([style^="color: rgba(245, 158, 11, 0.4)"],[style*=" color: rgba(245, 158, 11, 0.4)"]) { color: oklch(from rgb(245 158 11) calc(l * (0.42 + 0.58 * var(--lt-keep, 0))) c h / calc(0.8 + -0.4 * var(--lt-keep, 0))) !important; }
 /* rgba(248, 113, 113, 0.1) */
 :root[data-theme="light"] :is([style^="color: rgba(248, 113, 113, 0.1)"],[style*=" color: rgba(248, 113, 113, 0.1)"]) { color: oklch(from rgb(248 113 113) calc(l * (0.53 + 0.47 * var(--lt-keep, 0))) c h / calc(0.8 + -0.7 * var(--lt-keep, 0))) !important; }
 /* rgba(248, 113, 113, 0.28) */
 :root[data-theme="light"] :is([style^="color: rgba(248, 113, 113, 0.28)"],[style*=" color: rgba(248, 113, 113, 0.28)"]) { color: oklch(from rgb(248 113 113) calc(l * (0.53 + 0.47 * var(--lt-keep, 0))) c h / calc(0.8 + -0.52 * var(--lt-keep, 0))) !important; }
+/* rgba(251, 191, 36, 0.4) */
+:root[data-theme="light"] :is([style^="color: rgba(251, 191, 36, 0.4)"],[style*=" color: rgba(251, 191, 36, 0.4)"]) { color: oklch(from rgb(251 191 36) calc(l * (0.38 + 0.62 * var(--lt-keep, 0))) c h / calc(0.8 + -0.4 * var(--lt-keep, 0))) !important; }
 /* rgba(251, 191, 36, 0.85) */
 :root[data-theme="light"] :is([style^="color: rgba(251, 191, 36, 0.85)"],[style*=" color: rgba(251, 191, 36, 0.85)"]) { color: oklch(from rgb(251 191 36) calc(l * (0.42 + 0.58 * var(--lt-keep, 0))) c h / calc(0.85 + 0 * var(--lt-keep, 0))) !important; }
 /* rgba(34, 197, 94, 0.09) */

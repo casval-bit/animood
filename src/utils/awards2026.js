@@ -171,6 +171,30 @@ export function visibleRanking(ranking, known, limit = 10) {
   return { ...ranking, list: (ranking?.list || []).filter(r => known.has(r.id)).slice(0, limit) };
 }
 
+// ── Podium du bloc de fin d'année : les 3 premiers de la communauté au total des points ───────────────────────────────────────────
+/** Actualisation automatique du podium, en plus du retour sur la page et d'un vote enregistré / retiré dans la fenêtre (utils/awardsSync.js). */
+export const PODIUM_POLL_MS = 90_000;
+
+/**
+ * Podium de la communauté : les 3 premiers animés au total des points (3 / 2 / 1 par vote), retrouvés dans le catalogue de 2026.
+ * C'est exactement le calcul du classement « Points » de l'onglet Top 3 (mêmes égalités départagées par la popularité) : le podium du bloc
+ * et celui de la fenêtre montrent donc toujours la même chose. `details` : Map identifiant → ligne du catalogue.
+ * → { voters, top: [{ id, points, mentions, firsts, anime }] } (moins de 3 lignes s'il y a moins de 3 animés classés)
+ */
+export function buildPodium(ballots, details) {
+  const known = details instanceof Map ? details : new Map();
+  const ranking = buildRanking(ballots, { mode: "points", scope: "community", popularity: (id) => known.get(id)?.popularity, limit: 15 });
+  const top = visibleRanking(ranking, known, 3).list.map(r => ({ id: r.id, points: r.points, mentions: r.mentions, firsts: r.firsts, anime: known.get(r.id) }));
+  return { voters: ranking.voters, top };
+}
+
+/** Deux podiums affichent-ils la même chose (même état, mêmes animés aux mêmes places, mêmes points) ? Évite de redessiner (et d'animer) pour rien. */
+export function samePodium(a, b) {
+  if(a === b) return true;
+  if(!a || !b || a.status !== b.status || a.voters !== b.voters || a.top.length !== b.top.length) return false;
+  return a.top.every((r, i) => r.id === b.top[i].id && r.points === b.top[i].points);
+}
+
 // ── Mon top 3 : les 3 places (index 0 = 1er, 1 = 2e, 2 = 3e) ──────────────────────────────────────────────────────────────────────
 const slotsOf = (slots) => [0, 1, 2].map(i => slots?.[i] || null);
 

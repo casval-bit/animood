@@ -11,7 +11,9 @@ import {
   SCOPES, buildAllRankings, rankingIds, visibleRanking,
   placePick, clearPick, slotsToPicks, sameTop3, gridKey, top3Key, readGrid, writeGrid, readTop3Draft, writeTop3Draft,
   BANNER_LAST_DAY, isBannerSeason, bannerKey, isBannerDismissed, dismissBanner, resetBannerDismissals,
+  PODIUM_POLL_MS, buildPodium, samePodium,
 } from "../src/utils/awards2026.js";
+import { onAwardsChanged, notifyAwardsChanged } from "../src/utils/awardsSync.js";
 import { AWARDS_I18N, awardsText } from "../src/constants/awardsI18n.js";
 import { MEASURE_IMG_FIX_CSS } from "../src/utils/posterExport.js";
 
@@ -264,6 +266,81 @@ test("tous les classements d'un coup : 2 portées × 3 modes ; identifiants à r
   const pop = (id) => ({ 7: 5, 8: 6, 9: 7 })[id];
   const withPop = buildAllRankings(ballots, { friends: ["ami"], popularity: pop });
   assert.deepEqual(withPop.friends.points.list.map((r) => r.id), [9, 8, 7], "amis : 9 (3 pts) > 8 (2 pts) > 7 (1 pt)");
+});
+
+// ── 2 bis. Podium du bloc de fin d'année ───────────────────────────────────────────────────────────────────────────────
+test("podium du bloc : les 3 premiers au total des points, avec leur fiche ; même résultat que le classement « Points » de la fenêtre", () => {
+  const ballots = [ballot("a", 1, 2, 3), ballot("b", 1, 3, 4), ballot("c", 2, 1, 5), ballot("d", 1, 2, 6)];
+  const details = new Map([1, 2, 3, 4, 5, 6].map((id) => [id, a26(id, { popularity: id })]));
+  const p = buildPodium(ballots, details);
+  assert.equal(p.voters, 4);
+  assert.deepEqual(p.top.map((r) => [r.id, r.points]), [[1, 11], [2, 7], [3, 3]]);
+  assert.equal(p.top[0].anime, details.get(1), "la fiche du catalogue est jointe (affiche, titre)");
+  assert.equal(p.top[0].firsts, 3);
+  const all = buildAllRankings(ballots, { popularity: (id) => details.get(id)?.popularity });
+  assert.deepEqual(p.top.map((r) => r.id), visibleRanking(all.community.points, details, 3).list.map((r) => r.id), "le même podium dans le bloc et dans l'onglet Top 3");
+});
+
+test("podium du bloc : à égalité parfaite, l'animé le plus populaire passe devant (comme dans l'onglet Top 3)", () => {
+  const ballots = [ballot("a", 1, 2, 3), ballot("b", 2, 1, 3)];              // 1 et 2 : 5 points, un n°1 chacun ; 3 : 2 points
+  const pop = (a, b, c) => new Map([[1, a26(1, { popularity: a })], [2, a26(2, { popularity: b })], [3, a26(3, { popularity: c })]]);
+  assert.deepEqual(buildPodium(ballots, pop(50, 10, 5)).top.map((r) => r.id), [2, 1, 3]);
+  assert.deepEqual(buildPodium(ballots, pop(5, 10, 7)).top.map((r) => r.id), [1, 2, 3]);
+});
+
+test("podium du bloc : un animé hors du catalogue de 2026 est écarté (le suivant monte) ; moins de 3 animés ou aucun vote → podium incomplet, sans erreur", () => {
+  const ballots = [ballot("a", 1, 2, 3), ballot("b", 1, 2, 4)];
+  const details = new Map([[1, a26(1)], [3, a26(3)], [4, a26(4)]]);          // le 2 est introuvable
+  assert.deepEqual(buildPodium(ballots, details).top.map((r) => r.id), [1, 3, 4]);
+  assert.deepEqual(buildPodium(ballots, new Map([[1, a26(1)]])).top.map((r) => r.id), [1], "un seul animé retrouvé : une seule place");
+  assert.equal(buildPodium(ballots, new Map()).top.length, 0);
+  assert.deepEqual(buildPodium([], new Map()), { voters: 0, top: [] });
+  assert.deepEqual(buildPodium(null, null), { voters: 0, top: [] });
+  assert.equal(buildPodium(ballots, new Map([[1, a26(1)]])).voters, 2, "le nombre de votants reste celui de tous les votes");
+});
+
+test("podium du bloc : deux lectures identiques ne redessinent rien ; un point de plus, une autre place ou un autre état, si", () => {
+  const mk = (rows, status = "ready", voters = 4) => ({ status, voters, top: rows.map(([id, points]) => ({ id, points })) });
+  const a = mk([[1, 11], [2, 7], [3, 3]]);
+  assert.ok(samePodium(a, a));
+  assert.ok(samePodium(a, mk([[1, 11], [2, 7], [3, 3]])));
+  assert.ok(!samePodium(a, mk([[1, 12], [2, 7], [3, 3]])), "un point de plus");
+  assert.ok(!samePodium(a, mk([[2, 7], [1, 11], [3, 3]])), "deux animés qui échangent leur place");
+  assert.ok(!samePodium(a, mk([[1, 11], [2, 7]])), "une place de moins");
+  assert.ok(!samePodium(a, mk([[1, 11], [2, 7], [3, 3]], "ready", 5)), "un votant de plus");
+  assert.ok(!samePodium(a, mk([], "empty", 0)), "un autre état");
+  assert.ok(!samePodium(null, a) && !samePodium(a, undefined));
+  assert.ok(samePodium(null, null));
+});
+
+test("vote enregistré ou retiré : les abonnés (le podium du bloc) sont prévenus ; se désabonner suffit ; un abonné qui plante n'empêche pas les autres", () => {
+  let a = 0, b = 0, c = 0;
+  const offA = onAwardsChanged(() => { a++; });
+  const offB = onAwardsChanged(() => { b++; });
+  notifyAwardsChanged();
+  assert.deepEqual([a, b], [1, 1]);
+  offA();
+  notifyAwardsChanged();
+  assert.deepEqual([a, b], [1, 2], "un abonné désabonné n'est plus prévenu");
+  const offBad = onAwardsChanged(() => { throw new Error("abonné défaillant"); });
+  const offC = onAwardsChanged(() => { c++; });
+  assert.doesNotThrow(() => notifyAwardsChanged());
+  assert.deepEqual([b, c], [3, 1], "les autres abonnés sont prévenus malgré l'erreur");
+  offB(); offBad(); offC();
+  assert.doesNotThrow(() => notifyAwardsChanged(), "plus aucun abonné : rien ne se passe");
+});
+
+test("le podium du bloc suit les points : lecture à l'affichage, toutes les 90 s, au retour sur la page et tout de suite après mon vote", () => {
+  assert.equal(PODIUM_POLL_MS, 90_000);
+  const read = (f) => readFileSync(new URL(`../src/${f}`, import.meta.url), "utf8");
+  const hook = read("components/awards/useCommunityPodium.js");
+  assert.match(hook, /setInterval\([\s\S]*PODIUM_POLL_MS\)/, "actualisation régulière");
+  assert.match(hook, /visibilitychange/, "page de nouveau visible");
+  assert.match(hook, /addEventListener\("focus"/, "retour sur la fenêtre");
+  assert.match(hook, /onAwardsChanged\(/, "vote enregistré ou retiré dans la fenêtre");
+  assert.match(hook, /document\.hidden/, "pas de lecture quand la page est cachée");
+  assert.match(read("components/YearEndBanner.jsx"), /useCommunityPodium\(live\)/, "aucune lecture tant que le bloc est fermé ou hors saison");
+  assert.ok((read("components/awards/Top3Panel.jsx").match(/notifyAwardsChanged\(\)/g) || []).length >= 2, "enregistrer ET retirer mon vote préviennent le bloc");
 });
 
 // ── 3. Grille ───────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -564,8 +641,8 @@ test("textes : le français et l'anglais ont exactement les mêmes clés, du mê
 
 test("textes : chaque case de grille par défaut a un nom dans les deux langues ; langue inconnue → français", () => {
   for(const lang of ["fr", "en"]) for(const key of DEFAULT_GRID_KEYS) assert.ok(AWARDS_I18N[lang].cellLabels[key], `${lang} : nom manquant pour la case « ${key} »`);
-  assert.equal(AWARDS_I18N.fr.cellLabels.mc_m, "Meilleur MC homme");
-  assert.equal(AWARDS_I18N.fr.cellLabels.mc_f, "Meilleur MC femme");
+  assert.equal(AWARDS_I18N.fr.cellLabels.mc_m, "Meilleur perso masculin");
+  assert.equal(AWARDS_I18N.fr.cellLabels.mc_f, "Meilleur perso féminin");
   assert.equal(AWARDS_I18N.fr.cellLabels.animation, "Meilleure animation");
   assert.equal(AWARDS_I18N.fr.cellLabels.ost, "Meilleure OST");
   assert.equal(awardsText("de"), AWARDS_I18N.fr);
@@ -579,6 +656,33 @@ test("textes : le bloc de fin d'année souhaite de bonnes fêtes et annonce la t
   assert.match(AWARDS_I18N.en.bannerTitle, /happy holidays|happy new year|season/i);
   assert.match(AWARDS_I18N.en.bannerBody, /tier ?list/i);
   assert.match(AWARDS_I18N.en.bannerBody, /grid/i);
+});
+
+test("textes : le podium du bloc a ses textes ; le libellé d'une place donne le rang, le nom et les points (FR et EN)", () => {
+  for(const lang of ["fr", "en"]) {
+    const t = AWARDS_I18N[lang];
+    for(const k of ["podiumTitle", "podiumSub", "podiumEmpty", "podiumLoading", "hubTabs"]) assert.ok(String(t[k]).trim(), `${lang} : ${k}`);
+    const label = t.podiumPlace(2, "Crimson Orchard", 15);
+    assert.ok(label.includes("Crimson Orchard") && label.includes("15"), label);
+    assert.match(t.podiumPlace(1, "X", 1), /\b1 point\b/, "singulier");
+    assert.match(t.podiumPlace(1, "X", 2), /\b2 points\b/, "pluriel");
+  }
+  assert.match(AWARDS_I18N.fr.podiumPlace(1, "X", 3), /^1er/);
+  assert.match(AWARDS_I18N.fr.podiumPlace(3, "X", 3), /^3e/);
+  assert.match(AWARDS_I18N.fr.podiumSub, /total des points/i);
+  assert.match(AWARDS_I18N.en.podiumSub, /total points/i);
+});
+
+test("fenêtre AniMood 2026 : habillage festif de GameModal (croix « Close » conservée), trois gros onglets accessibles au clavier", () => {
+  const read = (f) => readFileSync(new URL(`../src/${f}`, import.meta.url), "utf8");
+  const modal = read("components/Modal.jsx"), hub = read("components/awards/AwardsHub.jsx");
+  assert.match(modal, /festive = false, hero = null/);
+  assert.equal((modal.match(/aria-label="Close"/g) || []).length, 2, "la croix existe dans la barre de titre classique ET dans l'habillage festif");
+  assert.match(hub, /<GameModal[^>]*\bfestive\b/, "la fenêtre utilise l'habillage festif");
+  assert.match(hub, /role="tablist"/); assert.match(hub, /role="tab"/); assert.match(hub, /aria-selected/);
+  for(const key of ["ArrowRight", "ArrowLeft", "Home", "End"]) assert.ok(hub.includes(`"${key}"`), `touche ${key}`);
+  assert.match(hub, /id: "top3"[\s\S]*id: "tierlist"[\s\S]*id: "grid"/, "les trois onglets, dans l'ordre");
+  assert.match(hub, /minHeight: 5\d/, "onglets d'au moins 50 px de haut (faciles à viser)");
 });
 
 // ── 5. Export en image ────────────────────────────────────────────────────────────────────────────────────────────

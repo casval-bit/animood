@@ -247,6 +247,28 @@ body {
   .login-wall-col, .login-rise, .login-poster-in, .login-fade-in { animation: none; }
 }
 
+/* ─── ANIMOOD 2026 (bloc de fin d'année et fenêtre festive) ──────────────────────────────────────────────
+   awards-rise : une colonne du podium apparaît (ou change d'animé) ; awards-pop : les points qui bougent ; awards-twinkle : étincelles décoratives. */
+@keyframes awards-rise {
+  from { opacity: 0; transform: translateY(18px) scale(.9); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes awards-pop {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.28); }
+  100% { transform: scale(1); }
+}
+@keyframes awards-twinkle {
+  0%, 100% { opacity: .25; transform: scale(.75); }
+  50%      { opacity: 1;   transform: scale(1.1); }
+}
+.awards-rise    { animation: awards-rise .6s cubic-bezier(.34,1.35,.64,1) both; }
+.awards-pop     { display: inline-block; animation: awards-pop .55s ease both; }
+.awards-twinkle { animation: awards-twinkle 3s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .awards-rise, .awards-pop, .awards-twinkle { animation: none; }
+}
+
 /* Thin, unobtrusive scrollbars everywhere — desktop-grid layout has a lot of scroll areas */
 * {
   scrollbar-width: thin;

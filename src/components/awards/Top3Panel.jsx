@@ -7,6 +7,7 @@ import { useApp } from "../../context/useApp.js";
 import { useLang } from "../../context/useLang.js";
 import { awardsText } from "../../constants/awardsI18n.js";
 import { saveMyBallot, deleteMyBallot } from "../../api/awards2026.js";
+import { notifyAwardsChanged } from "../../utils/awardsSync.js";
 import {
   placePick, clearPick, slotsToPicks, sameTop3, readTop3Draft, writeTop3Draft, lightAnime, animeName, RANK_MODES, SCOPES,
 } from "../../utils/awards2026.js";
@@ -129,6 +130,7 @@ export function Top3Panel({ data, pickAnime }) {
       const res = await saveMyBallot(myUsername, picks);
       if(res.missing) { setStatus("local"); return; }
       setSavedIds(picks); setStatus("saved"); data.refresh();
+      notifyAwardsChanged();                    // le podium du bloc de fin d'année se recalcule tout de suite
     } catch { setStatus("error"); }
   };
 
@@ -137,6 +139,7 @@ export function Top3Panel({ data, pickAnime }) {
     setConfirmClear(false);
     try { await deleteMyBallot(myUsername); } catch { /* hors ligne : le vote reste, rien n'est effacé ici */ setStatus("error"); return; }
     setSlots([null, null, null]); setSavedIds(null); setStatus("idle"); data.refresh();
+    notifyAwardsChanged();
   };
 
   // ── Résultats ──

@@ -4,7 +4,7 @@
 // Si la table des votes n'a pas encore été créée dans Supabase, l'espace reste utilisable : le vote est gardé sur l'appareil
 // (localStorage) et l'écran de résultats explique que le vote de la communauté arrive (réponse `missing: true`, jamais d'erreur).
 import { sb } from "./supabase.js";
-import { AWARDS_YEAR, FORMAT_GROUPS, ballotFromRow, normalizePicks, isEligible2026 } from "../utils/awards2026.js";
+import { AWARDS_YEAR, FORMAT_GROUPS, ballotFromRow, normalizePicks, isEligible2026, buildRanking, buildPodium } from "../utils/awards2026.js";
 
 export const AWARDS_SELECT = "mal_id,title,title_en,image_url,large_image,score,year,type,popularity,rating,genres,themes,aired_from,anime_season_label,country";
 const BALLOT_SELECT = "username,pick1,pick2,pick3";
@@ -131,4 +131,19 @@ export async function fetchBallots({ usernames = null } = {}) {
     if(isMissingTable(e)) return { ballots: [], missing: true, truncated: false };
     throw e;
   }
+}
+
+/**
+ * Podium de la communauté pour le bloc de fin d'année : { status: "ready" | "empty" | "missing", voters, top } (voir buildPodium dans utils/awards2026.js).
+ * « missing » : la table des votes n'existe pas encore. Une panne réseau est relancée : le bloc garde alors son dernier podium.
+ * À grande échelle (plusieurs milliers de votants), il faudra remplacer la lecture de tous les votes par un total calculé côté serveur.
+ */
+export async function fetchCommunityPodium() {
+  const bal = await fetchBallots();
+  if(bal.missing) return { status: "missing", voters: 0, top: [] };
+  const draft = buildRanking(bal.ballots, { mode: "points", scope: "community", limit: 15 });
+  const rows = draft.list.length ? await fetchAnimeByIds(draft.list.map(r => r.id)) : [];
+  if(draft.list.length && !rows.length) throw new Error("catalogue indisponible");       // des votes existent mais on n'a rien pu lire du catalogue : panne, pas « aucun vote »
+  const { voters, top } = buildPodium(bal.ballots, new Map(rows.map(r => [r.mal_id, r])));
+  return { status: top.length ? "ready" : "empty", voters, top };
 }

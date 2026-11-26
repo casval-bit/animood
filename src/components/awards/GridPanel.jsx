@@ -1,5 +1,5 @@
 // ─── Onglet « Grille » : grille personnalisable des meilleurs animés de 2026 ──────────────────────────────────────────────────────────
-// Neuf cases par défaut (meilleure animation, OST, histoire, MC homme, anime de l'année, MC femme, méchant, surprise, déception) ;
+// Neuf cases par défaut (meilleure animation, OST, histoire, perso masculin, anime de l'année, perso féminin, méchant, surprise, déception) ;
 // chaque case se renomme, se déplace ou se supprime, on peut en ajouter (12 au plus), et le même animé peut remplir plusieurs cases.
 // Sauvegarde automatique sur l'appareil ; image PNG à télécharger, copier ou partager (la partie « édition » n'apparaît pas sur l'image).
 import { useState, useEffect, useRef, useMemo } from "react";
@@ -49,11 +49,15 @@ function Cell({ cell, index, count, labels, t, editing, onEdit, onDone, onPick, 
           </div>
         </div>
       ) : (
-        <button type="button" onClick={() => { setDraft(cell.label ?? baseLabel); onEdit(); }} title={t.renameCell} aria-label={`${t.renameCell} : ${label}`} data-testid="grid-cell-label"
-          style={{ display: "block", width: "100%", textAlign: "left", padding: 0, background: "none", border: "none", cursor: "text", minHeight: 26,
-            fontSize: 10, fontWeight: 900, letterSpacing: 0.6, textTransform: "uppercase", lineHeight: 1.25, color: "#fbbf24", overflow: "hidden", maxHeight: "2.5em" }}>
-          {label}<span data-no-export="1" aria-hidden="true" style={{ marginLeft: 4, opacity: 0.55 }}>✎</span>
-        </button>
+        // Zone du nom : elle prend toute la hauteur libre de la rangée (les affiches restent alignées d'une case à l'autre, même quand un nom passe
+        // sur 3 lignes dans une colonne étroite : « Meilleur perso masculin » à 320 px) et le texte reste collé à l'affiche. 3 lignes au plus.
+        <div style={{ flex: "1 1 auto", display: "flex", alignItems: "flex-end", minHeight: 26 }}>
+          <button type="button" onClick={() => { setDraft(cell.label ?? baseLabel); onEdit(); }} title={t.renameCell} aria-label={`${t.renameCell} : ${label}`} data-testid="grid-cell-label"
+            style={{ display: "block", width: "100%", textAlign: "left", padding: 0, background: "none", border: "none", cursor: "text",
+              fontSize: 10, fontWeight: 900, letterSpacing: 0.6, textTransform: "uppercase", lineHeight: 1.25, color: "#fbbf24", overflow: "hidden", maxHeight: "3.75em" }}>
+            {label}<span data-no-export="1" aria-hidden="true" style={{ marginLeft: 4, opacity: 0.55 }}>✎</span>
+          </button>
+        </div>
       )}
       <div style={{ position: "relative" }}>
         <button type="button" onClick={onPick} aria-label={`${label} — ${cell.anime ? animeName(cell.anime) : t.emptyCell}`} data-testid="grid-cell-poster"
