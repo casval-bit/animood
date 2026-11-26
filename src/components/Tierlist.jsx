@@ -3,12 +3,20 @@
 // Glisser-déposer (avec position d'insertion) ou toucher une affiche puis un rang, annuler (Ctrl+Z), auto-classement par mes notes
 // ou par la note communautaire, rangs personnalisables (nom, couleur, ordre), taille des affiches, sauvegarde automatique par source,
 // export PNG fiable (les affiches sont relues via notre proxy d'images /api/img le temps de l'export, avec un secours) et copie dans le presse-papiers.
+//
+// Mode `awards` (espace AniMood 2026) : une seule tierlist par compte, uniquement avec des animés de 2026 (tous formats). Le tableau part de
+// « ma liste 2026 », la recherche et les boutons « + » ajoutent d'autres animés de 2026 ; pas de changement de source ni de « Recharger »
+// (ce bouton repart de zéro : trop risqué pour une tierlist qu'on a classée à la main).
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { sb } from "../api/supabase.js";
+import { searchAnime2026, fetchMyAnime2026 } from "../api/awards2026.js";
 import { useApp } from "../context/useApp.js";
 import { useLang } from "../context/useLang.js";
+import { awardsText } from "../constants/awardsI18n.js";
 import { isAdultAnime } from "../utils/adultContent.js";
 import { isTvShort } from "../utils/franchise.js";
+import { renderToCanvas, safeFileName, downloadCanvas, copyCanvas, canShareImages, shareCanvas } from "../utils/posterExport.js";
+import { Poster } from "./Poster.jsx";
 
 const PALETTE = ["#ef4444", "#f97316", "#fbbf24", "#22c55e", "#06b6d4", "#6366f1", "#a78bfa", "#f472b6", "#94a3b8", "#14b8a6"];
 const DEFAULT_TIERS = [
@@ -29,56 +37,6 @@ const light = (r) => ({ mal_id: r.mal_id, title: r.title, title_en: r.title_en, 
 const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* stockage plein ou bloqué : tant pis */ } };
 
-// ── Lecture des affiches pour l'export ──────────────────────────────────────────────────────────────────────────
-// Les serveurs d'images n'envoient pas toujours l'en-tête CORS : le navigateur sait les afficher mais pas les « lire » pour les
-// dessiner dans le PNG (résultat : des affiches toutes noires). On essaie donc, dans l'ordre :
-//   1. la lecture directe (marche quand le serveur d'images autorise le CORS) ;
-//   2. notre proxy /api/img (fonction Vercel / serveur de développement), qui renvoie l'image depuis notre propre domaine ;
-//   3. images.weserv.nl, un proxy public, en dernier secours.
-// Si rien ne marche pour une affiche, l'export y écrit le titre (comme à l'écran) au lieu d'un carré noir.
-const IMAGE_SOURCES = [
-  (s) => s,
-  (s) => `/api/img?u=${encodeURIComponent(s)}`,
-  (s) => `https://images.weserv.nl/?url=${encodeURIComponent(String(s).replace(/^https?:\/\//, ""))}&w=260&output=jpg`,
-];
-const blobToDataUrl = (blob) => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(blob); });
-async function posterToDataUrl(src) {
-  if(String(src).startsWith("data:")) return src;
-  for(const build of IMAGE_SOURCES) {
-    const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 8000);
-    try {
-      const r = await fetch(build(src), { signal: ctrl.signal, ...(build === IMAGE_SOURCES[0] ? { mode: "cors", referrerPolicy: "no-referrer" } : {}) });
-      if(!r.ok) continue;
-      const blob = await r.blob();
-      if(blob.size < 64 || !String(blob.type).startsWith("image/")) continue;   // page d'erreur / réponse vide
-      return await blobToDataUrl(blob);
-    } catch { /* source suivante */ } finally { clearTimeout(to); }
-  }
-  return null;
-}
-/** Charge toutes les adresses avec au plus `n` requêtes en parallèle (évite de saturer le serveur avec 150 affiches d'un coup). */
-async function loadPosters(srcs, n = 8) {
-  const out = {}; let next = 0;
-  await Promise.all(Array.from({ length: Math.min(n, srcs.length) }, async () => {
-    while(next < srcs.length) { const s = srcs[next++]; out[s] = await posterToDataUrl(s); }
-  }));
-  return out;
-}
-
-// ── Affiche : essaie image_url puis large_image ; titre écrit sur la case si rien ne charge ──────────────────
-function Poster({ anime, name, w }) {
-  const sources = [anime.image_url, anime.large_image].filter(Boolean);
-  const [i, setI] = useState(0);
-  const src = sources[i];
-  if(!src) return (
-    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center",
-      fontSize: Math.max(7, w / 8), lineHeight: 1.1, padding: 2, color: "rgba(255,255,255,.7)", background: "linear-gradient(160deg,rgb(var(--ac-2a1850)),rgb(var(--ac-150c30)))", overflow: "hidden" }}>{name}</div>
-  );
-  return <img key={i} src={src} data-raw={src} alt={name} loading="lazy" decoding="async" referrerPolicy="no-referrer" draggable={false}
-    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" }}
-    onError={() => setI(n => n + 1)} />;
-}
-
 // Déplace une affiche (retire de la source, insère à `index` dans la cible)
 function applyMove(b, anime, from, to, index) {
   const listOf = (bd, id) => id === "pool" ? bd.pool : bd.tiers.find(t => t.id === id)?.items;
@@ -95,10 +53,11 @@ function applyMove(b, anime, from, to, index) {
   };
 }
 
-export function TierlistStudio() {
-  const { me } = useApp();
+export function TierlistStudio({ awards = false } = {}) {
+  const { me, myUsername } = useApp();
   const { lang } = useLang();
   const en = lang === "en";
+  const A = awardsText(lang);
   const L = en ? {
     season: "Season", year: "Year", mine: "My list", custom: "Custom",
     rated: "Rated", completed: "Completed", watchlist: "Watchlist", all: "All",
@@ -122,7 +81,7 @@ export function TierlistStudio() {
   };
 
   const thisYear = new Date().getFullYear();
-  const [source, setSource] = useState("season");
+  const [source, setSource] = useState(awards ? "custom" : "season");
   const [year, setYear] = useState(thisYear);
   const [mineFilter, setMineFilter] = useState("rated");
   const [board, setBoard] = useState(freshBoard);
@@ -147,7 +106,7 @@ export function TierlistStudio() {
   const ratings = useMemo(() => me?.ratings || {}, [me?.ratings]);
   const statuses = useMemo(() => me?.statuses || {}, [me?.statuses]);
   const myScore = useCallback((a) => ratings[a.mal_id]?.score ?? null, [ratings]);
-  const key = `${source}:${source === "year" ? year : ""}:${source === "mine" ? mineFilter : ""}`;
+  const key = awards ? `awards2026:${myUsername || "anon"}` : `${source}:${source === "year" ? year : ""}:${source === "mine" ? mineFilter : ""}`;
 
   useEffect(() => {
     const onResize = () => setNarrow(window.innerWidth < 760);
@@ -180,6 +139,7 @@ export function TierlistStudio() {
 
   // ── Chargement d'une source (ou reprise de la sauvegarde automatique) ──
   const fetchRows = useCallback(async () => {
+    if(awards) return fetchMyAnime2026(me).catch(() => []);   // départ : mes animés de 2026 ; le reste s'ajoute avec la recherche et les boutons « + »
     if(source === "custom") return [];
     let rows;
     if(source === "season") {
@@ -200,7 +160,7 @@ export function TierlistStudio() {
     const mineIds = new Set(Object.keys(statuses).map(Number));
     return (rows || []).filter(r => source === "mine" || ((r.image_url || r.large_image) && !isTvShort(r) && (!isAdultAnime(r) || mineIds.has(r.mal_id))));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source, year, mineFilter, me?.ratings, me?.statuses, me?.watched]);
+  }, [awards, source, year, mineFilter, me?.ratings, me?.statuses, me?.watched]);
 
   const load = useCallback(async (fresh) => {
     loaded.current = false;
@@ -231,11 +191,16 @@ export function TierlistStudio() {
     if(!searching) return;
     const enc = encodeURIComponent(filter.trim().replace(/[*,()]/g, " "));
     const id = setTimeout(async () => {
+      if(awards) {
+        const found = await searchAnime2026({ q: filter.trim(), limit: 14 }).catch(() => ({ rows: [] }));
+        setResults(found.rows.map(light));
+        return;
+      }
       const rows = await sb.query(`anime_cache?or=(title.ilike.*${enc}*,title_en.ilike.*${enc}*)&select=${SELECT}&order=score.desc.nullslast&limit=14`).catch(() => []);
       setResults((rows || []).map(light));
     }, 300);
     return () => clearTimeout(id);
-  }, [filter, searching]);
+  }, [filter, searching, awards]);
 
   const placedIds = new Set([...board.pool, ...board.tiers.flatMap(t => t.items)].map(a => a.mal_id));
   const totalCount = placedIds.size;
@@ -282,48 +247,42 @@ export function TierlistStudio() {
   }); setEditTier(null); };
   const addTier = () => commit(b => ({ ...b, tiers: [...b.tiers, { id: `t${Date.now()}`, label: "?", color: PALETTE[b.tiers.length % PALETTE.length], items: [] }] }));
 
-  // ── Export PNG / presse-papiers : les affiches sont relues via un proxy (voir loadPosters) puis écrites en « data URL » ──
-  const renderCanvas = async () => {
-    const { default: html2canvas } = await import("html2canvas");
-    const imgs = [...boardRef.current.querySelectorAll("img[data-raw]")];
-    const data = await loadPosters([...new Set(imgs.map(i => i.dataset.raw))]);
-    return html2canvas(boardRef.current, {
-      backgroundColor: "#0f0a1e", scale: 2, useCORS: true, ignoreElements: (el) => el.dataset?.noExport === "1",
-      onclone: (doc) => doc.querySelectorAll("img[data-raw]").forEach(img => {
-        const d = data[img.dataset.raw];
-        if(d) { img.removeAttribute("loading"); img.src = d; return; }
-        // Affiche introuvable : on écrit le titre, comme à l'écran (jamais de carré noir)
-        const box = doc.createElement("div");
-        box.textContent = img.alt || "";
-        Object.assign(box.style, { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center",
-          boxSizing: "border-box", padding: "2px", overflow: "hidden", fontSize: "8px", lineHeight: "1.1", color: "rgba(255,255,255,.75)",
-          background: "linear-gradient(160deg,#2a1850,#150c30)" });
-        img.replaceWith(box);
-      }),
-    });
-  };
+  // ── Export PNG / presse-papiers / partage : les affiches sont relues via un proxy (voir utils/posterExport.js) puis écrites en « data URL » ──
+  const renderCanvas = () => renderToCanvas(boardRef.current);
+  const fileBase = awards ? `animood-tierlist-2026${title ? `-${safeFileName(title, "")}` : ""}` : `animood-tierlist-${safeFileName(title || source, "tierlist")}`;
   const savePng = async () => {
     if(!boardRef.current || busy) return;
     setBusy("png");
-    try {
-      const canvas = await renderCanvas();
-      const a = document.createElement("a");
-      a.href = canvas.toDataURL("image/png");
-      a.download = `animood-tierlist-${(title || source).replace(/[^\w-]+/g, "_").slice(0, 40)}.png`;
-      a.click();
-    } catch(e) { console.error(e); alert(L.exportError); }
+    try { downloadCanvas(await renderCanvas(), `${fileBase}.png`); }
+    catch(e) { console.error(e); alert(L.exportError); }
     setBusy(null);
   };
   const copyPng = async () => {
     if(!boardRef.current || busy) return;
     setBusy("png");
     try {
-      const canvas = await renderCanvas();
-      const blob = await new Promise(res => canvas.toBlob(res, "image/png"));
-      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+      await copyCanvas(await renderCanvas());
       setBusy("copied"); setTimeout(() => setBusy(null), 1600);
     } catch(e) { console.error(e); setBusy(null); alert(L.exportError); }
   };
+  const sharePng = async () => {
+    if(!boardRef.current || busy) return;
+    setBusy("png");
+    try { await shareCanvas(await renderCanvas(), { fileName: `${fileBase}.png`, title: title || A.tierTitlePh, text: A.shareText }); }
+    catch(e) { console.error(e); alert(L.exportError); }
+    setBusy(null);
+  };
+  const canShare = useMemo(() => awards && canShareImages(), [awards]);
+
+  // ── Espace 2026 : ajouts en un clic ──
+  const [adding, setAdding] = useState(null);           // "mine" | "popular"
+  const addMany = (rows) => commit(b => {
+    const have = new Set([...b.pool, ...b.tiers.flatMap(t => t.items)].map(a => a.mal_id));
+    const fresh = rows.map(light).filter(a => !have.has(a.mal_id));
+    return fresh.length ? { ...b, pool: [...b.pool, ...fresh] } : b;
+  });
+  const addMine = async () => { setAdding("mine"); try { addMany(await fetchMyAnime2026(me)); } catch { /* réseau : rien n'est ajouté */ } setAdding(null); };
+  const addPopular = async () => { setAdding("popular"); try { addMany((await searchAnime2026({ limit: 60 })).rows); } catch { /* idem */ } setAdding(null); };
 
   // ── Rendu ──
   const { w, h } = SIZES[size];
@@ -373,7 +332,12 @@ export function TierlistStudio() {
     <div style={{ display: "flex", flexDirection: "column", flex: 1, height: "100%", minHeight: 0 }}>
       {/* Sources */}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "8px 12px", borderBottom: "1px solid rgba(var(--ac-8b5cf6),0.14)", flexShrink: 0 }}>
-        {[["season", L.season], ["year", L.year], ["mine", L.mine], ["custom", L.custom]].map(([id, label]) => (
+        {awards ? (
+          <>
+            <button type="button" onClick={addMine} disabled={!!adding} data-testid="tier-add-mine" style={{ ...pillBtn(false), opacity: adding ? 0.6 : 1 }}>{adding === "mine" ? "…" : A.tierAddMine}</button>
+            <button type="button" onClick={addPopular} disabled={!!adding} data-testid="tier-add-popular" style={{ ...pillBtn(false), opacity: adding ? 0.6 : 1 }}>{adding === "popular" ? "…" : A.tierAddPopular}</button>
+          </>
+        ) : [["season", L.season], ["year", L.year], ["mine", L.mine], ["custom", L.custom]].map(([id, label]) => (
           <button key={id} type="button" onClick={() => setSource(id)} style={pillBtn(source === id)}>{label}</button>
         ))}
         {source === "year" && (
@@ -396,7 +360,7 @@ export function TierlistStudio() {
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "7px 12px", borderBottom: "1px solid rgba(var(--ac-8b5cf6),0.14)", flexShrink: 0 }}>
         <button type="button" onClick={undo} disabled={!canUndo} style={toolBtn(!canUndo)}>↶ {L.undo}</button>
         <button type="button" onClick={resetBoard} disabled={!rankedCount} style={toolBtn(!rankedCount)}>{L.reset}</button>
-        <button type="button" onClick={() => load(true)} style={toolBtn(false)}>⟳ {L.reload}</button>
+        {!awards && <button type="button" onClick={() => load(true)} style={toolBtn(false)}>⟳ {L.reload}</button>}
         <span style={{ width: 1, height: 18, background: "rgba(var(--ac-8b5cf6),0.2)" }} />
         <button type="button" onClick={() => autoPlace(true)} disabled={!board.pool.some(a => myScore(a) != null)} style={toolBtn(!board.pool.some(a => myScore(a) != null))}>✨ {L.autoMine}</button>
         <button type="button" onClick={() => autoPlace(false)} disabled={!board.pool.length} style={toolBtn(!board.pool.length)}>📊 {L.autoMal}</button>
@@ -405,6 +369,7 @@ export function TierlistStudio() {
           {Object.keys(SIZES).map(k => <button key={k} type="button" onClick={() => setSize(k)} style={{ ...pillBtn(size === k), padding: "3px 9px", fontSize: 10 }}>{k}</button>)}
         </span>
         <button type="button" onClick={copyPng} disabled={!!busy} style={toolBtn(!!busy)}>{busy === "copied" ? L.copied : `⧉ ${L.copy}`}</button>
+        {canShare && <button type="button" onClick={sharePng} disabled={!!busy} data-testid="tier-share" style={toolBtn(!!busy)}>↗ {A.share}</button>}
         <button type="button" onClick={savePng} disabled={!!busy}
           style={{ ...toolBtn(!!busy), background: "linear-gradient(135deg,rgb(var(--ac-7c3aed)),rgb(var(--ac-c026d3)))", border: "none", color: "#fff" }}>
           {busy === "png" ? L.exporting : `⬇ ${L.png}`}
@@ -415,7 +380,7 @@ export function TierlistStudio() {
         {/* Tableau */}
         <div style={{ flex: 1, minHeight: 0, minWidth: 0, overflowY: "auto" }} onClick={() => { setSelected(null); }}>
           <div ref={boardRef} style={{ padding: "12px 12px 10px", background: "rgb(var(--ac-0f0a1e))" }}>
-            <input value={title} onChange={e => setTitle(e.target.value)} placeholder={L.titlePh} maxLength={60}
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder={awards ? A.tierTitlePh : L.titlePh} maxLength={60}
               style={{ width: "100%", boxSizing: "border-box", marginBottom: 10, padding: "4px 2px", background: "none", border: "none", outline: "none",
                 fontSize: 20, fontWeight: 900, letterSpacing: -0.4, color: "#f5f3ff", textShadow: "0 0 18px rgba(var(--ac-a855f7),0.5)" }} />
             {board.tiers.map((tier, ti) => (
@@ -454,7 +419,7 @@ export function TierlistStudio() {
               </div>
             ))}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, fontSize: 9, letterSpacing: 2, fontWeight: 800, textTransform: "uppercase", color: "rgba(var(--ac-a78bfa),0.55)" }}>
-              <span>AniMood</span><span>{L.placed(rankedCount, totalCount)}</span>
+              <span>{awards ? A.tierFooter : "AniMood"}</span><span>{L.placed(rankedCount, totalCount)}</span>
             </div>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, padding: "6px 12px 14px" }}>
@@ -462,7 +427,7 @@ export function TierlistStudio() {
             <div style={{ flex: 1, minWidth: 120, height: 5, borderRadius: 99, background: "rgba(var(--ac-8b5cf6),0.14)", overflow: "hidden" }}>
               <div style={{ width: `${pct}%`, height: "100%", background: "linear-gradient(90deg,rgb(var(--ac-7c3aed)),rgb(var(--ac-e879f9)))", transition: "width .3s" }} />
             </div>
-            <span style={{ fontSize: 10, color: "var(--text-4)", minWidth: 0 }}>{selected ? L.tapSel : hover ? `${nameOf(hover)}${hover.score ? ` · ★ ${hover.score}` : ""}` : L.hint}</span>
+            <span style={{ fontSize: 10, color: "var(--text-4)", minWidth: 0 }}>{selected ? L.tapSel : hover ? `${nameOf(hover)}${hover.score ? ` · ★ ${hover.score}` : ""}` : awards ? A.tierHint : L.hint}</span>
           </div>
         </div>
 
@@ -470,7 +435,7 @@ export function TierlistStudio() {
         <div style={{ width: narrow ? "100%" : 260, height: narrow ? 210 : "auto", flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0,
           borderLeft: narrow ? "none" : "1px solid rgba(var(--ac-8b5cf6),0.16)", borderTop: narrow ? "1px solid rgba(var(--ac-8b5cf6),0.16)" : "none", background: "rgba(var(--ac-080516),0.5)" }}>
           <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6, borderBottom: "1px solid rgba(var(--ac-8b5cf6),0.12)" }}>
-            <input value={filter} onChange={e => setFilter(e.target.value)} placeholder={source === "custom" ? L.search : L.filter}
+            <input value={filter} onChange={e => setFilter(e.target.value)} placeholder={awards ? A.tierSearch : source === "custom" ? L.search : L.filter}
               style={{ width: "100%", boxSizing: "border-box", padding: "6px 10px", borderRadius: 8, fontSize: 11, border: "1px solid rgba(var(--ac-8b5cf6),0.22)", background: "rgba(255,255,255,0.04)", color: "var(--text-1)" }} />
             {source !== "custom" && (
               <div style={{ display: "flex", gap: 4 }}>
@@ -503,7 +468,7 @@ export function TierlistStudio() {
             </div>
             {!loading && board.pool.length === 0 && totalCount === 0 && (
               <div style={{ marginTop: 18, textAlign: "center", fontSize: 11, color: "var(--text-4)" }}>
-                {source === "custom" ? L.emptyCustom : source === "mine" ? L.emptyMine : L.empty}
+                {awards ? A.tierEmpty : source === "custom" ? L.emptyCustom : source === "mine" ? L.emptyMine : L.empty}
               </div>
             )}
           </div>

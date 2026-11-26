@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { onAuthChange, loadProfile, saveProfile, signOut, dm, posts, sb, blocks, gameInvites as gameInvitesApi } from "../api/supabase.js";
 import { DEFAULT_PROFILE } from "../constants/profile.js";
 import { AppContext } from "./appContextObject.js";
+import { resetBannerDismissals } from "../utils/awards2026.js";
+import { readNotifPrefs, writeNotifPrefs, withNotifPref, allNotifPrefs, anyActivityNotif, DEFAULT_NOTIF_PREFS } from "../utils/notificationPrefs.js";
 
 function usernameFromEmail(email) {
   return email.split("@")[0].replace(/[^a-z0-9]/gi, "").toLowerCase().slice(0, 20);
@@ -15,7 +17,9 @@ const activityReadKeyFns = {
   post: postReadKey, thread: threadReadKey,
   "post-mention": postMentionReadKey, "thread-mention": threadMentionReadKey,
 };
-const notificationsEnabledKey = (username) => `animood_notifications_enabled_${username}`;
+
+// Le bloc de fin d'année (YearEndBanner) mémorise sa fermeture dans sessionStorage : on l'efface à la déconnexion
+const clearBannerMarks = () => { try { resetBannerDismissals(window.sessionStorage); } catch { /* stockage bloqué : rien à effacer */ } };
 
 export function AppProvider({ children }) {
   const [session, setSession]         = useState(null);
@@ -35,6 +39,7 @@ export function AppProvider({ children }) {
         setProfileReady(true);
       } else {
         setProfileReady(false);
+        clearBannerMarks();                  // déconnecté : le bloc de fin d'année reviendra à la prochaine connexion
       }
     });
     return () => subscription.unsubscribe();
@@ -127,8 +132,18 @@ export function AppProvider({ children }) {
   // from existing tables.
   const [gameInvites, setGameInvites] = useState([]);
 
+  // Réglages des notifications (Paramètres → Notifications) : commentaires / mentions / invitations, tous activés par défaut, gardés sur l'appareil.
+  // Relus quand le pseudo change (connexion, changement de compte) : dérivé pendant le rendu, sans passage par un état intermédiaire.
+  const [notifPrefs, setNotifPrefsState] = useState(() => ({ ...DEFAULT_NOTIF_PREFS }));
+  const [notifPrefsFor, setNotifPrefsFor] = useState("");
+  if(notifPrefsFor !== myUsername) {
+    setNotifPrefsFor(myUsername);
+    setNotifPrefsState(readNotifPrefs(typeof localStorage !== "undefined" ? localStorage : null, myUsername));
+  }
+  const wantComments = notifPrefs.comments, wantMentions = notifPrefs.mentions, wantInvites = notifPrefs.invites;
+
   useEffect(() => {
-    if(!myUsername) return;
+    if(!myUsername || !wantInvites) return;
     let cancelled = false;
     const check = async () => {
       const rows = await gameInvitesApi.getPending(myUsername);
@@ -137,7 +152,7 @@ export function AppProvider({ children }) {
     check();
     const interval = setInterval(check, 10000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [myUsername]);
+  }, [myUsername, wantInvites]);
 
   // Removes an invite from the bell immediately (optimistic) and marks it
   // dealt with server-side — called both on decline and right before joining
@@ -156,35 +171,35 @@ export function AppProvider({ children }) {
   // last-read-timestamp approach as DMs above.
   const [activityNotifications, setActivityNotifications] = useState([]);
 
-  // Whether the user wants to receive activity notifications at all — a
-  // simple on/off toggle (Settings), kept client-side in localStorage like
-  // the read-state above since there's no per-user prefs column server-side.
-  const [notificationsEnabled, setNotificationsEnabledState] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      if(!myUsername) { setNotificationsEnabledState(true); return; }
-      const stored = localStorage.getItem(notificationsEnabledKey(myUsername));
-      setNotificationsEnabledState(stored !== "0");
-    })();
-  }, [myUsername]);
-
-  const setNotificationsEnabled = useCallback((enabled) => {
+  // Mémoriser de nouveaux réglages (sur l'appareil) : une sorte d'alerte coupée disparaît tout de suite de la cloche
+  // (les commentaires / mentions encore actifs sont recalculés par l'effet ci-dessous dès que le réglage change).
+  const applyNotifPrefs = useCallback((next) => {
     if(!myUsername) return;
-    localStorage.setItem(notificationsEnabledKey(myUsername), enabled ? "1" : "0");
-    setNotificationsEnabledState(enabled);
-    if(!enabled) setActivityNotifications([]);
+    writeNotifPrefs(localStorage, myUsername, next);
+    setNotifPrefsState(next);
+    if(!anyActivityNotif(next)) setActivityNotifications([]);
+    if(!next.invites) setGameInvites([]);
   }, [myUsername]);
+  const setNotifPref = useCallback((kind, enabled) => applyNotifPrefs(withNotifPref(notifPrefs, kind, enabled)), [applyNotifPrefs, notifPrefs]);
+  // Tout activer / tout couper d'un coup
+  const setAllNotifPrefs = useCallback((enabled) => applyNotifPrefs(allNotifPrefs(enabled)), [applyNotifPrefs]);
+
+  // Ancien interrupteur unique (activité = commentaires + mentions), gardé pour le code qui l'utilise encore
+  const notificationsEnabled = anyActivityNotif(notifPrefs);
+  const setNotificationsEnabled = useCallback(
+    (enabled) => applyNotifPrefs({ ...notifPrefs, comments: !!enabled, mentions: !!enabled }),
+    [applyNotifPrefs, notifPrefs]);
 
   useEffect(() => {
-    if(!myUsername || !notificationsEnabled) return;
+    if(!myUsername || (!wantComments && !wantMentions)) return;
     let cancelled = false;
     const check = async () => {
+      const none = Promise.resolve([]);   // sorte d'alerte coupée dans les Paramètres : on ne la demande même pas
       const [postNotifs, threadNotifs, postMentions, threadMentions] = await Promise.all([
-        posts.getActivityNotifications(myUsername),
-        sb.getThreadActivityNotifications(myUsername),
-        posts.getMentionNotifications(myUsername),
-        sb.getThreadMentionNotifications(myUsername),
+        wantComments ? posts.getActivityNotifications(myUsername) : none,
+        wantComments ? sb.getThreadActivityNotifications(myUsername) : none,
+        wantMentions ? posts.getMentionNotifications(myUsername) : none,
+        wantMentions ? sb.getThreadMentionNotifications(myUsername) : none,
       ]);
       if(cancelled) return;
 
@@ -220,7 +235,7 @@ export function AppProvider({ children }) {
     check();
     const interval = setInterval(check, 20000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [myUsername, blockedUsers, notificationsEnabled]);
+  }, [myUsername, blockedUsers, wantComments, wantMentions]);
 
   const markActivityRead = useCallback((type, id) => {
     if(!myUsername) return;
@@ -248,13 +263,14 @@ export function AppProvider({ children }) {
     saveProfile(myUsername, updated);
   }, [myUsername]);
 
-  const logout = async () => { await signOut(); setSession(null); setProfileReady(false); };
+  const logout = async () => { clearBannerMarks(); await signOut(); setSession(null); setProfileReady(false); };
 
   const ctx = {
     session, me, setMe, saveMe, myUsername, profileReady, logout,
     unreadPeers, markRead, activityNotifications, markActivityRead, markAllActivityRead,
     gameInvites, dismissGameInvite,
     notificationsEnabled, setNotificationsEnabled,
+    notifPrefs, setNotifPref, setAllNotifPrefs,
     blockedUsers, blockUser, unblockUser,
   };
 

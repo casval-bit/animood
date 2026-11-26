@@ -2,13 +2,17 @@ export const SETTINGS_I18N = {
   fr: {
     title: "Paramètres",
 
+    closeLabel: "Fermer les paramètres",
+    backLabel: "Retour",
+
     catPreferences: "Préférences",
     catProfile: "Profil",
-    catData: "Données",
-    catAccount: "Compte",
+    catPrivacy: "Confidentialité",
     catNotifications: "Notifications",
     catSound: "Sons",
     catStreaming: "Streaming",
+    catData: "Données",
+    catAccount: "Compte",
 
     appearance: "🎨 Apparence",
     themeDark: "Sombre",
@@ -92,6 +96,7 @@ export const SETTINGS_I18N = {
     importXmlSuccess: (s) => `✅ ${s.watched} animés · ${s.rated} notes`,
 
     logoutTitle: "🚪 Déconnexion",
+    loggedInAs: (name) => `Connecté en tant que @${name}`,
     logoutBtn: "Se déconnecter",
 
     blockedUsers: "🚫 Utilisateurs bloqués",
@@ -103,12 +108,17 @@ export const SETTINGS_I18N = {
     deleteAccountBtn: "Supprimer mon compte",
     deleteAccountNotReady: "Fonctionnalité bientôt disponible.",
 
-    notificationsTitle: "🔔 Activité",
-    notificationsDesc: "Commentaires, réponses et mentions te concernant, affichés dans la cloche en haut de l'écran.",
-    notificationsEnabledLabel: "Notifications activées",
-    notificationsEnabledDesc: "Tu reçois les alertes en temps réel.",
-    notificationsDisabledLabel: "Notifications désactivées",
-    notificationsDisabledDesc: "Plus aucune alerte ne s'affichera.",
+    notificationsTitle: "🔔 Cloche de notifications",
+    notificationsDesc: "Choisis ce qui s'affiche dans la cloche en haut de l'écran. Les messages privés gardent leur propre pastille, dans la messagerie.",
+    notifCommentsLabel: "Commentaires et réponses",
+    notifCommentsDesc: "Sur tes publications et sur les discussions où tu es déjà intervenu.",
+    notifMentionsLabel: "Mentions",
+    notifMentionsDesc: "Quand quelqu'un écrit ton @pseudo.",
+    notifInvitesLabel: "Invitations aux jeux",
+    notifInvitesDesc: "Quand un ami t'invite à une partie (LinkUp, Timeline, Cluescale, Imposteur) : coupée, tu ne vois plus ses invitations.",
+    notifAllOn: "Tout activer",
+    notifAllOff: "Tout couper",
+    notifSaved: "Réglages gardés sur cet appareil.",
 
     soundTitle: "🔊 Effets sonores",
     soundDesc: "Sons à l'opération GX — changements d'onglet, clics, confirmations.",
@@ -124,13 +134,17 @@ export const SETTINGS_I18N = {
   en: {
     title: "Settings",
 
+    closeLabel: "Close settings",
+    backLabel: "Back",
+
     catPreferences: "Preferences",
     catProfile: "Profile",
-    catData: "Data",
-    catAccount: "Account",
+    catPrivacy: "Privacy",
     catNotifications: "Notifications",
     catSound: "Sound",
     catStreaming: "Streaming",
+    catData: "Data",
+    catAccount: "Account",
 
     appearance: "🎨 Appearance",
     themeDark: "Dark",
@@ -214,6 +228,7 @@ export const SETTINGS_I18N = {
     importXmlSuccess: (s) => `✅ ${s.watched} anime · ${s.rated} ratings`,
 
     logoutTitle: "🚪 Log out",
+    loggedInAs: (name) => `Signed in as @${name}`,
     logoutBtn: "Log out",
 
     blockedUsers: "🚫 Blocked users",
@@ -225,12 +240,17 @@ export const SETTINGS_I18N = {
     deleteAccountBtn: "Delete my account",
     deleteAccountNotReady: "Feature coming soon.",
 
-    notificationsTitle: "🔔 Activity",
-    notificationsDesc: "Comments, replies and mentions concerning you, shown in the bell at the top of the screen.",
-    notificationsEnabledLabel: "Notifications enabled",
-    notificationsEnabledDesc: "You'll receive alerts in real time.",
-    notificationsDisabledLabel: "Notifications disabled",
-    notificationsDisabledDesc: "No more alerts will be shown.",
+    notificationsTitle: "🔔 Notification bell",
+    notificationsDesc: "Choose what shows up in the bell at the top of the screen. Private messages keep their own badge, in the messaging tab.",
+    notifCommentsLabel: "Comments and replies",
+    notifCommentsDesc: "On your posts and on the discussions you already took part in.",
+    notifMentionsLabel: "Mentions",
+    notifMentionsDesc: "When someone writes your @username.",
+    notifInvitesLabel: "Game invitations",
+    notifInvitesDesc: "When a friend invites you to a game (LinkUp, Timeline, Cluescale, Undercover): turned off, you no longer see their invitations.",
+    notifAllOn: "Turn all on",
+    notifAllOff: "Turn all off",
+    notifSaved: "Settings are kept on this device.",
 
     soundTitle: "🔊 Sound Effects",
     soundDesc: "Opera GX-style sounds — tab changes, clicks, confirmations.",

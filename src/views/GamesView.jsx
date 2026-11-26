@@ -12,6 +12,7 @@ import { FORUM_I18N } from "../constants/forumI18n.js";
 import { isDesktopApp } from "../utils/streamingLinks.js";
 import { GamePanelDesktop } from "../components/GamesDesktop.jsx";
 import { GRADIENT_PRIMARY } from "../constants/theme.js";
+import { Awards2026Entry } from "../components/Awards2026Entry.jsx";
 
 // ── GamePanel — grid of game buttons + global leaderboard ────────────────────
 function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChain, onTimeline, onCluescale, onUndercover, onTierlist, t }) {
@@ -197,7 +198,7 @@ function EloLeaderboard({ gameType, myUsername, following }) {
 }
 
 // ── GamesView ─────────────────────────────────────────────────────────────────
-export function GamesView({ pendingJoinGame, onClearPendingJoin }) {
+export function GamesView({ pendingJoinGame, onClearPendingJoin, onOpenAwards }) {
   const { myUsername } = useApp();
   const { lang } = useLang();
   const t = FORUM_I18N[lang] || FORUM_I18N.fr;
@@ -314,6 +315,9 @@ export function GamesView({ pendingJoinGame, onClearPendingJoin }) {
         <p style={{ fontSize: 12, color: "rgba(100,116,139,0.6)", margin: 0 }}>Affronte la communauté AniMood</p>
       </div>
       )}
+
+      {/* AniMood 2026 : à part des mini-jeux, au-dessus (appli de bureau) */}
+      {desktop && onOpenAwards && <Awards2026Entry variant="wide" onOpen={onOpenAwards} />}
 
       {React.createElement(desktop ? GamePanelDesktop : GamePanel, {
         myUsername,

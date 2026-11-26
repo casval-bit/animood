@@ -22,6 +22,7 @@ import { FORUM_I18N } from "../constants/forumI18n.js";
 import { isDesktopApp } from "../utils/streamingLinks.js";
 import { safeWebUrl } from "../utils/safeUrl.js";
 import { ForumExplorer } from "../components/ForumExplorer.jsx";
+import { Awards2026Entry } from "../components/Awards2026Entry.jsx";
 
 const FALLBACK_IMG = "https://placehold.co/64x92/1a1a2e/818cf8?text=?";
 const TYPE_EMOJI = { TV:"📺", Movie:"🎬", OVA:"💿", ONA:"🌐", Special:"✨" };
@@ -507,7 +508,7 @@ function ForumTabs({ tab, onChange, badges, t }) {
 // Unified game panel: a 2-column grid of buttons (each showing the player's own
 // score for that game) plus an inline top-10 leaderboard ranked by points_total,
 // with the player's own rank shown below it when they're outside the top 10.
-function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChain, onTimeline, onCluescale, onUndercover, onTierlist, t }) {
+function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChain, onTimeline, onCluescale, onUndercover, onTierlist, onAwards, t }) {
   const [elo, setElo]                 = useState(null);
   const [hover, setHover]             = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
@@ -560,6 +561,8 @@ function GamePanel({ myUsername, following, onWordle, onPoster, onOpQuiz, onChai
           emoji/label/score row left the label ~50px and misaligned the
           score-less Tierlist tile. */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:6}}>
+        {/* AniMood 2026 : tuile à part, sur toute la largeur, en tête du panneau */}
+        {onAwards && <Awards2026Entry variant="tile" onOpen={onAwards} />}
         {GAMES.map(g => {
           const isHover = hover===g.id, rgb=g.color;
           return (
@@ -707,7 +710,7 @@ function EloLeaderboard({ gameType, myUsername, following }) {
   );
 }
 
-export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPendingJoin }) {
+export function ForumView({ onOpenDetail, onOpenUser, onOpenAwards, pendingJoinGame, onClearPendingJoin }) {
   const { myUsername, activityNotifications, markActivityRead, blockedUsers } = useApp();
   const [followingList, setFollowingList] = useState([]);
   useEffect(() => {
@@ -1062,6 +1065,7 @@ export function ForumView({ onOpenDetail, onOpenUser, pendingJoinGame, onClearPe
               onCluescale={()=>setShowCluescale(true)}
               onUndercover={()=>setShowUndercover(true)}
               onTierlist={()=>setShowTierlist(true)}
+              onAwards={onOpenAwards}
               t={t}
             />
           </div>

@@ -39,12 +39,26 @@ Fichiers SQL dans `supabase/`, à lancer dans l'éditeur SQL de Supabase.
 **Nouveaux (v.11.02 / v.12)** — à lancer si pas encore fait
 `profile_spotlight` · `profile_frame_flags` · `streaming_regions_schema`
 
+**Nouveau (v.14.05 · AniMood 2026)** — à lancer pour que le vote du Top 3 de la communauté fonctionne
+`awards_2026_schema` (table `awards_2026` : un top 3 par membre ; **à relancer après** les étapes Sécurité si elles sont faites plus tard, pour que les règles passent en mode protégé ; relançable sans risque)
+
 **Sécurité** 🔐 — à faire dans l'ordre, en suivant [`supabase/SECURITE_LISEZMOI.md`](../supabase/SECURITE_LISEZMOI.md)
 `security_rls_1_private` → `security_rls_2_reference` (retour en arrière : `security_rls_rollback`)
 
 **Réglages Supabase** (Authentication → URL Configuration)
 - Site URL : `https://animood.me`
 - Redirect URLs : `https://animood.me/**`, `https://www.animood.me/**`, `https://animood-rho.vercel.app/**` (encore chargée par l'appli de bureau et l'APK) et `animood://**` (connexion depuis l'appli de bureau)
+
+---
+
+## 🎆 AniMood 2026 (fin d'année)
+
+- **Où** : bloc sous l'en-tête (`src/components/YearEndBanner.jsx`, monté dans `src/App.jsx` : Forum du site, Forum et Jeux du bureau), fenêtre `src/components/awards/AwardsHub.jsx` (onglets Top 3, Tierlist, Grille), entrées « 2026 » dans Jeux (bureau) et dans le panneau des mini-jeux du Forum du site (`Awards2026Entry`).
+- **Fin du bloc** : `BANNER_LAST_DAY` dans `src/utils/awards2026.js` (15 janvier 2027 inclus, heure locale). Après cette date le bloc ne s'affiche plus ; l'espace reste accessible par les Jeux. Pour retirer toute la fonctionnalité, il suffit de supprimer `YearEndBanner` de `App.jsx` et les deux `Awards2026Entry`.
+- **Fermeture du bloc** : mémorisée dans `sessionStorage` par pseudo (clé `animood_yearend2026_closed:<pseudo>`) → pas de retour après un rechargement ; effacée à la déconnexion (`AppProvider`) et à la fermeture de l'appli ou de l'onglet.
+- **Quels animés comptent** : `year` = 2026 dans `anime_cache` (à défaut la date de début de diffusion, puis la saison), tous formats et toutes origines ; `CM`, `PV`, `Music` et le contenu adulte sont exclus (`isEligible2026`).
+- **Votes** : table `awards_2026` (`supabase/awards_2026_schema.sql`), un top 3 par pseudo (1ᵉʳ = 3 points, 2ᵉ = 2, 3ᵉ = 1) ; lecture ouverte aux membres connectés (comme les votes de mood), écriture limitée à son propre pseudo une fois les étapes Sécurité faites. Classements : points, plus de n°1, ratio de n°1 (au moins 10 % des votants, entre 2 et 5 votes reçus, pour ne pas classer un animé cité une seule fois) ; « amis » = les membres que l'on suit, soi-même exclu. Calculs dans `src/utils/awards2026.js` (testés par `tests/awards2026.test.mjs`).
+- **Tierlist et grille** : gardées sur l'appareil, par pseudo (`localStorage`) ; seul le vote du Top 3 est envoyé à Supabase. Export image (PNG, copie, partage) via `src/utils/posterExport.js` : l'image est dessinée en thème sombre (html2canvas ne lit pas les `oklch()` du thème clair) et `fixTextBaseline()` remet en `inline` le GIF 1×1 que html2canvas utilise pour mesurer la ligne de base des polices (le CSS de base de Tailwind le passe en `block` : tout le texte sortait ~5 px trop bas). Le test `tests/awards2026.test.mjs` vérifie que la règle reconnaît encore ce GIF si tu changes de version de html2canvas.
 
 ---
 

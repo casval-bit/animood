@@ -20,6 +20,7 @@ import { useModalBack } from "../hooks/useModalBack.js";
 import { isDesktopApp } from "../utils/streamingLinks.js";
 import { overlayProps, titleBarProps } from "../utils/desktopWindow.js";
 import { StreamingSettingsDesktop } from "../components/StreamingSettingsDesktop.jsx";
+import { settingsCategories, normalizeSettingsCategory } from "../constants/settingsLayout.js";
 
 const LANG_OPTIONS = [
   { id: "fr", label: "Français", flag: "🇫🇷" },
@@ -67,11 +68,35 @@ function Section({ title, children }) {
   );
 }
 
+// Ligne « interrupteur » : titre + description à gauche, bouton glissant à droite (réglages de notifications)
+function ToggleRow({ on, label, desc, onToggle }) {
+  return (
+    <button type="button" role="switch" aria-checked={on} onClick={onToggle}
+      className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/7 bg-white/4 px-4 py-3.5 text-left transition hover:bg-white/6">
+      <div className="min-w-0">
+        <div className="text-xs font-bold text-slate-100">{label}</div>
+        <div className="text-[10px] leading-snug text-slate-500">{desc}</div>
+      </div>
+      <div className="relative h-6 w-11 shrink-0 rounded-full transition" style={{ background: on ? GRADIENT_PRIMARY : "rgba(255,255,255,0.12)" }}>
+        <div className="absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all" style={{ left: on ? "22px" : "2px" }} />
+      </div>
+    </button>
+  );
+}
+
+// Réglages de notifications : clé de réglage (AppProvider) → textes
+const NOTIF_ROWS = [
+  { kind: "comments", label: "notifCommentsLabel", desc: "notifCommentsDesc" },
+  { kind: "mentions", label: "notifMentionsLabel", desc: "notifMentionsDesc" },
+  { kind: "invites",  label: "notifInvitesLabel",  desc: "notifInvitesDesc" },
+];
+
 export function SettingsView({ onClose, initialCategory = null }) {
   // Pushes a history entry on mount so the browser/device back button
   // closes this screen instead of navigating away from the page underneath.
-  const requestClose = useModalBack(onClose);
-  const { me, saveMe, logout, myUsername, blockedUsers, unblockUser, notificationsEnabled, setNotificationsEnabled } = useApp();
+  // Échap ferme aussi ; la fermeture se fait même si le navigateur ne renvoie pas l'événement « retour » (voir useModalBack)
+  const requestClose = useModalBack(onClose, undefined, { escape: true });
+  const { me, saveMe, logout, myUsername, blockedUsers, unblockUser, notifPrefs, setNotifPref, setAllNotifPrefs } = useApp();
   const { theme, setTheme, palette, setPalette } = useTheme();
   const { lang, setLang } = useLang();
   const { playSound, soundEnabled, setSoundEnabled, volume, setVolume, pack, setPack, packs } = useSound();
@@ -80,23 +105,9 @@ export function SettingsView({ onClose, initialCategory = null }) {
   const avatarRef = useRef(null);
 
   const desktop = isDesktopApp();
-  const [category, setCategory] = useState(initialCategory || "preferences");
-  const CATEGORY_TABS = desktop ? [
-    { id: "preferences",   label: t.catPreferences },
-    { id: "profile",       label: t.catProfile },
-    { id: "sound",         label: t.catSound },
-    { id: "notifications", label: t.catNotifications },
-    { id: "streaming",     label: t.catStreaming },
-    { id: "data",          label: t.catData },
-    { id: "account",       label: t.catAccount },
-  ] : [
-    // Site web : liste d'origine, inchangée
-    { id: "preferences", label: t.catPreferences },
-    { id: "profile",     label: t.catProfile },
-    { id: "data",        label: t.catData },
-    { id: "account",     label: t.catAccount },
-    { id: "notifications", label: t.catNotifications },
-  ];
+  const [category, setCategory] = useState(() => normalizeSettingsCategory(initialCategory, desktop));
+  // Mêmes onglets, même ordre partout (constants/settingsLayout.js) ; Sons et Streaming seulement sur le bureau
+  const CATEGORY_TABS = settingsCategories(desktop).map(c => ({ id: c.id, label: t[c.label] }));
 
   const [usernameInput, setUsernameInput] = useState(me.name || "");
   const [usernameSaved, setUsernameSaved] = useState(false);
@@ -320,15 +331,23 @@ export function SettingsView({ onClose, initialCategory = null }) {
   const currentAvatar = me.avatar?.startsWith?.("http") ? me.avatar : null;
 
   return (
-    <div {...overlayProps()} className="fixed inset-0 z-400 flex flex-col backdrop-blur-2xl" style={{ background:"var(--overlay)" }}>
-      <div {...titleBarProps()} className="flex items-center gap-3 border-b border-white/6 px-6 py-4">
-        <button onClick={requestClose} className="text-xl text-slate-400">←</button>
-        <span className="text-base font-black text-slate-100">{t.title}</span>
+    <div {...overlayProps()} role="dialog" aria-modal="true" aria-label={t.title}
+      className="fixed inset-0 z-400 flex flex-col backdrop-blur-2xl" style={{ background:"var(--overlay)" }}>
+      {/* Barre de titre : « ← » (grande zone à toucher) à gauche ; sur le site et l'APK, une croix à droite en plus.
+          Sur le bureau, pas de croix : les boutons de la fenêtre (réduire / agrandir / fermer l'appli) occupent déjà le coin droit. */}
+      <div {...titleBarProps()} className="flex items-center gap-1 border-b border-white/6 px-3 py-2.5 sm:px-5">
+        <button type="button" onClick={requestClose} aria-label={t.backLabel} title={t.backLabel}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-2xl leading-none text-slate-300 transition hover:bg-white/8 active:bg-white/12">←</button>
+        <span className="min-w-0 flex-1 truncate pl-1 text-base font-black text-slate-100">{t.title}</span>
+        {!desktop && (
+          <button type="button" onClick={requestClose} aria-label={t.closeLabel} title={t.closeLabel}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl leading-none text-slate-300 transition hover:bg-white/8 active:bg-white/12">✕</button>
+        )}
       </div>
 
-      <div className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto px-6 py-6">
+      <div className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-4 py-6 sm:px-6">
 
-        <TabBar tabs={CATEGORY_TABS} active={category} onChange={id => { playSound("tab"); setCategory(id); }} className="mb-6" />
+        <TabBar tabs={CATEGORY_TABS} active={category} onChange={id => { playSound("tab"); setCategory(id); }} className="mb-6" scrollable />
 
         {/* ─── PRÉFÉRENCES ─── */}
         {category === "preferences" && <>
@@ -605,7 +624,10 @@ export function SettingsView({ onClose, initialCategory = null }) {
             </>
           )}
         </Section>
+        </>}
 
+        {/* ─── CONFIDENTIALITÉ ─── */}
+        {category === "privacy" && <>
         <Section title={t.privacyTitle}>
           <p className="mb-3 text-xs leading-relaxed text-slate-500">{t.privacyDesc}</p>
           <div className="flex flex-col gap-2">
@@ -651,61 +673,6 @@ export function SettingsView({ onClose, initialCategory = null }) {
             </div>
           )}
         </Section>
-        </>}
-
-        {/* ─── DONNÉES ─── */}
-        {category === "data" && <>
-        <Section title={t.importAnilist}>
-          <p className="mb-3 text-xs leading-relaxed text-slate-500">
-            {t.importAnilistDesc}
-          </p>
-          <label htmlFor="anilist-username" className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            {t.importAnilistLabel}
-          </label>
-          <div className="flex gap-2">
-            <input id="anilist-username" value={alUsername} onChange={e=>setAlUsername(e.target.value)}
-              onKeyDown={e=>e.key==="Enter"&&alUsername.trim()&&handleAniListImport()}
-              placeholder={t.importAnilistPlaceholder} disabled={alStatus==="importing"}
-              className="flex-1 rounded-xl border-2 border-violet-400/30 bg-white/6 px-3.5 py-3 text-sm text-slate-100 outline-none transition focus:border-violet-400/70 disabled:opacity-50"/>
-            <GradientButton onClick={handleAniListImport} disabled={alStatus==="importing"||!alUsername.trim()} className="shrink-0 px-4 py-3 text-[13px]">
-              {alStatus==="importing" ? "…" : (alStatus==="done" ? t.importBtnReimport : t.importBtn)}
-            </GradientButton>
-          </div>
-          {alStatus==="done" && alStats && (
-            <div className="mt-2.5 rounded-lg border border-emerald-400/20 bg-emerald-400/8 px-3 py-2.5 text-xs text-emerald-400">
-              {t.importAnilistSuccess(alStats)}
-            </div>
-          )}
-          {alStatus==="error" && (
-            <div className="mt-2.5 rounded-lg border border-red-400/20 bg-red-400/8 px-3 py-2.5 text-xs text-red-400">❌ {alError}</div>
-          )}
-        </Section>
-
-        <Section title={t.importXml}>
-          <p className="mb-3 text-xs leading-relaxed text-slate-500">{t.importXmlDesc}</p>
-          <input ref={fileRef} type="file" accept=".xml" onChange={handleXmlImportFixed} className="hidden"/>
-          <button onClick={()=>fileRef.current?.click()}
-            className="w-full rounded-xl border-2 border-dashed border-indigo-400/40 bg-indigo-400/6 py-3.5 text-sm font-bold text-indigo-300">
-            {importStatus==="importing" ? t.importXmlBtnLoading : t.importXmlBtn}
-          </button>
-          {importStatus==="done" && importStats && (
-            <div className="mt-2.5 rounded-lg border border-emerald-400/20 bg-emerald-400/8 px-3 py-2.5 text-xs text-emerald-400">
-              {t.importXmlSuccess(importStats)}
-            </div>
-          )}
-          {importStatus==="error" && (
-            <div className="mt-2.5 rounded-lg border border-red-400/20 bg-red-400/8 px-3 py-2.5 text-xs text-red-400">❌ {importError}</div>
-          )}
-        </Section>
-        </>}
-
-        {/* ─── COMPTE ─── */}
-        {category === "account" && <>
-        <Section title={t.logoutTitle}>
-          <button onClick={logout} className="w-full rounded-xl border border-red-400/30 bg-red-400/6 py-3.5 text-sm font-bold text-red-400">
-            {t.logoutBtn}
-          </button>
-        </Section>
 
         <Section title={t.blockedUsers}>
           {!blockedUsers?.size ? (
@@ -724,18 +691,25 @@ export function SettingsView({ onClose, initialCategory = null }) {
             </div>
           )}
         </Section>
+        </>}
 
-        <Section title={t.deleteAccountTitle}>
-          <p className="mb-3 text-xs leading-relaxed text-slate-500">{t.deleteAccountDesc}</p>
-          <button onClick={handleDeleteAccount}
-            className="w-full rounded-xl border border-red-500/40 bg-red-500/10 py-3.5 text-sm font-bold text-red-400">
-            {t.deleteAccountBtn}
-          </button>
-          {deleteNotice && (
-            <div className="mt-2.5 rounded-lg border border-white/10 bg-white/6 px-3 py-2.5 text-xs text-slate-400">
-              {t.deleteAccountNotReady}
-            </div>
-          )}
+        {/* ─── NOTIFICATIONS ─── */}
+        {category === "notifications" && <>
+        <Section title={t.notificationsTitle}>
+          <p className="mb-3 text-xs leading-relaxed text-slate-500">{t.notificationsDesc}</p>
+          <div className="flex flex-col gap-2">
+            {NOTIF_ROWS.map(r => (
+              <ToggleRow key={r.kind} on={!!notifPrefs?.[r.kind]} label={t[r.label]} desc={t[r.desc]}
+                onToggle={() => { playSound("click"); setNotifPref(r.kind, !notifPrefs?.[r.kind]); }} />
+            ))}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => { playSound("click"); setAllNotifPrefs(true); }}
+              className="rounded-full border border-white/10 px-3 py-1.5 text-[11px] font-bold text-slate-300 transition hover:bg-white/5">{t.notifAllOn}</button>
+            <button type="button" onClick={() => { playSound("click"); setAllNotifPrefs(false); }}
+              className="rounded-full border border-white/10 px-3 py-1.5 text-[11px] font-bold text-slate-300 transition hover:bg-white/5">{t.notifAllOff}</button>
+            <span className="text-[10px] text-slate-600">{t.notifSaved}</span>
+          </div>
         </Section>
         </>}
 
@@ -743,11 +717,6 @@ export function SettingsView({ onClose, initialCategory = null }) {
         {category === "sound" && desktop && <>
         <Section title={t.soundTitle}>
           <p className="mb-3 text-xs leading-relaxed text-slate-500">{t.soundDesc}</p>
-          {!desktop && (
-            <div className="mb-3 rounded-xl border border-violet-500/20 bg-violet-500/8 px-4 py-3 text-[11px] text-violet-400">
-              🎵 Les sons UI sont disponibles uniquement dans l'application desktop AniMood.
-            </div>
-          )}
           {/* Enable / Disable toggle */}
           <button onClick={() => { const v = !soundEnabled; setSoundEnabled(v); if(v) setTimeout(()=>playSound("confirm"),80); }}
             className="flex w-full items-center justify-between rounded-xl border border-white/7 bg-white/4 px-4 py-3.5 text-left transition hover:bg-white/6 mb-3">
@@ -815,26 +784,72 @@ export function SettingsView({ onClose, initialCategory = null }) {
         <StreamingSettingsDesktop lang={lang} Section={Section} playSound={playSound} />
         </>}
 
-        {/* ─── NOTIFICATIONS ─── */}
-        {category === "notifications" && <>
-        <Section title={t.notificationsTitle}>
-          <p className="mb-3 text-xs leading-relaxed text-slate-500">{t.notificationsDesc}</p>
-          <button onClick={() => setNotificationsEnabled(!notificationsEnabled)}
-            className="flex w-full items-center justify-between rounded-xl border border-white/7 bg-white/4 px-4 py-3.5 text-left transition hover:bg-white/6">
-            <div>
-              <div className="text-xs font-bold text-slate-100">
-                {notificationsEnabled ? t.notificationsEnabledLabel : t.notificationsDisabledLabel}
-              </div>
-              <div className="text-[10px] text-slate-500">
-                {notificationsEnabled ? t.notificationsEnabledDesc : t.notificationsDisabledDesc}
-              </div>
+        {/* ─── DONNÉES ─── */}
+        {category === "data" && <>
+        <Section title={t.importAnilist}>
+          <p className="mb-3 text-xs leading-relaxed text-slate-500">
+            {t.importAnilistDesc}
+          </p>
+          <label htmlFor="anilist-username" className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            {t.importAnilistLabel}
+          </label>
+          <div className="flex gap-2">
+            <input id="anilist-username" value={alUsername} onChange={e=>setAlUsername(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&alUsername.trim()&&handleAniListImport()}
+              placeholder={t.importAnilistPlaceholder} disabled={alStatus==="importing"}
+              className="flex-1 rounded-xl border-2 border-violet-400/30 bg-white/6 px-3.5 py-3 text-sm text-slate-100 outline-none transition focus:border-violet-400/70 disabled:opacity-50"/>
+            <GradientButton onClick={handleAniListImport} disabled={alStatus==="importing"||!alUsername.trim()} className="shrink-0 px-4 py-3 text-[13px]">
+              {alStatus==="importing" ? "…" : (alStatus==="done" ? t.importBtnReimport : t.importBtn)}
+            </GradientButton>
+          </div>
+          {alStatus==="done" && alStats && (
+            <div className="mt-2.5 rounded-lg border border-emerald-400/20 bg-emerald-400/8 px-3 py-2.5 text-xs text-emerald-400">
+              {t.importAnilistSuccess(alStats)}
             </div>
-            <div className="relative h-6 w-11 shrink-0 rounded-full transition"
-              style={{ background: notificationsEnabled ? GRADIENT_PRIMARY : "rgba(255,255,255,0.12)" }}>
-              <div className="absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all"
-                style={{ left: notificationsEnabled ? "22px" : "2px" }} />
-            </div>
+          )}
+          {alStatus==="error" && (
+            <div className="mt-2.5 rounded-lg border border-red-400/20 bg-red-400/8 px-3 py-2.5 text-xs text-red-400">❌ {alError}</div>
+          )}
+        </Section>
+
+        <Section title={t.importXml}>
+          <p className="mb-3 text-xs leading-relaxed text-slate-500">{t.importXmlDesc}</p>
+          <input ref={fileRef} type="file" accept=".xml" onChange={handleXmlImportFixed} className="hidden"/>
+          <button onClick={()=>fileRef.current?.click()}
+            className="w-full rounded-xl border-2 border-dashed border-indigo-400/40 bg-indigo-400/6 py-3.5 text-sm font-bold text-indigo-300">
+            {importStatus==="importing" ? t.importXmlBtnLoading : t.importXmlBtn}
           </button>
+          {importStatus==="done" && importStats && (
+            <div className="mt-2.5 rounded-lg border border-emerald-400/20 bg-emerald-400/8 px-3 py-2.5 text-xs text-emerald-400">
+              {t.importXmlSuccess(importStats)}
+            </div>
+          )}
+          {importStatus==="error" && (
+            <div className="mt-2.5 rounded-lg border border-red-400/20 bg-red-400/8 px-3 py-2.5 text-xs text-red-400">❌ {importError}</div>
+          )}
+        </Section>
+        </>}
+
+        {/* ─── COMPTE ─── */}
+        {category === "account" && <>
+        <Section title={t.logoutTitle}>
+          {myUsername && <p className="mb-3 text-xs text-slate-500">{t.loggedInAs(myUsername)}</p>}
+          <button onClick={logout} className="w-full rounded-xl border border-red-400/30 bg-red-400/6 py-3.5 text-sm font-bold text-red-400">
+            {t.logoutBtn}
+          </button>
+        </Section>
+
+        <Section title={t.deleteAccountTitle}>
+          <p className="mb-3 text-xs leading-relaxed text-slate-500">{t.deleteAccountDesc}</p>
+          <button onClick={handleDeleteAccount}
+            className="w-full rounded-xl border border-red-500/40 bg-red-500/10 py-3.5 text-sm font-bold text-red-400">
+            {t.deleteAccountBtn}
+          </button>
+          {deleteNotice && (
+            <div className="mt-2.5 rounded-lg border border-white/10 bg-white/6 px-3 py-2.5 text-xs text-slate-400">
+              {t.deleteAccountNotReady}
+            </div>
+          )}
         </Section>
         </>}
 

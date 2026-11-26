@@ -15,6 +15,7 @@ import { Spinner } from "./components/Spinner.jsx";
 import { LoginView } from "./views/LoginView.jsx";
 import { MoodboardView } from "./views/MoodboardView.jsx";
 import { DesktopUpdateBanner } from "./components/DesktopUpdateBanner.jsx";
+import { YearEndBanner } from "./components/YearEndBanner.jsx";
 import { AppleLogo, AndroidLogo, LinuxLogo, WindowsLogo, PlatformBadge } from "./components/PlatformLogos.jsx";
 
 // ── Découpage par page ───────────────────────────────────────────────────────────────────────────────────
@@ -45,6 +46,7 @@ const MessagesView     = lazyNamed(() => import("./views/MessagesView.jsx"), "Me
 const ProfileView      = lazyNamed(() => import("./views/ProfileView.jsx"), "ProfileView");
 const UserProfileModal = lazyNamed(() => import("./views/UserProfileModal.jsx"), "UserProfileModal");
 const SettingsView     = lazyNamed(() => import("./views/SettingsView.jsx"), "SettingsView");
+const AwardsHub        = lazyNamed(() => import("./components/awards/AwardsHub.jsx"), "AwardsHub");   // espace AniMood 2026 (tierlist, grille, top 3)
 
 // ── Static Pages ──────────────────────────────────────────────────────────────
 function PageWrapper({ title, onClose, children }) {
@@ -819,6 +821,7 @@ function Shell() {
   const [activeTab, setActiveTab]   = useState(() => window.history.state?.tab || (isDesktopApp() ? "profile" : "moodboard"));
   const [showSettings, setShowSettings] = useState(false);
   const [settingsCat, setSettingsCat] = useState(null); // catégorie à ouvrir directement (ex. "profile")
+  const [showAwards, setShowAwards] = useState(false);     // espace AniMood 2026 (bloc de fin d'année, Jeux)
   const [detailAnime, setDetailAnime]   = useState(null);
   const [openUser, setOpenUser]         = useState(null);
   const [pendingJoinGame, setPendingJoinGame] = useState(null);
@@ -871,15 +874,19 @@ function Shell() {
   const pages = {
     moodboard: <MoodboardView onOpenDetail={openDetail} />,
     search:    <SearchView onOpenDetail={openDetail} onOpenUser={setOpenUser} />,
-    forum:     <ForumView onOpenDetail={openDetail} onOpenUser={setOpenUser}
+    forum:     <ForumView onOpenDetail={openDetail} onOpenUser={setOpenUser} onOpenAwards={() => setShowAwards(true)}
                  pendingJoinGame={pendingJoinGame} onClearPendingJoin={() => setPendingJoinGame(null)} />,
     // Onglet JEUX : appli de bureau uniquement (le site garde les jeux dans le forum)
-    ...(isDesktopApp() ? { games: <GamesView
+    ...(isDesktopApp() ? { games: <GamesView onOpenAwards={() => setShowAwards(true)}
                  pendingJoinGame={pendingJoinGame} onClearPendingJoin={() => setPendingJoinGame(null)} /> } : {}),
     messages:  <MessagesView />,
   };
 
   const desktop = isDesktopApp();
+  // Bloc de fin d'année : tout en haut, juste sous l'en-tête, sur le Forum (site et bureau) et sur les Jeux (bureau). Largeur = celle du contenu de la page.
+  const yearEndOn = activeTab === "forum" || (desktop && activeTab === "games");
+  const yearEndWidth = desktop ? (activeTab === "games" ? 1100 : 1280) : 1152;
+  const yearEndGutter = desktop && activeTab === "games" ? 32 : 24;
 
   return (
     // Web : place réservée sous la barre d'onglets du bas (WebBottomNav) sur téléphone uniquement.
@@ -888,6 +895,7 @@ function Shell() {
       <Header activeTab={activeTab} onChangeTab={changeTab} onOpenSettings={() => { setSettingsCat(null); setShowSettings(true); }}
         onOpenDownload={isInstalledApp() ? undefined : () => setActivePage("download")}
         onJoinGame={payload => { changeTab(desktop ? "games" : "forum"); setPendingJoinGame(payload); }} />
+      {yearEndOn && <YearEndBanner onOpen={() => setShowAwards(true)} maxWidth={yearEndWidth} gutter={yearEndGutter} />}
       <main>
         {/* Feed and Profile stay mounted for cross-sync */}
         <Suspense fallback={null}>
@@ -908,6 +916,8 @@ function Shell() {
         <ChatBubble hidden={activeTab === "messages"} />
 
         {showSettings && <SettingsView initialCategory={settingsCat} onClose={() => setShowSettings(false)} />}
+
+        {showAwards && <AwardsHub onClose={() => setShowAwards(false)} />}
 
         {detailAnime && (
           <AnimeDetailModal

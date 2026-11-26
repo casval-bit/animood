@@ -1,6 +1,7 @@
 // ─── SHARED UI PRIMITIVES — glass cards, gradient buttons, chips, tabs ────────
 // Reuses the design tokens from constants/theme.js across the whole app so
 // every screen reads as one product.
+import { useEffect, useRef } from "react";
 import { GRADIENT_PRIMARY, GLASS, GLASS_STYLE } from "../constants/theme.js";
 import { useApp } from "../context/useApp.js";
 import { useLang } from "../context/useLang.js";
@@ -56,14 +57,22 @@ export function ChipGroup({ items, value, onToggle }) {
 }
 
 // Underline-style tabs — used by Profile / UserProfileModal / Search category switchers.
-export function TabBar({ tabs, active, onChange, className = "" }) {
+// `scrollable` : une seule ligne qu'on fait défiler du doigt / à la molette quand les onglets ne tiennent pas (Paramètres : 6 à 8 onglets sur un téléphone) ;
+// l'onglet actif est ramené dans la vue. Sans cette option, rien ne change (les autres pages gardent leur barre d'origine).
+export function TabBar({ tabs, active, onChange, className = "", scrollable = false }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if(!scrollable) return;
+    ref.current?.querySelector('[data-active="true"]')?.scrollIntoView?.({ block: "nearest", inline: "center" });
+  }, [active, scrollable]);
   return (
-    <div className={`flex gap-1 border-b border-white/6 ${className}`}>
+    <div ref={ref} role={scrollable ? "tablist" : undefined}
+      className={`flex gap-1 border-b border-white/6 ${scrollable ? "overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" : ""} ${className}`}>
       {tabs.map(t => {
         const isActive = active === t.id;
         return (
-          <button key={t.id} onClick={() => onChange(t.id)}
-            className="relative flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-bold transition"
+          <button key={t.id} onClick={() => onChange(t.id)} data-active={isActive ? "true" : undefined} role={scrollable ? "tab" : undefined} aria-selected={scrollable ? isActive : undefined}
+            className={`relative flex items-center gap-1.5 py-2.5 text-[13px] font-bold transition ${scrollable ? "shrink-0 whitespace-nowrap px-3" : "px-4"}`}
             style={{ color: isActive ? "var(--text-1)" : "var(--text-4)" }}>
             {t.emoji && <span className={isActive ? "" : "opacity-50 grayscale"}>{t.emoji}</span>}
             {t.label}

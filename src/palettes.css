@@ -4180,7 +4180,7 @@ html[data-palette="mocha"][data-theme="light"] {
 }
 
 /* ─── LISIBILITÉ EN THÈME CLAIR — textes d'accent pâles assombris ───────────────────────────────────────────────
-   Généré par scripts/palettes/lighttext.mjs : 256 couleurs de texte pâles (contraste < 4.5 sur le fond clair) sont assombries
+   Généré par scripts/palettes/lighttext.mjs : 259 couleurs de texte pâles (contraste < 4.5 sur le fond clair) sont assombries
    (même teinte, clarté réduite pour atteindre 4.9 ; opacité relevée à 0.8 au moins pour les textes semi-transparents)
    quand <html data-theme="light"> ; le thème sombre n'est pas touché.
    --lt-keep: 1 (hérité) désactive tout cela à l'intérieur d'un îlot sombre. */
@@ -4589,8 +4589,12 @@ html[data-palette="mocha"][data-theme="light"] {
 :root[data-theme="light"] :is([style^="color: rgba(239, 68, 68, 0.7)"],[style*=" color: rgba(239, 68, 68, 0.7)"]) { color: oklch(from rgb(239 68 68) calc(l * (0.6 + 0.4 * var(--lt-keep, 0))) c h / calc(0.8 + -0.1 * var(--lt-keep, 0))) !important; }
 /* rgba(245, 158, 11, 0.1) */
 :root[data-theme="light"] :is([style^="color: rgba(245, 158, 11, 0.1)"],[style*=" color: rgba(245, 158, 11, 0.1)"]) { color: oklch(from rgb(245 158 11) calc(l * (0.42 + 0.58 * var(--lt-keep, 0))) c h / calc(0.8 + -0.7 * var(--lt-keep, 0))) !important; }
+/* rgba(245, 158, 11, 0.3) */
+:root[data-theme="light"] :is([style^="color: rgba(245, 158, 11, 0.3)"],[style*=" color: rgba(245, 158, 11, 0.3)"]) { color: oklch(from rgb(245 158 11) calc(l * (0.42 + 0.58 * var(--lt-keep, 0))) c h / calc(0.8 + -0.5 * var(--lt-keep, 0))) !important; }
 /* rgba(245, 158, 11, 0.32) */
 :root[data-theme="light"] :is([style^="color: rgba(245, 158, 11, 0.32)"],[style*=" color: rgba(245, 158, 11, 0.32)"]) { color: oklch(from rgb(245 158 11) calc(l * (0.42 + 0.58 * var(--lt-keep, 0))) c h / calc(0.8 + -0.48 * var(--lt-keep, 0))) !important; }
+/* rgba(245, 158, 11, 0.35) */
+:root[data-theme="light"] :is([style^="color: rgba(245, 158, 11, 0.35)"],[style*=" color: rgba(245, 158, 11, 0.35)"]) { color: oklch(from rgb(245 158 11) calc(l * (0.42 + 0.58 * var(--lt-keep, 0))) c h / calc(0.8 + -0.45 * var(--lt-keep, 0))) !important; }
 /* rgba(248, 113, 113, 0.1) */
 :root[data-theme="light"] :is([style^="color: rgba(248, 113, 113, 0.1)"],[style*=" color: rgba(248, 113, 113, 0.1)"]) { color: oklch(from rgb(248 113 113) calc(l * (0.53 + 0.47 * var(--lt-keep, 0))) c h / calc(0.8 + -0.7 * var(--lt-keep, 0))) !important; }
 /* rgba(248, 113, 113, 0.28) */
@@ -4641,6 +4645,8 @@ html[data-palette="mocha"][data-theme="light"] {
 :root[data-theme="light"] :is([style^="color: rgba(var(--ac-8b5cf6),0.05)"],[style*=" color: rgba(var(--ac-8b5cf6),0.05)"]) { color: oklch(from rgb(var(--ac-8b5cf6)) calc(l * (0.64 + 0.36 * var(--lt-keep, 0))) c h / calc(0.8 + -0.75 * var(--lt-keep, 0))) !important; }
 /* rgba(var(--ac-8b5cf6),0.08) */
 :root[data-theme="light"] :is([style^="color: rgba(var(--ac-8b5cf6),0.08)"],[style*=" color: rgba(var(--ac-8b5cf6),0.08)"]) { color: oklch(from rgb(var(--ac-8b5cf6)) calc(l * (0.64 + 0.36 * var(--lt-keep, 0))) c h / calc(0.8 + -0.72 * var(--lt-keep, 0))) !important; }
+/* rgba(var(--ac-8b5cf6),0.1) */
+:root[data-theme="light"] :is([style^="color: rgba(var(--ac-8b5cf6),0.1)"],[style*=" color: rgba(var(--ac-8b5cf6),0.1)"]) { color: oklch(from rgb(var(--ac-8b5cf6)) calc(l * (0.64 + 0.36 * var(--lt-keep, 0))) c h / calc(0.8 + -0.7 * var(--lt-keep, 0))) !important; }
 /* rgba(var(--ac-8b5cf6),0.14) */
 :root[data-theme="light"] :is([style^="color: rgba(var(--ac-8b5cf6),0.14)"],[style*=" color: rgba(var(--ac-8b5cf6),0.14)"]) { color: oklch(from rgb(var(--ac-8b5cf6)) calc(l * (0.64 + 0.36 * var(--lt-keep, 0))) c h / calc(0.8 + -0.66 * var(--lt-keep, 0))) !important; }
 /* rgba(var(--ac-8b5cf6),0.15) */
