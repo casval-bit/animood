@@ -4,6 +4,7 @@ import { GLASS, GLASS_STYLE } from "../constants/theme.js";
 import { StarRatingDisplay, QuickActionIcons } from "./ui.jsx";
 import { useLang } from "../context/useLang.js";
 import { ANIME_CARD_I18N } from "../constants/animeCardI18n.js";
+import { quickProps } from "../utils/quickActions.js";
 
 const FALLBACK_IMG = "https://placehold.co/300x450/1a1a2e/818cf8?text=?";
 
@@ -23,6 +24,7 @@ export function AnimeCard({ anime, onClick, statusDot, moodPts, className = "", 
 
   return (
     <div
+      {...quickProps(anime.mal_id)}
       role="button" tabIndex={0}
       onClick={() => onClick?.(anime)}
       onKeyDown={e => { if(e.key==="Enter"||e.key===" ") { e.preventDefault(); onClick?.(anime); } }}
@@ -92,6 +94,7 @@ export function AnimePoster({ anime, onClick, statusDot, empty, onEmptyClick, lo
   const img = anime ? posterUrl(anime) : null;
   return (
     <button
+      {...quickProps(anime?.mal_id)}
       onClick={() => anime && onClick?.(anime)}
       className="group relative aspect-2/3 overflow-hidden rounded-xl border border-white/8 bg-white/4 transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:shadow-[0_10px_30px_rgba(0,0,0,.4)]"
     >

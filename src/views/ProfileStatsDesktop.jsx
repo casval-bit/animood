@@ -2,12 +2,16 @@
 // Même langage visuel que la page principale du profil (cartes HUD, barres brillantes), nouvelle structure :
 //   chiffres-clés → distribution des notes → note par année + humeurs → ta liste / formats → genres (barres + radar)
 //   → classements (studios, voix, réalisateurs) → écart avec la communauté.
+// Appli de bureau seulement : après « ta liste / formats », trois cartes en plus (views/ProfileStatsExtras.jsx) — calendrier d'activité,
+// goût grand public ou de niche, santé de la watchlist.
 import { useMemo, useState } from "react";
 import { useLang } from "../context/useLang.js";
 import { STATUS_COLORS, getStatusLabel } from "../constants/statuses.js";
 import { HudCard, HudTitle, HudChip, HudKpi, GlossBars } from "./profileHud.jsx";
+import { ActivityCard, ObscurityCard, WatchlistCard } from "./ProfileStatsExtras.jsx";
 import { useHudCss } from "./hudCss.js";
 import { withAlpha } from "../utils/withAlpha.js";
+import { isDesktopApp } from "../utils/streamingLinks.js";
 
 const MOOD_META = {
   emotional:{emoji:"💔",color:"#A78BFA",fr:"Émouvant",en:"Emotional"},
@@ -270,9 +274,10 @@ function DeltaList({ rows, positive, onOpen, tr }) {
 }
 
 // ── Onglet ────────────────────────────────────────────────────────────────────────────────────────────
-export function ProfileStatsDesktop({ statsData, ratings, watched, statuses, onOpenDetail }) {
+export function ProfileStatsDesktop({ statsData, ratings, watched, statuses, onOpenDetail, username }) {
   useHudCss();
   const { lang } = useLang();
+  const desktop = isDesktopApp();   // les cartes en plus ne sont pas sur le site web
   const en = lang === "en";
   const tr = (fr, e) => (en ? e : fr);
   const [moodSort, setMoodSort] = useState("count");
@@ -390,6 +395,11 @@ export function ProfileStatsDesktop({ statsData, ratings, watched, statuses, onO
           {typeSlices.length ? <Segmented slices={typeSlices} /> : <div style={{ fontSize: 11, color: "rgba(148,163,184,.5)" }}>—</div>}
         </HudCard>
       </div>
+
+      {/* 4 bis — Calendrier d'activité · grand public ou de niche · santé de la watchlist (appli de bureau) */}
+      {desktop && username && <ActivityCard username={username} />}
+      {desktop && <ObscurityCard rows={D.popRows} onOpenDetail={onOpenDetail} />}
+      {desktop && <WatchlistCard statuses={statuses} onOpenDetail={onOpenDetail} />}
 
       {/* 5 — Genres : barres + radar */}
       {D.topGenres?.length > 0 && (

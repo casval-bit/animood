@@ -305,3 +305,22 @@ html[data-app="desktop"] [data-titlebar] :is(button, a, input, select, textarea,
   50%      { opacity: 1; transform: scale(1.015); }
 }
 .animate-glow-breathe { animation: glow-breathe 2.5s ease-in-out infinite; }
+
+/* Carte de survol des affiches (components/QuickCardHost.jsx) : elle apparaît du côté de l'affiche, en un souffle. */
+@keyframes quick-pop {
+  from { opacity: 0; transform: translateX(var(--quick-dx, 0)) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+html[data-app="desktop"] .quick-card { animation: quick-pop .14s ease-out both; transform-origin: top left; }
+html[data-app="desktop"] .quick-card[data-side="right"] { --quick-dx: -8px; }
+html[data-app="desktop"] .quick-card[data-side="left"]  { --quick-dx: 8px; transform-origin: top right; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-app="desktop"] .quick-card { animation: none; }
+}
+
+/* Compatibilité (components/CompatibilityPanel.jsx) : la jauge se remplit à l'ouverture. */
+@keyframes compat-fill { from { stroke-dasharray: 0 400; } }
+html[data-app="desktop"] .compat-gauge-arc { animation: compat-fill .9s cubic-bezier(.22, 1, .36, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-app="desktop"] .compat-gauge-arc { animation: none; }
+}

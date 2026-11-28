@@ -52,6 +52,7 @@ const OVERLAYS = {                               // fenêtres : leur racine doit
 const OTHERS = {                                 // pas des fenêtres plein écran : boutons de fenêtre, bandeau de mise à jour, notifications
   "components/DesktopWindowControls.jsx": 1,
   "components/DesktopUpdateBanner.jsx": 1,
+  "components/QuickCardHost.jsx": 1,             // carte de survol des affiches : jamais sous les 92 px de l'en-tête, ne recouvre pas la zone de déplacement
   "views/GamesView.jsx": 1,
   "views/ForumView.jsx": 1,
 };

@@ -110,6 +110,21 @@ L'export PNG de la Tierlist relit les affiches : les serveurs d'images (MyAnimeL
 
 ---
 
+## 🖥️ Appli de bureau : carte de survol, compatibilité, tickets, stats en plus
+
+Tout ce bloc est **réservé à l'appli de bureau** (`isDesktopApp()` de `src/utils/streamingLinks.js`) : le site web et l'APK ne montrent rien de tout cela et n'envoient aucune requête en plus. **Aucun SQL à lancer** : tout lit des tables et colonnes qui existent déjà (`anime_cache`, `user_votes.voted_at`, `profiles`).
+
+- **Carte de survol des affiches** — `components/QuickCardHost.jsx` (une seule instance, montée dans `App.jsx`). Une affiche s'y signale avec `{...quickProps(anime.mal_id)}` (attribut `data-quick-anime`, `utils/quickActions.js`) : **toute nouvelle affiche doit le porter** pour avoir la carte. Minutage (arrêt d'environ 0,4 s, passage d'une affiche à l'autre, délai de grâce) : `utils/hoverIntent.js` ; changements du profil (vu, note, statut, liste…) : `utils/quickActions.js` ; note enregistrée dans `user_votes` comme par la fiche animé : `utils/userVoteRequest.js` + `api/userVotes.js`. La carte est un îlot sombre (`data-keep-bright`), lisible dans les deux thèmes, et ne recouvre jamais l'en-tête : `tests/desktopWindow.test.mjs` la range dans `OTHERS` (ce n'est pas une fenêtre plein écran). Tests : `tests/quickcard.test.mjs`.
+- **Compatibilité entre deux membres** — bouton « 🤝 Compatibilité » du profil d'un membre (`views/UserProfileModal.jsx`) → `components/CompatibilityPanel.jsx`. Le calcul est **pur** (`utils/compatibility.js`, `tests/compatibility.test.mjs`) : moyenne pondérée de 4 ingrédients (notes 40 %, bibliothèque 20 %, genres 25 %, favoris 15 %), tirée vers 50 quand la plus petite bibliothèque a moins de 25 animés, symétrique (A↔B). Fiches des animés (genres, studios, affiches) : `api/animeMeta.js`, par lots de 100, gardées en mémoire pour la session. Textes : `constants/compatI18n.js`.
+- **Tickets à partager** — bouton « 🎟️ Ticket » de la fiche animé et du profil → `components/ShareTicketModal.jsx` (chargé à la demande). Carte de **700 px de large** à couleurs fixes (`data-keep-bright` : identique en thème clair), dessinée en PNG par `utils/posterExport.js` (échelle 2, soit 1 400 px) : télécharger, copier, partager (quand le système sait partager un fichier). Mise en forme : `utils/shareTicket.js` (pur, `tests/shareTicket.test.mjs`) ; textes : `constants/shareTicketI18n.js`. La fenêtre est un `Modal` ordinaire : pas de `position: fixed` à elle.
+- **Cartes en plus de Profil → Stats** — `views/ProfileStatsExtras.jsx`, branchées dans `views/ProfileStatsDesktop.jsx` (après « Formats regardés », seulement dans l'appli de bureau) :
+  - *calendrier d'activité* : les dates viennent de `user_votes.voted_at`, qui garde **la date de la dernière note de chaque animé** (pas l'historique complet). Lecture par pages de 1 000, 3 pages au plus donc les 3 000 notes les plus récentes (`api/voteActivity.js` + `utils/pagedRead.js`) ; jours comptés à l'heure de l'ordinateur ; une série en cours reste en vie jusqu'à la fin de la journée (`utils/statsExtras.js`) ;
+  - *grand public ou de niche* : rang de popularité MyAnimeList (`anime_cache.popularity`) lu avec les autres fiches de l'onglet par `views/ProfileView.jsx` (`popRows`) ; échelle logarithmique du rang 30 (0 sur 100) au rang 15 000 (100 sur 100), appliquée au **rang médian** ;
+  - *santé de la watchlist* : fiches des animés « à voir » (`api/animeMeta.js`) ; durée = épisodes × durée d'un épisode ; une série encore en cours de diffusion (épisodes inconnus) n'est pas comptée ; « coup rapide » = 5 h ou moins, « marathon » = 25 h ou plus.
+  Textes : `constants/statsExtrasI18n.js`. Tests : `tests/statsExtras.test.mjs`.
+
+---
+
 ## 💡 Bon à savoir
 
 - L'appli lit les moods dans `mood_pts_v4`, mais `scripts/sync_new_moods.mjs` (workflow hebdo) écrit encore dans `mood_pts_v2`. `animood_sync.mjs --job=moods` écrit bien dans `mood_pts_v4`.

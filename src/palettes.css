@@ -4180,7 +4180,7 @@ html[data-palette="mocha"][data-theme="light"] {
 }
 
 /* ─── LISIBILITÉ EN THÈME CLAIR — textes d'accent pâles assombris ───────────────────────────────────────────────
-   Généré par scripts/palettes/lighttext.mjs : 262 couleurs de texte pâles (contraste < 4.5 sur le fond clair) sont assombries
+   Généré par scripts/palettes/lighttext.mjs : 269 couleurs de texte pâles (contraste < 4.5 sur le fond clair) sont assombries
    (même teinte, clarté réduite pour atteindre 4.9 ; opacité relevée à 0.8 au moins pour les textes semi-transparents)
    quand <html data-theme="light"> ; le thème sombre n'est pas touché.
    --lt-keep: 1 (hérité) désactive tout cela à l'intérieur d'un îlot sombre. */
@@ -4529,6 +4529,8 @@ html[data-palette="mocha"][data-theme="light"] {
 :root[data-theme="light"] :is(.text-red-400\/80) { color: oklch(from var(--color-red-400) calc(l * (0.54 + 0.46 * var(--lt-keep, 0))) c h / calc(0.8 + 0 * var(--lt-keep, 0))) !important; }
 /* text-red-500 */
 :root[data-theme="light"] :is(.text-red-500) { color: oklch(from var(--color-red-500) calc(l * (0.7 + 0.3 * var(--lt-keep, 0))) c h) !important; }
+/* text-rose-400 */
+:root[data-theme="light"] :is(.text-rose-400) { color: oklch(from var(--color-rose-400) calc(l * (0.63 + 0.37 * var(--lt-keep, 0))) c h) !important; }
 /* text-violet-200 */
 :root[data-theme="light"] :is(.text-violet-200) { color: oklch(from var(--color-violet-200) calc(l * (0.48 + 0.52 * var(--lt-keep, 0))) c h) !important; }
 /* text-violet-300 */
@@ -4571,6 +4573,8 @@ html[data-palette="mocha"][data-theme="light"] {
 :root[data-theme="light"] :is([style^="color: rgba(148, 163, 184, 0.8)"],[style*=" color: rgba(148, 163, 184, 0.8)"]) { color: oklch(from rgb(148 163 184) calc(l * (0.44 + 0.56 * var(--lt-keep, 0))) c h / calc(0.8 + 0 * var(--lt-keep, 0))) !important; }
 /* rgba(148, 163, 184, 0.85) */
 :root[data-theme="light"] :is([style^="color: rgba(148, 163, 184, 0.85)"],[style*=" color: rgba(148, 163, 184, 0.85)"]) { color: oklch(from rgb(148 163 184) calc(l * (0.49 + 0.51 * var(--lt-keep, 0))) c h / calc(0.85 + 0 * var(--lt-keep, 0))) !important; }
+/* rgba(226, 232, 240, 0.88) */
+:root[data-theme="light"] :is([style^="color: rgba(226, 232, 240, 0.88)"],[style*=" color: rgba(226, 232, 240, 0.88)"]) { color: oklch(from rgb(226 232 240) calc(l * (0.39 + 0.61 * var(--lt-keep, 0))) c h / calc(0.88 + 0 * var(--lt-keep, 0))) !important; }
 /* rgba(239, 68, 68, 0.09) */
 :root[data-theme="light"] :is([style^="color: rgba(239, 68, 68, 0.09)"],[style*=" color: rgba(239, 68, 68, 0.09)"]) { color: oklch(from rgb(239 68 68) calc(l * (0.6 + 0.4 * var(--lt-keep, 0))) c h / calc(0.8 + -0.71 * var(--lt-keep, 0))) !important; }
 /* rgba(239, 68, 68, 0.1) */
@@ -4603,6 +4607,8 @@ html[data-palette="mocha"][data-theme="light"] {
 :root[data-theme="light"] :is([style^="color: rgba(248, 113, 113, 0.1)"],[style*=" color: rgba(248, 113, 113, 0.1)"]) { color: oklch(from rgb(248 113 113) calc(l * (0.53 + 0.47 * var(--lt-keep, 0))) c h / calc(0.8 + -0.7 * var(--lt-keep, 0))) !important; }
 /* rgba(248, 113, 113, 0.28) */
 :root[data-theme="light"] :is([style^="color: rgba(248, 113, 113, 0.28)"],[style*=" color: rgba(248, 113, 113, 0.28)"]) { color: oklch(from rgb(248 113 113) calc(l * (0.53 + 0.47 * var(--lt-keep, 0))) c h / calc(0.8 + -0.52 * var(--lt-keep, 0))) !important; }
+/* rgba(251, 191, 36, 0.1) */
+:root[data-theme="light"] :is([style^="color: rgba(251, 191, 36, 0.1)"],[style*=" color: rgba(251, 191, 36, 0.1)"]) { color: oklch(from rgb(251 191 36) calc(l * (0.38 + 0.62 * var(--lt-keep, 0))) c h / calc(0.8 + -0.7 * var(--lt-keep, 0))) !important; }
 /* rgba(251, 191, 36, 0.4) */
 :root[data-theme="light"] :is([style^="color: rgba(251, 191, 36, 0.4)"],[style*=" color: rgba(251, 191, 36, 0.4)"]) { color: oklch(from rgb(251 191 36) calc(l * (0.38 + 0.62 * var(--lt-keep, 0))) c h / calc(0.8 + -0.4 * var(--lt-keep, 0))) !important; }
 /* rgba(251, 191, 36, 0.85) */
@@ -4619,6 +4625,8 @@ html[data-palette="mocha"][data-theme="light"] {
 :root[data-theme="light"] :is([style^="color: rgba(34, 197, 94, 0.45)"],[style*=" color: rgba(34, 197, 94, 0.45)"]) { color: oklch(from rgb(34 197 94) calc(l * (0.43 + 0.57 * var(--lt-keep, 0))) c h / calc(0.8 + -0.35 * var(--lt-keep, 0))) !important; }
 /* rgba(var(--ac-4f46e5),0.14) */
 :root[data-theme="light"] :is([style^="color: rgba(var(--ac-4f46e5),0.14)"],[style*=" color: rgba(var(--ac-4f46e5),0.14)"]) { color: oklch(from rgb(var(--ac-4f46e5)) calc(l * (0.75 + 0.25 * var(--lt-keep, 0))) c h / calc(0.8 + -0.66 * var(--lt-keep, 0))) !important; }
+/* rgba(var(--ac-6d28d9),0.18) */
+:root[data-theme="light"] :is([style^="color: rgba(var(--ac-6d28d9),0.18)"],[style*=" color: rgba(var(--ac-6d28d9),0.18)"]) { color: oklch(from rgb(var(--ac-6d28d9)) calc(l * (0.79 + 0.21 * var(--lt-keep, 0))) c h / calc(0.8 + -0.62 * var(--lt-keep, 0))) !important; }
 /* rgba(var(--ac-6d5bff),.35) */
 :root[data-theme="light"] :is([style^="color: rgba(var(--ac-6d5bff),.35)"],[style*=" color: rgba(var(--ac-6d5bff),.35)"]) { color: oklch(from rgb(var(--ac-6d5bff)) calc(l * (0.67 + 0.33 * var(--lt-keep, 0))) c h / calc(0.8 + -0.45 * var(--lt-keep, 0))) !important; }
 /* rgba(var(--ac-7c3aed),0.08) */
@@ -4643,6 +4651,8 @@ html[data-palette="mocha"][data-theme="light"] {
 :root[data-theme="light"] :is([style^="color: rgba(var(--ac-7c3aed),0.4)"],[style*=" color: rgba(var(--ac-7c3aed),0.4)"]) { color: oklch(from rgb(var(--ac-7c3aed)) calc(l * (0.71 + 0.29 * var(--lt-keep, 0))) c h / calc(0.8 + -0.4 * var(--lt-keep, 0))) !important; }
 /* rgba(var(--ac-818cf8),0.1) */
 :root[data-theme="light"] :is([style^="color: rgba(var(--ac-818cf8),0.1)"],[style*=" color: rgba(var(--ac-818cf8),0.1)"]) { color: oklch(from rgb(var(--ac-818cf8)) calc(l * (0.5 + 0.5 * var(--lt-keep, 0))) c h / calc(0.8 + -0.7 * var(--lt-keep, 0))) !important; }
+/* rgba(var(--ac-818cf8),0.14) */
+:root[data-theme="light"] :is([style^="color: rgba(var(--ac-818cf8),0.14)"],[style*=" color: rgba(var(--ac-818cf8),0.14)"]) { color: oklch(from rgb(var(--ac-818cf8)) calc(l * (0.5 + 0.5 * var(--lt-keep, 0))) c h / calc(0.8 + -0.66 * var(--lt-keep, 0))) !important; }
 /* rgba(var(--ac-818cf8),0.15) */
 :root[data-theme="light"] :is([style^="color: rgba(var(--ac-818cf8),0.15)"],[style*=" color: rgba(var(--ac-818cf8),0.15)"]) { color: oklch(from rgb(var(--ac-818cf8)) calc(l * (0.5 + 0.5 * var(--lt-keep, 0))) c h / calc(0.8 + -0.65 * var(--lt-keep, 0))) !important; }
 /* rgba(var(--ac-818cf8),0.3) */
@@ -4673,6 +4683,8 @@ html[data-palette="mocha"][data-theme="light"] {
 :root[data-theme="light"] :is([style^="color: rgba(var(--ac-8b5cf6),0.35)"],[style*=" color: rgba(var(--ac-8b5cf6),0.35)"]) { color: oklch(from rgb(var(--ac-8b5cf6)) calc(l * (0.64 + 0.36 * var(--lt-keep, 0))) c h / calc(0.8 + -0.45 * var(--lt-keep, 0))) !important; }
 /* rgba(var(--ac-8b5cf6),0.38) */
 :root[data-theme="light"] :is([style^="color: rgba(var(--ac-8b5cf6),0.38)"],[style*=" color: rgba(var(--ac-8b5cf6),0.38)"]) { color: oklch(from rgb(var(--ac-8b5cf6)) calc(l * (0.64 + 0.36 * var(--lt-keep, 0))) c h / calc(0.8 + -0.42 * var(--lt-keep, 0))) !important; }
+/* rgba(var(--ac-8b5cf6),0.4) */
+:root[data-theme="light"] :is([style^="color: rgba(var(--ac-8b5cf6),0.4)"],[style*=" color: rgba(var(--ac-8b5cf6),0.4)"]) { color: oklch(from rgb(var(--ac-8b5cf6)) calc(l * (0.64 + 0.36 * var(--lt-keep, 0))) c h / calc(0.8 + -0.4 * var(--lt-keep, 0))) !important; }
 /* rgba(var(--ac-8b5cf6),0.7) */
 :root[data-theme="light"] :is([style^="color: rgba(var(--ac-8b5cf6),0.7)"],[style*=" color: rgba(var(--ac-8b5cf6),0.7)"]) { color: oklch(from rgb(var(--ac-8b5cf6)) calc(l * (0.64 + 0.36 * var(--lt-keep, 0))) c h / calc(0.8 + -0.1 * var(--lt-keep, 0))) !important; }
 /* rgba(var(--ac-8b5cf6),0.85) */
@@ -4693,6 +4705,8 @@ html[data-palette="mocha"][data-theme="light"] {
 :root[data-theme="light"] :is([style^="color: rgba(var(--ac-a78bfa),0.85)"],[style*=" color: rgba(var(--ac-a78bfa),0.85)"]) { color: oklch(from rgb(var(--ac-a78bfa)) calc(l * (0.53 + 0.47 * var(--lt-keep, 0))) c h / calc(0.85 + 0 * var(--lt-keep, 0))) !important; }
 /* rgba(var(--ac-a79bcd),0.6) */
 :root[data-theme="light"] :is([style^="color: rgba(var(--ac-a79bcd),0.6)"],[style*=" color: rgba(var(--ac-a79bcd),0.6)"]) { color: oklch(from rgb(var(--ac-a79bcd)) calc(l * (0.44 + 0.56 * var(--lt-keep, 0))) c h / calc(0.8 + -0.2 * var(--lt-keep, 0))) !important; }
+/* rgba(var(--ac-a855f7),0.45) */
+:root[data-theme="light"] :is([style^="color: rgba(var(--ac-a855f7),0.45)"],[style*=" color: rgba(var(--ac-a855f7),0.45)"]) { color: oklch(from rgb(var(--ac-a855f7)) calc(l * (0.61 + 0.39 * var(--lt-keep, 0))) c h / calc(0.8 + -0.35 * var(--lt-keep, 0))) !important; }
 /* rgba(var(--ac-a855f7),0.5) */
 :root[data-theme="light"] :is([style^="color: rgba(var(--ac-a855f7),0.5)"],[style*=" color: rgba(var(--ac-a855f7),0.5)"]) { color: oklch(from rgb(var(--ac-a855f7)) calc(l * (0.61 + 0.39 * var(--lt-keep, 0))) c h / calc(0.8 + -0.3 * var(--lt-keep, 0))) !important; }
 /* rgba(var(--ac-bac4de),0.72) */

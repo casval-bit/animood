@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useApp } from "../context/useApp.js";
 import { useLang } from "../context/useLang.js";
 import { useSound } from "../context/SoundContext.jsx";
@@ -29,6 +29,10 @@ import { useHudCss } from "./hudCss.js";
 import { ProfileListsDesktop } from "./ProfileListsDesktop.jsx";
 import { ProfileStatsDesktop } from "./ProfileStatsDesktop.jsx";
 import { withAlpha } from "../utils/withAlpha.js";
+import { SHARE_TICKET_I18N } from "../constants/shareTicketI18n.js";
+
+// Ticket de profil à partager (appli de bureau) : chargé seulement quand on l'ouvre (il embarque html2canvas pour l'export en image)
+const ShareTicketModal = lazy(() => import("../components/ShareTicketModal.jsx").then((m) => ({ default: m.ShareTicketModal })));
 
 // ─── PERSONAL MOOD RADAR ──────────────────────────────────────────────────────
 function PersonalMoodRadar({ ratings, watched, bare = false }) {
@@ -855,6 +859,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
   const { lang } = useLang();
   const { playSound } = useSound();
   const t = PROFILE_I18N[lang] || PROFILE_I18N.fr;
+  const tt = SHARE_TICKET_I18N[lang] || SHARE_TICKET_I18N.fr;
   const desktop = isDesktopApp();
   const hud = true; // style « HUD » des onglets Journal / Listes / Posts / Stats : appli de bureau ET site web
   const AVATAR = 132; // photo de profil (les cadres s'adaptent à cette taille)
@@ -904,6 +909,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
   });
   const [showSpotlightPicker, setShowSpotlightPicker] = useState(false);
   const [showFramePicker, setShowFramePicker] = useState(false);
+  const [ticketOpen, setTicketOpen] = useState(false);
   const gamePts = useGamePoints(desktop ? null : myUsername); // desktop : le total est déjà lu par le HudPanel
   // « En boucle » est synchronisé site <-> appli de bureau via la colonne profiles.spotlight
   // (supabase/profile_spotlight.sql, à exécuter une fois). Sans la colonne : mémorisation locale seulement.
@@ -1032,6 +1038,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
         let totalEpisodes = 0;
         // Nouvelles stats (affichage bureau) : formats, temps de visionnage, écart avec la note de la communauté
         const typeCounts = {}; let totalMinutes = 0; const deltaRows = [];
+        const popRows = []; // rang de popularité MAL de chaque animé vu (carte « grand public ou de niche », appli de bureau)
         const durMinutes = (a) => {
           const m = String(a.duration||"").toLowerCase();
           const h = /(\d+)\s*hr/.exec(m), mn = /(\d+)\s*min/.exec(m);
@@ -1045,7 +1052,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
         for(const chunk of chunks) {
           try {
             const [animeRows, moodRows] = await Promise.all([
-              sb.query(`anime_cache?mal_id=in.(${chunk.join(",")})&select=mal_id,type,title,title_en,image_url,score,duration,genres,studios,characters,staff,episodes,year&limit=${chunk.length}`),
+              sb.query(`anime_cache?mal_id=in.(${chunk.join(",")})&select=mal_id,type,title,title_en,image_url,score,duration,genres,studios,characters,staff,episodes,year,popularity&limit=${chunk.length}`),
               sb.query(`mood_pts_v4?mal_id=in.(${chunk.join(",")})&select=mal_id,${MOOD_KEYS.join(",")}&limit=${chunk.length}`),
             ]);
 
@@ -1060,6 +1067,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
               const perEp = durMinutes(a) || (a.type === "Movie" ? 100 : 24);
               if(eps0 > 0) totalMinutes += eps0 * perEp;
               if(userScore0 && a.score) deltaRows.push({ id:a.mal_id, title:a.title_en||a.title, img:a.image_url, user:userScore0, mal:a.score, delta:userScore0-a.score, type:a.type });
+              if(a.popularity > 0) popRows.push({ id:a.mal_id, title:a.title||a.title_en, img:a.image_url, pop:a.popularity, type:a.type, score:a.score });
 
               if(a.type && a.type !== "TV") return;
               const userScore = userScore0;
@@ -1152,7 +1160,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
           up:   deltaRows.filter(r=>r.delta>=1).sort((a,b)=>b.delta-a.delta).slice(0,5),
           down: deltaRows.filter(r=>r.delta<=-1).sort((a,b)=>a.delta-b.delta).slice(0,5),
         };
-        setStatsData({ topGenres, topStudios, topVAs, topDirectors, moodAvgData, yearCurve, totalEpisodes, typeCounts, totalMinutes, deltas });
+        setStatsData({ topGenres, topStudios, topVAs, topDirectors, moodAvgData, yearCurve, totalEpisodes, typeCounts, totalMinutes, deltas, popRows });
       } catch(e) { console.error(e); }
       setStatsLoading(false);
     })();
@@ -1401,6 +1409,15 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
               <span className="text-[13px] font-black text-slate-100">{followingCount}</span>
               <span className="text-[11px] text-slate-500">{t.followingLabel(followingCount)}</span>
             </button>
+            {desktop && (
+              <>
+                <div className="w-px h-3 bg-white/10"/>
+                <button type="button" onClick={() => { playSound("click"); setTicketOpen(true); }} data-ticket-open="profile" title={tt.buttonTitleProfile}
+                  className="flex items-center gap-1 text-[11px] font-bold text-slate-400 transition hover:text-violet-300">
+                  <span aria-hidden="true">🎟️</span>{tt.button}
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -1977,7 +1994,7 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
           <EmptyState emoji="📊" title={t.noStatsTitle} />
         ) : (
           hud
-            ? <ProfileStatsDesktop statsData={statsData} ratings={me.ratings} watched={me.watched} statuses={me.statuses||{}} onOpenDetail={onOpenDetail}/>
+            ? <ProfileStatsDesktop statsData={statsData} ratings={me.ratings} watched={me.watched} statuses={me.statuses||{}} onOpenDetail={onOpenDetail} username={myUsername}/>
             : <StatsTab statsData={statsData} ratings={me.ratings} watched={me.watched}/>
         )
       )}
@@ -1996,6 +2013,11 @@ export function ProfileView({ onOpenDetail, onOpenSettings, onOpenUser }) {
       )}
       {followListMode && (
         <FollowListModal username={myUsername} mode={followListMode} onClose={() => setFollowListMode(null)} onOpenUser={onOpenUser} />
+      )}
+      {ticketOpen && desktop && (
+        <Suspense fallback={null}>
+          <ShareTicketModal kind="profile" badge={activeBadge} onClose={() => setTicketOpen(false)} />
+        </Suspense>
       )}
     </div>
   );

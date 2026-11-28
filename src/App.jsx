@@ -47,6 +47,7 @@ const ProfileView      = lazyNamed(() => import("./views/ProfileView.jsx"), "Pro
 const UserProfileModal = lazyNamed(() => import("./views/UserProfileModal.jsx"), "UserProfileModal");
 const SettingsView     = lazyNamed(() => import("./views/SettingsView.jsx"), "SettingsView");
 const AwardsHub        = lazyNamed(() => import("./components/awards/AwardsHub.jsx"), "AwardsHub");   // espace AniMood 2026 (tierlist, grille, top 3)
+const QuickCardHost    = lazyNamed(() => import("./components/QuickCardHost.jsx"), "QuickCardHost");  // carte de survol des affiches (appli de bureau uniquement)
 
 // ── Static Pages ──────────────────────────────────────────────────────────────
 function PageWrapper({ title, onClose, children }) {
@@ -918,6 +919,8 @@ function Shell() {
         {showSettings && <SettingsView initialCategory={settingsCat} onClose={() => setShowSettings(false)} />}
 
         {showAwards && <AwardsHub onClose={() => setShowAwards(false)} />}
+
+        {desktop && <QuickCardHost onOpenDetail={openDetail} />}
 
         {detailAnime && (
           <AnimeDetailModal

@@ -17,10 +17,13 @@ import { Modal } from "../components/Modal.jsx";
 import { ChatModal } from "../components/ChatModal.jsx";
 import { FollowListModal } from "../components/FollowListModal.jsx";
 import { TabBar } from "../components/ui.jsx";
+import { CompatibilityPanel } from "../components/CompatibilityPanel.jsx";
 import { canViewProfile } from "../utils/profilePrivacy.js";
+import { isDesktopApp } from "../utils/streamingLinks.js";
 import { GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constants/theme.js";
 import { USER_PROFILE_MODAL_I18N } from "../constants/userProfileModalI18n.js";
 import { COMMON_I18N } from "../constants/commonI18n.js";
+import { COMPAT_I18N } from "../constants/compatI18n.js";
 
 const getTabs = (t) => [
   {id:"profile", label:t.tabProfile},
@@ -43,11 +46,14 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
   const { lang } = useLang();
   const t = USER_PROFILE_MODAL_I18N[lang] || USER_PROFILE_MODAL_I18N.fr;
   const tc = COMMON_I18N[lang] || COMMON_I18N.fr;
+  const tcompat = COMPAT_I18N[lang] || COMPAT_I18N.fr;
+  const desktop = isDesktopApp();                       // la compatibilité n'existe que dans l'appli de bureau
   const TABS = getTabs(t);
   const isOwnProfile = myUsername === username.toLowerCase();
   const isBlocked = blockedUsers?.has(username);
   const [blockLoading, setBlockLoading] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showCompat, setShowCompat] = useState(false);
 
   const [profile, setProfile]         = useState(null);
   const [tab, setTab]                 = useState("profile");
@@ -259,6 +265,15 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
                       className="rounded-full border border-white/15 px-4 py-2 text-[13px] font-bold text-slate-300 transition hover:bg-white/5">
                       {t.messageBtn}
                     </button>
+                    {desktop && canView && (
+                      <button type="button" onClick={()=>setShowCompat(p=>!p)} aria-pressed={showCompat} data-compat-toggle=""
+                        className="rounded-full border px-4 py-2 text-[13px] font-bold transition hover:bg-white/5"
+                        style={{borderColor:showCompat?"rgba(var(--ac-8b5cf6),0.6)":"rgba(var(--fg-rgb),0.15)",
+                          color:showCompat?"rgb(var(--ac-a78bfa))":"var(--text-2)",
+                          background:showCompat?"rgba(var(--ac-8b5cf6),0.12)":"transparent"}}>
+                        🤝 {tcompat.button}
+                      </button>
+                    )}
                   </div>
                 )}
                 <div className="relative">
@@ -287,6 +302,9 @@ export function UserProfileModal({ username, onClose, onOpenDetail, onOpenUser }
             <EmptyState emoji="🔒" title={t.privateProfileTitle} subtitle={t.privateProfileDesc} />
           ) : (
           <>
+          {desktop && !isOwnProfile && showCompat && (
+            <CompatibilityPanel profile={profile} username={username} onOpenDetail={onOpenDetail} onClose={()=>setShowCompat(false)} />
+          )}
           {/* Stats row */}
           <div className="mb-5 grid grid-cols-4 gap-2">
             {[

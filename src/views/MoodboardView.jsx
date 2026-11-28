@@ -14,6 +14,7 @@ import { GLASS, GLASS_STYLE, GRADIENT_PRIMARY, GRADIENT_TEXT } from "../constant
 import { ChipGroup, StatPill, StarRatingDisplay, GradientButton, QuickActionIcons } from "../components/ui.jsx";
 import { MOODBOARD_I18N } from "../constants/moodboardI18n.js";
 import { isDesktopApp } from "../utils/streamingLinks.js";
+import { quickProps } from "../utils/quickActions.js";
 import { isWebDesktop } from "../utils/installedApp.js";
 import { MoodStage } from "../components/MoodStage.jsx";
 
@@ -177,7 +178,7 @@ function MoodResultCard({ anime, selectedMoods, onClick, friendUsers, friendStat
   const genres = (anime.genres || []).map(g => g.name || g).slice(0, 2);
   const hasFriendHighlight = (friendUsers && friendUsers.length > 0) || !!friendStat;
   return (
-    <div role="button" tabIndex={0}
+    <div role="button" tabIndex={0} {...quickProps(anime.mal_id)}
       onClick={() => onClick?.(anime)}
       onKeyDown={e => { if(e.key==="Enter"||e.key===" ") { e.preventDefault(); onClick?.(anime); } }}
       className={`group flex cursor-pointer flex-col overflow-hidden text-left transition-all duration-300 hover:-translate-y-1 ${GLASS}`}

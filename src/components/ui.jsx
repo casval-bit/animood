@@ -101,10 +101,10 @@ export function BookmarkIcon({ filled, color = "#22c55e", size = 14 }) {
   );
 }
 
-// Eye icon for watched
-function EyeIcon({ filled, color = "rgb(var(--ac-818cf8))" }) {
+// Eye icon for watched (aussi utilisée par la carte de survol, components/QuickCardHost.jsx)
+export function EyeIcon({ filled, color = "rgb(var(--ac-818cf8))", size = 14 }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
       <circle cx="12" cy="12" r="3" fill={filled ? color : "none"}/>
     </svg>

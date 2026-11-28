@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { useApp } from "../context/useApp.js";
 import { useLang } from "../context/useLang.js";
 import { useSound } from "../context/SoundContext.jsx";
@@ -25,6 +25,10 @@ import { TrailerPlayerDesktop } from "./TrailerPlayerDesktop.jsx";
 import { youtubeIdOf } from "../utils/youtube.js";
 import { isDesktopApp, normaliseServiceName } from "../utils/streamingLinks.js";
 import { safeWebUrl } from "../utils/safeUrl.js";
+import { SHARE_TICKET_I18N } from "../constants/shareTicketI18n.js";
+
+// Ticket à partager (appli de bureau) : chargé seulement quand on l'ouvre (il embarque html2canvas pour l'export en image)
+const ShareTicketModal = lazy(() => import("./ShareTicketModal.jsx").then((m) => ({ default: m.ShareTicketModal })));
 
 const FALLBACK = "https://placehold.co/700x300/1a1a2e/818cf8?text=?";
 
@@ -144,6 +148,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
   const { lang } = useLang();
   const { playSound } = useSound();
   const t = ANIME_DETAIL_I18N[lang] || ANIME_DETAIL_I18N.fr;
+  const tt = SHARE_TICKET_I18N[lang] || SHARE_TICKET_I18N.fr;
   const [anime, setAnime]           = useState(null);
   const [staff, setStaff]           = useState([]);
   const [characters, setCharacters] = useState([]);
@@ -164,6 +169,7 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
   const [themes, setThemes]           = useState([]);
   const [artistModal, setArtistModal] = useState(null);
   const [showTrailer, setShowTrailer] = useState(false);
+  const [showTicket, setShowTicket] = useState(false);
   const [tab, setTab] = useState("overview"); // site web : « overview » | « watch » (l'appli de bureau garde sa fiche d'une seule page)
   const [artistLoading, setArtistLoading] = useState(null);
 
@@ -417,6 +423,10 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
                       <span className="flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[7px] text-white">▶</span>Trailer
                     </a>
                   ))}
+                  <button type="button" onClick={() => { playSound("click"); setShowTicket(true); }} data-ticket-open="anime" title={tt.buttonTitleAnime}
+                    className="flex h-9 items-center gap-1.5 rounded-xl border border-white/10 px-3 text-[12px] font-bold text-slate-300 transition hover:border-white/25 hover:bg-white/5">
+                    <span aria-hidden="true">🎟️</span>{tt.button}
+                  </button>
                   <button onClick={toggleWatched}
                     className={`h-9 rounded-xl px-3.5 text-[12px] font-bold transition ${isWatched ? "border border-emerald-400 bg-emerald-400/10 text-emerald-400" : "border border-white/10 text-slate-400 hover:bg-white/5"}`}>
                     {isWatched ? t.watchedBadge : t.markWatched}
@@ -762,6 +772,11 @@ export function AnimeDetailModal({ malId, seedData, onClose, onOpenDetail, onOpe
           onClose={() => setDiscussionThread(null)}
           onOpenUser={onOpenUser ? (u => { setDiscussionThread(null); onOpenUser(u); }) : null}
           onReply={() => setDiscussionsVersion(v => v + 1)}/>
+      )}
+      {showTicket && desktop && (
+        <Suspense fallback={null}>
+          <ShareTicketModal kind="anime" anime={a} onClose={() => setShowTicket(false)} />
+        </Suspense>
       )}
     </>
   );
